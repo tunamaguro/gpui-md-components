@@ -214,3 +214,108 @@ pub const SIDE_SHEET_CONTENT_SPACE: f32 = 16.0;
 
 /// サイドシートの見出しの下の余白（material-components-android のカタログの例）。
 pub const SIDE_SHEET_HEADLINE_BOTTOM_SPACE: f32 = 24.0;
+
+/// トップアプリバーの左右の余白（`TopAppBarHorizontalPadding`）。
+pub const TOP_APP_BAR_HORIZONTAL_SPACE: f32 = 4.0;
+
+/// ナビゲーションのアイコンが無いときのタイトルの左の余白（`TopAppBarTitleInset` = 16 - 4）。
+pub const TOP_APP_BAR_TITLE_INSET: f32 = 12.0;
+
+/// Medium のトップアプリバーのタイトルの下の余白（`MediumTitleBottomPadding`）。
+pub const MEDIUM_TOP_APP_BAR_TITLE_BOTTOM_SPACE: f32 = 24.0;
+
+/// Large のトップアプリバーのタイトルの下の余白（`LargeTitleBottomPadding`）。
+pub const LARGE_TOP_APP_BAR_TITLE_BOTTOM_SPACE: f32 = 28.0;
+
+/// ナビゲーションバーの項目の間隔（`NavigationBarItemHorizontalPadding`）。
+pub const NAVIGATION_BAR_ITEM_HORIZONTAL_SPACE: f32 = 8.0;
+
+/// ナビゲーションバーの選択の印とラベルの間（`NavigationBarIndicatorToLabelPadding`）。
+pub const NAVIGATION_BAR_INDICATOR_TO_LABEL_SPACE: f32 = 4.0;
+
+/// ナビゲーションバーの選択の印の上の位置（`IndicatorVerticalOffset`）。
+pub const NAVIGATION_BAR_INDICATOR_VERTICAL_OFFSET: f32 = 12.0;
+
+/// ナビゲーションレールの上下の余白と項目の間隔（`NavigationRailVerticalPadding`）。
+pub const NAVIGATION_RAIL_VERTICAL_SPACE: f32 = 4.0;
+
+/// ナビゲーションレールの先頭の要素（FAB など）の下の余白（`NavigationRailHeaderPadding`）。
+pub const NAVIGATION_RAIL_HEADER_SPACE: f32 = 8.0;
+
+/// ナビゲーションレールの項目の上下の余白（`NavigationRailItemVerticalPadding`）。
+pub const NAVIGATION_RAIL_ITEM_VERTICAL_SPACE: f32 = 4.0;
+
+/// ナビゲーションドロワーの最小の幅（`MinimumDrawerWidth`）。
+pub const NAVIGATION_DRAWER_MIN_WIDTH: f32 = 240.0;
+
+/// ナビゲーションドロワーの項目の外側の左右の余白（`NavigationDrawerItemDefaults.ItemPadding`）。
+pub const NAVIGATION_DRAWER_ITEM_HORIZONTAL_SPACE: f32 = 12.0;
+
+/// ナビゲーションドロワーの項目の内側の左の余白。
+pub const NAVIGATION_DRAWER_ITEM_START_SPACE: f32 = 16.0;
+
+/// ナビゲーションドロワーの項目の内側の右の余白。
+pub const NAVIGATION_DRAWER_ITEM_END_SPACE: f32 = 24.0;
+
+/// ナビゲーションドロワーの項目のアイコンとラベルの間。
+pub const NAVIGATION_DRAWER_ITEM_ICON_SPACE: f32 = 12.0;
+
+/// アイコンとラベルの両方を持つタブの高さ（`LargeTabHeight`）。
+pub const TAB_LARGE_HEIGHT: f32 = 72.0;
+
+/// タブのラベルの左右の余白（`HorizontalTextPadding`）。
+pub const TAB_HORIZONTAL_SPACE: f32 = 16.0;
+
+/// タブの先頭のアイコンとラベルの間（`TextDistanceFromLeadingIcon`）。
+pub const TAB_LEADING_ICON_SPACE: f32 = 8.0;
+
+/// Primary タブの選択の印の最小の幅。
+pub const TAB_INDICATOR_MIN_WIDTH: f32 = 24.0;
+
+/// スクロールするタブの行の、タブの最小の幅（`ScrollableTabRowMinTabWidth`）。
+pub const SCROLLABLE_TAB_MIN_WIDTH: f32 = 90.0;
+
+/// スクロールするタブの行の左端の余白（`ScrollableTabRowEdgeStartPadding`）。
+pub const SCROLLABLE_TAB_EDGE_START_SPACE: f32 = 52.0;
+
+/// リストの項目の上下の余白（`ListItemVerticalPadding`）。
+pub const LIST_ITEM_VERTICAL_SPACE: f32 = 8.0;
+
+/// 3 行のリストの項目の上下の余白（`ListItemThreeLineVerticalPadding`）。
+pub const LIST_ITEM_THREE_LINE_VERTICAL_SPACE: f32 = 12.0;
+
+/// リストの項目の左の余白（`ListItemStartPadding`）。
+pub const LIST_ITEM_START_SPACE: f32 = 16.0;
+
+/// リストの項目の右の余白（`ListItemEndPadding`）。
+pub const LIST_ITEM_END_SPACE: f32 = 16.0;
+
+/// リストの項目の先頭の要素の右の余白（`LeadingContentEndPadding`）。
+pub const LIST_ITEM_LEADING_END_SPACE: f32 = 16.0;
+
+/// リストの項目の末尾の要素の左の余白（`TrailingContentStartPadding`）。
+pub const LIST_ITEM_TRAILING_START_SPACE: f32 = 16.0;
+
+/// 検索バーの最小の幅（`SearchBarMinWidth`）。
+pub const SEARCH_BAR_MIN_WIDTH: f32 = 360.0;
+
+/// 検索バーの最大の幅（`SearchBarMaxWidth`）。
+pub const SEARCH_BAR_MAX_WIDTH: f32 = 720.0;
+
+/// 検索バーのアイコンを端から寄せる量（`SearchBarIconOffsetX`。テキストフィールドの 12dp と合わせて 16dp）。
+pub const SEARCH_BAR_ICON_OFFSET: f32 = 4.0;
+
+/// 検索バーの上下の余白（`SearchBarVerticalPadding`）。
+pub const SEARCH_BAR_VERTICAL_SPACE: f32 = 8.0;
+
+/// ウィンドウの幅のクラスが Medium になる幅（`WIDTH_DP_MEDIUM_LOWER_BOUND`）。
+pub const WINDOW_WIDTH_MEDIUM: f32 = 600.0;
+
+/// ウィンドウの幅のクラスが Expanded になる幅（`WIDTH_DP_EXPANDED_LOWER_BOUND`）。
+pub const WINDOW_WIDTH_EXPANDED: f32 = 840.0;
+
+/// ウィンドウの幅のクラスが Large になる幅（`WIDTH_DP_LARGE_LOWER_BOUND`）。
+pub const WINDOW_WIDTH_LARGE: f32 = 1200.0;
+
+/// ウィンドウの幅のクラスが Extra-large になる幅（`WIDTH_DP_EXTRA_LARGE_LOWER_BOUND`）。
+pub const WINDOW_WIDTH_EXTRA_LARGE: f32 = 1600.0;

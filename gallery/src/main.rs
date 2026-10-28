@@ -14,8 +14,9 @@
 mod stories;
 
 use gpui::{
-    App, Bounds, Context, Entity, FocusHandle, KeyBinding, TitlebarOptions, Window, WindowBounds,
-    WindowOptions, actions, div, prelude::*, px, size,
+    App, Bounds, Context, Entity, FocusHandle, KeyBinding, TitlebarOptions,
+    UniformListScrollHandle, Window, WindowBounds, WindowOptions, actions, div, prelude::*, px,
+    size,
 };
 use md3_components::buttons::{Segment, SegmentedButton};
 use md3_components::overlays::SnackbarHost;
@@ -48,15 +49,21 @@ enum Page {
     Inputs,
     /// オーバーレイの部品。
     Overlays,
+    /// ナビゲーションの部品。
+    Navigation,
+    /// 入れ物の部品。
+    Containment,
 }
 
 impl Page {
-    const ALL: [Page; 5] = [
+    const ALL: [Page; 7] = [
         Page::Foundations,
         Page::Buttons,
         Page::Selection,
         Page::Inputs,
         Page::Overlays,
+        Page::Navigation,
+        Page::Containment,
     ];
 }
 
@@ -99,6 +106,18 @@ pub struct Demo {
     pub side_sheet_open: bool,
     /// Modal のサイドシートを開いているか。
     pub modal_side_sheet_open: bool,
+    /// ナビゲーションで選んだ行き先。
+    pub destination: usize,
+    /// Primary のタブ。
+    pub tab: usize,
+    /// Secondary のタブ。
+    pub secondary_tab: usize,
+    /// モーダルなドロワーを開いているか。
+    pub drawer_open: bool,
+    /// リストで選んだ項目。
+    pub list_selected: Option<usize>,
+    /// LazyList で選んだ連絡先。
+    pub contact: Option<usize>,
 }
 
 impl Default for Demo {
@@ -122,6 +141,12 @@ impl Default for Demo {
             bottom_sheet_open: false,
             side_sheet_open: false,
             modal_side_sheet_open: false,
+            destination: 0,
+            tab: 0,
+            secondary_tab: 0,
+            drawer_open: false,
+            list_selected: Some(0),
+            contact: None,
         }
     }
 }
@@ -144,6 +169,7 @@ pub struct Gallery {
     demo: Demo,
     fields: stories::inputs::Fields,
     snackbar: Entity<SnackbarHost>,
+    contacts: UniformListScrollHandle,
 }
 
 impl Gallery {
@@ -155,6 +181,8 @@ impl Gallery {
             Ok("selection") => Page::Selection,
             Ok("inputs") => Page::Inputs,
             Ok("overlays") => Page::Overlays,
+            Ok("navigation") => Page::Navigation,
+            Ok("containment") => Page::Containment,
             _ => Page::Foundations,
         };
         Self {
@@ -163,6 +191,7 @@ impl Gallery {
             demo: Demo::default(),
             fields: stories::inputs::Fields::default(),
             snackbar: cx.new(|_| SnackbarHost::new("閉じる")),
+            contacts: UniformListScrollHandle::new(),
         }
     }
 
@@ -195,6 +224,8 @@ impl Render for Gallery {
             .segment(Segment::new("Selection").icon(IconName::Star))
             .segment(Segment::new("Inputs").icon(IconName::Edit))
             .segment(Segment::new("Overlays").icon(IconName::Menu))
+            .segment(Segment::new("Navigation").icon(IconName::Home))
+            .segment(Segment::new("Containment").icon(IconName::Inbox))
             .selected([page as usize])
             .on_change({
                 let view = view.clone();
@@ -222,6 +253,14 @@ impl Render for Gallery {
                 stories::overlays::page(&self.demo, &note, &self.snackbar, view, window, cx)
                     .into_any_element()
             }
+            Page::Navigation => {
+                let search = self.fields.get("search-people", "", cx);
+                stories::navigation::page(&self.demo, &search, view, window, cx).into_any_element()
+            }
+            Page::Containment => {
+                stories::containment::page(&self.demo, &self.contacts, view, window, cx)
+                    .into_any_element()
+            }
         };
 
         div()
@@ -247,7 +286,7 @@ impl Render for Gallery {
                             .color(ColorRole::OnSurfaceVariant),
                     )
                     .child(stories::theme::controls(window, cx))
-                    .child(div().w(px(760.0)).child(pages))
+                    .child(div().w(px(1100.0)).child(pages))
                     .child(content),
             )
             .child(self.snackbar.clone())

@@ -12,12 +12,16 @@
 mod a11y;
 #[cfg(feature = "buttons")]
 pub mod buttons;
+#[cfg(feature = "containment")]
+pub mod containment;
 mod control;
 mod focus;
 mod icon;
 #[cfg(feature = "inputs")]
 pub mod inputs;
 pub mod keys;
+#[cfg(feature = "navigation")]
+pub mod navigation;
 #[cfg(feature = "overlays")]
 pub mod overlays;
 #[cfg(feature = "selection")]
@@ -26,6 +30,7 @@ mod state_layer;
 mod style;
 mod surface;
 mod text;
+mod window_size;
 
 pub use a11y::{A11yNode, RangeValue, toggled};
 pub use control::ForcedState;
@@ -38,3 +43,4 @@ pub use state_layer::StateLayer;
 pub use style::StyledExt;
 pub use surface::Surface;
 pub use text::Text;
+pub use window_size::WindowSizeClass;

@@ -21,12 +21,12 @@ default = ["buttons", "selection", "inputs", "overlays", "navigation", "containm
 buttons = []
 # Checkbox, RadioButton, Switch, Chip, Slider 等（M4）
 selection = []
-# TextField, Select（M5）。Select はメニューを使う
+# TextField, Select（M5）、SearchBar（M6）。Select はメニューを使う
 inputs = ["overlays"]
 # Menu, Dialog, Tooltip, Snackbar, Sheet（M5）。Dialog などはボタンを使う
 overlays = ["buttons"]
-# TopAppBar, NavigationRail, Tabs 等（M6）
-navigation = []
+# TopAppBar, NavigationBar / Rail / Drawer, Tabs（M6）。アプリバーはアイコンボタン、モーダルなドロワーはオーバーレイを使う
+navigation = ["overlays"]
 # List, Card, Divider（M6）
 containment = []
 
