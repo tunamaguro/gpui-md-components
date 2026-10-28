@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   fmt:
-    name: Format
+    name: Format / tokens
     runs-on: ubuntu-24.04
 
     steps:
@@ -40,6 +40,10 @@ jobs:
 
       - name: Format
         run: cargo fmt --all --check
+
+      # docs/TOKENS_SOURCE.md と md3-tokens の定数の突き合わせ。xtask は std だけなのでシステム依存なしで動く。
+      - name: Check tokens
+        run: cargo run --locked -p xtask -- check-tokens
 
   check:
     name: Check (${{ matrix.os }})
