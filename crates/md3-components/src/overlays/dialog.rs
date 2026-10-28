@@ -124,7 +124,9 @@ impl Dialog {
         } else {
             Role::Dialog
         };
-        A11yNode::new(role).label(self.headline.clone())
+        A11yNode::new(role)
+            .label(self.headline.clone())
+            .modal(!self.inline)
     }
 }
 
@@ -249,5 +251,11 @@ mod tests {
             Dialog::new("d", "x").alert(true).a11y_node().role,
             Role::AlertDialog
         );
+    }
+
+    #[test]
+    fn dialog_is_modal_unless_drawn_inline() {
+        assert!(Dialog::new("d", "x").a11y_node().modal);
+        assert!(!Dialog::new("d", "x").inline().a11y_node().modal);
     }
 }

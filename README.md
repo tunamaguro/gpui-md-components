@@ -1,0 +1,135 @@
+# md-components
+
+[GPUI](https://github.com/zed-industries/zed/tree/main/crates/gpui)（Zed の UI フレームワーク）で使う、
+Material Design 3（ベースライン）の UI 部品集。Windows / macOS / Linux / Web（wasm32）で同じ見た目と操作で動き、
+キーボード操作とスクリーンリーダー向けの情報（役割・名前・状態）を全部品に付けている。
+
+- 配色: シード色から HCT 色空間でライト / ダークの配色を作る（7 バリアント × 標準 / 中 / 高コントラスト）。
+  生成した配色は全組み合わせで WCAG 2.2 のコントラスト比（文字 4.5:1、UI 部品 3:1）を満たすことをテストしている。
+- トークン: 寸法・色の割り当て・形・高さ・タイプスケールは一次資料（androidx Compose Material 3 の `*Tokens.kt` など）から
+  転記し、出典を [`docs/TOKENS_SOURCE.md`](docs/TOKENS_SOURCE.md) に記録している（`cargo xtask check-tokens` で突き合わせる）。
+- 依存は `gpui` だけ（上流 Zed の git rev を固定）。フォントは同梱しない。
+
+> 非公式の移植です。Google および Material Design チームとは関係ありません。
+
+## crate
+
+| crate | 内容 |
+| --- | --- |
+| `md3-color` | HCT 色空間・配色アルゴリズム（material-color-utilities の移植。GPU 不要） |
+| `md3-tokens` | デザイントークンの定数 |
+| `md3-icons` | Material Symbols のアイコン（よく使う 30 個） |
+| `md3-theme` | テーマ（gpui の `Global`）、gpui の型への変換、OS のライト / ダークへの追従 |
+| `md3-components` | 部品。feature で分割（下表） |
+| `gallery` | 全部品・全状態の見本アプリ |
+| `xtask` | 開発用コマンド（std のみ） |
+
+| feature | 部品 |
+| --- | --- |
+| `buttons` | Button（5 種）、IconButton、FAB / ExtendedFAB、SegmentedButton |
+| `selection` | Checkbox、RadioButton、Switch、Chip（4 種）、Slider、Progress（線形 / 円形）、Badge |
+| `inputs` | TextField（Filled / Outlined、IME 対応）、Select、SearchBar |
+| `overlays` | Menu、Dialog、Tooltip、Snackbar、BottomSheet / SideSheet |
+| `navigation` | TopAppBar（4 種）、NavigationBar / Rail / Drawer、NavigationSuite、Tabs |
+| `containment` | Card（3 種）、List / LazyList、Divider |
+
+既定ではすべて有効。各部品の仕様とキー操作は [`docs/specs/`](docs/specs/) にある。
+
+## 使い方
+
+ワークスペースの `Cargo.toml`（gpui は md-components と同じ rev にそろえる。型が別物になるため）:
+
+```toml
+[dependencies]
+gpui = { git = "https://github.com/zed-industries/zed", rev = "37faef81f74fc1bb08be9939c4cffc8ede6ced2f" }
+md3-components = { git = "https://github.com/tunamaguro/gpui-md-components" }
+```
+
+```rust
+use gpui::{App, KeyBinding, Window, actions, div, prelude::*};
+use md3_components::buttons::{Button, ButtonVariant};
+use md3_components::theme::{self, Argb, Contrast, SchemeVariant, SetMd3ThemeExt, Theme};
+
+actions!(app, [FocusNext, FocusPrev]);
+
+fn main() {
+    gpui_platform::application().run(|cx: &mut App| {
+        // Tab / Shift-Tab でフォーカスを移す（アプリ側で割り当てる）。
+        cx.bind_keys([
+            KeyBinding::new("tab", FocusNext, None),
+            KeyBinding::new("shift-tab", FocusPrev, None),
+        ]);
+        // テーマの初期化と、部品のキー操作（テキスト編集・メニュー・ダイアログ）の割り当て。
+        md3_components::init(cx);
+        cx.set_md3_theme(
+            Theme::from_seed(Argb::from_rgb(0x67, 0x50, 0xA4))
+                .variant(SchemeVariant::TonalSpot)
+                .contrast(Contrast::Standard)
+                .build(),
+        );
+        cx.open_window(Default::default(), |window, cx| {
+            // OS のライト / ダークの切り替えに追従する。
+            theme::follow_window_appearance(window, cx).detach();
+            cx.new(|_| Root)
+        })
+        .unwrap();
+    });
+}
+
+struct Root;
+
+impl Render for Root {
+    fn render(&mut self, _window: &mut Window, _cx: &mut gpui::Context<Self>) -> impl IntoElement {
+        div()
+            .on_action(|_: &FocusNext, window, cx| window.focus_next(cx))
+            .on_action(|_: &FocusPrev, window, cx| window.focus_prev(cx))
+            .child(
+                // 操作できる部品は ID（ElementId）と、読み上げられる名前を必ず取る。
+                Button::new("save", "保存")
+                    .variant(ButtonVariant::Filled)
+                    .on_click(|_, _, _| println!("saved")),
+            )
+    }
+}
+```
+
+詳しくは [利用ガイド](docs/guide.md)。
+
+## 見本（gallery）
+
+```sh
+cargo run -p gallery                    # デスクトップ
+MD3_GALLERY_PAGE=inputs cargo run -p gallery   # ページを指定して起動
+cargo xtask web                         # wasm 版を target/web/ にビルド（`nix develop` の環境で）
+python3 -m http.server -d target/web    # 静的ファイルとして配信して http://localhost:8000/ を開く
+```
+
+wasm 版で WebGPU が使えない環境では `?renderer=webgl` を付けると WebGL2 で描く。
+
+## 既知の制限
+
+GPUI 側の制約によるものが多い。全体は [利用ガイドの「既知の制限」](docs/guide.md#%E6%97%A2%E7%9F%A5%E3%81%AE%E5%88%B6%E9%99%90)、
+アクセシビリティの検証結果は [`docs/a11y-audit.md`](docs/a11y-audit.md) にある。主なもの:
+
+- **Web 版にはアクセシビリティツリーが無い。** gpui は wasm で AccessKit を組み込まない（キャンバスに描くだけ）ため、
+  Web ではスクリーンリーダーが部品を読めない。キーボード操作とフォーカスリングは動く。
+- Web ではシステムフォントを読めないため、アプリがフォントのデータを渡す必要がある。
+- M3 Expressive（バネのモーション、形のモーフ）は対象外。
+
+## 開発
+
+開発環境は Nix の flake（`nix develop`、または direnv の `use flake`）で用意する。作業の手順と規約は
+[`AGENTS.md`](AGENTS.md) と [`docs/agents/`](docs/agents/) にある。
+
+```sh
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo build -p md3-components --target wasm32-unknown-unknown
+cargo xtask check-tokens
+```
+
+## ライセンス
+
+Apache License 2.0（[`LICENSE`](LICENSE)）。Material Design のトークン値・配色アルゴリズム・アイコンは
+Apache License 2.0 の一次資料から転記・移植しており、各ファイルの先頭に出典を記している。

@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 
 mod check_tokens;
+mod web;
 
 use std::path::Path;
 use std::process::ExitCode;
@@ -14,14 +15,14 @@ const USAGE: &str = "\
 使い方: cargo xtask <サブコマンド>
 
 サブコマンド:
-  web           wasm 版ギャラリーをビルドする（M7 で実装）
+  web [--debug] wasm 版ギャラリーを target/web/ にビルドする
   check-tokens  docs/TOKENS_SOURCE.md と md3-tokens の定数を突き合わせる
   help          この説明を表示する";
 
 fn main() -> ExitCode {
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
-        Some("web") => web(),
+        Some("web") => web(args),
         Some("check-tokens") => check_tokens(),
         Some("help" | "-h" | "--help") => {
             println!("{USAGE}");
@@ -39,18 +40,31 @@ fn main() -> ExitCode {
 }
 
 /// wasm 版ギャラリーをビルドする。
-fn web() -> ExitCode {
-    eprintln!("xtask web: 未実装（M7 で整備）");
-    ExitCode::SUCCESS
+fn web(args: impl Iterator<Item = String>) -> ExitCode {
+    match web::run(workspace_root(), args) {
+        Ok(out_dir) => {
+            println!(
+                "web: {out_dir} に出力した。静的ファイルとして配信する（例: python3 -m http.server -d {out_dir}）"
+            );
+            ExitCode::SUCCESS
+        }
+        Err(message) => {
+            eprintln!("web: {message}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// ワークスペースの直下。xtask はワークスペース直下の `xtask/` にある。
+fn workspace_root() -> &'static Path {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap_or(Path::new("."))
 }
 
 /// `docs/TOKENS_SOURCE.md` の表と `md3-tokens` の定数を突き合わせる。
 fn check_tokens() -> ExitCode {
-    // xtask はワークスペース直下の `xtask/` にある。
-    let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap_or(Path::new("."));
-    match check_tokens::run(workspace_root) {
+    match check_tokens::run(workspace_root()) {
         Ok(checked) => {
             println!("check-tokens: {checked} 件の定数が TOKENS_SOURCE.md と一致");
             ExitCode::SUCCESS

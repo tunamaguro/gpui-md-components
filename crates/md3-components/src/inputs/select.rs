@@ -112,6 +112,7 @@ impl Select {
         A11yNode::new(Role::ComboBox)
             .label(self.label.clone())
             .disabled(self.disabled)
+            .invalid(self.error)
     }
 }
 
@@ -251,5 +252,7 @@ mod tests {
         assert_eq!(select.a11y_node().role, Role::ComboBox);
         assert_eq!(select.value().as_deref(), Some("青"));
         assert_eq!(Select::new("s", "色", ["赤"], Some(3)).value(), None);
+        assert!(!select.a11y_node().invalid);
+        assert!(select.error(true).a11y_node().invalid);
     }
 }

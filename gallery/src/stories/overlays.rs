@@ -57,7 +57,8 @@ fn menu_items(view: &WeakEntity<Gallery>) -> Vec<MenuItem> {
 }
 
 /// ダイアログの見本（実物と、その場に描く見本で共有）。
-fn dialog(view: &WeakEntity<Gallery>, note: &Entity<TextFieldState>) -> Dialog {
+/// 見本とモーダルで ID と入力欄の状態を分ける（同じだとフォーカスハンドルを 2 つの要素が共有する）。
+fn dialog(id: &str, view: &WeakEntity<Gallery>, note: &Entity<TextFieldState>) -> Dialog {
     let close = |action: &'static str| {
         let view = view.clone();
         move |_: &mut Window, cx: &mut App| {
@@ -67,13 +68,13 @@ fn dialog(view: &WeakEntity<Gallery>, note: &Entity<TextFieldState>) -> Dialog {
             })
         }
     };
-    Dialog::new("dialog", "下書きを破棄しますか？")
+    Dialog::new(id.to_owned(), "下書きを破棄しますか？")
         .icon(IconName::Delete)
         .supporting_text("保存していない変更は失われます。理由を書き残せます。")
         .child(
             div()
                 .pt_4()
-                .child(TextField::new("dialog-note", note, "メモ")),
+                .child(TextField::new(format!("{id}-note"), note, "メモ")),
         )
         .action(DialogAction::new("キャンセル", close("キャンセル")))
         .action(DialogAction::new("破棄", close("破棄")))
@@ -84,6 +85,7 @@ fn dialog(view: &WeakEntity<Gallery>, note: &Entity<TextFieldState>) -> Dialog {
 pub fn page(
     demo: &Demo,
     note: &Entity<TextFieldState>,
+    sample_note: &Entity<TextFieldState>,
     snackbar: &Entity<SnackbarHost>,
     view: WeakEntity<Gallery>,
     _window: &mut Window,
@@ -154,8 +156,13 @@ pub fn page(
                     .on_click(set(|demo| demo.dialog_open = true)),
             ),
         )
-        .child(sample("見本（その場に描画）", dialog(&view, note).inline()))
-        .when(demo.dialog_open, |this| this.child(dialog(&view, note)));
+        .child(sample(
+            "見本（その場に描画）",
+            dialog("dialog-sample", &view, sample_note).inline(),
+        ))
+        .when(demo.dialog_open, |this| {
+            this.child(dialog("dialog", &view, note))
+        });
 
     let tooltips = Section::new("Tooltip（ポインタを重ねる）")
         .child(
