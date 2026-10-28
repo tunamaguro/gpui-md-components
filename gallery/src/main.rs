@@ -11,18 +11,17 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod stories;
+
 use gpui::{
-    App, Bounds, Context, FocusHandle, KeyBinding, Role, SharedString, TitlebarOptions, Window,
-    WindowBounds, WindowOptions, actions, div, prelude::*, px, size,
+    App, Bounds, Context, FocusHandle, KeyBinding, TitlebarOptions, Window, WindowBounds,
+    WindowOptions, actions, div, prelude::*, px, size,
 };
+use md3_components::buttons::{Segment, SegmentedButton};
+use md3_components::selection::CheckboxState;
 use md3_components::theme::md3_color::ColorRole;
-use md3_components::theme::{
-    self, Appearance, Argb, Contrast, Density, Elevation, Md3ThemeExt, SchemeVariant,
-    SetMd3ThemeExt, Shape, Theme, TypeScale,
-};
-use md3_components::{
-    FocusRing, Icon, IconName, StateLayer, StyledExt, Surface, Text, focus_handle, is_focus_visible,
-};
+use md3_components::theme::{self, Md3ThemeExt, TypeScale};
+use md3_components::{IconName, StyledExt, Text};
 
 actions!(
     gallery,
@@ -34,25 +33,108 @@ actions!(
     ]
 );
 
-/// 切り替え UI で選べるシード色（見本用の任意の色）。
-const SEEDS: [(&str, Argb); 5] = [
-    ("Purple", theme::DEFAULT_SEED),
-    ("Blue", Argb::from_rgb(0x00, 0x61, 0xA4)),
-    ("Green", Argb::from_rgb(0x38, 0x6A, 0x20)),
-    ("Red", Argb::from_rgb(0xB3, 0x26, 0x1E)),
-    ("Orange", Argb::from_rgb(0xE8, 0x75, 0x1A)),
-];
+/// gallery のページ。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Page {
+    /// 色・文字・高さ・アイコン。
+    #[default]
+    Foundations,
+    /// ボタン類。
+    Buttons,
+    /// 選択・状態表示の部品。
+    Selection,
+}
+
+impl Page {
+    const ALL: [Page; 3] = [Page::Foundations, Page::Buttons, Page::Selection];
+}
+
+/// 操作できる見本の状態。
+#[derive(Clone, Debug)]
+pub struct Demo {
+    /// ボタンが押された回数。
+    pub clicks: u32,
+    /// トグルのアイコンボタン。
+    pub favorite: bool,
+    /// 単一選択の SegmentedButton。
+    pub segment: usize,
+    /// 複数選択の SegmentedButton。
+    pub segments: Vec<usize>,
+    /// チェックボックス（親と 2 つの子）。
+    pub checks: [bool; 2],
+    /// スイッチ。
+    pub switch: bool,
+    /// ラジオボタン。
+    pub radio: Option<usize>,
+    /// 連続値のスライダー。
+    pub volume: f32,
+    /// 離散値のスライダー。
+    pub rating: f32,
+    /// Filter チップ。
+    pub filters: [bool; 3],
+    /// Input チップ。
+    pub tags: Vec<&'static str>,
+}
+
+impl Default for Demo {
+    fn default() -> Self {
+        Self {
+            clicks: 0,
+            favorite: false,
+            segment: 0,
+            segments: vec![0],
+            checks: [true, false],
+            switch: true,
+            radio: Some(0),
+            volume: 0.4,
+            rating: 3.0,
+            filters: [true, false, false],
+            tags: vec!["rust", "gpui", "material"],
+        }
+    }
+}
+
+impl Demo {
+    /// 親のチェックボックスの状態（子の状態から決まる）。
+    pub fn parent_check(&self) -> CheckboxState {
+        match self.checks {
+            [true, true] => CheckboxState::Checked,
+            [false, false] => CheckboxState::Unchecked,
+            _ => CheckboxState::Indeterminate,
+        }
+    }
+}
 
 /// ギャラリーのルートビュー。
-struct Gallery {
+pub struct Gallery {
     focus_handle: FocusHandle,
+    page: Page,
+    demo: Demo,
 }
 
 impl Gallery {
     fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let focus_handle = cx.focus_handle();
         window.focus(&focus_handle, cx);
-        Self { focus_handle }
+        let page = match std::env::var("MD3_GALLERY_PAGE").as_deref() {
+            Ok("buttons") => Page::Buttons,
+            Ok("selection") => Page::Selection,
+            _ => Page::Foundations,
+        };
+        Self {
+            focus_handle,
+            page,
+            demo: Demo::default(),
+        }
+    }
+
+    /// 見本の状態を書き換えて再描画する。
+    pub fn update_demo(view: &gpui::WeakEntity<Self>, cx: &mut App, f: impl FnOnce(&mut Demo)) {
+        view.update(cx, |this, cx| {
+            f(&mut this.demo);
+            cx.notify();
+        })
+        .ok();
     }
 
     fn focus_next(&mut self, _: &FocusNext, window: &mut Window, cx: &mut Context<Self>) {
@@ -67,72 +149,32 @@ impl Gallery {
 impl Render for Gallery {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let current = cx.md3().clone();
-        let seed_options = SEEDS.map(|(name, seed)| {
-            let option = Choice::new(format!("seed-{name}"), name, current.seed() == seed);
-            option.render(window, cx, move |cx| {
-                let theme = cx.md3().to_builder().seed(seed).build();
-                cx.set_md3_theme(theme);
-            })
-        });
-        let variant_options = SchemeVariant::ALL.map(|variant| {
-            let name = format!("{variant:?}");
-            let option = Choice::new(
-                format!("variant-{name}"),
-                name,
-                current.variant() == variant,
-            );
-            option.render(window, cx, move |cx| {
-                let theme = cx.md3().to_builder().variant(variant).build();
-                cx.set_md3_theme(theme);
-            })
-        });
-        let contrast_options = Contrast::ALL.map(|contrast| {
-            let name = format!("{contrast:?}");
-            let option = Choice::new(
-                format!("contrast-{name}"),
-                name,
-                current.contrast() == contrast,
-            );
-            option.render(window, cx, move |cx| {
-                let theme = cx.md3().to_builder().contrast(contrast).build();
-                cx.set_md3_theme(theme);
-            })
-        });
-        let appearance_options = Appearance::ALL.map(|appearance| {
-            let name = format!("{appearance:?}");
-            let option = Choice::new(
-                format!("appearance-{name}"),
-                name,
-                current.appearance() == appearance,
-            )
-            .icon(match appearance {
-                Appearance::System => IconName::Settings,
-                Appearance::Light => IconName::LightMode,
-                Appearance::Dark => IconName::DarkMode,
+        let view = cx.entity().downgrade();
+        let page = self.page;
+        let pages = SegmentedButton::new("pages", "ページ")
+            .segment(Segment::new("Foundations").icon(IconName::Palette))
+            .segment(Segment::new("Buttons").icon(IconName::Add))
+            .segment(Segment::new("Selection").icon(IconName::Star))
+            .selected([page as usize])
+            .on_change({
+                let view = view.clone();
+                move |index, _, cx| {
+                    let page = Page::ALL.get(index).copied().unwrap_or_default();
+                    view.update(cx, |this, cx| {
+                        this.page = page;
+                        cx.notify();
+                    })
+                    .ok();
+                }
             });
-            option.render(window, cx, move |cx| {
-                let theme = cx.md3().to_builder().appearance(appearance).build();
-                cx.set_md3_theme(theme);
-            })
-        });
-        let density_options = Density::ALL.map(|density| {
-            let name = format!("{density:?}");
-            let option = Choice::new(
-                format!("density-{name}"),
-                name,
-                current.density() == density,
-            );
-            option.render(window, cx, move |cx| {
-                let theme = cx.md3().to_builder().density(density).build();
-                cx.set_md3_theme(theme);
-            })
-        });
-
-        let issues = current.check_contrast();
-        let contrast_report = if issues.is_empty() {
-            "check_contrast: no issues".to_owned()
-        } else {
-            format!("check_contrast: {} issue(s)", issues.len())
+        let content = match page {
+            Page::Foundations => stories::theme::foundations(&current).into_any_element(),
+            Page::Buttons => {
+                stories::buttons::page(&self.demo, view, window, cx).into_any_element()
+            }
+            Page::Selection => {
+                stories::selection::page(&self.demo, view, window, cx).into_any_element()
+            }
         };
 
         div()
@@ -157,240 +199,11 @@ impl Render for Gallery {
                         Text::new(TypeScale::BodySmall, gpu_description(window))
                             .color(ColorRole::OnSurfaceVariant),
                     )
-                    .child(
-                        Section::new("Theme")
-                            .child(option_row("Seed", seed_options))
-                            .child(option_row("Variant", variant_options))
-                            .child(option_row("Contrast", contrast_options))
-                            .child(option_row("Appearance", appearance_options))
-                            .child(option_row("Density", density_options))
-                            .child(
-                                Text::new(TypeScale::BodySmall, contrast_report)
-                                    .color(ColorRole::OnSurfaceVariant),
-                            ),
-                    )
-                    .child(Section::new("Color roles").child(swatches(&current)))
-                    .child(Section::new("Type scale").child(type_scale()))
-                    .child(Section::new("Elevation").child(elevations()))
-                    .child(Section::new("Icons").child(icons())),
+                    .child(stories::theme::controls(window, cx))
+                    .child(div().w(px(480.0)).child(pages))
+                    .child(content),
             )
     }
-}
-
-/// 見出し付きのまとまり。
-#[derive(IntoElement)]
-struct Section {
-    title: SharedString,
-    body: gpui::Div,
-}
-
-impl Section {
-    fn new(title: impl Into<SharedString>) -> Self {
-        Self {
-            title: title.into(),
-            body: div().flex().flex_col().gap_3(),
-        }
-    }
-}
-
-impl ParentElement for Section {
-    fn extend(&mut self, elements: impl IntoIterator<Item = gpui::AnyElement>) {
-        self.body.extend(elements);
-    }
-}
-
-impl RenderOnce for Section {
-    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
-        div()
-            .flex()
-            .flex_col()
-            .gap_3()
-            .child(Text::new(TypeScale::TitleLarge, self.title))
-            .child(self.body)
-    }
-}
-
-/// 選択肢を 1 行に並べる。
-fn option_row(
-    label: &str,
-    options: impl IntoIterator<Item = gpui::AnyElement>,
-) -> impl IntoElement {
-    div()
-        .flex()
-        .flex_wrap()
-        .items_center()
-        .gap_2()
-        .child(div().w(px(96.0)).child(
-            Text::new(TypeScale::LabelLarge, label.to_owned()).color(ColorRole::OnSurfaceVariant),
-        ))
-        .children(options)
-}
-
-/// 切り替え UI の 1 つの選択肢（M4 の部品ができるまでの、基礎部品を組み合わせた仮のボタン）。
-struct Choice {
-    id: SharedString,
-    label: SharedString,
-    selected: bool,
-    icon: Option<IconName>,
-}
-
-impl Choice {
-    fn new(id: impl Into<SharedString>, label: impl Into<SharedString>, selected: bool) -> Self {
-        Self {
-            id: id.into(),
-            label: label.into(),
-            selected,
-            icon: None,
-        }
-    }
-
-    fn icon(mut self, icon: IconName) -> Self {
-        self.icon = Some(icon);
-        self
-    }
-
-    fn render(
-        self,
-        window: &mut Window,
-        cx: &mut App,
-        on_select: impl Fn(&mut App) + 'static,
-    ) -> gpui::AnyElement {
-        let handle = focus_handle(self.id.clone(), window, cx);
-        let focused = is_focus_visible(&handle, window);
-        let theme = cx.md3();
-        let radius = theme.corner(Shape::Full);
-        let (container, content) = if self.selected {
-            (
-                ColorRole::SecondaryContainer,
-                ColorRole::OnSecondaryContainer,
-            )
-        } else {
-            (ColorRole::SurfaceContainerLow, ColorRole::OnSurface)
-        };
-        let group = self.id.clone();
-        div()
-            .id(self.id.clone())
-            .group(group.clone())
-            .relative()
-            .track_focus(&handle)
-            .role(Role::Button)
-            .aria_label(self.label.clone())
-            .aria_selected(self.selected)
-            .h(theme.dense(40.0))
-            .px_4()
-            .flex()
-            .items_center()
-            .gap_2()
-            .bg(theme.color(container))
-            .text_color(theme.color(content))
-            .border_1()
-            .border_color(theme.color(if self.selected {
-                container
-            } else {
-                ColorRole::OutlineVariant
-            }))
-            .corner_radius(radius)
-            .cursor_pointer()
-            .when_some(self.icon, |this, icon| {
-                this.child(Icon::new(icon).size(px(18.0)).color(content))
-            })
-            .when(self.selected && self.icon.is_none(), |this| {
-                this.child(Icon::new(IconName::Check).size(px(18.0)).color(content))
-            })
-            .child(Text::new(TypeScale::LabelLarge, self.label))
-            .child(
-                StateLayer::new(format!("{group}-layer"), group, content)
-                    .radius(radius)
-                    .focused(focused),
-            )
-            .child(FocusRing::new(radius).visible(focused))
-            .on_click(move |_, _, cx| on_select(cx))
-            .into_any_element()
-    }
-}
-
-/// 全カラーロールの見本。
-fn swatches(theme: &Theme) -> impl IntoElement {
-    div()
-        .flex()
-        .flex_wrap()
-        .gap_2()
-        .children(ColorRole::ALL.map(|role| {
-            let argb = theme.argb(role);
-            let content = theme::content_color(role)
-                .map(|content| theme.color(content))
-                .unwrap_or_else(|| {
-                    // 対になる前景色が無いロールは、明るさで白黒を選ぶ。
-                    if argb.lstar().value() > 50.0 {
-                        gpui::black()
-                    } else {
-                        gpui::white()
-                    }
-                });
-            div()
-                .w(px(168.0))
-                .h(px(72.0))
-                .p_2()
-                .flex()
-                .flex_col()
-                .justify_between()
-                .bg(theme.color(role))
-                .text_color(content)
-                .border_1()
-                .border_color(theme.color(ColorRole::OutlineVariant))
-                .rounded(px(8.0))
-                .child(Text::new(TypeScale::LabelMedium, role.name()))
-                .child(Text::new(
-                    TypeScale::LabelSmall,
-                    format!("#{:06X}", argb.to_u32() & 0x00FF_FFFF),
-                ))
-        }))
-}
-
-/// タイプスケール 15 種の見本。
-fn type_scale() -> impl IntoElement {
-    div()
-        .flex()
-        .flex_col()
-        .gap_2()
-        .children(TypeScale::ALL.map(|scale| Text::new(scale, format!("{scale:?} あいう Aa"))))
-}
-
-/// 高さ 6 段階の見本。
-fn elevations() -> impl IntoElement {
-    let levels = [
-        Elevation::Level0,
-        Elevation::Level1,
-        Elevation::Level2,
-        Elevation::Level3,
-        Elevation::Level4,
-        Elevation::Level5,
-    ];
-    div()
-        .flex()
-        .flex_wrap()
-        .gap_6()
-        .p_2()
-        .children(levels.map(|level| {
-            Surface::new(ColorRole::SurfaceContainerLow)
-                .elevation(level)
-                .shape(Shape::Medium)
-                .w(px(112.0))
-                .h(px(72.0))
-                .flex()
-                .items_center()
-                .justify_center()
-                .child(Text::new(TypeScale::LabelLarge, format!("{level:?}")))
-        }))
-}
-
-/// アイコンの見本。
-fn icons() -> impl IntoElement {
-    div()
-        .flex()
-        .flex_wrap()
-        .gap_4()
-        .children(IconName::ALL.map(Icon::new))
 }
 
 fn run(probe: bool) {
@@ -400,7 +213,7 @@ fn run(probe: bool) {
             KeyBinding::new("tab", FocusNext, None),
             KeyBinding::new("shift-tab", FocusPrev, None),
         ]);
-        let bounds = Bounds::centered(None, size(px(960.), px(720.)), cx);
+        let bounds = Bounds::centered(None, size(px(1200.), px(900.)), cx);
         let opened = cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),

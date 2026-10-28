@@ -8,13 +8,21 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod a11y;
+#[cfg(feature = "buttons")]
+pub mod buttons;
+mod control;
 mod focus;
 mod icon;
+#[cfg(feature = "selection")]
+pub mod selection;
 mod state_layer;
 mod style;
 mod surface;
 mod text;
 
+pub use a11y::{A11yNode, RangeValue, toggled};
+pub use control::ForcedState;
 pub use focus::{FocusRing, focus_handle, is_focus_visible};
 pub use icon::Icon;
 pub use md3_icons::IconName;
