@@ -188,6 +188,11 @@ impl ColorRole {
         ColorRole::OnTertiaryFixedVariant,
     ];
 
+    /// [`ColorRole::ALL`] の中での位置。役割ごとの表を配列で持つときに使う。
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+
     /// 移植元と同じ snake_case の名前（例: `on_primary_container`）。
     pub const fn name(self) -> &'static str {
         match self {

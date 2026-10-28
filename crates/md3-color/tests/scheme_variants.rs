@@ -1325,3 +1325,10 @@ fn vibrant_dark_theme_max_contrast_surface() {
     let s = scheme(0xff_0000ff, Variant::Vibrant, true, 1.0);
     assert_argb(&s, ColorRole::Surface, 0xff12131c);
 }
+
+#[test]
+fn role_index_matches_position_in_all() {
+    for (i, role) in ColorRole::ALL.iter().enumerate() {
+        assert_eq!(role.index(), i, "{}", role.name());
+    }
+}

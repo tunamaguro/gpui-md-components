@@ -18,3 +18,12 @@ pub const DRAGGED_STATE_LAYER_OPACITY: f32 = 0.16;
 ///
 /// コンテナの不透明度はコンポーネントごとに異なるため、各コンポーネントのトークンに置く。
 pub const DISABLED_CONTENT_OPACITY: f32 = 0.38;
+
+/// フォーカスインジケーター（フォーカスリング）の太さ（dp）。
+pub const FOCUS_INDICATOR_THICKNESS: f32 = 3.0;
+
+/// フォーカスインジケーターと要素の外側の間隔（dp）。
+pub const FOCUS_INDICATOR_OUTER_OFFSET: f32 = 2.0;
+
+/// フォーカスインジケーターの色のロール。
+pub const FOCUS_INDICATOR_COLOR: md3_color::ColorRole = md3_color::ColorRole::Secondary;
