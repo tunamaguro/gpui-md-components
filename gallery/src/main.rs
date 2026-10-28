@@ -14,10 +14,11 @@
 mod stories;
 
 use gpui::{
-    App, Bounds, Context, FocusHandle, KeyBinding, TitlebarOptions, Window, WindowBounds,
+    App, Bounds, Context, Entity, FocusHandle, KeyBinding, TitlebarOptions, Window, WindowBounds,
     WindowOptions, actions, div, prelude::*, px, size,
 };
 use md3_components::buttons::{Segment, SegmentedButton};
+use md3_components::overlays::SnackbarHost;
 use md3_components::selection::CheckboxState;
 use md3_components::theme::md3_color::ColorRole;
 use md3_components::theme::{self, Md3ThemeExt, TypeScale};
@@ -43,10 +44,20 @@ enum Page {
     Buttons,
     /// 選択・状態表示の部品。
     Selection,
+    /// 入力の部品。
+    Inputs,
+    /// オーバーレイの部品。
+    Overlays,
 }
 
 impl Page {
-    const ALL: [Page; 3] = [Page::Foundations, Page::Buttons, Page::Selection];
+    const ALL: [Page; 5] = [
+        Page::Foundations,
+        Page::Buttons,
+        Page::Selection,
+        Page::Inputs,
+        Page::Overlays,
+    ];
 }
 
 /// 操作できる見本の状態。
@@ -74,6 +85,20 @@ pub struct Demo {
     pub filters: [bool; 3],
     /// Input チップ。
     pub tags: Vec<&'static str>,
+    /// Select で選んだ色。
+    pub color: Option<usize>,
+    /// メニュー・ダイアログで最後に選んだ操作。
+    pub last_action: Option<&'static str>,
+    /// メニューを開いているか。
+    pub menu_open: bool,
+    /// ダイアログを開いているか。
+    pub dialog_open: bool,
+    /// ボトムシートを開いているか。
+    pub bottom_sheet_open: bool,
+    /// Standard のサイドシートを出しているか。
+    pub side_sheet_open: bool,
+    /// Modal のサイドシートを開いているか。
+    pub modal_side_sheet_open: bool,
 }
 
 impl Default for Demo {
@@ -90,6 +115,13 @@ impl Default for Demo {
             rating: 3.0,
             filters: [true, false, false],
             tags: vec!["rust", "gpui", "material"],
+            color: None,
+            last_action: None,
+            menu_open: false,
+            dialog_open: false,
+            bottom_sheet_open: false,
+            side_sheet_open: false,
+            modal_side_sheet_open: false,
         }
     }
 }
@@ -110,6 +142,8 @@ pub struct Gallery {
     focus_handle: FocusHandle,
     page: Page,
     demo: Demo,
+    fields: stories::inputs::Fields,
+    snackbar: Entity<SnackbarHost>,
 }
 
 impl Gallery {
@@ -119,12 +153,16 @@ impl Gallery {
         let page = match std::env::var("MD3_GALLERY_PAGE").as_deref() {
             Ok("buttons") => Page::Buttons,
             Ok("selection") => Page::Selection,
+            Ok("inputs") => Page::Inputs,
+            Ok("overlays") => Page::Overlays,
             _ => Page::Foundations,
         };
         Self {
             focus_handle,
             page,
             demo: Demo::default(),
+            fields: stories::inputs::Fields::default(),
+            snackbar: cx.new(|_| SnackbarHost::new("閉じる")),
         }
     }
 
@@ -155,6 +193,8 @@ impl Render for Gallery {
             .segment(Segment::new("Foundations").icon(IconName::Palette))
             .segment(Segment::new("Buttons").icon(IconName::Add))
             .segment(Segment::new("Selection").icon(IconName::Star))
+            .segment(Segment::new("Inputs").icon(IconName::Edit))
+            .segment(Segment::new("Overlays").icon(IconName::Menu))
             .selected([page as usize])
             .on_change({
                 let view = view.clone();
@@ -174,6 +214,13 @@ impl Render for Gallery {
             }
             Page::Selection => {
                 stories::selection::page(&self.demo, view, window, cx).into_any_element()
+            }
+            Page::Inputs => stories::inputs::page(&self.demo, &mut self.fields, view, window, cx)
+                .into_any_element(),
+            Page::Overlays => {
+                let note = self.fields.get("dialog-note", "", cx);
+                stories::overlays::page(&self.demo, &note, &self.snackbar, view, window, cx)
+                    .into_any_element()
             }
         };
 
@@ -200,19 +247,21 @@ impl Render for Gallery {
                             .color(ColorRole::OnSurfaceVariant),
                     )
                     .child(stories::theme::controls(window, cx))
-                    .child(div().w(px(480.0)).child(pages))
+                    .child(div().w(px(760.0)).child(pages))
                     .child(content),
             )
+            .child(self.snackbar.clone())
     }
 }
 
 fn run(probe: bool) {
     gpui_platform::application().run(move |cx: &mut App| {
-        theme::init(cx);
         cx.bind_keys([
             KeyBinding::new("tab", FocusNext, None),
             KeyBinding::new("shift-tab", FocusPrev, None),
         ]);
+        // 部品の割り当て（ダイアログの中の Tab など）がアプリの Tab より優先されるよう、後から足す。
+        md3_components::init(cx);
         let bounds = Bounds::centered(None, size(px(1200.), px(900.)), cx);
         let opened = cx.open_window(
             WindowOptions {

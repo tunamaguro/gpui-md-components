@@ -160,6 +160,7 @@ pub struct Button {
     disabled: bool,
     on_click: Option<ClickHandler>,
     forced: Option<ForcedState>,
+    content_role: Option<ColorRole>,
 }
 
 impl Button {
@@ -173,6 +174,7 @@ impl Button {
             disabled: false,
             on_click: None,
             forced: None,
+            content_role: None,
         }
     }
 
@@ -210,6 +212,13 @@ impl Button {
         self
     }
 
+    /// 内容（ラベル・アイコン・状態レイヤー）の色のロールを変える（Snackbar の操作など）。
+    #[cfg_attr(not(feature = "overlays"), allow(dead_code))]
+    pub(crate) fn content_color(mut self, role: ColorRole) -> Self {
+        self.content_role = Some(role);
+        self
+    }
+
     /// アクセシビリティツリーに出す情報。
     pub fn a11y_node(&self) -> A11yNode {
         A11yNode::new(Role::Button)
@@ -230,7 +239,7 @@ impl RenderOnce for Button {
                 .color(style.disabled_content)
                 .opacity(style.disabled_content_opacity)
         } else {
-            theme.color(style.content)
+            theme.color(self.content_role.unwrap_or(style.content))
         };
         let leading = if self.icon.is_some() {
             style.leading_space_with_icon
@@ -287,7 +296,7 @@ impl RenderOnce for Button {
             }
         }
 
-        let content_role = style.content;
+        let content_role = self.content_role.unwrap_or(style.content);
         button
             .when_some(self.icon, |this, icon| {
                 this.child(

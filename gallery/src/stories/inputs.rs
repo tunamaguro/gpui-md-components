@@ -1,0 +1,203 @@
+//! 入力の部品のページ。
+
+use std::collections::HashMap;
+
+use gpui::{AnyElement, App, Entity, IntoElement, WeakEntity, Window, div, prelude::*, px};
+use md3_components::inputs::{Select, TextField, TextFieldState, TextFieldVariant};
+use md3_components::theme::TypeScale;
+use md3_components::theme::md3_color::ColorRole;
+use md3_components::{ForcedState, IconName, Text};
+
+use super::Section;
+use crate::{Demo, Gallery};
+
+/// テキストフィールドの中身（描画をまたいで残す）。
+#[derive(Default)]
+pub struct Fields {
+    states: HashMap<String, Entity<TextFieldState>>,
+}
+
+impl Fields {
+    /// `key` の中身を返す。なければ `initial` を入れて作る。
+    pub fn get(&mut self, key: &str, initial: &str, cx: &mut App) -> Entity<TextFieldState> {
+        self.states
+            .entry(key.to_owned())
+            .or_insert_with(|| {
+                let initial = initial.to_owned();
+                cx.new(|cx| TextFieldState::new(cx).with_text(initial))
+            })
+            .clone()
+    }
+}
+
+/// 状態の見本の列（テキストフィールドに押下の状態はないため、代わりにエラーを並べる）。
+const FIELD_STATES: [&str; 5] = ["Enabled", "Hovered", "Focused", "Error", "Disabled"];
+
+/// 見出し付きの見本 1 つ。
+fn labeled(label: &str, element: impl IntoElement) -> AnyElement {
+    div()
+        .w(px(296.0))
+        .flex()
+        .flex_col()
+        .gap_1()
+        .child(
+            Text::new(TypeScale::LabelMedium, label.to_owned()).color(ColorRole::OnSurfaceVariant),
+        )
+        .child(element)
+        .into_any_element()
+}
+
+/// 入力の部品のページ。
+pub fn page(
+    demo: &Demo,
+    fields: &mut Fields,
+    view: WeakEntity<Gallery>,
+    _window: &mut Window,
+    cx: &mut App,
+) -> impl IntoElement {
+    let mut section = |variant: TextFieldVariant, name: &str, fields: &mut Fields| {
+        let cells: Vec<AnyElement> = FIELD_STATES
+            .iter()
+            .map(|&state| {
+                let key = format!("{name}-{state}");
+                let empty = fields.get(&format!("{key}-empty"), "", cx);
+                let filled = fields.get(&format!("{key}-filled"), "入力した文字", cx);
+                let make = |id: String, entity: &Entity<TextFieldState>| {
+                    let field = TextField::new(id, entity, "ラベル")
+                        .variant(variant)
+                        .placeholder("例")
+                        .supporting_text(if state == "Error" {
+                            "エラーの説明"
+                        } else {
+                            "補助テキスト"
+                        });
+                    match state {
+                        "Hovered" => field.forced(ForcedState::Hovered),
+                        "Focused" => field.forced(ForcedState::Focused),
+                        "Error" => field.error(true),
+                        "Disabled" => field.disabled(true),
+                        _ => field,
+                    }
+                };
+                labeled(
+                    state,
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap_2()
+                        .child(make(format!("{key}-empty"), &empty))
+                        .child(make(format!("{key}-filled"), &filled)),
+                )
+            })
+            .collect();
+        Section::new(format!("{name} text field"))
+            .child(div().flex().flex_wrap().gap_6().children(cells))
+    };
+    let filled = section(TextFieldVariant::Filled, "Filled", fields);
+    let outlined = section(TextFieldVariant::Outlined, "Outlined", fields);
+
+    let name = fields.get("name", "", cx);
+    let email = fields.get("email", "user@", cx);
+    let price = fields.get("price", "1200", cx);
+    let bio = fields.get("bio", "", cx);
+    let search = fields.get("search", "", cx);
+    let email_text = email.read(cx).text().to_owned();
+    let email_invalid = !email_text.is_empty() && !email_text.contains('.');
+    let bio_len = bio.read(cx).text().chars().count();
+    let examples = Section::new("使ってみる（Tab で移動、日本語 IME で入力できる）").child(
+        div()
+            .flex()
+            .flex_wrap()
+            .gap_6()
+            .child(labeled(
+                "Filled",
+                TextField::new("name", &name, "名前").placeholder("山田 太郎"),
+            ))
+            .child(labeled(
+                "Outlined・入力の検証",
+                TextField::new("email", &email, "メールアドレス")
+                    .variant(TextFieldVariant::Outlined)
+                    .error(email_invalid)
+                    .supporting_text(if email_invalid {
+                        "ドメインに . がありません"
+                    } else {
+                        "user@example.com の形式"
+                    }),
+            ))
+            .child(labeled(
+                "接頭辞・接尾辞",
+                TextField::new("price", &price, "価格")
+                    .variant(TextFieldVariant::Outlined)
+                    .prefix("¥")
+                    .suffix("円（税込）"),
+            ))
+            .child(labeled(
+                "文字数カウンタ",
+                TextField::new("bio", &bio, "自己紹介")
+                    .max_length(40)
+                    .error(bio_len > 40)
+                    .supporting_text("40 文字まで"),
+            ))
+            .child(labeled(
+                "アイコン",
+                TextField::new("search", &search, "検索")
+                    .leading_icon(IconName::Search)
+                    .trailing_icon(IconName::Mail),
+            )),
+    );
+
+    const COLORS: [&str; 5] = ["赤", "緑", "青", "黄", "紫"];
+    let select = |id: &str, variant: TextFieldVariant, selected: Option<usize>| {
+        let view = view.clone();
+        Select::new(id.to_owned(), "色", COLORS, selected)
+            .variant(variant)
+            .supporting_text("↓ / Enter で開く")
+            .on_change(move |index, _, cx| {
+                Gallery::update_demo(&view, cx, |demo| demo.color = Some(index))
+            })
+    };
+    let select_states = |variant: TextFieldVariant, name: &str| {
+        let cells: Vec<AnyElement> = FIELD_STATES
+            .iter()
+            .map(|&state| {
+                let field = Select::new(format!("select-{name}-{state}"), "色", COLORS, Some(2))
+                    .variant(variant);
+                let field = match state {
+                    "Hovered" => field.forced(ForcedState::Hovered),
+                    "Focused" => field.forced(ForcedState::Focused),
+                    "Error" => field.error(true).supporting_text("選んでください"),
+                    "Disabled" => field.disabled(true),
+                    _ => field,
+                };
+                labeled(state, field)
+            })
+            .collect();
+        div().flex().flex_wrap().gap_6().children(cells)
+    };
+    let selects = Section::new("Select")
+        .child(
+            div()
+                .flex()
+                .flex_wrap()
+                .gap_6()
+                .child(labeled(
+                    "Filled",
+                    select("select-filled", TextFieldVariant::Filled, demo.color),
+                ))
+                .child(labeled(
+                    "Outlined",
+                    select("select-outlined", TextFieldVariant::Outlined, demo.color),
+                )),
+        )
+        .child(select_states(TextFieldVariant::Filled, "filled"))
+        .child(select_states(TextFieldVariant::Outlined, "outlined"));
+
+    div()
+        .flex()
+        .flex_col()
+        .gap_8()
+        .child(examples)
+        .child(selects)
+        .child(filled)
+        .child(outlined)
+}

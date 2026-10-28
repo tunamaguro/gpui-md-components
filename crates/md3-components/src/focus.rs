@@ -30,6 +30,7 @@ pub fn focus_handle(id: impl Into<ElementId>, window: &mut Window, cx: &mut App)
 pub struct FocusRing {
     radius: CornerRadius,
     visible: bool,
+    inward: bool,
 }
 
 impl FocusRing {
@@ -38,7 +39,14 @@ impl FocusRing {
         Self {
             radius,
             visible: true,
+            inward: false,
         }
+    }
+
+    /// 要素の内側に描く（リストやメニューの項目のように、外側が切り取られる要素で使う）。
+    pub fn inward(mut self) -> Self {
+        self.inward = true;
+        self
     }
 
     /// 表示するか。通常は [`is_focus_visible`] の結果を渡す。
@@ -51,7 +59,11 @@ impl FocusRing {
 impl RenderOnce for FocusRing {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let thickness = px(state::FOCUS_INDICATOR_THICKNESS);
-        let outset: Pixels = thickness + px(state::FOCUS_INDICATOR_OUTER_OFFSET);
+        let outset: Pixels = if self.inward {
+            -px(state::FOCUS_INDICATOR_INWARD_OFFSET)
+        } else {
+            thickness + px(state::FOCUS_INDICATOR_OUTER_OFFSET)
+        };
         let ring = div()
             .absolute()
             .top(-outset)
