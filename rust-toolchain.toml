@@ -1,5 +1,6 @@
 [toolchain]
 # 上流 zed（固定 rev）と同じ版に揃える。
+# rust-analyzer / rust-src はローカル開発用なので、CI に入らないようここには書かず nix/toolchain.nix で足す。
 channel = "1.98.1"
-components = ["rustfmt", "clippy", "rust-analyzer", "rust-src"]
+components = ["rustfmt", "clippy"]
 targets = ["wasm32-unknown-unknown"]
