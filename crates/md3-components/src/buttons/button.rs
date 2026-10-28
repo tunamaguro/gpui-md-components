@@ -1,0 +1,345 @@
+//! Button（Elevated / Filled / Filled tonal / Outlined / Text）。
+
+use gpui::{
+    App, ClickEvent, ElementId, IntoElement, RenderOnce, Role, SharedString, Window, prelude::*, px,
+};
+use md3_theme::md3_color::ColorRole;
+use md3_theme::md3_tokens::component::{
+    baseline_button, elevated_button, filled_button, filled_tonal_button, outlined_button,
+    text_button,
+};
+use md3_theme::md3_tokens::layout;
+use md3_theme::{Elevation, Md3ThemeExt};
+
+use crate::a11y::{A11yExt, A11yNode};
+use crate::control::control;
+use crate::{FocusRing, ForcedState, Icon, IconName, StateLayer, StyledExt};
+
+/// ボタンの種類。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum ButtonVariant {
+    /// 影のあるボタン。
+    Elevated,
+    /// 塗りつぶしのボタン（最も強い強調）。
+    #[default]
+    Filled,
+    /// 落ち着いた色の塗りつぶしのボタン。
+    FilledTonal,
+    /// 枠線のボタン。
+    Outlined,
+    /// 文字だけのボタン（最も弱い強調）。
+    Text,
+}
+
+impl ButtonVariant {
+    /// すべての種類。
+    pub const ALL: [ButtonVariant; 5] = [
+        ButtonVariant::Elevated,
+        ButtonVariant::Filled,
+        ButtonVariant::FilledTonal,
+        ButtonVariant::Outlined,
+        ButtonVariant::Text,
+    ];
+}
+
+/// 種類ごとの見た目（トークンの値）。
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct ButtonStyle {
+    pub container: Option<ColorRole>,
+    pub content: ColorRole,
+    pub outline: Option<ColorRole>,
+    pub elevation: f32,
+    pub hovered_elevation: f32,
+    pub disabled_container_opacity: f32,
+    pub disabled_content: ColorRole,
+    pub disabled_content_opacity: f32,
+    pub leading_space: f32,
+    pub leading_space_with_icon: f32,
+    pub trailing_space: f32,
+}
+
+impl ButtonStyle {
+    pub(crate) fn of(variant: ButtonVariant) -> Self {
+        let filled_spacing = |style: Self| Self {
+            leading_space: baseline_button::LEADING_SPACE,
+            leading_space_with_icon: layout::BUTTON_WITH_ICON_LEADING_SPACE,
+            trailing_space: baseline_button::TRAILING_SPACE,
+            ..style
+        };
+        match variant {
+            ButtonVariant::Elevated => filled_spacing(Self {
+                container: Some(elevated_button::CONTAINER_COLOR),
+                content: elevated_button::LABEL_TEXT_COLOR,
+                outline: None,
+                elevation: elevated_button::CONTAINER_ELEVATION,
+                hovered_elevation: elevated_button::HOVERED_CONTAINER_ELEVATION,
+                disabled_container_opacity: elevated_button::DISABLED_CONTAINER_OPACITY,
+                disabled_content: elevated_button::DISABLED_LABEL_TEXT_COLOR,
+                disabled_content_opacity: elevated_button::DISABLED_LABEL_TEXT_OPACITY,
+                ..Self::EMPTY
+            }),
+            ButtonVariant::Filled => filled_spacing(Self {
+                container: Some(filled_button::CONTAINER_COLOR),
+                content: filled_button::LABEL_TEXT_COLOR,
+                outline: None,
+                elevation: filled_button::CONTAINER_ELEVATION,
+                hovered_elevation: filled_button::HOVERED_CONTAINER_ELEVATION,
+                disabled_container_opacity: filled_button::DISABLED_CONTAINER_OPACITY,
+                disabled_content: filled_button::DISABLED_LABEL_TEXT_COLOR,
+                disabled_content_opacity: filled_button::DISABLED_LABEL_TEXT_OPACITY,
+                ..Self::EMPTY
+            }),
+            ButtonVariant::FilledTonal => filled_spacing(Self {
+                container: Some(filled_tonal_button::CONTAINER_COLOR),
+                content: filled_tonal_button::LABEL_TEXT_COLOR,
+                outline: None,
+                elevation: filled_tonal_button::CONTAINER_ELEVATION,
+                hovered_elevation: filled_tonal_button::HOVER_CONTAINER_ELEVATION,
+                disabled_container_opacity: filled_tonal_button::DISABLED_CONTAINER_OPACITY,
+                disabled_content: filled_tonal_button::DISABLED_LABEL_TEXT_COLOR,
+                disabled_content_opacity: filled_tonal_button::DISABLED_LABEL_TEXT_OPACITY,
+                ..Self::EMPTY
+            }),
+            ButtonVariant::Outlined => filled_spacing(Self {
+                container: None,
+                content: outlined_button::LABEL_TEXT_COLOR,
+                outline: Some(outlined_button::OUTLINE_COLOR),
+                elevation: 0.0,
+                hovered_elevation: 0.0,
+                disabled_container_opacity: outlined_button::DISABLED_CONTAINER_OPACITY,
+                disabled_content: outlined_button::DISABLED_LABEL_TEXT_COLOR,
+                disabled_content_opacity: outlined_button::DISABLED_LABEL_TEXT_OPACITY,
+                ..Self::EMPTY
+            }),
+            // Compose（Button.kt の defaultTextButtonColors）は、トークンの LabelColor
+            // （OnSurfaceVariant）が誤りだとして Primary を使っている。それに合わせる。
+            ButtonVariant::Text => Self {
+                container: None,
+                content: ColorRole::Primary,
+                outline: None,
+                elevation: 0.0,
+                hovered_elevation: 0.0,
+                disabled_container_opacity: 0.0,
+                disabled_content: text_button::DISABLED_LABEL_COLOR,
+                disabled_content_opacity: text_button::DISABLED_LABEL_OPACITY,
+                leading_space: layout::TEXT_BUTTON_HORIZONTAL_SPACE,
+                leading_space_with_icon: layout::TEXT_BUTTON_HORIZONTAL_SPACE,
+                trailing_space: layout::TEXT_BUTTON_WITH_ICON_TRAILING_SPACE,
+            },
+        }
+    }
+
+    const EMPTY: Self = Self {
+        container: None,
+        content: ColorRole::Primary,
+        outline: None,
+        elevation: 0.0,
+        hovered_elevation: 0.0,
+        disabled_container_opacity: 0.0,
+        disabled_content: ColorRole::OnSurface,
+        disabled_content_opacity: 0.0,
+        leading_space: 0.0,
+        leading_space_with_icon: 0.0,
+        trailing_space: 0.0,
+    };
+}
+
+type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+
+/// ボタン。
+///
+/// ```ignore
+/// Button::new("save", "保存").variant(ButtonVariant::Filled).on_click(|_, _, cx| { … })
+/// ```
+#[derive(IntoElement)]
+pub struct Button {
+    id: ElementId,
+    label: SharedString,
+    variant: ButtonVariant,
+    icon: Option<IconName>,
+    disabled: bool,
+    on_click: Option<ClickHandler>,
+    forced: Option<ForcedState>,
+}
+
+impl Button {
+    /// ID とラベルから作る。
+    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            variant: ButtonVariant::default(),
+            icon: None,
+            disabled: false,
+            on_click: None,
+            forced: None,
+        }
+    }
+
+    /// 種類を変える。
+    pub fn variant(mut self, variant: ButtonVariant) -> Self {
+        self.variant = variant;
+        self
+    }
+
+    /// ラベルの前にアイコンを置く。
+    pub fn icon(mut self, icon: IconName) -> Self {
+        self.icon = Some(icon);
+        self
+    }
+
+    /// 無効にする。
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self
+    }
+
+    /// 押されたときの処理（クリック、Enter、Space）。
+    pub fn on_click(
+        mut self,
+        handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_click = Some(Box::new(handler));
+        self
+    }
+
+    /// 見本用に状態を固定する。
+    #[doc(hidden)]
+    pub fn forced(mut self, forced: ForcedState) -> Self {
+        self.forced = Some(forced);
+        self
+    }
+
+    /// アクセシビリティツリーに出す情報。
+    pub fn a11y_node(&self) -> A11yNode {
+        A11yNode::new(Role::Button)
+            .label(self.label.clone())
+            .disabled(self.disabled)
+    }
+}
+
+impl RenderOnce for Button {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let node = self.a11y_node();
+        let (base, control) = control(&self.id, self.disabled, true, self.forced, window, cx);
+        let theme = cx.md3();
+        let style = ButtonStyle::of(self.variant);
+        let radius = theme.corner(baseline_button::CONTAINER_SHAPE_ROUND);
+        let content = if self.disabled {
+            theme
+                .color(style.disabled_content)
+                .opacity(style.disabled_content_opacity)
+        } else {
+            theme.color(style.content)
+        };
+        let leading = if self.icon.is_some() {
+            style.leading_space_with_icon
+        } else {
+            style.leading_space
+        };
+        let trailing = if self.icon.is_some() || self.variant != ButtonVariant::Text {
+            style.trailing_space
+        } else {
+            style.leading_space
+        };
+
+        let mut button = base
+            .a11y(node)
+            .h(theme.dense(baseline_button::CONTAINER_HEIGHT))
+            .min_w(px(layout::BUTTON_MIN_WIDTH))
+            .pl(px(leading))
+            .pr(px(trailing))
+            .flex()
+            .items_center()
+            .justify_center()
+            .gap(px(baseline_button::ICON_LABEL_SPACE))
+            .corner_radius(radius)
+            .text_color(content)
+            .type_style(&theme.text_style(filled_tonal_button::LABEL_TEXT_FONT));
+
+        if let Some(container) = style.container {
+            button = if self.disabled {
+                button.bg(theme
+                    .color(filled_button::DISABLED_CONTAINER_COLOR)
+                    .opacity(style.disabled_container_opacity))
+            } else {
+                button.bg(theme.color(container))
+            };
+        }
+        if let Some(outline) = style.outline {
+            let color = if self.disabled {
+                theme
+                    .color(outline)
+                    .opacity(style.disabled_container_opacity)
+            } else {
+                theme.color(outline)
+            };
+            button = button.border_1().border_color(color);
+        }
+        if !self.disabled && style.hovered_elevation > 0.0 {
+            let hovered = theme.shadows(Elevation::from_dp(style.hovered_elevation));
+            if self.forced == Some(ForcedState::Hovered) {
+                button = button.shadow(hovered);
+            } else {
+                button = button
+                    .shadow(theme.shadows(Elevation::from_dp(style.elevation)))
+                    .hover(move |s| s.shadow(hovered.clone()));
+            }
+        }
+
+        let content_role = style.content;
+        button
+            .when_some(self.icon, |this, icon| {
+                this.child(
+                    Icon::new(icon)
+                        .size(px(layout::BUTTON_ICON_SIZE))
+                        .tint(content),
+                )
+            })
+            .child(self.label)
+            .child(
+                StateLayer::new(
+                    ElementId::from(SharedString::from(format!("{}-layer", control.group))),
+                    control.group.clone(),
+                    content_role,
+                )
+                .radius(radius)
+                .focused(control.focus_visible)
+                .disabled(self.disabled)
+                .forced(self.forced),
+            )
+            .child(FocusRing::new(radius).visible(control.focus_visible))
+            .when_some(self.on_click.filter(|_| !self.disabled), |this, handler| {
+                this.on_click(handler)
+            })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn filled_button_uses_primary() {
+        let style = ButtonStyle::of(ButtonVariant::Filled);
+        assert_eq!(style.container, Some(ColorRole::Primary));
+        assert_eq!(style.content, ColorRole::OnPrimary);
+        assert!(style.hovered_elevation > style.elevation);
+    }
+
+    #[test]
+    fn outlined_and_text_buttons_have_no_container() {
+        for variant in [ButtonVariant::Outlined, ButtonVariant::Text] {
+            assert_eq!(ButtonStyle::of(variant).container, None);
+        }
+        assert!(ButtonStyle::of(ButtonVariant::Outlined).outline.is_some());
+    }
+
+    #[test]
+    fn button_is_a_button_with_its_label() {
+        let node = Button::new("b", "保存").disabled(true).a11y_node();
+        assert_eq!(node.role, Role::Button);
+        assert_eq!(node.label.as_deref(), Some("保存"));
+        assert!(node.disabled);
+    }
+}

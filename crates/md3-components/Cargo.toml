@@ -29,3 +29,6 @@ overlays = []
 navigation = []
 # List, Card, Divider（M6）
 containment = []
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }

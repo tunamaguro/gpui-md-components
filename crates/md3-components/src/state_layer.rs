@@ -5,7 +5,7 @@ use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::state;
 use md3_theme::{CornerRadius, Md3ThemeExt};
 
-use crate::StyledExt;
+use crate::{ForcedState, StyledExt};
 
 /// 操作要素に重ねる状態レイヤー。
 ///
@@ -22,6 +22,7 @@ pub struct StateLayer {
     radius: CornerRadius,
     focused: bool,
     disabled: bool,
+    forced: Option<ForcedState>,
 }
 
 impl StateLayer {
@@ -34,6 +35,7 @@ impl StateLayer {
             radius: CornerRadius::Fixed(gpui::px(0.0)),
             focused: false,
             disabled: false,
+            forced: None,
         }
     }
 
@@ -46,6 +48,13 @@ impl StateLayer {
     /// フォーカスがあるか（キーボード操作でフォーカスしたときだけ `true` にする）。
     pub fn focused(mut self, focused: bool) -> Self {
         self.focused = focused;
+        self
+    }
+
+    /// 見本用に状態を固定する。
+    #[doc(hidden)]
+    pub fn forced(mut self, forced: Option<ForcedState>) -> Self {
+        self.forced = forced;
         self
     }
 
@@ -66,6 +75,14 @@ impl RenderOnce for StateLayer {
             .corner_radius(self.radius);
         if self.disabled {
             return layer;
+        }
+        if let Some(forced) = self.forced {
+            let opacity = match forced {
+                ForcedState::Hovered => state::HOVER_STATE_LAYER_OPACITY,
+                ForcedState::Focused => state::FOCUS_STATE_LAYER_OPACITY,
+                ForcedState::Pressed => state::PRESSED_STATE_LAYER_OPACITY,
+            };
+            return layer.bg(color.opacity(opacity));
         }
         let layer = if self.focused {
             layer.bg(color.opacity(state::FOCUS_STATE_LAYER_OPACITY))

@@ -38,6 +38,26 @@ pub enum Elevation {
 }
 
 impl Elevation {
+    /// すべてのレベル（低い順）。
+    pub const ALL: [Elevation; 6] = [
+        Elevation::Level0,
+        Elevation::Level1,
+        Elevation::Level2,
+        Elevation::Level3,
+        Elevation::Level4,
+        Elevation::Level5,
+    ];
+
+    /// 高さ（dp）に対応するレベル。コンポーネントのトークンは高さを dp で持つので、その変換に使う。
+    /// レベルの間の値は、それを超えない最も高いレベルにする。
+    pub fn from_dp(dp: f32) -> Self {
+        Self::ALL
+            .into_iter()
+            .rev()
+            .find(|level| level.dp() <= dp)
+            .unwrap_or(Elevation::Level0)
+    }
+
     /// 高さ（dp）。
     pub const fn dp(self) -> f32 {
         match self {
