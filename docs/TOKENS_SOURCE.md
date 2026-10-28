@@ -6,6 +6,7 @@
 
 - `androidx@b8256a52`: androidx/androidx `b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6` の `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/`（`FontWeight.kt` は `compose/ui/ui-text/src/commonMain/kotlin/androidx/compose/ui/text/font/`）
 - `material-web@86cb0d48`: material-components/material-web `86cb0d484d0cda1193f09bb3ee70b8e2ed8e6a79`
+- `material-components-android@66b0eeb5`: material-components/material-components-android `66b0eeb53afeb6025ffbbd37734b08e5bce197ed`
 - `material-components-web@6ceadb81`: material-components/material-components-web `6ceadb81df508ac08ab007c52c4d3dc1d811cc15`
 
 ## 判断の記録
@@ -21,6 +22,7 @@
 - サイドシートは Compose に tokens がないため material-web の `_md-comp-sheet-side.scss` から転記した（`md3_tokens::component::side_sheet`）。
 - AlertDialog の余白（`dialogPaddingValue` / `textPaddingValue`）は精密なポインタ向けの値（20 / 16dp）と通常の値（24dp）があり、通常の値を採った。
 - TextField のアイコンの位置は Compose の計算（最小の操作領域 48dp の中央に 24dp のアイコンを置き、文字はそこから `TextFieldPadding` − 12dp）に従う。
+- サイドシートの中の配置（余白）は Compose・material-web のどちらにもなく、material-components-android のライブラリもシートの中身を利用者に任せている。そのため同リポジトリのカタログ（`cat_sidesheet_content.xml`）の見出しと閉じるボタンの配置を転記した。
 - 密度は Compose と material-web にトークンがない。material-components-web の `mdc-density` を出典とし、1 段 4dp ずつ小さくする計算（`_density.scss` L111）を `Density::apply` に移した。
 
 ## 対応表
@@ -166,6 +168,7 @@
 | md3_tokens::elevation::AMBIENT_SHADOW_OPACITY | 0.15 | material-web elevation/internal/_elevation.scss | L174 ambient shadow opacity | material-web@86cb0d48 |
 | md3_tokens::state::FOCUS_INDICATOR_THICKNESS | 3.0 | material-web tokens/versions/latest/sass/_md-sys-state-focus-indicator.scss | L23 md.sys.state.focus-indicator.thickness | material-web@86cb0d48 |
 | md3_tokens::state::FOCUS_INDICATOR_OUTER_OFFSET | 2.0 | material-web tokens/versions/latest/sass/_md-sys-state-focus-indicator.scss | L21 md.sys.state.focus-indicator.outer-offset | material-web@86cb0d48 |
+| md3_tokens::state::FOCUS_INDICATOR_INWARD_OFFSET | 0.0 | material-web tokens/_md-comp-focus-ring.scss | L49 inward-offset = 0px | material-web@86cb0d48 |
 | md3_tokens::state::FOCUS_INDICATOR_COLOR | Secondary | material-web tokens/_md-comp-focus-ring.scss | L47 color = md-sys-color secondary | material-web@86cb0d48 |
 | md3_tokens::component::elevated_button::CONTAINER_COLOR | SurfaceContainerLow | ElevatedButtonTokens.kt | L22 ContainerColor = ColorSchemeKeyTokens.SurfaceContainerLow | androidx@b8256a52 |
 | md3_tokens::component::elevated_button::CONTAINER_ELEVATION | LEVEL1 | ElevatedButtonTokens.kt | L25 ContainerElevation = ElevationTokens.Level1 | androidx@b8256a52 |
@@ -1240,6 +1243,10 @@
 | md3_tokens::component::list::ITEM_TWO_LINE_CONTAINER_HEIGHT | 72.0 | ListTokens.kt | L347 ItemTwoLineContainerHeight = 72.0.dp | androidx@b8256a52 |
 | md3_tokens::component::list::ITEM_UNSELECTED_TRAILING_ICON_COLOR | OnSurface | ListTokens.kt | L350 ItemUnselectedTrailingIconColor = ColorSchemeKeyTokens.OnSurface | androidx@b8256a52 |
 | md3_tokens::component::list::SEGMENTED_GAP | 2.0 | ListTokens.kt | L353 SegmentedGap = 2.0.dp | androidx@b8256a52 |
+| md3_tokens::component::scrim::CONTAINER_COLOR | Scrim | ScrimTokens.kt | L22 ContainerColor = ColorSchemeKeyTokens.Scrim | androidx@b8256a52 |
+| md3_tokens::component::scrim::CONTAINER_OPACITY | 0.32 | ScrimTokens.kt | L25 ContainerOpacity = 0.32f | androidx@b8256a52 |
+| md3_tokens::component::divider::COLOR | OutlineVariant | DividerTokens.kt | L24 Color = ColorSchemeKeyTokens.OutlineVariant | androidx@b8256a52 |
+| md3_tokens::component::divider::THICKNESS | 1.0 | DividerTokens.kt | L27 Thickness = 1.0.dp | androidx@b8256a52 |
 | md3_tokens::component::side_sheet::DOCKED_CONTAINER_WIDTH | 256.0 | material-web tokens/versions/latest/sass/_md-comp-sheet-side.scss | L28 docked-container-width: 256px | material-web@86cb0d48 |
 | md3_tokens::component::side_sheet::DOCKED_DIVIDER_COLOR | Outline | material-web tokens/versions/latest/sass/_md-comp-sheet-side.scss | L60 docked-divider-color: md-sys-color.$outline | material-web@86cb0d48 |
 | md3_tokens::component::side_sheet::DOCKED_HEADLINE_COLOR | OnSurfaceVariant | material-web tokens/versions/latest/sass/_md-comp-sheet-side.scss | L68 docked-headline-color: md-sys-color.$on-surface-variant | material-web@86cb0d48 |
@@ -1316,3 +1323,7 @@
 | md3_tokens::layout::BOTTOM_SHEET_MAX_WIDTH | 640.0 | compose/material3/.../material3/SheetDefaults.kt | L556 SheetMaxWidth = 640.dp | androidx@b8256a52 |
 | md3_tokens::layout::BOTTOM_SHEET_DRAG_HANDLE_VERTICAL_SPACE | 22.0 | compose/material3/.../material3/SheetDefaults.kt | L809 DragHandleVerticalPadding = 22.dp | androidx@b8256a52 |
 | md3_tokens::layout::BOTTOM_SHEET_ANIMATION_DURATION | 300 | compose/material3/.../material3/SheetDefaults.kt | L806 tween(durationMillis = 300) | androidx@b8256a52 |
+| md3_tokens::layout::TEXT_SELECTION_OPACITY | 0.4 | compose/material3/.../material3/MaterialTheme.kt | L287 TextSelectionBackgroundOpacity = 0.4f | androidx@b8256a52 |
+| md3_tokens::layout::SNACKBAR_OUTER_SPACE | 12.0 | compose/material3/.../material3/Snackbar.kt | L272 Snackbar(modifier = modifier.padding(12.dp)) | androidx@b8256a52 |
+| md3_tokens::layout::SIDE_SHEET_CONTENT_SPACE | 16.0 | material-components-android catalog/java/io/material/catalog/sidesheet/res/layout/cat_sidesheet_content.xml | L26 android:padding="16dp" | material-components-android@66b0eeb5 |
+| md3_tokens::layout::SIDE_SHEET_HEADLINE_BOTTOM_SPACE | 24.0 | material-components-android catalog/java/io/material/catalog/sidesheet/res/layout/cat_sidesheet_content.xml | L49 side_sheet_title_text paddingBottom="24dp" | material-components-android@66b0eeb5 |

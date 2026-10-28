@@ -202,3 +202,15 @@ pub const BOTTOM_SHEET_DRAG_HANDLE_VERTICAL_SPACE: f32 = 22.0;
 
 /// ボトムシートの開閉の時間（ミリ秒、`BottomSheetAnimationSpec`）。
 pub const BOTTOM_SHEET_ANIMATION_DURATION: u64 = 300;
+
+/// 選択した文字の背景の不透明度（`Primary` に掛ける、`TextSelectionBackgroundOpacity`）。
+pub const TEXT_SELECTION_OPACITY: f32 = 0.4;
+
+/// SnackbarHost が出すスナックバーの外側の余白（`Snackbar(snackbarData)` の `padding(12.dp)`）。
+pub const SNACKBAR_OUTER_SPACE: f32 = 12.0;
+
+/// サイドシートの内側の余白（material-components-android のカタログの例）。
+pub const SIDE_SHEET_CONTENT_SPACE: f32 = 16.0;
+
+/// サイドシートの見出しの下の余白（material-components-android のカタログの例）。
+pub const SIDE_SHEET_HEADLINE_BOTTOM_SPACE: f32 = 24.0;

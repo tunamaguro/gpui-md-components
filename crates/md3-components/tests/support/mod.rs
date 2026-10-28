@@ -25,6 +25,7 @@ pub fn open(
     cx: &mut TestAppContext,
     render: impl Fn(&mut Window, &mut Context<Harness>) -> AnyElement + 'static,
 ) -> &mut VisualTestContext {
+    cx.update(md3_components::init);
     let (_, cx) = cx.add_window_view(|_, _| Harness {
         render: Box::new(render),
     });
@@ -32,13 +33,16 @@ pub fn open(
     cx
 }
 
-/// 描画してフレームを確定させる。
+/// 描画してフレームを確定させる。次のフレームで行う処理（オーバーレイの最初のフォーカスなど）も済ませる。
 pub fn draw(cx: &mut VisualTestContext) {
-    cx.run_until_parked();
-    cx.update(|window, cx| {
-        window.refresh();
-        window.draw(cx).clear(cx);
-    });
+    for _ in 0..3 {
+        cx.run_until_parked();
+        cx.update(|window, cx| {
+            window.refresh();
+            window.draw(cx).clear(cx);
+            window.simulate_next_frame(cx);
+        });
+    }
 }
 
 /// キーを押して離す（キーボードでのクリックは押して離したときに起きる）。
@@ -61,7 +65,7 @@ pub fn press(cx: &mut VisualTestContext, key: &'static str) {
     draw(cx);
 }
 
-/// 次の要素へフォーカスを移す（Tab 相当。gpui は Tab を既定で割り当てないため直接呼ぶ）。
+/// 次の要素へフォーカスを移す（アプリが Tab に割り当てる処理の代わり。gpui は Tab を既定で割り当てない）。
 pub fn tab(cx: &mut VisualTestContext) {
     cx.update(|window, cx| window.focus_next(cx));
     draw(cx);

@@ -123,6 +123,9 @@ pub struct IconButton {
     disabled: bool,
     on_click: Option<ClickHandler>,
     forced: Option<ForcedState>,
+    content_role: Option<ColorRole>,
+    #[cfg_attr(not(feature = "overlays"), allow(dead_code))]
+    tooltip: Option<SharedString>,
 }
 
 impl IconButton {
@@ -137,6 +140,8 @@ impl IconButton {
             disabled: false,
             on_click: None,
             forced: None,
+            content_role: None,
+            tooltip: None,
         }
     }
 
@@ -174,6 +179,20 @@ impl IconButton {
         self
     }
 
+    /// ポインタを重ねたときに Plain ツールチップを出す。同じ文を読み上げ用の説明にも入れる。
+    #[cfg(feature = "overlays")]
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        self.tooltip = Some(text.into());
+        self
+    }
+
+    /// 内容（ラベル・アイコン・状態レイヤー）の色のロールを変える（Snackbar の操作など）。
+    #[cfg_attr(not(feature = "overlays"), allow(dead_code))]
+    pub(crate) fn content_color(mut self, role: ColorRole) -> Self {
+        self.content_role = Some(role);
+        self
+    }
+
     /// アクセシビリティツリーに出す情報。
     pub fn a11y_node(&self) -> A11yNode {
         let node = A11yNode::new(Role::Button)
@@ -200,7 +219,7 @@ impl RenderOnce for IconButton {
                 .color(standard_icon_button::DISABLED_COLOR)
                 .opacity(disabled_opacity)
         } else {
-            theme.color(colors.content)
+            theme.color(self.content_role.unwrap_or(colors.content))
         };
 
         let mut button = base
@@ -210,6 +229,10 @@ impl RenderOnce for IconButton {
             .items_center()
             .justify_center()
             .corner_radius(radius);
+        #[cfg(feature = "overlays")]
+        if let Some(text) = self.tooltip.clone() {
+            button = crate::overlays::TooltipExt::md3_tooltip(button, text);
+        }
         if let Some(container) = colors.container {
             button = if self.disabled {
                 button.bg(theme
@@ -240,7 +263,7 @@ impl RenderOnce for IconButton {
                 StateLayer::new(
                     SharedString::from(format!("{}-layer", control.group)),
                     control.group.clone(),
-                    colors.content,
+                    self.content_role.unwrap_or(colors.content),
                 )
                 .radius(radius)
                 .focused(control.focus_visible)

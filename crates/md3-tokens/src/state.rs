@@ -25,5 +25,8 @@ pub const FOCUS_INDICATOR_THICKNESS: f32 = 3.0;
 /// フォーカスインジケーターと要素の外側の間隔（dp）。
 pub const FOCUS_INDICATOR_OUTER_OFFSET: f32 = 2.0;
 
+/// 内側に描くフォーカスリング（リストやメニューの項目）の、要素の端からの距離（dp）。
+pub const FOCUS_INDICATOR_INWARD_OFFSET: f32 = 0.0;
+
 /// フォーカスインジケーターの色のロール。
 pub const FOCUS_INDICATOR_COLOR: md3_color::ColorRole = md3_color::ColorRole::Secondary;
