@@ -59,9 +59,6 @@ missing_docs = "deny"
 dbg_macro = "deny"
 todo = "deny"
 
-[profile.dev]
-debug = "limited"
-
 [profile.flamegraph]
 inherits = "release"
 debug = true
