@@ -1,10 +1,66 @@
-[package]
-name = "nix-rust-crane"
+[workspace]
+resolver = "3"
+members = [
+  "crates/md3-color",
+  "crates/md3-tokens",
+  "crates/md3-icons",
+  "crates/md3-theme",
+  "crates/md3-components",
+  "gallery",
+  "xtask",
+]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
-license = "MIT OR Apache-2.0"
+rust-version = "1.98.1"
+license = "Apache-2.0"
+publish = false
 
-[dependencies]
+# nix（crane）がワークスペースのパッケージ名として使う。
+[workspace.metadata.crane]
+name = "md-components"
+
+[workspace.dependencies]
+md3-color = { path = "crates/md3-color" }
+md3-tokens = { path = "crates/md3-tokens" }
+md3-icons = { path = "crates/md3-icons" }
+md3-theme = { path = "crates/md3-theme" }
+md3-components = { path = "crates/md3-components" }
+
+# gpui の rev 固定はここ1か所。更新は専用 PR で行う（docs/agents/architecture.md）。
+# zed@37faef81f74fc1bb08be9939c4cffc8ede6ced2f (2026-10-27)
+# default features は windows-manifest（build 時に embed-resource）を含むので切り、必要なものだけ有効にする。
+gpui = { git = "https://github.com/zed-industries/zed", rev = "37faef81f74fc1bb08be9939c4cffc8ede6ced2f", default-features = false, features = [
+  "font-kit",
+  "wayland",
+  "x11",
+] }
+# default の multithreaded は wasm で nightly を要求するので切る。
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "37faef81f74fc1bb08be9939c4cffc8ede6ced2f", default-features = false, features = [
+  "font-kit",
+  "wayland",
+  "x11",
+] }
+# wasm 版 gallery / examples のエントリポイント（#[wasm_bindgen(start)]）用。上流 zed と同じ要求版。
+wasm-bindgen = "0.2.120"
+
+# 上流 zed の [patch.crates-io] のうち gpui の依存グラフに入るもの。上流と同じ rev に揃える。
+[patch.crates-io]
+async-task = { git = "https://github.com/zed-industries/async-task.git", rev = "015845a19fc31752c02367567d3b8900a406f9da" }
+calloop = { git = "https://github.com/zed-industries/calloop", rev = "3759371fee14c40066d64777e2a36b6ffcc22590" }
+khronos-egl = { git = "https://github.com/zed-industries/khronos-egl", rev = "42214b36347b108fd9630ca6254b96dde59e04fe" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+
+[profile.dev]
+debug = "limited"
 
 [profile.flamegraph]
 inherits = "release"

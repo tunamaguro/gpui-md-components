@@ -1,0 +1,31 @@
+[package]
+name = "md3-components"
+description = "Material Design 3 の仕様に基づく gpui 用 UI コンポーネント。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+gpui.workspace = true
+md3-icons.workspace = true
+md3-theme.workspace = true
+
+[features]
+default = ["buttons", "selection", "inputs", "overlays", "navigation", "containment"]
+# Button, IconButton, FAB, SegmentedButton（M4）
+buttons = []
+# Checkbox, RadioButton, Switch, Chip, Slider 等（M4）
+selection = []
+# TextField 等（M5）
+inputs = []
+# Menu, Dialog, Tooltip, Snackbar, Sheet（M5）
+overlays = []
+# TopAppBar, NavigationRail, Tabs 等（M6）
+navigation = []
+# List, Card, Divider（M6）
+containment = []

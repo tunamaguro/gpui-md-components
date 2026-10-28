@@ -1,0 +1,16 @@
+[package]
+name = "md3-theme"
+description = "md3 のテーマ（gpui Global）と gpui 型への変換。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+gpui.workspace = true
+md3-color.workspace = true
+md3-tokens.workspace = true

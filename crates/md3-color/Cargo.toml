@@ -1,0 +1,23 @@
+[package]
+name = "md3-color"
+description = "Material Design 3 の仕様に基づく配色エンジン（HCT / CAM16 / DynamicScheme）。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+# workspace の lints に加え、panic しない設計を lint で強制する（AGENTS.md）。
+# `[lints] workspace = true` と個別指定は併用できないため、workspace の内容も複製している。
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+[lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
