@@ -18,15 +18,36 @@ let
   craneLib = crane.overrideToolchain rustToolchainFor;
   rustToolchain = rustToolchainFor pkgs;
 
+  # gpui の Linux バックエンド（wayland / x11 / wgpu / font-kit）が要求するシステムライブラリ。
+  # wayland / vulkan / xkbcommon は実行時に dlopen されるので devShell で LD_LIBRARY_PATH にも載せる。
+  linuxRuntimeLibs = lib.optionals pkgs.stdenv.hostPlatform.isLinux (
+    with pkgs;
+    [
+      fontconfig
+      freetype
+      libxkbcommon
+      wayland
+      vulkan-loader
+      libx11
+      libxcb
+      libxcursor
+      libxi
+      libxrandr
+    ]
+  );
+
   commonArgs = {
     src = craneLib.cleanCargoSource ../.;
     cargoLock = ../Cargo.lock;
     strictDeps = true;
+    nativeBuildInputs = [ pkgs.pkg-config ];
+    buildInputs = linuxRuntimeLibs;
     inherit doCheck dontStrip;
 
     env = {
       CARGO_PROFILE = profile;
     }
+
     // lib.optionalAttrs (rustFlags != null) {
       RUSTFLAGS = rustFlags;
     };
@@ -97,6 +118,7 @@ craneLib.buildPackage (
         cargoArtifacts
         commonArgs
         craneLib
+        linuxRuntimeLibs
         rustToolchain
         ;
       mainProgram = resolvedMainProgram;

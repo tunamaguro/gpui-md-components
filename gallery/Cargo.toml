@@ -1,0 +1,19 @@
+[package]
+name = "gallery"
+description = "md3-components の全部品の見本アプリ。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+gpui.workspace = true
+gpui_platform.workspace = true
+md3-components.workspace = true
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+wasm-bindgen.workspace = true
