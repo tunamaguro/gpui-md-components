@@ -886,6 +886,7 @@ impl TextField {
         A11yNode::new(Role::TextInput)
             .label(self.label.clone())
             .disabled(self.disabled)
+            .invalid(self.error)
     }
 }
 

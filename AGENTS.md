@@ -35,7 +35,7 @@ GPUI（Zed の UI フレームワーク）上に Material Design 3（ベース�
 
 ```sh
 cargo run -p gallery                     # デスクトップでギャラリー起動
-cargo xtask web                          # wasm 版ギャラリーをビルド（M7 で整備）
+cargo xtask web                          # wasm 版ギャラリーを target/web/ にビルド（nix develop の環境で）
 cargo test -p md3-color                  # 配色エンジンのテスト（GPU 不要）
 cargo xtask check-tokens                 # TOKENS_SOURCE.md と定数の突き合わせ（M2 で整備）
 ```

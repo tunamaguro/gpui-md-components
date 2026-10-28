@@ -93,9 +93,9 @@ impl NavigationDrawer {
     pub fn a11y_node(&self) -> crate::A11yNode {
         match self.kind {
             NavigationDrawerKind::Standard => navigation_a11y_node(&self.label),
-            NavigationDrawerKind::Modal => {
-                crate::A11yNode::new(gpui::Role::Dialog).label(self.label.clone())
-            }
+            NavigationDrawerKind::Modal => crate::A11yNode::new(gpui::Role::Dialog)
+                .label(self.label.clone())
+                .modal(!self.inline),
         }
     }
 }
@@ -280,5 +280,7 @@ mod tests {
         assert_eq!(standard.a11y_node().role, Role::Navigation);
         let modal = NavigationDrawer::new("d", "メイン").kind(NavigationDrawerKind::Modal);
         assert_eq!(modal.a11y_node().role, Role::Dialog);
+        assert!(modal.a11y_node().modal);
+        assert!(!standard.a11y_node().modal);
     }
 }

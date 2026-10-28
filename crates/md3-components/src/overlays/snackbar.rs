@@ -63,7 +63,9 @@ impl Snackbar {
 
     /// アクセシビリティツリーに出す情報。
     pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::Status).label(self.message.clone())
+        A11yNode::new(Role::Status)
+            .label(self.message.clone())
+            .live(true)
     }
 }
 
@@ -332,5 +334,6 @@ mod tests {
         let node = Snackbar::new("s", "保存しました").a11y_node();
         assert_eq!(node.role, Role::Status);
         assert_eq!(node.label.as_deref(), Some("保存しました"));
+        assert!(node.live, "表示されたら読み上げる");
     }
 }

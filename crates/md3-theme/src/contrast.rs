@@ -40,6 +40,9 @@ pub struct ContrastIssue {
 use ColorRole::*;
 
 /// 前景と背景の組。MD3 で前景が背景の上に置かれる組み合わせ。
+///
+/// Primary / Secondary / Tertiary / Error は Text ボタン・タブ・エラー文などで文字色にもなるので、
+/// 面の上では文字の基準（4.5:1）で検査する。
 const PAIRS: &[(ColorRole, ColorRole, ContrastKind)] = &[
     (OnPrimary, Primary, ContrastKind::Text),
     (OnPrimaryContainer, PrimaryContainer, ContrastKind::Text),
@@ -72,14 +75,14 @@ const PAIRS: &[(ColorRole, ColorRole, ContrastKind)] = &[
     (OnTertiaryFixed, TertiaryFixedDim, ContrastKind::Text),
     (OnTertiaryFixedVariant, TertiaryFixed, ContrastKind::Text),
     (OnTertiaryFixedVariant, TertiaryFixedDim, ContrastKind::Text),
-    (Primary, SurfaceDim, ContrastKind::Ui),
-    (Primary, SurfaceBright, ContrastKind::Ui),
-    (Secondary, SurfaceDim, ContrastKind::Ui),
-    (Secondary, SurfaceBright, ContrastKind::Ui),
-    (Tertiary, SurfaceDim, ContrastKind::Ui),
-    (Tertiary, SurfaceBright, ContrastKind::Ui),
-    (Error, SurfaceDim, ContrastKind::Ui),
-    (Error, SurfaceBright, ContrastKind::Ui),
+    (Primary, SurfaceDim, ContrastKind::Text),
+    (Primary, SurfaceBright, ContrastKind::Text),
+    (Secondary, SurfaceDim, ContrastKind::Text),
+    (Secondary, SurfaceBright, ContrastKind::Text),
+    (Tertiary, SurfaceDim, ContrastKind::Text),
+    (Tertiary, SurfaceBright, ContrastKind::Text),
+    (Error, SurfaceDim, ContrastKind::Text),
+    (Error, SurfaceBright, ContrastKind::Text),
     (Outline, SurfaceDim, ContrastKind::Ui),
     (Outline, SurfaceBright, ContrastKind::Ui),
 ];

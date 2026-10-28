@@ -2,8 +2,11 @@
 //!
 //! 部品は [`A11yNode`] を純関数で組み立て、[`A11yExt::a11y`] で要素に当てる。
 //! gpui の a11y API の変更の影響をここに閉じ込める（docs/agents/a11y.md）。
+//!
+//! gpui の要素の API（`aria_*`）に無い状態（無効・modal・入力エラー・live region）は、
+//! `a11y_synthetic_children` で渡される要素自身の AccessKit のノード（`gpui::accesskit`）に直接書く。
 
-use gpui::{Role, SharedString, StatefulInteractiveElement, Toggled};
+use gpui::{Role, SharedString, StatefulInteractiveElement, Toggled, accesskit};
 
 /// 範囲を持つ値（Slider、Progress）。
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -33,8 +36,14 @@ pub struct A11yNode {
     pub range: Option<RangeValue>,
     /// グループ内の位置（1 始まり）とグループの大きさ。
     pub position: Option<(usize, usize)>,
-    /// 無効状態か。gpui の a11y API に無効状態がないため、ツリーには出せない（Tab で止まらないことで表す）。
+    /// 無効状態か。ツリーに無効として出し、Tab でも止まらない。
     pub disabled: bool,
+    /// 後ろの要素を操作できない（Dialog、モーダルな Sheet / Drawer）。
+    pub modal: bool,
+    /// 入力の値が不正か（TextField / Select のエラー）。
+    pub invalid: bool,
+    /// 内容が変わったら読み上げる（Snackbar。live region の polite）。
+    pub live: bool,
 }
 
 impl A11yNode {
@@ -48,6 +57,9 @@ impl A11yNode {
             range: None,
             position: None,
             disabled: false,
+            modal: false,
+            invalid: false,
+            live: false,
         }
     }
 
@@ -86,6 +98,24 @@ impl A11yNode {
         self.disabled = disabled;
         self
     }
+
+    /// modal にする。
+    pub fn modal(mut self, modal: bool) -> Self {
+        self.modal = modal;
+        self
+    }
+
+    /// 入力の値が不正であることを示す。
+    pub fn invalid(mut self, invalid: bool) -> Self {
+        self.invalid = invalid;
+        self
+    }
+
+    /// 内容の変化を読み上げさせる（live region の polite）。
+    pub fn live(mut self, live: bool) -> Self {
+        self.live = live;
+        self
+    }
 }
 
 /// `bool` を切り替えの状態にする。
@@ -117,6 +147,23 @@ pub(crate) trait A11yExt: StatefulInteractiveElement + Sized {
         }
         if let Some((position, size)) = node.position {
             this = this.aria_position_in_set(position).aria_size_of_set(size);
+        }
+        if node.disabled || node.modal || node.invalid || node.live {
+            this = this.a11y_synthetic_children(move |builder| {
+                let raw = builder.parent_node();
+                if node.disabled {
+                    raw.set_disabled();
+                }
+                if node.modal {
+                    raw.set_modal();
+                }
+                if node.invalid {
+                    raw.set_invalid(accesskit::Invalid::True);
+                }
+                if node.live {
+                    raw.set_live(accesskit::Live::Polite);
+                }
+            });
         }
         this
     }

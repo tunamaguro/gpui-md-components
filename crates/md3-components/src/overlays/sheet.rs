@@ -76,7 +76,9 @@ impl BottomSheet {
 
     /// アクセシビリティツリーに出す情報。
     pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::Dialog).label(self.label.clone())
+        A11yNode::new(Role::Dialog)
+            .label(self.label.clone())
+            .modal(!self.inline)
     }
 }
 
@@ -219,7 +221,9 @@ impl SideSheet {
             SideSheetKind::Standard => Role::Complementary,
             SideSheetKind::Modal => Role::Dialog,
         };
-        A11yNode::new(role).label(self.headline.clone())
+        A11yNode::new(role)
+            .label(self.headline.clone())
+            .modal(self.kind == SideSheetKind::Modal && !self.inline)
     }
 }
 
@@ -322,5 +326,9 @@ mod tests {
         assert_eq!(side.a11y_node().role, Role::Complementary);
         let modal = SideSheet::new("s", "フィルタ").kind(SideSheetKind::Modal);
         assert_eq!(modal.a11y_node().role, Role::Dialog);
+        assert!(modal.a11y_node().modal);
+        assert!(!side.a11y_node().modal);
+        assert!(BottomSheet::new("b", "共有").a11y_node().modal);
+        assert!(!BottomSheet::new("b", "共有").inline().a11y_node().modal);
     }
 }

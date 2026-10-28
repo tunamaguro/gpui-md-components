@@ -2,7 +2,8 @@
 //!
 //! テーマの切り替え（シード色・バリアント・コントラスト・外観・密度）と、全カラーロール・タイプスケール・
 //! 高さ・アイコンの見本を表示する。Tab / Shift-Tab でフォーカスを移すとフォーカスリングが出る。
-//! wasm 版のビルド・配信は M7（`cargo xtask web`）で整備する。
+//! wasm 版は `cargo xtask web` でビルドする。ブラウザではシステムフォントを読めないので、ページが
+//! フォントを取得して [`start`] に渡す。
 //!
 //! `cargo run -p gallery -- --probe` で起動すると、最初のフレームを描いた後に
 //! 使用中の GPU を標準出力に書いて終了する（描画バックエンドの動作確認用）。
@@ -250,8 +251,17 @@ impl Render for Gallery {
                 .into_any_element(),
             Page::Overlays => {
                 let note = self.fields.get("dialog-note", "", cx);
-                stories::overlays::page(&self.demo, &note, &self.snackbar, view, window, cx)
-                    .into_any_element()
+                let sample_note = self.fields.get("dialog-sample-note", "", cx);
+                stories::overlays::page(
+                    &self.demo,
+                    &note,
+                    &sample_note,
+                    &self.snackbar,
+                    view,
+                    window,
+                    cx,
+                )
+                .into_any_element()
             }
             Page::Navigation => {
                 let search = self.fields.get("search-people", "", cx);
@@ -293,8 +303,15 @@ impl Render for Gallery {
     }
 }
 
-fn run(probe: bool) {
-    gpui_platform::application().run(move |cx: &mut App| {
+/// `fonts` は起動時に読み込むフォントのデータ（デスクトップではシステムフォントを使うので空）。
+fn run(app: gpui::Application, probe: bool, fonts: Vec<Vec<u8>>) {
+    app.run(move |cx: &mut App| {
+        if !fonts.is_empty() {
+            let fonts = fonts.into_iter().map(std::borrow::Cow::Owned).collect();
+            if let Err(error) = cx.text_system().add_fonts(fonts) {
+                eprintln!("failed to load the fonts: {error:#}");
+            }
+        }
         cx.bind_keys([
             KeyBinding::new("tab", FocusNext, None),
             KeyBinding::new("shift-tab", FocusPrev, None),
@@ -369,13 +386,33 @@ fn exit_with_failure(cx: &mut App) {
 #[cfg(not(target_family = "wasm"))]
 fn main() {
     let probe = std::env::args().skip(1).any(|arg| arg == "--probe");
-    run(probe);
+    run(gpui_platform::application(), probe, Vec::new());
 }
 
-/// wasm 版のエントリポイント。
+/// wasm 版のエントリポイント。ブラウザでは gpui がシステムフォントを読めないため、ページが
+/// UI の文字に使うフォント（gpui の既定の候補の「Noto Sans」と、日本語の字を持つフォント）を取得し、
+/// 1 つの配列 `fonts` につなげて、それぞれの長さ `lengths` と一緒に渡す。
+/// `webgl` が真なら WebGPU を使わず WebGL2 で描く（ページの `?renderer=webgl`）。
 #[cfg(target_family = "wasm")]
-#[wasm_bindgen::prelude::wasm_bindgen(start)]
-pub fn start() {
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub fn start(fonts: Vec<u8>, lengths: Vec<u32>, webgl: bool) {
+    use gpui_platform::WebBackendPreference;
     gpui_platform::web_init();
-    run(false);
+    let mut rest = fonts.as_slice();
+    let mut split = Vec::new();
+    for length in lengths {
+        let (font, tail) = rest.split_at(rest.len().min(length as usize));
+        split.push(font.to_vec());
+        rest = tail;
+    }
+    let backend = if webgl {
+        WebBackendPreference::WebGl
+    } else {
+        WebBackendPreference::Auto
+    };
+    run(
+        gpui_platform::application_with_web_backend(backend),
+        false,
+        split,
+    );
 }
