@@ -24,6 +24,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # rust-toolchain.toml の channel だけを使う。RUSTUP_TOOLCHAIN を立てると rustup はファイルの
+      # components / targets を無視するので、CI ではジョブごとに setup-rust で指定したものだけが入る。
+      - name: Pin toolchain
+        shell: bash
+        run: echo "RUSTUP_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_ENV"
+
       - name: Setup Rust
         uses: moonrepo/setup-rust@abb2d32350334249b178c401e5ec5836e0cd88d3 # v1.3.0
         with:
@@ -60,6 +66,10 @@ jobs:
             pkg-config libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev \
             libwayland-dev libx11-xcb-dev libxcb1-dev libvulkan-dev libssl-dev
 
+      - name: Pin toolchain
+        shell: bash
+        run: echo "RUSTUP_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_ENV"
+
       # キャッシュ（~/.cargo/registry と target/debug）は main でだけ保存し、他のブランチは main のものを復元する。
       - name: Setup Rust
         uses: moonrepo/setup-rust@abb2d32350334249b178c401e5ec5836e0cd88d3 # v1.3.0
@@ -83,6 +93,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Pin toolchain
+        shell: bash
+        run: echo "RUSTUP_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_ENV"
 
       # moonrepo/setup-rust のキャッシュは target/debug だけで target/wasm32-unknown-unknown を含まないため、
       # このジョブでは無効にして Swatinem/rust-cache を使う。
