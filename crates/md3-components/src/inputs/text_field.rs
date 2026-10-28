@@ -7,12 +7,12 @@
 use std::ops::Range;
 
 use gpui::{
-    App, Bounds, ClipboardItem, ContentMask, Context, CursorStyle, Element, ElementId,
+    App, Bounds, ClipboardItem, ContentMask, Context, CursorStyle, Div, Element, ElementId,
     ElementInputHandler, Entity, EntityInputHandler, EventEmitter, FocusHandle, Focusable,
     GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, MouseButton, MouseDownEvent,
-    MouseMoveEvent, PaintQuad, Pixels, Point, RenderOnce, Role, ShapedLine, SharedString, Style,
-    TextAlign, TextRun, UTF16Selection, UnderlineStyle, Window, div, fill, point, prelude::*, px,
-    relative, size,
+    MouseMoveEvent, PaintQuad, Pixels, Point, RenderOnce, Role, ShapedLine, SharedString, Stateful,
+    Style, TextAlign, TextRun, UTF16Selection, UnderlineStyle, Window, div, fill, point,
+    prelude::*, px, relative, size,
 };
 use md3_theme::Md3ThemeExt;
 use md3_theme::md3_color::ColorRole;
@@ -551,16 +551,17 @@ fn next_boundary(text: &str, offset: usize) -> usize {
 }
 
 /// 入力行（文字、選択範囲、カーソル）を描く要素。
-struct TextLine {
-    state: Entity<TextFieldState>,
-    placeholder: Option<SharedString>,
-    placeholder_color: Hsla,
-    caret: Hsla,
-    selection: Hsla,
-    focused: bool,
+/// 入力欄の 1 行（文字、placeholder、変換中の下線、選択、キャレット）。
+pub(crate) struct TextLine {
+    pub state: Entity<TextFieldState>,
+    pub placeholder: Option<SharedString>,
+    pub placeholder_color: Hsla,
+    pub caret: Hsla,
+    pub selection: Hsla,
+    pub focused: bool,
 }
 
-struct TextLinePrepaint {
+pub(crate) struct TextLinePrepaint {
     line: Option<ShapedLine>,
     origin_x: Pixels,
     caret: Option<PaintQuad>,
@@ -995,57 +996,71 @@ impl RenderOnce for TextField {
             .child(container)
             .children(supporting);
         if !self.disabled {
-            let state = self.state.clone();
-            field = field
-                .key_context(TEXT_FIELD_CONTEXT)
-                .track_focus(&focus_handle)
-                .cursor(CursorStyle::IBeam)
-                .on_hover(move |hover, _, cx| {
-                    hovered.update(cx, |value, cx| {
-                        *value = *hover;
-                        cx.notify();
-                    })
-                })
-                .on_action(action(&state, |s, w, cx| s.backspace(w, cx), Backspace))
-                .on_action(action(&state, |s, w, cx| s.delete(w, cx), Delete))
-                .on_action(action(&state, |s, w, cx| s.left(w, cx), Left))
-                .on_action(action(&state, |s, w, cx| s.right(w, cx), Right))
-                .on_action(action(&state, |s, w, cx| s.select_left(w, cx), SelectLeft))
-                .on_action(action(
-                    &state,
-                    |s, w, cx| s.select_right(w, cx),
-                    SelectRight,
-                ))
-                .on_action(action(&state, |s, w, cx| s.select_all(w, cx), SelectAll))
-                .on_action(action(&state, |s, w, cx| s.home(w, cx), Home))
-                .on_action(action(&state, |s, w, cx| s.end(w, cx), End))
-                .on_action(action(&state, |s, w, cx| s.select_home(w, cx), SelectHome))
-                .on_action(action(&state, |s, w, cx| s.select_end(w, cx), SelectEnd))
-                .on_action(action(&state, |s, w, cx| s.paste(w, cx), Paste))
-                .on_action(action(&state, |s, w, cx| s.cut(w, cx), Cut))
-                .on_action(action(&state, |s, _, cx| s.copy(cx), Copy))
-                .on_mouse_down(MouseButton::Left, {
-                    let state = state.clone();
-                    let focus_handle = focus_handle.clone();
-                    move |event, window, cx| {
-                        window.focus(&focus_handle, cx);
-                        state.update(cx, |state, cx| state.on_mouse_down(event, window, cx));
-                    }
-                })
-                .on_mouse_up(MouseButton::Left, {
-                    let state = state.clone();
-                    move |_, _, cx| state.update(cx, |state, _| state.is_selecting = false)
-                })
-                .on_mouse_up_out(MouseButton::Left, {
-                    let state = state.clone();
-                    move |_, _, cx| state.update(cx, |state, _| state.is_selecting = false)
-                })
-                .on_mouse_move(move |event, window, cx| {
-                    state.update(cx, |state, cx| state.on_mouse_move(event, window, cx))
-                });
+            field = editable(field, &self.state, Some(hovered), cx);
         }
         field
     }
+}
+
+/// 要素を文字の入力欄にする（キーコンテキスト、フォーカス、編集のアクション、マウスでの選択）。
+/// `hovered` を渡すと、ポインタが乗っているかを書き込む。
+pub(crate) fn editable(
+    field: Stateful<Div>,
+    state: &Entity<TextFieldState>,
+    hovered: Option<Entity<bool>>,
+    cx: &App,
+) -> Stateful<Div> {
+    let focus_handle = state.read(cx).focus_handle.clone();
+    let state = state.clone();
+    field
+        .key_context(TEXT_FIELD_CONTEXT)
+        .track_focus(&focus_handle)
+        .cursor(CursorStyle::IBeam)
+        .on_hover(move |hover, _, cx| {
+            if let Some(hovered) = &hovered {
+                hovered.update(cx, |value, cx| {
+                    *value = *hover;
+                    cx.notify();
+                })
+            }
+        })
+        .on_action(action(&state, |s, w, cx| s.backspace(w, cx), Backspace))
+        .on_action(action(&state, |s, w, cx| s.delete(w, cx), Delete))
+        .on_action(action(&state, |s, w, cx| s.left(w, cx), Left))
+        .on_action(action(&state, |s, w, cx| s.right(w, cx), Right))
+        .on_action(action(&state, |s, w, cx| s.select_left(w, cx), SelectLeft))
+        .on_action(action(
+            &state,
+            |s, w, cx| s.select_right(w, cx),
+            SelectRight,
+        ))
+        .on_action(action(&state, |s, w, cx| s.select_all(w, cx), SelectAll))
+        .on_action(action(&state, |s, w, cx| s.home(w, cx), Home))
+        .on_action(action(&state, |s, w, cx| s.end(w, cx), End))
+        .on_action(action(&state, |s, w, cx| s.select_home(w, cx), SelectHome))
+        .on_action(action(&state, |s, w, cx| s.select_end(w, cx), SelectEnd))
+        .on_action(action(&state, |s, w, cx| s.paste(w, cx), Paste))
+        .on_action(action(&state, |s, w, cx| s.cut(w, cx), Cut))
+        .on_action(action(&state, |s, _, cx| s.copy(cx), Copy))
+        .on_mouse_down(MouseButton::Left, {
+            let state = state.clone();
+            let focus_handle = focus_handle.clone();
+            move |event, window, cx| {
+                window.focus(&focus_handle, cx);
+                state.update(cx, |state, cx| state.on_mouse_down(event, window, cx));
+            }
+        })
+        .on_mouse_up(MouseButton::Left, {
+            let state = state.clone();
+            move |_, _, cx| state.update(cx, |state, _| state.is_selecting = false)
+        })
+        .on_mouse_up_out(MouseButton::Left, {
+            let state = state.clone();
+            move |_, _, cx| state.update(cx, |state, _| state.is_selecting = false)
+        })
+        .on_mouse_move(move |event, window, cx| {
+            state.update(cx, |state, cx| state.on_mouse_move(event, window, cx))
+        })
 }
 
 /// アクションを中身の操作につなぐ。

@@ -137,16 +137,22 @@ impl Menu {
         self
     }
 
+    /// Select が使う（選択肢のメニュー）。
+    #[cfg_attr(not(feature = "inputs"), allow(dead_code))]
     pub(crate) fn kind(mut self, kind: MenuKind) -> Self {
         self.kind = kind;
         self
     }
 
+    /// Select が使う（選択肢のメニュー）。
+    #[cfg_attr(not(feature = "inputs"), allow(dead_code))]
     pub(crate) fn selected(mut self, selected: Option<usize>) -> Self {
         self.selected = selected;
         self
     }
 
+    /// Select が使う（選択肢のメニュー）。
+    #[cfg_attr(not(feature = "inputs"), allow(dead_code))]
     pub(crate) fn match_anchor_width(mut self) -> Self {
         self.match_anchor_width = true;
         self

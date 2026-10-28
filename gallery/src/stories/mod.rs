@@ -1,7 +1,9 @@
 //! gallery の各ページ。
 
 pub mod buttons;
+pub mod containment;
 pub mod inputs;
+pub mod navigation;
 pub mod overlays;
 pub mod selection;
 pub mod theme;

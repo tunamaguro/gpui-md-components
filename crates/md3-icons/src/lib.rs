@@ -19,6 +19,8 @@ pub enum IconName {
     ArrowDropUp,
     /// `check`
     Check,
+    /// `chevron_right`
+    ChevronRight,
     /// `close`
     Close,
     /// `content_copy`
@@ -37,6 +39,10 @@ pub enum IconName {
     Favorite,
     /// `home`
     Home,
+    /// `image`
+    Image,
+    /// `inbox`
+    Inbox,
     /// `info`
     Info,
     /// `light_mode`
@@ -47,10 +53,16 @@ pub enum IconName {
     Menu,
     /// `more_vert`
     MoreVert,
+    /// `notifications`
+    Notifications,
     /// `palette`
     Palette,
+    /// `person`
+    Person,
     /// `search`
     Search,
+    /// `send`
+    Send,
     /// `settings`
     Settings,
     /// `share`
@@ -61,12 +73,13 @@ pub enum IconName {
 
 impl IconName {
     /// すべてのアイコン。
-    pub const ALL: [IconName; 24] = [
+    pub const ALL: [IconName; 30] = [
         IconName::Add,
         IconName::ArrowBack,
         IconName::ArrowDropDown,
         IconName::ArrowDropUp,
         IconName::Check,
+        IconName::ChevronRight,
         IconName::Close,
         IconName::ContentCopy,
         IconName::DarkMode,
@@ -76,13 +89,18 @@ impl IconName {
         IconName::ExpandMore,
         IconName::Favorite,
         IconName::Home,
+        IconName::Image,
+        IconName::Inbox,
         IconName::Info,
         IconName::LightMode,
         IconName::Mail,
         IconName::Menu,
         IconName::MoreVert,
+        IconName::Notifications,
         IconName::Palette,
+        IconName::Person,
         IconName::Search,
+        IconName::Send,
         IconName::Settings,
         IconName::Share,
         IconName::Star,
@@ -96,6 +114,7 @@ impl IconName {
             IconName::ArrowDropDown => "arrow_drop_down",
             IconName::ArrowDropUp => "arrow_drop_up",
             IconName::Check => "check",
+            IconName::ChevronRight => "chevron_right",
             IconName::Close => "close",
             IconName::ContentCopy => "content_copy",
             IconName::DarkMode => "dark_mode",
@@ -105,13 +124,18 @@ impl IconName {
             IconName::ExpandMore => "expand_more",
             IconName::Favorite => "favorite",
             IconName::Home => "home",
+            IconName::Image => "image",
+            IconName::Inbox => "inbox",
             IconName::Info => "info",
             IconName::LightMode => "light_mode",
             IconName::Mail => "mail",
             IconName::Menu => "menu",
             IconName::MoreVert => "more_vert",
+            IconName::Notifications => "notifications",
             IconName::Palette => "palette",
+            IconName::Person => "person",
             IconName::Search => "search",
+            IconName::Send => "send",
             IconName::Settings => "settings",
             IconName::Share => "share",
             IconName::Star => "star",
@@ -126,6 +150,7 @@ impl IconName {
             IconName::ArrowDropDown => include_bytes!("../assets/arrow_drop_down.svg"),
             IconName::ArrowDropUp => include_bytes!("../assets/arrow_drop_up.svg"),
             IconName::Check => include_bytes!("../assets/check.svg"),
+            IconName::ChevronRight => include_bytes!("../assets/chevron_right.svg"),
             IconName::Close => include_bytes!("../assets/close.svg"),
             IconName::ContentCopy => include_bytes!("../assets/content_copy.svg"),
             IconName::DarkMode => include_bytes!("../assets/dark_mode.svg"),
@@ -135,13 +160,18 @@ impl IconName {
             IconName::ExpandMore => include_bytes!("../assets/expand_more.svg"),
             IconName::Favorite => include_bytes!("../assets/favorite.svg"),
             IconName::Home => include_bytes!("../assets/home.svg"),
+            IconName::Image => include_bytes!("../assets/image.svg"),
+            IconName::Inbox => include_bytes!("../assets/inbox.svg"),
             IconName::Info => include_bytes!("../assets/info.svg"),
             IconName::LightMode => include_bytes!("../assets/light_mode.svg"),
             IconName::Mail => include_bytes!("../assets/mail.svg"),
             IconName::Menu => include_bytes!("../assets/menu.svg"),
             IconName::MoreVert => include_bytes!("../assets/more_vert.svg"),
+            IconName::Notifications => include_bytes!("../assets/notifications.svg"),
             IconName::Palette => include_bytes!("../assets/palette.svg"),
+            IconName::Person => include_bytes!("../assets/person.svg"),
             IconName::Search => include_bytes!("../assets/search.svg"),
+            IconName::Send => include_bytes!("../assets/send.svg"),
             IconName::Settings => include_bytes!("../assets/settings.svg"),
             IconName::Share => include_bytes!("../assets/share.svg"),
             IconName::Star => include_bytes!("../assets/star.svg"),
