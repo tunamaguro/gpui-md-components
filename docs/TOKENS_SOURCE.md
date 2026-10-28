@@ -13,6 +13,9 @@
 - 数値は Compose を正とする（`docs/agents/resources.md`）。状態レイヤーの不透明度（hover 0.08 / focus 0.1 / pressed 0.1 / dragged 0.16）は material-web の `_md-sys-state.scss` とも一致することを確認した。
 - タイプスケールは基本の 15 種だけを転記し、Expressive 用の `*Emphasized*` は含めない。
 - 無効状態のコンテナの不透明度はコンポーネントごとに違う（0.1 / 0.12 など）ので、共通のトークンにはしない。内容（文字・アイコン）の 0.38 は全コンポーネントで共通で、material-web の `md.sys.state.disabled.state-layer-opacity` と同じ値。
+- 影（elevation の shadow）と フォーカスリングは Compose がプラットフォームの描画に任せていて値を持たないため、material-web の実装（`elevation/internal/_elevation.scss` のコメントに書かれた各レベルの box-shadow）とトークンから転記した。
+- テーマの既定のシード色 `md3_theme::DEFAULT_SEED`（`#6750A4`）は md3-tokens の定数ではないため対応表に載せない。値は material-web `tokens/versions/latest/sass/_md-ref-palette.scss` L343 `$primary40`（material-web@86cb0d48）で、MD3 のベースラインの primary。
+- タイプスケールの字間（tracking）はトークンとして持つが、gpui に字間の指定がないため md3-theme / md3-components では描画に反映していない。
 - 密度は Compose と material-web にトークンがない。material-components-web の `mdc-density` を出典とし、1 段 4dp ずつ小さくする計算（`_density.scss` L111）を `Density::apply` に移した。
 
 ## 対応表
@@ -142,3 +145,20 @@
 | md3_tokens::state::PRESSED_STATE_LAYER_OPACITY | 0.1 | StateTokens.kt | L25 PressedStateLayerOpacity | androidx@b8256a52 |
 | md3_tokens::state::DISABLED_CONTENT_OPACITY | 0.38 | material-web tokens/versions/latest/sass/_md-sys-state.scss | L19 md.sys.state.disabled.state-layer-opacity | material-web@86cb0d48 |
 | md3_tokens::density::INTERVAL | 4.0 | material-components-web packages/mdc-density/_density.scss | L27 $interval | material-components-web@6ceadb81 |
+| md3_tokens::elevation::KEY_SHADOW_LEVEL0 | 0.0, 0.0, 0.0, 0.0 | material-web elevation/internal/_elevation.scss | L65 level0 key box-shadow (x y blur spread) | material-web@86cb0d48 |
+| md3_tokens::elevation::KEY_SHADOW_LEVEL1 | 0.0, 1.0, 2.0, 0.0 | material-web elevation/internal/_elevation.scss | L66 level1 key box-shadow (x y blur spread) | material-web@86cb0d48 |
+| md3_tokens::elevation::KEY_SHADOW_LEVEL2 | 0.0, 1.0, 2.0, 0.0 | material-web elevation/internal/_elevation.scss | L67 level2 key box-shadow (x y blur spread) | material-web@86cb0d48 |
+| md3_tokens::elevation::KEY_SHADOW_LEVEL3 | 0.0, 1.0, 3.0, 0.0 | material-web elevation/internal/_elevation.scss | L68 level3 key box-shadow (x y blur spread) | material-web@86cb0d48 |
+| md3_tokens::elevation::KEY_SHADOW_LEVEL4 | 0.0, 2.0, 3.0, 0.0 | material-web elevation/internal/_elevation.scss | L69 level4 key box-shadow (x y blur spread) | material-web@86cb0d48 |
+| md3_tokens::elevation::KEY_SHADOW_LEVEL5 | 0.0, 4.0, 4.0, 0.0 | material-web elevation/internal/_elevation.scss | L70 level5 key box-shadow (x y blur spread) | material-web@86cb0d48 |
+| md3_tokens::elevation::KEY_SHADOW_OPACITY | 0.3 | material-web elevation/internal/_elevation.scss | L105 key shadow opacity | material-web@86cb0d48 |
+| md3_tokens::elevation::AMBIENT_SHADOW_LEVEL0 | 0.0, 0.0, 0.0, 0.0 | material-web elevation/internal/_elevation.scss | L110 level0 ambient box-shadow (x y blur spread) | material-web@86cb0d48 |
+| md3_tokens::elevation::AMBIENT_SHADOW_LEVEL1 | 0.0, 1.0, 3.0, 1.0 | material-web elevation/internal/_elevation.scss | L111 level1 ambient box-shadow (x y blur spread) | material-web@86cb0d48 |
+| md3_tokens::elevation::AMBIENT_SHADOW_LEVEL2 | 0.0, 2.0, 6.0, 2.0 | material-web elevation/internal/_elevation.scss | L112 level2 ambient box-shadow (x y blur spread) | material-web@86cb0d48 |
+| md3_tokens::elevation::AMBIENT_SHADOW_LEVEL3 | 0.0, 4.0, 8.0, 3.0 | material-web elevation/internal/_elevation.scss | L113 level3 ambient box-shadow (x y blur spread) | material-web@86cb0d48 |
+| md3_tokens::elevation::AMBIENT_SHADOW_LEVEL4 | 0.0, 6.0, 10.0, 4.0 | material-web elevation/internal/_elevation.scss | L114 level4 ambient box-shadow (x y blur spread) | material-web@86cb0d48 |
+| md3_tokens::elevation::AMBIENT_SHADOW_LEVEL5 | 0.0, 8.0, 12.0, 6.0 | material-web elevation/internal/_elevation.scss | L115 level5 ambient box-shadow (x y blur spread) | material-web@86cb0d48 |
+| md3_tokens::elevation::AMBIENT_SHADOW_OPACITY | 0.15 | material-web elevation/internal/_elevation.scss | L174 ambient shadow opacity | material-web@86cb0d48 |
+| md3_tokens::state::FOCUS_INDICATOR_THICKNESS | 3.0 | material-web tokens/versions/latest/sass/_md-sys-state-focus-indicator.scss | L23 md.sys.state.focus-indicator.thickness | material-web@86cb0d48 |
+| md3_tokens::state::FOCUS_INDICATOR_OUTER_OFFSET | 2.0 | material-web tokens/versions/latest/sass/_md-sys-state-focus-indicator.scss | L21 md.sys.state.focus-indicator.outer-offset | material-web@86cb0d48 |
+| md3_tokens::state::FOCUS_INDICATOR_COLOR | Secondary | material-web tokens/_md-comp-focus-ring.scss | L47 color = md-sys-color secondary | material-web@86cb0d48 |
