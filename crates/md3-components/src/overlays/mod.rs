@@ -15,5 +15,7 @@ pub use dialog::{Dialog, DialogAction};
 pub(crate) use menu::MenuKind;
 pub use menu::{Menu, MenuItem};
 pub use sheet::{BottomSheet, SideSheet, SideSheetKind};
-pub use snackbar::{Snackbar, SnackbarDuration, SnackbarHost, SnackbarMessage};
+pub use snackbar::{
+    Snackbar, SnackbarDuration, SnackbarHost, SnackbarMessage, SnackbarPolicy, SnackbarResult,
+};
 pub use tooltip::{PlainTooltip, RichTooltip, TooltipExt};
