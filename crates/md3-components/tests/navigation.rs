@@ -263,6 +263,63 @@ fn nested_lazy_list_consumes_wheel_until_its_edge(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn nested_horizontal_scroll_consumes_wheel_until_its_edge(cx: &mut TestAppContext) {
+    use md3_components::NestedScroll;
+    let outer = gpui::ScrollHandle::new();
+    let inner = gpui::ScrollHandle::new();
+    let cx = support::open(cx, {
+        let outer = outer.clone();
+        let inner = inner.clone();
+        move |window, cx| {
+            let id = gpui::ElementId::from("row");
+            let wheel = NestedScroll::new(&id, inner.clone(), window, cx);
+            div()
+                .id("page")
+                .w(px(300.0))
+                .h(px(300.0))
+                .overflow_y_scroll()
+                .track_scroll(&outer)
+                .child(
+                    div()
+                        .id(id)
+                        .flex()
+                        .w(px(200.0))
+                        .h(px(100.0))
+                        .overflow_x_scroll()
+                        .track_scroll(&inner)
+                        .on_scroll(wheel.on_scroll())
+                        .child(div().flex_none().w(px(500.0)).h(px(50.0)))
+                        .child(wheel.capture()),
+                )
+                .child(div().h(px(1000.0)))
+                .into_any_element()
+        }
+    });
+    // 縦ホイールは横だけの領域で x に振り替えられる。
+    let wheel = |cx: &mut gpui::VisualTestContext, delta| {
+        cx.update(|window, cx| {
+            window.dispatch_event(
+                gpui::PlatformInput::Scroll(gpui::ScrollEvent {
+                    position: gpui::point(px(50.0), px(50.0)),
+                    delta: gpui::ScrollDelta::Pixels(gpui::point(px(0.0), px(delta))),
+                    ..Default::default()
+                }),
+                cx,
+            );
+        });
+        support::draw(cx);
+    };
+    wheel(cx, -100.0);
+    assert_eq!(inner.offset().x, px(-100.0));
+    assert_eq!(outer.offset().y, px(0.0), "内側が動いたら祖先は動かない");
+    wheel(cx, -1000.0);
+    assert_eq!(inner.offset().x, px(-300.0), "内側は端で止まる");
+    assert_eq!(outer.offset().y, px(0.0));
+    wheel(cx, -30.0);
+    assert_eq!(outer.offset().y, px(-30.0), "端からの操作は祖先に渡す");
+}
+
+#[gpui::test]
 fn modal_drawer_falls_back_from_disabled_selection(cx: &mut TestAppContext) {
     use md3_components::navigation::{NavigationDrawer, NavigationDrawerKind};
     let selected = Rc::new(Cell::new(None));

@@ -12,6 +12,7 @@ workspace = true
 
 [dependencies]
 gpui.workspace = true
+gpui_platform = { workspace = true, optional = true }
 md3-icons.workspace = true
 md3-theme.workspace = true
 
@@ -39,6 +40,8 @@ navigation = ["overlays"]
 containment = []
 # M3 Expressive の ToggleButton, ButtonGroup
 expressive = []
+# gpui_platform（同じ rev）を再公開する。アプリの起動に使う。既定では無効
+platform = ["dep:gpui_platform"]
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }

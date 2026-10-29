@@ -2839,6 +2839,7 @@ name = "md3-components"
 version = "0.1.0"
 dependencies = [
  "gpui",
+ "gpui_platform",
  "md3-icons",
  "md3-theme",
 ]

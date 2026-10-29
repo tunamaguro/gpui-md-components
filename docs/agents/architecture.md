@@ -15,7 +15,7 @@ md-components/
 │   ├── md3-icons/          # 使うアイコンの SVG バイト列と IconName enum（純 Rust）
 │   ├── md3-theme/          # Theme（gpui Global）、gpui 型への変換、OS 外観追従
 │   └── md3-components/     # StateLayer / FocusRing / 各コンポーネント
-├── gallery/                # 全部品の見本アプリ（gpui_platform / wasm-bindgen を使うのはここだけ。examples/ は未作成）
+├── gallery/                # 全部品の見本アプリ（gpui_platform を起動に使い、wasm-bindgen を使うのはここだけ。examples/ は未作成）
 ├── xtask/                  # 開発用コマンド（std のみ）: check-tokens、web
 ├── tools/a11y-tree/        # Linux の AT-SPI ツリーを書き出すスクリプト（nixpkgs の道具を使う。依存ではない）
 ├── nix/                    # flake のモジュール（devshell、パッケージ）
@@ -39,11 +39,13 @@ gallery / examples ──> md3-components ──> md3-theme ──> md3-tokens �
 
 - `md3-color` / `md3-tokens` / `md3-icons` は **gpui に依存しない**。GPU なし・wasm でもテストが回る。
 - gpui に触れるのは `md3-theme` と `md3-components` だけ。GPUI の API 変更の影響はこの 2 crate に閉じる。
-- ライブラリ crate は `gpui_platform` / `wasm-bindgen` に依存しない。
+- ライブラリ crate は `gpui_platform` / `wasm-bindgen` に依存しない。例外として `md3-components` は feature `platform`
+  （既定で無効）で `gpui_platform` を持ち、再公開だけする（コードからは使わない）。
+- `md3-components` は `gpui` を `md3_components::gpui` として再公開する。利用者が rev を揃えずに使えるようにするため。
 
 ## 依存方針
 
-- 外部 crate: `gpui` のみ（`gallery` / `examples` は `gpui_platform` と、wasm32 ターゲットに限り `wasm-bindgen` も可。`#[wasm_bindgen(start)]` のエントリポイントにだけ使う）。
+- 外部 crate: `gpui` のみ（`md3-components` の feature `platform` は `gpui_platform` の再公開に限る。`gallery` / `examples` は `gpui_platform` と、wasm32 ターゲットに限り `wasm-bindgen` も可。`#[wasm_bindgen(start)]` のエントリポイントにだけ使う）。
 - `Cargo.toml` の例:
 
 ```toml
@@ -92,7 +94,7 @@ wasm-bindgen = "<上流 zed と同じ要求版>"
 | `style.rs`                    | `StyledExt`（`corners` など）                                                            |
 | `motion.rs`                   | 色をテーマのバネで補間する `motion::color`（`Theme::spring` と組み合わせる）             |
 | `control.rs`                  | 操作部品の共通処理（フォーカス・hover・押下・強制状態 `ForcedState`、矢印移動の `step`） |
-| `scroll.rs`                   | 入れ子スクロール（`NestedScroll`）、オーバーレイ本文（`content`）                        |
+| `scroll.rs`                   | 入れ子スクロール（公開の `NestedScroll`）、オーバーレイ本文（`content`）                 |
 | `scrollbar.rs`                | `Scrollbar` と `ScrollbarSource`                                                         |
 | `expressive/press.rs`         | 押下の状態機械（押下・解除・キャンセル）                                                 |
 

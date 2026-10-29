@@ -9,6 +9,8 @@ API はいつも固定 rev のソース（`~/.cargo/git/checkouts/zed-*/37faef8/
   スクロール領域すべてに差分を適用する（端の判定もない）。入れ子にすると外側も一緒に動く。
   → 内側のスクロール領域には `crates/md3-components/src/scroll.rs` の `NestedScroll` を付ける
   （`capture()` を子に、`on_scroll()` を領域に）。内側が動いたら `stop_propagation`、端なら外へ渡す。
+  縦・横どちらの領域にも効く（横だけの領域では縦ホイールが x に振り替えられるので、両軸の差を見る）。
+  公開 API（`md3_components::NestedScroll`）なので、gallery や利用者の素の div にも付けられる。
   精密スクロール（トラックパッド）は `TouchPhase::Started` から `Ended` まで内側が持つ。
 - **リスナーの順序。** gpui は「利用者のリスナー → 既定処理 → 子」の順に登録し、bubble は逆順に呼ぶ。
   そのため利用者の `on_scroll` が呼ばれる時点で、内側の既定処理（offset の更新）は終わっていて、祖先はまだ動いていない。

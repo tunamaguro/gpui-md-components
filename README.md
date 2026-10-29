@@ -50,6 +50,14 @@ gpui = { git = "https://github.com/zed-industries/zed", rev = "37faef81f74fc1bb0
 md3-components = { git = "https://github.com/tunamaguro/gpui-md-components" }
 ```
 
+rev を自分で揃えたくなければ、再公開を使う。`md3_components::gpui` は常に、
+`md3_components::gpui_platform` は feature `platform`（既定では無効）を付けたときに使える。
+
+```toml
+[dependencies]
+md3-components = { git = "https://github.com/tunamaguro/gpui-md-components", features = ["platform"] }
+```
+
 ```rust
 use gpui::{App, KeyBinding, Window, actions, div, prelude::*};
 use md3_components::buttons::{Button, ButtonVariant};
