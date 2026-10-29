@@ -1,6 +1,8 @@
 //! 状態レイヤー（ホバー・フォーカス・押下で重ねる半透明の色）。
 
-use gpui::{App, ElementId, IntoElement, RenderOnce, SharedString, Window, div, prelude::*};
+use gpui::{
+    App, Corners, ElementId, IntoElement, Pixels, RenderOnce, SharedString, Window, div, prelude::*,
+};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::state;
 use md3_theme::{CornerRadius, Md3ThemeExt};
@@ -20,6 +22,7 @@ pub struct StateLayer {
     group: SharedString,
     color: ColorRole,
     radius: CornerRadius,
+    corners: Option<Corners<Pixels>>,
     focused: bool,
     disabled: bool,
     forced: Option<ForcedState>,
@@ -33,6 +36,7 @@ impl StateLayer {
             group: group.into(),
             color,
             radius: CornerRadius::Fixed(gpui::px(0.0)),
+            corners: None,
             focused: false,
             disabled: false,
             forced: None,
@@ -42,6 +46,12 @@ impl StateLayer {
     /// 親要素と同じ角丸にする。
     pub fn radius(mut self, radius: CornerRadius) -> Self {
         self.radius = radius;
+        self
+    }
+
+    /// 角ごとに違う角丸にする（[`StateLayer::radius`] より優先）。
+    pub fn corners(mut self, corners: Corners<Pixels>) -> Self {
+        self.corners = Some(corners);
         self
     }
 
@@ -72,7 +82,8 @@ impl RenderOnce for StateLayer {
             .id(self.id)
             .absolute()
             .inset_0()
-            .corner_radius(self.radius);
+            .corner_radius(self.radius)
+            .when_some(self.corners, |this, corners| this.corners(corners));
         if self.disabled {
             return layer;
         }

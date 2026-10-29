@@ -16,6 +16,7 @@
 #![deny(missing_docs)]
 
 mod contrast;
+mod motion;
 mod shape;
 mod typography;
 
@@ -33,6 +34,7 @@ pub use md3_color::{self, Argb, Variant as SchemeVariant};
 pub use md3_tokens::{
     self, density::Density, elevation::Elevation, shape::Shape, typography::TypeScale,
 };
+pub use motion::{MotionScheme, MotionToken, time_to_reach, to_spring_config};
 pub use shape::{CornerRadius, Shapes};
 pub use typography::{TypeScaleStyle, TypeScaleStyles};
 
@@ -200,6 +202,7 @@ pub struct Theme {
     type_scale: TypeScaleStyles,
     density: Density,
     shapes: Shapes,
+    motion_scheme: MotionScheme,
 }
 
 impl Global for Theme {}
@@ -228,6 +231,7 @@ impl Theme {
             type_scale: self.type_scale.clone(),
             density: self.density,
             shapes: self.shapes,
+            motion_scheme: self.motion_scheme,
             system_is_dark: self.is_dark,
         }
     }
@@ -315,6 +319,18 @@ impl Theme {
         px(self.density.apply(default))
     }
 
+    /// モーションスキーム。
+    pub fn motion_scheme(&self) -> MotionScheme {
+        self.motion_scheme
+    }
+
+    /// モーションスキームのバネ（gpui の `with_spring` に渡す）。
+    ///
+    /// gpui の `with_spring` は `App::reduce_motion` が `true` のとき動かさずに目標の値で描く。
+    pub fn spring(&self, token: MotionToken) -> gpui::SpringConfig {
+        self.motion_scheme.spring(token)
+    }
+
     /// 高さ（elevation）の段階に対応する影。MD3 の key / ambient の 2 層。
     pub fn shadows(&self, level: Elevation) -> Vec<BoxShadow> {
         if level == Elevation::Level0 {
@@ -360,6 +376,7 @@ pub struct ThemeBuilder {
     type_scale: TypeScaleStyles,
     density: Density,
     shapes: Shapes,
+    motion_scheme: MotionScheme,
     system_is_dark: bool,
 }
 
@@ -375,6 +392,7 @@ impl ThemeBuilder {
             type_scale: TypeScaleStyles::default(),
             density: Density::Default,
             shapes: Shapes::default(),
+            motion_scheme: MotionScheme::default(),
             system_is_dark: false,
         }
     }
@@ -444,6 +462,12 @@ impl ThemeBuilder {
         self
     }
 
+    /// モーションスキームを変える（既定は `Standard`）。
+    pub fn motion_scheme(mut self, scheme: MotionScheme) -> Self {
+        self.motion_scheme = scheme;
+        self
+    }
+
     /// `Appearance::System` のときに使う OS の外観。[`Md3ThemeExt::set_md3_theme`] が設定するので、
     /// 通常は呼ばなくてよい。
     pub fn system_is_dark(mut self, is_dark: bool) -> Self {
@@ -478,6 +502,7 @@ impl ThemeBuilder {
             type_scale: self.type_scale,
             density: self.density,
             shapes: self.shapes,
+            motion_scheme: self.motion_scheme,
         }
     }
 }

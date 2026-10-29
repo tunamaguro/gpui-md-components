@@ -23,6 +23,10 @@
 - AlertDialog の余白（`dialogPaddingValue` / `textPaddingValue`）は精密なポインタ向けの値（20 / 16dp）と通常の値（24dp）があり、通常の値を採った。
 - TextField のアイコンの位置は Compose の計算（最小の操作領域 48dp の中央に 24dp のアイコンを置き、文字はそこから `TextFieldPadding` − 12dp）に従う。
 - サイドシートの中の配置（余白）は Compose・material-web のどちらにもなく、material-components-android のライブラリもシートの中身を利用者に任せている。そのため同リポジトリのカタログ（`cat_sidesheet_content.xml`）の見出しと閉じるボタンの配置を転記した。
+- バネのモーション（`md3_tokens::motion::{STANDARD,EXPRESSIVE}_SPRING_*`）は Compose の `StandardMotionTokens.kt` / `ExpressiveMotionTokens.kt` の減衰比（`*Damping`）と剛性（`*Stiffness`）を 1 つの `SpringSpec` にまとめた。値の列は「減衰比, 剛性」、位置の列に 2 行を書く。質量は 1（Compose の `SpringSimulation` と同じ）。
+- バネの計算は、固定している gpui の解析解（`gpui::SpringConfig::step`）を使い、自前の積分は書いていない（gpui は依存として許されていて、`with_spring` が `App::reduce_motion` にも従うため）。Compose の `SpringSimulation.updateValues` の解析解と全スキーム・全種類で一致することを `md3-theme` の `motion::tests` で確かめている。
+- ButtonGroup の押された項目の広がり（幅の 15%、`ButtonGroupDefaults.ExpandedRatio`）と、押下を離した後に形の変化が 75% 進むまで待つこと（`pressedAnimatable.value > 0.75f`）はトークンではなく Compose の `ButtonGroup.kt`（androidx@b8256a52 の L188、L1046）の値で、`md3-components` の `expressive` に定数として置いた。
+- ToggleButton の色は Compose の `ToggleButtonDefaults.colors()`（`ToggleButton.kt` L785〜）に合わせ、`FilledButtonTokens` の `(Un)selectedContainerColor` と `(Un)selectedPressedLabelTextColor` を使う。
 - 密度は Compose と material-web にトークンがない。material-components-web の `mdc-density` を出典とし、1 段 4dp ずつ小さくする計算（`_density.scss` L111）を `Density::apply` に移した。
 
 ## 対応表
@@ -1585,3 +1589,34 @@
 | md3_tokens::layout::WINDOW_WIDTH_EXPANDED | 840.0 | window/window-core/.../layout/WindowSizeClass.kt | L149 WIDTH_DP_EXPANDED_LOWER_BOUND: Int = 840 | androidx@b8256a52 |
 | md3_tokens::layout::WINDOW_WIDTH_LARGE | 1200.0 | window/window-core/.../layout/WindowSizeClass.kt | L152 WIDTH_DP_LARGE_LOWER_BOUND: Int = 1200 | androidx@b8256a52 |
 | md3_tokens::layout::WINDOW_WIDTH_EXTRA_LARGE | 1600.0 | window/window-core/.../layout/WindowSizeClass.kt | L155 WIDTH_DP_EXTRA_LARGE_LOWER_BOUND: Int = 1600 | androidx@b8256a52 |
+| md3_tokens::motion::STANDARD_SPRING_DEFAULT_SPATIAL | 0.9, 700.0 | StandardMotionTokens.kt | L20 SpringDefaultSpatialDamping, L21 SpringDefaultSpatialStiffness | androidx@b8256a52 |
+| md3_tokens::motion::STANDARD_SPRING_DEFAULT_EFFECTS | 1.0, 1600.0 | StandardMotionTokens.kt | L22 SpringDefaultEffectsDamping, L23 SpringDefaultEffectsStiffness | androidx@b8256a52 |
+| md3_tokens::motion::STANDARD_SPRING_FAST_SPATIAL | 0.9, 1400.0 | StandardMotionTokens.kt | L24 SpringFastSpatialDamping, L25 SpringFastSpatialStiffness | androidx@b8256a52 |
+| md3_tokens::motion::STANDARD_SPRING_FAST_EFFECTS | 1.0, 3800.0 | StandardMotionTokens.kt | L26 SpringFastEffectsDamping, L27 SpringFastEffectsStiffness | androidx@b8256a52 |
+| md3_tokens::motion::STANDARD_SPRING_SLOW_SPATIAL | 0.9, 300.0 | StandardMotionTokens.kt | L28 SpringSlowSpatialDamping, L29 SpringSlowSpatialStiffness | androidx@b8256a52 |
+| md3_tokens::motion::STANDARD_SPRING_SLOW_EFFECTS | 1.0, 800.0 | StandardMotionTokens.kt | L30 SpringSlowEffectsDamping, L31 SpringSlowEffectsStiffness | androidx@b8256a52 |
+| md3_tokens::motion::EXPRESSIVE_SPRING_DEFAULT_SPATIAL | 0.8, 380.0 | ExpressiveMotionTokens.kt | L22 SpringDefaultSpatialDamping, L23 SpringDefaultSpatialStiffness | androidx@b8256a52 |
+| md3_tokens::motion::EXPRESSIVE_SPRING_DEFAULT_EFFECTS | 1.0, 1600.0 | ExpressiveMotionTokens.kt | L24 SpringDefaultEffectsDamping, L25 SpringDefaultEffectsStiffness | androidx@b8256a52 |
+| md3_tokens::motion::EXPRESSIVE_SPRING_FAST_SPATIAL | 0.6, 800.0 | ExpressiveMotionTokens.kt | L26 SpringFastSpatialDamping, L27 SpringFastSpatialStiffness | androidx@b8256a52 |
+| md3_tokens::motion::EXPRESSIVE_SPRING_FAST_EFFECTS | 1.0, 3800.0 | ExpressiveMotionTokens.kt | L28 SpringFastEffectsDamping, L29 SpringFastEffectsStiffness | androidx@b8256a52 |
+| md3_tokens::motion::EXPRESSIVE_SPRING_SLOW_SPATIAL | 0.8, 200.0 | ExpressiveMotionTokens.kt | L30 SpringSlowSpatialDamping, L31 SpringSlowSpatialStiffness | androidx@b8256a52 |
+| md3_tokens::motion::EXPRESSIVE_SPRING_SLOW_EFFECTS | 1.0, 800.0 | ExpressiveMotionTokens.kt | L32 SpringSlowEffectsDamping, L33 SpringSlowEffectsStiffness | androidx@b8256a52 |
+| md3_tokens::component::button_small::CONTAINER_HEIGHT | 40.0 | ButtonSmallTokens.kt | L24 ContainerHeight = 40.0.dp | androidx@b8256a52 |
+| md3_tokens::component::button_small::CONTAINER_SHAPE_ROUND | Full | ButtonSmallTokens.kt | L27 ContainerShapeRound = ShapeKeyTokens.CornerFull | androidx@b8256a52 |
+| md3_tokens::component::button_small::CONTAINER_SHAPE_SQUARE | Medium | ButtonSmallTokens.kt | L30 ContainerShapeSquare = ShapeKeyTokens.CornerMedium | androidx@b8256a52 |
+| md3_tokens::component::button_small::ICON_LABEL_SPACE | 8.0 | ButtonSmallTokens.kt | L33 IconLabelSpace = 8.0.dp | androidx@b8256a52 |
+| md3_tokens::component::button_small::ICON_SIZE | 20.0 | ButtonSmallTokens.kt | L36 IconSize = 20.0.dp | androidx@b8256a52 |
+| md3_tokens::component::button_small::LEADING_SPACE | 16.0 | ButtonSmallTokens.kt | L39 LeadingSpace = 16.0.dp | androidx@b8256a52 |
+| md3_tokens::component::button_small::OUTLINED_OUTLINE_WIDTH | 1.0 | ButtonSmallTokens.kt | L42 OutlinedOutlineWidth = 1.0.dp | androidx@b8256a52 |
+| md3_tokens::component::button_small::PRESSED_CONTAINER_SHAPE | Small | ButtonSmallTokens.kt | L45 PressedContainerShape = ShapeKeyTokens.CornerSmall | androidx@b8256a52 |
+| md3_tokens::component::button_small::SELECTED_CONTAINER_SHAPE_ROUND | Full | ButtonSmallTokens.kt | L48 SelectedContainerShapeRound = ShapeKeyTokens.CornerFull | androidx@b8256a52 |
+| md3_tokens::component::button_small::SELECTED_CONTAINER_SHAPE_SQUARE | Medium | ButtonSmallTokens.kt | L51 SelectedContainerShapeSquare = ShapeKeyTokens.CornerMedium | androidx@b8256a52 |
+| md3_tokens::component::button_small::TRAILING_SPACE | 16.0 | ButtonSmallTokens.kt | L54 TrailingSpace = 16.0.dp | androidx@b8256a52 |
+| md3_tokens::component::button_group_small::BETWEEN_SPACE | 12.0 | ButtonGroupSmallTokens.kt | L24 BetweenSpace = 12.0.dp | androidx@b8256a52 |
+| md3_tokens::component::button_group_small::CONTAINER_HEIGHT | 40.0 | ButtonGroupSmallTokens.kt | L27 ContainerHeight = 40.0.dp | androidx@b8256a52 |
+| md3_tokens::component::connected_button_group_small::BETWEEN_SPACE | 2.0 | ConnectedButtonGroupSmallTokens.kt | L25 BetweenSpace = 2.0.dp | androidx@b8256a52 |
+| md3_tokens::component::connected_button_group_small::CONTAINER_HEIGHT | 40.0 | ConnectedButtonGroupSmallTokens.kt | L28 ContainerHeight = 40.0.dp | androidx@b8256a52 |
+| md3_tokens::component::connected_button_group_small::CONTAINER_SHAPE | Full | ConnectedButtonGroupSmallTokens.kt | L31 ContainerShape = ShapeKeyTokens.CornerFull | androidx@b8256a52 |
+| md3_tokens::component::connected_button_group_small::INNER_CORNER_CORNER_SIZE | Small | ConnectedButtonGroupSmallTokens.kt | L34 InnerCornerCornerSize = ShapeTokens.CornerValueSmall | androidx@b8256a52 |
+| md3_tokens::component::connected_button_group_small::PRESSED_INNER_CORNER_CORNER_SIZE | ExtraSmall | ConnectedButtonGroupSmallTokens.kt | L35 PressedInnerCornerCornerSize = ShapeTokens.CornerValueExtraSmall | androidx@b8256a52 |
+| md3_tokens::component::connected_button_group_small::SELECTED_INNER_CORNER_CORNER_SIZE_PERCENT | 50.0 | ConnectedButtonGroupSmallTokens.kt | L36 SelectedInnerCornerCornerSizePercent = 50.0f | androidx@b8256a52 |

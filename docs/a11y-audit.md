@@ -10,7 +10,7 @@
 | 段階 | 状態 | 結果 |
 | --- | --- | --- |
 | 1. 自動テスト | 実施 | 全部品の役割・名前・状態と、キー操作・フォーカス移動をテストで確認。コントラストは全配色で基準を満たす |
-| 2. ツリー確認 | Linux で実施（自動） | 全 7 ページで名前の無い要素 0。役割・状態は想定どおり。監査中に見つかった不具合 2 件は修正済み（下記） |
+| 2. ツリー確認 | Linux で実施（自動） | 全 8 ページ（M8 の expressive を含む）で名前の無い要素 0。役割・状態は想定どおり。監査中に見つかった不具合 2 件は修正済み（下記） |
 | 2. ツリー確認 | macOS / Windows **未実施** | 人による確認が必要 |
 | 3. 読み上げ確認 | **未実施（全 OS）** | VoiceOver / Narrator / Orca での確認が必要。下の表に記録する |
 
@@ -51,6 +51,7 @@
 | overlays | 65 | menu / menu item、dialog、tool tip、status bar（Snackbar） | 0 |
 | navigation | 52 | landmark（Navigation）、heading、page tab list / page tab、dialog、list | 0 |
 | containment | 49 | list / list item、button（押せる Card） | 0 |
+| expressive（M8 で追加） | 51 | toggle button（ToggleButton、ButtonGroup の項目）、panel（ButtonGroup） | 0 |
 
 確認できた状態の例:
 
@@ -124,6 +125,7 @@ Tab でのフォーカス移動とフォーカスリングを確認した。
 | Tabs | 未 | 未 | 未 |
 | List / LazyList | 未 | 未 | 未 |
 | Card | 未 | 未 | 未 |
+| ToggleButton / ButtonGroup（M8） | 未 | 未 | 未 |
 
 ### 指摘
 

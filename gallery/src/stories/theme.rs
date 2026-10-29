@@ -3,7 +3,7 @@
 use gpui::{App, IntoElement, Window, div, prelude::*, px};
 use md3_components::theme::md3_color::ColorRole;
 use md3_components::theme::{
-    self, Appearance, Argb, Contrast, Density, Elevation, Md3ThemeExt, SchemeVariant,
+    self, Appearance, Argb, Contrast, Density, Elevation, Md3ThemeExt, MotionScheme, SchemeVariant,
     SetMd3ThemeExt, Shape, Theme, TypeScale,
 };
 use md3_components::{Icon, IconName, Surface, Text};
@@ -82,6 +82,29 @@ pub fn controls(window: &mut Window, cx: &mut App) -> impl IntoElement {
             cx.set_md3_theme(theme);
         })
     });
+    let mut motion_options: Vec<_> = MotionScheme::ALL
+        .map(|scheme| {
+            let name = format!("{scheme:?}");
+            let option = Choice::new(
+                format!("motion-{name}"),
+                name,
+                current.motion_scheme() == scheme,
+            );
+            option.render(window, cx, move |cx| {
+                let theme = cx.md3().to_builder().motion_scheme(scheme).build();
+                cx.set_md3_theme(theme);
+            })
+        })
+        .into();
+    // gpui の `App::reduce_motion`（OS の「視差効果を減らす」相当）。部品のバネとアニメーションが止まる。
+    let reduce_motion = cx.reduce_motion();
+    motion_options.push(
+        Choice::new("motion-reduce", "Reduce motion", reduce_motion).render(
+            window,
+            cx,
+            move |cx| cx.set_reduce_motion(!reduce_motion),
+        ),
+    );
 
     let issues = current.check_contrast();
     let contrast_report = if issues.is_empty() {
@@ -96,6 +119,7 @@ pub fn controls(window: &mut Window, cx: &mut App) -> impl IntoElement {
         .child(option_row("Contrast", contrast_options))
         .child(option_row("Appearance", appearance_options))
         .child(option_row("Density", density_options))
+        .child(option_row("Motion", motion_options))
         .child(Text::new(TypeScale::BodySmall, contrast_report).color(ColorRole::OnSurfaceVariant))
 }
 

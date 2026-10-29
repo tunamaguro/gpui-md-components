@@ -2,6 +2,7 @@
 
 pub mod buttons;
 pub mod containment;
+pub mod expressive;
 pub mod inputs;
 pub mod navigation;
 pub mod overlays;

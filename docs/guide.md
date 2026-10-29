@@ -7,7 +7,7 @@ md3-components を GPUI のアプリで使うための手引き。部品ごと�
 
 - `gpui` は md-components と**同じ git rev** を使う（`Cargo.toml` の `[workspace.dependencies]` を参照）。
   rev が違うと gpui の型が別物になり、部品を要素として渡せない。
-- 必要な部品群だけを feature で選べる（`buttons` / `selection` / `inputs` / `overlays` / `navigation` / `containment`、既定は全部）。
+- 必要な部品群だけを feature で選べる（`buttons` / `selection` / `inputs` / `overlays` / `navigation` / `containment` / `expressive`、既定は全部）。
   `inputs` と `navigation` は `overlays` を、`overlays` は `buttons` を自動で有効にする。
 
 起動時に 1 回:
@@ -23,7 +23,9 @@ md3_components::init(cx); // 既定のテーマの設定と、部品のキー操
 ## 2. テーマ
 
 ```rust
-use md3_components::theme::{Appearance, Argb, Contrast, Density, SchemeVariant, SetMd3ThemeExt, Theme};
+use md3_components::theme::{
+    Appearance, Argb, Contrast, Density, MotionScheme, SchemeVariant, SetMd3ThemeExt, Theme,
+};
 
 cx.set_md3_theme(
     Theme::from_seed(Argb::from_rgb(0x00, 0x6A, 0x6A))
@@ -31,6 +33,7 @@ cx.set_md3_theme(
         .contrast(Contrast::Standard)      // Standard / Medium / High
         .appearance(Appearance::System)    // System / Light / Dark
         .density(Density::Minus1)          // デスクトップ向けの密度
+        .motion_scheme(MotionScheme::Standard) // Standard / Expressive（M3 Expressive の部品のバネ）
         .font_family("Noto Sans JP")       // 省略時はシステムフォント
         .build(),
 );
@@ -44,7 +47,22 @@ cx.set_md3_theme(
   `theme.check_contrast()` で確かめる（基準を下回るロールの組を返す）。
 - 高コントラストを望む利用者のために、`Contrast` を設定から選べるようにすることを勧める。
 
-## 3. 部品の使い方の共通ルール
+## 3. モーション（M3 Expressive）
+
+- `expressive` の部品（`ToggleButton`、`ButtonGroup`）は、押下・選択で形（角丸）と幅がバネで変わる。
+  バネはテーマのモーションスキームから取る（`Standard` は行き過ぎが少なく、`Expressive` は弾む）。
+- **OS の「視差効果を減らす」設定を gpui に伝える。** gpui は OS の設定を読まないので、アプリが
+  `cx.set_reduce_motion(true)` を呼ぶ。`true` のとき部品のバネとアニメーションは動かず、最終の状態で描かれる。
+  設定画面に切り替えを置くことも勧める。
+
+```rust
+cx.set_reduce_motion(user_prefers_reduced_motion); // 起動時と、設定が変わったとき
+```
+
+- Web では `matchMedia("(prefers-reduced-motion: reduce)").matches` の値を wasm に渡して同じように呼ぶ
+  （gallery の `xtask/web/index.html` と `start` が例）。
+
+## 4. 部品の使い方の共通ルール
 
 - **操作できる部品は ID と名前を必ず取る。** `Button::new("save", "保存")` の第 1 引数が `ElementId`、
   第 2 引数が見た目のラベル兼スクリーンリーダーが読む名前。アイコンだけの部品（`IconButton` など）も名前が必須。
@@ -57,13 +75,14 @@ cx.set_md3_theme(
 - 無効な部品（`.disabled(true)`）は Tab で止まらず、操作できない。
 - 見本用の `forced(..)` / `inline()` は gallery 向けで、アプリでは使わない（`#[doc(hidden)]`）。
 
-## 4. キーボード操作
+## 5. キーボード操作
 
 全部品の割り当ては [`docs/agents/a11y.md`](agents/a11y.md) の表にある。要点:
 
 | 部品 | 操作 |
 | --- | --- |
-| ボタン類・Checkbox・Switch・Chip・Card | Tab で移動、Enter / Space で押す |
+| ボタン類・Checkbox・Switch・Chip・Card・ToggleButton | Tab で移動、Enter / Space で押す |
+| ButtonGroup | 各項目が Tab で止まり、Enter / Space で切り替える |
 | RadioGroup・SegmentedButton・Tabs | Tab でグループに入り、矢印で移って選ぶ（Home / End） |
 | NavigationBar / Rail / Drawer | 矢印でフォーカスだけを移し、Enter / Space で選ぶ |
 | List / LazyList | 矢印で移る（端で止まる）、Enter / Space で選ぶ |
@@ -71,7 +90,7 @@ cx.set_md3_theme(
 | Menu・Select | 開くと最初の項目にフォーカス、矢印で移動、Enter で選ぶ、Esc で閉じて元に戻る |
 | Dialog・モーダルな Sheet / Drawer | 開くと中にフォーカスし、Tab は中に閉じ込める。Esc で閉じ、開いた要素にフォーカスを戻す |
 
-## 5. Web（wasm32）
+## 6. Web（wasm32）
 
 - ブラウザでは gpui がシステムフォントを読めない。起動時に `cx.text_system().add_fonts(..)` でフォントの
   データを渡す。日本語などを表示するなら、その字を持つフォントも渡す
@@ -102,7 +121,10 @@ cx.set_md3_theme(
 - テキストフィールドの書記素の境界は簡易判定（結合文字・絵文字の ZWJ 列・国旗は扱う。依存を増やさないため
   Unicode の全規則ではない）。
 - Web ではフォントをアプリが渡す必要がある（上記）。渡したフォントに無い字は描けない（豆腐になる）。
-- M3 Expressive（バネのモーション、形のモーフ）、モバイル（iOS / Android）は対象外。
+- M3 Expressive は ToggleButton・ButtonGroup と、バネ・角丸の形の変化だけ。多角形の形のモーフ（`MaterialShapes`、
+  LoadingIndicator）、Expressive の大きさの段階・FAB メニュー・ツールバーなどは未実装。
+- gpui は OS の「視差効果を減らす」設定を読まない。アプリが `cx.set_reduce_motion(..)` で渡す（上記）。
+- モバイル（iOS / Android）は対象外。
 - フォントは同梱しない。既定はシステムフォント。
 
 ### 環境

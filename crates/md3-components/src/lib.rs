@@ -15,6 +15,8 @@ pub mod buttons;
 #[cfg(feature = "containment")]
 pub mod containment;
 mod control;
+#[cfg(feature = "expressive")]
+pub mod expressive;
 mod focus;
 mod icon;
 #[cfg(feature = "inputs")]
