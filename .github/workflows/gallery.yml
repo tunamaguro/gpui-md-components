@@ -1,0 +1,142 @@
+name: Gallery
+
+# 見本アプリ（gallery）をビルドして、Actions の実行結果の Artifacts からダウンロードできるようにする。
+# デスクトップ 3 OS のリリースビルドと、Web 版（`cargo xtask web`）。動作確認用で配布物ではないので、保存は 3 日だけ。
+# 動かし方は README の「見本（gallery）」。
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gallery-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    name: Desktop (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            name: linux-x86_64
+          - os: macos-15
+            name: macos-arm64
+          - os: windows-2025
+            name: windows-x86_64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # gpui の Linux バックエンド（wayland / x11 / wgpu / font-kit）が要求するシステムライブラリ。
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libwayland-dev libx11-xcb-dev libxcb1-dev libvulkan-dev libssl-dev
+
+      - name: Pin toolchain
+        shell: bash
+        run: echo "RUSTUP_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_ENV"
+
+      - name: Setup Rust
+        uses: moonrepo/setup-rust@abb2d32350334249b178c401e5ec5836e0cd88d3 # v1.3.0
+        with:
+          cache: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # CI のジョブ（target/debug）とは別に、target/release をキャッシュする。保存は main でだけ。
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: gallery-release
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build gallery
+        run: cargo build -p gallery --release --locked
+
+      # zip にすると実行権限が落ちるので、Linux / macOS は tar に入れてから上げる。
+      - name: Package (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p dist
+          tar -czf "dist/gallery-${{ matrix.name }}.tar.gz" -C target/release gallery
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/release/gallery.exe dist/
+
+      - name: Upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gallery-${{ matrix.name }}
+          path: dist/
+          retention-days: 3
+          if-no-files-found: error
+
+  web:
+    name: Web (wasm32)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # ブラウザでは gpui がシステムフォントを読めないため、ページに載せるフォント（Noto Sans と日本語の
+      # Noto Sans CJK）を用意する。開発環境（nix）の MD3_WEB_FONTS と同じ組み合わせ。
+      - name: Install fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-core fonts-noto-cjk
+          echo "MD3_WEB_FONTS=/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf:/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc" >> "$GITHUB_ENV"
+
+      - name: Pin toolchain
+        shell: bash
+        run: echo "RUSTUP_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_ENV"
+
+      - name: Setup Rust
+        uses: moonrepo/setup-rust@abb2d32350334249b178c401e5ec5836e0cd88d3 # v1.3.0
+        with:
+          targets: wasm32-unknown-unknown
+          cache: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: gallery-web
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # `cargo xtask web` は Cargo.lock と同じ版の wasm-bindgen CLI を要求する。
+      - name: Install wasm-bindgen
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: wasm-bindgen@0.2.129
+
+      - name: Build
+        run: cargo run --locked -p xtask -- web
+
+      - name: Upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gallery-web
+          path: target/web/
+          retention-days: 3
+          if-no-files-found: error
