@@ -129,6 +129,10 @@ impl RenderOnce for ButtonGroup {
         let total = naturals.iter().fold(px(0.0), |sum, width| sum + *width)
             + gap * count.saturating_sub(1) as f32;
         let padding = px(button_small::LEADING_SPACE + button_small::TRAILING_SPACE);
+        let compressible: Vec<Pixels> = naturals
+            .iter()
+            .map(|&n| compressible_width(n, padding))
+            .collect();
         let mut row = div()
             .id(self.id.clone())
             .a11y(node)
@@ -148,14 +152,30 @@ impl RenderOnce for ButtonGroup {
             item.slot = Some(GroupSlot {
                 natural,
                 flexible: last.is_some_and(|last| last.abs_diff(index) == 1),
-                // 縮むのは左右の余白の分まで（Compose の compressionLimit の既定と同じ）。
-                min_width: natural - padding,
+                min_width: natural - compressible[index],
+                capacity: neighbor_capacity(&compressible, index),
                 connected: self.connected.then_some((index == 0, index + 1 == count)),
             });
             row = row.child(item);
         }
         row
     }
+}
+
+/// 項目が縮められる幅（左右の余白の分まで。Compose の `compressionLimit` の既定と同じ）。
+fn compressible_width(natural: Pixels, padding: Pixels) -> Pixels {
+    padding.min(natural).max(px(0.0))
+}
+
+/// `index` の項目が押されたときに、両隣が縮んで吸収できる幅の合計。
+fn neighbor_capacity(compressible: &[Pixels], index: usize) -> Pixels {
+    let before = index
+        .checked_sub(1)
+        .and_then(|i| compressible.get(i))
+        .copied()
+        .unwrap_or(px(0.0));
+    let after = compressible.get(index + 1).copied().unwrap_or(px(0.0));
+    before + after
 }
 
 #[cfg(test)]
@@ -168,5 +188,14 @@ mod tests {
         let node = group.a11y_node();
         assert_eq!(node.role, Role::Group);
         assert_eq!(node.label.as_deref(), Some("配置"));
+    }
+
+    #[test]
+    fn capacity_counts_both_neighbors_and_none_for_a_single_item() {
+        let compressible = [px(32.0), px(32.0), px(32.0)];
+        assert_eq!(neighbor_capacity(&compressible, 0), px(32.0));
+        assert_eq!(neighbor_capacity(&compressible, 1), px(64.0));
+        assert_eq!(neighbor_capacity(&compressible, 2), px(32.0));
+        assert_eq!(neighbor_capacity(&[px(32.0)], 0), px(0.0));
     }
 }
