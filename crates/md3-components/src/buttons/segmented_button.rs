@@ -125,7 +125,7 @@ impl SegmentedButton {
         let node = if self.multi {
             A11yNode::new(Role::Button).toggled(toggled(selected))
         } else {
-            A11yNode::new(Role::RadioButton).selected(selected)
+            A11yNode::new(Role::RadioButton).toggled(toggled(selected))
         };
         Some(
             node.label(segment.label.clone())
@@ -298,6 +298,7 @@ impl RenderOnce for SegmentedButton {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gpui::Toggled;
 
     #[test]
     fn single_select_is_a_radio_group() {
@@ -308,7 +309,11 @@ mod tests {
         assert_eq!(button.a11y_node().role, Role::RadioGroup);
         let node = button.segment_a11y_node(1).expect("segment");
         assert_eq!(node.role, Role::RadioButton);
-        assert_eq!(node.selected, Some(true));
+        assert_eq!(node.toggled, Some(Toggled::True));
+        assert_eq!(
+            node.selected, None,
+            "ラジオの選択は checked（toggled）で伝える"
+        );
         assert_eq!(node.position, Some((2, 2)));
     }
 }

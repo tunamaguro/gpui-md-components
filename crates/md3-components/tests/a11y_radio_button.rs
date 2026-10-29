@@ -4,7 +4,7 @@ mod support;
 
 use std::{cell::Cell, rc::Rc};
 
-use gpui::{Role, TestAppContext, prelude::*};
+use gpui::{Role, TestAppContext, Toggled, prelude::*};
 use md3_components::buttons::{Segment, SegmentedButton};
 use md3_components::selection::RadioGroup;
 
@@ -78,6 +78,12 @@ fn radio_group_exposes_roles_and_selection() {
     assert_eq!(group.a11y_node().role, Role::RadioGroup);
     let first = group.option_a11y_node(0).expect("option");
     assert_eq!(first.role, Role::RadioButton);
-    assert_eq!(first.selected, Some(true));
+    assert_eq!(first.toggled, Some(Toggled::True));
+    assert_eq!(
+        first.selected, None,
+        "ラジオの選択は checked（toggled）で伝える"
+    );
     assert_eq!(first.position, Some((1, 3)));
+    let third = group.option_a11y_node(2).expect("option");
+    assert_eq!(third.toggled, Some(Toggled::False));
 }

@@ -41,7 +41,7 @@
 
 - 役割: RadioGroup + RadioButton（単一）、Group + Button（toggled、複数）
 - 名前: グループのラベル、各項目のラベル
-- 状態: selected / toggled、位置（n / 全体）
+- 状態: checked（単一。AccessKit の `toggled`、APG Radio Group に合わせる）/ toggled（複数。pressed として出る）、位置（n / 全体）
 - キー操作: 矢印で移動（端で反対側へ回る）
 
 ## デスクトップ向け調整（密度など）
