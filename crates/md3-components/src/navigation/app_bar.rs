@@ -112,6 +112,13 @@ impl RenderOnce for TopAppBar {
         };
         let row_height = px(app_bar_small::CONTAINER_HEIGHT);
         let has_navigation = self.navigation_icon.is_some();
+        // IconButton と同じ密度適用済みの幅を使い、左右で広い側を両側に確保する。
+        let icon_width =
+            theme.dense(md3_theme::md3_tokens::component::small_icon_button::CONTAINER_HEIGHT);
+        let leading = if has_navigation { icon_width } else { px(0.0) };
+        let trailing = icon_width * self.actions.len() as f32
+            + px(app_bar::ICON_BUTTON_SPACE) * self.actions.len().saturating_sub(1) as f32;
+        let centered_inset = leading.max(trailing) + px(layout::TOP_APP_BAR_HORIZONTAL_SPACE);
         let title = div()
             .id(ElementId::NamedChild(
                 self.id.clone().into(),
@@ -179,10 +186,12 @@ impl RenderOnce for TopAppBar {
                     div()
                         .absolute()
                         .inset_0()
+                        .px(centered_inset)
+                        .overflow_hidden()
                         .flex()
                         .items_center()
                         .justify_center()
-                        .child(title),
+                        .child(title.max_w_full()),
                 ),
             ),
             TopAppBarVariant::Medium | TopAppBarVariant::Large => {

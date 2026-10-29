@@ -3,8 +3,8 @@
 use std::rc::Rc;
 
 use gpui::{
-    App, ElementId, FocusHandle, IntoElement, KeyDownEvent, RenderOnce, Role, SharedString, Window,
-    div, prelude::*, px,
+    App, Corners, ElementId, FocusHandle, IntoElement, KeyDownEvent, RenderOnce, Role,
+    SharedString, Window, div, prelude::*, px,
 };
 use md3_theme::md3_tokens::component::outlined_segmented_button as tokens;
 use md3_theme::md3_tokens::layout;
@@ -212,8 +212,12 @@ impl RenderOnce for SegmentedButton {
             } else {
                 segment.icon
             };
-            // 角丸は左右で違うので、状態レイヤーとフォーカスリングは大きい方に合わせる。
-            let ring_radius = CornerRadius::Fixed(if left || right { full } else { px(0.0) });
+            let corners = Corners {
+                top_left: start_radius,
+                bottom_left: start_radius,
+                top_right: end_radius,
+                bottom_right: end_radius,
+            };
 
             let mut item = base
                 .h(theme.dense(tokens::CONTAINER_HEIGHT))
@@ -246,12 +250,16 @@ impl RenderOnce for SegmentedButton {
                         control.group.clone(),
                         content_role,
                     )
-                    .radius(ring_radius)
+                    .corners(corners)
                     .focused(control.focus_visible)
                     .disabled(segment.disabled)
                     .forced(forced),
                 )
-                .child(FocusRing::new(ring_radius).visible(control.focus_visible));
+                .child(
+                    FocusRing::new(CornerRadius::Fixed(px(0.0)))
+                        .corners(corners)
+                        .visible(control.focus_visible),
+                );
             if let Some(node) = node {
                 item = item.a11y(node);
             }

@@ -110,14 +110,11 @@ impl RenderOnce for NavigationDrawer {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let node = self.a11y_node();
         let modal = self.kind == NavigationDrawerKind::Modal && !self.inline;
+        let destinations = Destinations::new(&self.id, &self.items, self.selected, window, cx);
         let focus = modal.then(|| {
-            let target = self.selected.map(|index| {
-                crate::focus_handle(
-                    ElementId::NamedChild(self.id.clone().into(), format!("{index}").into()),
-                    window,
-                    cx,
-                )
-            });
+            let target = destinations
+                .tab_target
+                .map(|index| destinations.handles[index].clone());
             overlay_focus(
                 &self.id,
                 move || target.map_or(InitialFocus::Within, InitialFocus::Handle),
@@ -129,7 +126,6 @@ impl RenderOnce for NavigationDrawer {
             Some(focus) => dismiss_and_restore(self.on_dismiss.clone(), focus),
             None => self.on_dismiss.clone(),
         };
-        let destinations = Destinations::new(&self.id, &self.items, self.selected, window, cx);
         let theme = cx.md3().clone();
         let count = self.items.len();
         let pill = theme.corner(tokens::ACTIVE_INDICATOR_SHAPE);
@@ -223,6 +219,8 @@ impl RenderOnce for NavigationDrawer {
             })
             .collect();
 
+        let scroll = crate::scroll::scroll_handle(&self.id, window, cx);
+        let wheel = crate::scroll::NestedScroll::new(&self.id, scroll.clone(), window, cx);
         let mut drawer = div()
             .id(self.id.clone())
             .a11y(node)
@@ -234,6 +232,9 @@ impl RenderOnce for NavigationDrawer {
             .flex_col()
             .px(px(layout::NAVIGATION_DRAWER_ITEM_HORIZONTAL_SPACE))
             .overflow_y_scroll()
+            .track_scroll(&scroll)
+            .on_scroll(wheel.on_scroll())
+            .child(wheel.capture())
             .children(self.header)
             .children(items);
         drawer = match self.kind {

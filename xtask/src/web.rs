@@ -55,6 +55,7 @@ pub fn run(workspace_root: &Path, args: impl Iterator<Item = String>) -> Result<
         ));
     }
 
+    let target_dir = target_directory(workspace_root)?;
     let profile = if release { "release" } else { "debug" };
     let mut build = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned()));
     build
@@ -67,8 +68,8 @@ pub fn run(workspace_root: &Path, args: impl Iterator<Item = String>) -> Result<
     run_command(&mut build)?;
 
     let out_dir = workspace_root.join(OUT_DIR);
-    let wasm = workspace_root
-        .join("target/wasm32-unknown-unknown")
+    let wasm = target_dir
+        .join("wasm32-unknown-unknown")
         .join(profile)
         .join("gallery.wasm");
     run_command(
@@ -166,5 +167,143 @@ fn run_command(command: &mut Command) -> Result<(), String> {
         Ok(())
     } else {
         Err(format!("{command:?} が失敗した（{status}）"))
+    }
+}
+
+/// Cargo の設定・環境変数を反映した出力先を問い合わせる。
+fn target_directory(workspace_root: &Path) -> Result<PathBuf, String> {
+    let output = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
+        .current_dir(workspace_root)
+        .args([
+            "metadata",
+            "--format-version",
+            "1",
+            "--no-deps",
+            "--locked",
+            "--offline",
+        ])
+        .output()
+        .map_err(|error| format!("cargo metadata を起動できない: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "cargo metadata が失敗した: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    let json = std::str::from_utf8(&output.stdout)
+        .map_err(|error| format!("cargo metadata の出力が UTF-8 でない: {error}"))?;
+    metadata_target_directory(json)
+        .map(PathBuf::from)
+        .ok_or_else(|| "cargo metadata の target_directory を読めない".to_owned())
+}
+
+/// 最上位の文字列プロパティだけを読む。依存なしで JSON のエスケープを復元する。
+fn metadata_target_directory(json: &str) -> Option<String> {
+    let mut chars = json.chars().peekable();
+    let mut depth = 0usize;
+    while let Some(ch) = chars.next() {
+        match ch {
+            '{' | '[' => depth += 1,
+            '}' | ']' => depth = depth.checked_sub(1)?,
+            '"' => {
+                let key = json_string(&mut chars)?;
+                if depth == 1 && key == "target_directory" {
+                    while chars.peek().is_some_and(|ch| ch.is_ascii_whitespace()) {
+                        chars.next();
+                    }
+                    if chars.next()? != ':' {
+                        return None;
+                    }
+                    while chars.peek().is_some_and(|ch| ch.is_ascii_whitespace()) {
+                        chars.next();
+                    }
+                    if chars.next()? != '"' {
+                        return None;
+                    }
+                    return json_string(&mut chars);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// 開き引用符の直後から JSON の文字列を読む。
+fn json_string(chars: &mut impl Iterator<Item = char>) -> Option<String> {
+    fn hex(chars: &mut impl Iterator<Item = char>) -> Option<u32> {
+        (0..4).try_fold(0, |value, _| Some(value * 16 + chars.next()?.to_digit(16)?))
+    }
+    let mut text = String::new();
+    while let Some(ch) = chars.next() {
+        match ch {
+            '"' => return Some(text),
+            '\\' => text.push(match chars.next()? {
+                '"' => '"',
+                '\\' => '\\',
+                '/' => '/',
+                'b' => '\u{8}',
+                'f' => '\u{c}',
+                'n' => '\n',
+                'r' => '\r',
+                't' => '\t',
+                'u' => {
+                    let first = hex(chars)?;
+                    let code = if (0xd800..=0xdbff).contains(&first) {
+                        if chars.next()? != '\\' || chars.next()? != 'u' {
+                            return None;
+                        }
+                        let second = hex(chars)?;
+                        if !(0xdc00..=0xdfff).contains(&second) {
+                            return None;
+                        }
+                        0x10000 + ((first - 0xd800) << 10) + second - 0xdc00
+                    } else {
+                        first
+                    };
+                    char::from_u32(code)?
+                }
+                _ => return None,
+            }),
+            ch if ch.is_control() => return None,
+            ch => text.push(ch),
+        }
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metadata_paths_decode_escapes_and_ignore_nested_fields() {
+        assert_eq!(
+            metadata_target_directory(
+                r#"{"packages":[{"target_directory":"wrong"}],"target_directory":"/tmp/出力 dir"}"#
+            )
+            .as_deref(),
+            Some("/tmp/出力 dir")
+        );
+        assert_eq!(
+            metadata_target_directory(
+                r#"{"target_directory":"C:\\work\\\"dir\"\\\u65e5\ud83d\ude80"}"#
+            )
+            .as_deref(),
+            Some("C:\\work\\\"dir\"\\日🚀")
+        );
+        assert_eq!(
+            metadata_target_directory(r#"{"target_directory":"/tmp/a\nb\tc"}"#).as_deref(),
+            Some("/tmp/a\nb\tc")
+        );
+        assert_eq!(metadata_target_directory(r#"{"packages":[]}"#), None);
+        assert_eq!(
+            metadata_target_directory(r#"{"target_directory":"\ud800x"}"#),
+            None
+        );
+        assert_eq!(
+            metadata_target_directory(r#"{"target_directory":"unfinished}"#),
+            None
+        );
     }
 }

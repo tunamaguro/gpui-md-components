@@ -132,3 +132,20 @@ cx.set_reduce_motion(user_prefers_reduced_motion); // 起動時と、設定が�
 - Linux の描画は Vulkan（wgpu）。GPU ドライバが無い環境では mesa の lavapipe（CPU 描画）で動く（遅い）。
 - Web はブラウザの WebGPU / WebGL2 に依存する。ソフトウェア描画（SwiftShader）の WebGPU では
   描画デバイスが失われることがあり、その場合は `?renderer=webgl`（gallery）で WebGL2 を使う。
+
+
+## 入れ子のスクロール（M5 / M6）
+
+LazyList・Menu（Select のポップアップを含む）・NavigationDrawer は、内側が動ける方向の
+ホイールを消費する。端を越える差分は内側の端まで移動して消費し、すでに端にいる方向の
+次の入力を外側へ渡す。開始フェーズのある精密スクロールは、いったん内側が消費したら
+終了・キャンセルまで保持する。開始フェーズのない入力はイベントごとに端を判定する。
+List・Dialog・BottomSheet・SideSheet 自体にはスクロール領域がない。これらの中に置く
+LazyList は同じ制御を使うが、利用側で追加する任意の GPUI スクロール領域には自動適用されない。
+
+## Web ビルドの出力先（M7）
+
+`cargo xtask web` は `cargo metadata` からビルド成果物の場所を取得するため、
+`CARGO_TARGET_DIR` や Cargo 設定の `build.target-dir` を指定しても wasm を見つけられる。
+配信用の出力先は引き続きワークスペース直下の `target/web/`。
+`nix develop` の `MD3_WEB_FONTS` は Linux・Darwin の両方で設定する。
