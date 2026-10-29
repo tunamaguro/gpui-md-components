@@ -284,15 +284,28 @@ impl Render for Gallery {
                 let search = self.fields.get("search-people", "", cx);
                 stories::navigation::page(&self.demo, &search, view, window, cx).into_any_element()
             }
-            Page::Containment => {
-                stories::containment::page(&self.demo, &self.contacts, view, window, cx)
-                    .into_any_element()
-            }
+            Page::Containment => div()
+                .flex()
+                .flex_col()
+                .gap_6()
+                .child(stories::scrollbar::page(window, cx))
+                .child(stories::containment::page(
+                    &self.demo,
+                    &self.contacts,
+                    view,
+                    window,
+                    cx,
+                ))
+                .into_any_element(),
             Page::Expressive => {
                 stories::expressive::page(&self.demo, view, window, cx).into_any_element()
             }
         };
 
+        let root_scroll = window
+            .use_keyed_state("gallery-scroll", cx, |_, _| gpui::ScrollHandle::new())
+            .read(cx)
+            .clone();
         div()
             .id("gallery")
             .key_context("Gallery")
@@ -301,6 +314,7 @@ impl Render for Gallery {
             .on_action(cx.listener(Self::focus_prev))
             .size_full()
             .overflow_y_scroll()
+            .track_scroll(&root_scroll)
             .bg(current.color(ColorRole::Surface))
             .text_color(current.color(ColorRole::OnSurface))
             .type_style(&current.text_style(TypeScale::BodyMedium))
@@ -320,6 +334,10 @@ impl Render for Gallery {
                     .child(content),
             )
             .child(self.snackbar.clone())
+            .child(md3_components::Scrollbar::new(
+                "gallery-scrollbar",
+                root_scroll,
+            ))
     }
 }
 

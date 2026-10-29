@@ -222,7 +222,11 @@ fn nested_lazy_list_consumes_wheel_until_its_edge(cx: &mut TestAppContext) {
         cx.update(|window, cx| {
             window.dispatch_event(
                 gpui::PlatformInput::Scroll(gpui::ScrollEvent {
-                    position: gpui::point(px(50.0), px(50.0)),
+                    // バー上でもリスト本体と同じホイール伝播になる。
+                    position: {
+                        let bounds = inner.0.borrow().base_handle.bounds();
+                        gpui::point(bounds.right() - px(2.0), bounds.top() + px(30.0))
+                    },
                     delta: gpui::ScrollDelta::Pixels(gpui::point(px(0.0), px(delta))),
                     touch_phase: phase,
                     ..Default::default()

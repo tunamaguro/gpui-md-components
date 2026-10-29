@@ -8,7 +8,6 @@ use gpui::{
 };
 
 /// 描画をまたいで保持するスクロール位置。
-#[cfg(feature = "overlays")]
 pub(crate) fn scroll_handle(id: &ElementId, window: &mut Window, cx: &mut App) -> ScrollHandle {
     window
         .use_keyed_state(
@@ -115,6 +114,34 @@ fn gesture_step(
     let consume = moved || claimed;
     let ended = matches!(phase, TouchPhase::Ended | TouchPhase::Cancelled);
     (consume, (active && !ended, active && consume && !ended))
+}
+
+/// オーバーレイの本文。ヘッダーと操作ボタンを残したまま縮小できる領域。
+#[cfg(feature = "overlays")]
+pub(crate) fn content(
+    parent: &ElementId,
+    children: Vec<gpui::AnyElement>,
+    scrollbar: bool,
+    window: &mut Window,
+    cx: &mut App,
+) -> impl IntoElement + use<> {
+    let id = ElementId::NamedChild(parent.clone().into(), "scroll-content".into());
+    let scroll = scroll_handle(&id, window, cx);
+    let wheel = NestedScroll::new(&id, scroll.clone(), window, cx);
+    gpui::div()
+        .id(id.clone())
+        .min_h_0()
+        .overflow_y_scroll()
+        .track_scroll(&scroll)
+        .on_scroll(wheel.on_scroll())
+        .child(gpui::div().flex().flex_col().children(children))
+        .child(wheel.capture())
+        .when(scrollbar, |this| {
+            this.child(crate::Scrollbar::new(
+                ElementId::NamedChild(id.into(), "scrollbar".into()),
+                scroll,
+            ))
+        })
 }
 
 #[cfg(test)]

@@ -34,6 +34,7 @@ fn radius(corner: CornerRadius) -> gpui::Pixels {
 /// つまみ（drag handle）は、`handle_label` を付けると閉じるボタンになる。ドラッグでの開閉には対応しない。
 #[derive(IntoElement)]
 pub struct BottomSheet {
+    scrollbar: bool,
     id: ElementId,
     label: SharedString,
     handle_label: Option<SharedString>,
@@ -43,9 +44,16 @@ pub struct BottomSheet {
 }
 
 impl BottomSheet {
+    /// スクロールバーの表示を切り替える（既定は表示）。
+    pub fn scrollbar(mut self, visible: bool) -> Self {
+        self.scrollbar = visible;
+        self
+    }
+
     /// ID とラベル（読み上げ用の名前）から作る。
     pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
         Self {
+            scrollbar: true,
             id: id.into(),
             label: label.into(),
             handle_label: None,
@@ -128,6 +136,7 @@ impl RenderOnce for BottomSheet {
             .a11y(node)
             .w_full()
             .max_w(px(layout::BOTTOM_SHEET_MAX_WIDTH))
+            .max_h(window.viewport_size().height)
             .flex()
             .flex_col()
             .bg(theme.color(sheet_bottom::DOCKED_CONTAINER_COLOR))
@@ -135,8 +144,14 @@ impl RenderOnce for BottomSheet {
             .shadow(theme.shadows(Elevation::from_dp(
                 sheet_bottom::DOCKED_MODAL_CONTAINER_ELEVATION,
             )))
-            .child(div().flex().justify_center().child(handle))
-            .children(self.children);
+            .child(div().flex_none().flex().justify_center().child(handle))
+            .child(crate::scroll::content(
+                &self.id,
+                self.children,
+                self.scrollbar,
+                window,
+                cx,
+            ));
 
         let Some(focus) = focus else {
             return sheet.into_any_element();
@@ -167,6 +182,7 @@ pub enum SideSheetKind {
 /// Standard はレイアウトの中に置く。Modal は開いている間だけ描く。
 #[derive(IntoElement)]
 pub struct SideSheet {
+    scrollbar: bool,
     id: ElementId,
     headline: SharedString,
     kind: SideSheetKind,
@@ -177,9 +193,16 @@ pub struct SideSheet {
 }
 
 impl SideSheet {
+    /// スクロールバーの表示を切り替える（既定は表示）。
+    pub fn scrollbar(mut self, visible: bool) -> Self {
+        self.scrollbar = visible;
+        self
+    }
+
     /// ID と見出し（読み上げ用の名前を兼ねる）から作る。
     pub fn new(id: impl Into<ElementId>, headline: impl Into<SharedString>) -> Self {
         Self {
+            scrollbar: true,
             id: id.into(),
             headline: headline.into(),
             kind: SideSheetKind::default(),
@@ -247,6 +270,7 @@ impl RenderOnce for SideSheet {
         let space = px(layout::SIDE_SHEET_CONTENT_SPACE);
 
         let header = div()
+            .flex_none()
             .flex()
             .items_start()
             .gap(space)
@@ -278,12 +302,19 @@ impl RenderOnce for SideSheet {
             .a11y(node)
             .w(px(side_sheet::DOCKED_CONTAINER_WIDTH))
             .h_full()
+            .max_h(window.viewport_size().height)
             .flex_none()
             .flex()
             .flex_col()
             .p(space)
             .child(header)
-            .children(self.children);
+            .child(crate::scroll::content(
+                &self.id,
+                self.children,
+                self.scrollbar,
+                window,
+                cx,
+            ));
         sheet = match self.kind {
             SideSheetKind::Standard => sheet
                 .bg(theme.color(side_sheet::DOCKED_STANDARD_CONTAINER_COLOR))

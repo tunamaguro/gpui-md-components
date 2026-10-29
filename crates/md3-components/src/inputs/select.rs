@@ -23,6 +23,7 @@ type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App)>;
 /// 押すか、Enter / Space / ↓ で選択肢のメニューを開く。開閉の状態は部品が持つ。
 #[derive(IntoElement)]
 pub struct Select {
+    scrollbar: bool,
     id: ElementId,
     label: SharedString,
     options: Vec<SharedString>,
@@ -37,6 +38,12 @@ pub struct Select {
 }
 
 impl Select {
+    /// スクロールバーの表示を切り替える（既定は表示）。
+    pub fn scrollbar(mut self, visible: bool) -> Self {
+        self.scrollbar = visible;
+        self
+    }
+
     /// ID、ラベル、選択肢、選ばれている位置から作る。
     pub fn new(
         id: impl Into<ElementId>,
@@ -45,6 +52,7 @@ impl Select {
         selected: Option<usize>,
     ) -> Self {
         Self {
+            scrollbar: true,
             id: id.into(),
             label: label.into(),
             options: options.into_iter().map(Into::into).collect(),
@@ -181,6 +189,7 @@ impl RenderOnce for Select {
                 ElementId::NamedChild(parent.clone(), "menu".into()),
                 self.label.clone(),
             )
+            .scrollbar(self.scrollbar)
             .kind(MenuKind::Options)
             .selected(self.selected)
             .match_anchor_width()

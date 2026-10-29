@@ -363,15 +363,31 @@ fn item_id(list: &ElementId, key: &SharedString) -> ElementId {
 /// 中は ↑↓ / Home / End で移る（選択中の項目、無ければ最初の押せる項目に止まる）。
 #[derive(IntoElement)]
 pub struct List {
+    max_height: Option<gpui::Pixels>,
+    scrollbar: bool,
     id: ElementId,
     label: SharedString,
     items: Vec<(SharedString, ListItem)>,
 }
 
 impl List {
+    /// 高さを制限し、超過する項目をスクロール可能にする。
+    pub fn max_height(mut self, height: gpui::Pixels) -> Self {
+        self.max_height = Some(height.max(px(0.0)));
+        self
+    }
+
+    /// スクロールバーの表示を切り替える（既定は表示）。
+    pub fn scrollbar(mut self, visible: bool) -> Self {
+        self.scrollbar = visible;
+        self
+    }
+
     /// ID と名前（読み上げられる）から作る。
     pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
         Self {
+            scrollbar: true,
+            max_height: None,
             id: id.into(),
             label: label.into(),
             items: Vec::new(),
@@ -437,6 +453,22 @@ impl RenderOnce for List {
                 cx,
             ));
         }
+        if let Some(height) = self.max_height {
+            let scroll = crate::scroll::scroll_handle(&self.id, window, cx);
+            let wheel = crate::scroll::NestedScroll::new(&self.id, scroll.clone(), window, cx);
+            list = list
+                .max_h(height)
+                .overflow_y_scroll()
+                .track_scroll(&scroll)
+                .on_scroll(wheel.on_scroll())
+                .child(wheel.capture())
+                .when(self.scrollbar, |this| {
+                    this.child(crate::Scrollbar::new(
+                        ElementId::NamedChild(self.id.clone().into(), "scrollbar".into()),
+                        scroll,
+                    ))
+                });
+        }
         list
     }
 }
@@ -450,6 +482,7 @@ type ItemBuilder = Rc<dyn Fn(usize, &mut App) -> (SharedString, ListItem)>;
 /// Tab で止まるのは最後にフォーカスした項目で、それが見えていなければ最初に見えている押せる項目。
 #[derive(IntoElement)]
 pub struct LazyList {
+    scrollbar: bool,
     id: ElementId,
     label: SharedString,
     count: usize,
@@ -467,6 +500,12 @@ struct LazyListState {
 }
 
 impl LazyList {
+    /// スクロールバーの表示を切り替える（既定は表示）。
+    pub fn scrollbar(mut self, visible: bool) -> Self {
+        self.scrollbar = visible;
+        self
+    }
+
     /// ID、名前、項目数、スクロールの状態、項目を作る関数から作る。
     ///
     /// `build(index)` は項目のキーと中身を返す。キーはデータの安定したキーにする。
@@ -478,6 +517,7 @@ impl LazyList {
         build: impl Fn(usize, &mut App) -> (SharedString, ListItem) + 'static,
     ) -> Self {
         Self {
+            scrollbar: true,
             id: id.into(),
             label: label.into(),
             count,
@@ -599,12 +639,18 @@ impl RenderOnce for LazyList {
         let mut container = div();
         *container.style() = base.style().clone();
         container
-            .id(self.id)
+            .id(self.id.clone())
             .a11y(node)
             .flex()
             .flex_col()
             .child(items)
             .child(wheel.capture())
+            .when(self.scrollbar, |this| {
+                this.child(crate::Scrollbar::new(
+                    ElementId::NamedChild(self.id.clone().into(), "scrollbar".into()),
+                    self.scroll.clone(),
+                ))
+            })
     }
 }
 

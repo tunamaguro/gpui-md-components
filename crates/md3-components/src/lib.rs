@@ -28,6 +28,7 @@ pub mod navigation;
 pub mod overlays;
 #[cfg(any(feature = "containment", feature = "overlays", feature = "navigation"))]
 mod scroll;
+pub mod scrollbar;
 #[cfg(feature = "selection")]
 pub mod selection;
 mod state_layer;
@@ -43,6 +44,7 @@ pub use icon::Icon;
 pub use keys::init;
 pub use md3_icons::IconName;
 pub use md3_theme as theme;
+pub use scrollbar::{Scrollbar, ScrollbarInteraction, ScrollbarSource};
 pub use state_layer::StateLayer;
 pub use style::StyledExt;
 pub use surface::Surface;

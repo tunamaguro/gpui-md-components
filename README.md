@@ -10,6 +10,7 @@ Material Design 3（ベースライン）の UI 部品集。Windows / macOS / Li
   生成した配色は全組み合わせで WCAG 2.2 のコントラスト比（文字 4.5:1、UI 部品 3:1）を満たすことをテストしている。
 - トークン: 寸法・色の割り当て・形・高さ・タイプスケールは一次資料（androidx Compose Material 3 の `*Tokens.kt` など）から
   転記し、出典を [`docs/TOKENS_SOURCE.md`](docs/TOKENS_SOURCE.md) に記録している（`cargo xtask check-tokens` で突き合わせる）。
+- スクロールバー: 縦・横、ドラッグ / 表示のみ、静止後のフェード。リスト・メニュー・ダイアログなどに標準で表示する（[仕様](docs/specs/scrollbar.md)）。
 - 依存は `gpui` だけ（上流 Zed の git rev を固定）。フォントは同梱しない。
 
 > 非公式の移植です。Google および Material Design チームとは関係ありません。

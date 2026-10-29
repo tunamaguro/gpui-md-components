@@ -39,6 +39,7 @@ pub enum NavigationDrawerKind {
 /// [`NavigationBar`](super::NavigationBar) と同じ。Modal は開いている間だけ描く。
 #[derive(IntoElement)]
 pub struct NavigationDrawer {
+    scrollbar: bool,
     id: ElementId,
     label: SharedString,
     kind: NavigationDrawerKind,
@@ -52,9 +53,16 @@ pub struct NavigationDrawer {
 }
 
 impl NavigationDrawer {
+    /// スクロールバーの表示を切り替える（既定は表示）。
+    pub fn scrollbar(mut self, visible: bool) -> Self {
+        self.scrollbar = visible;
+        self
+    }
+
     /// ID と名前（読み上げられる）から作る。
     pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
         Self {
+            scrollbar: true,
             id: id.into(),
             label: label.into(),
             kind: NavigationDrawerKind::default(),
@@ -235,6 +243,12 @@ impl RenderOnce for NavigationDrawer {
             .track_scroll(&scroll)
             .on_scroll(wheel.on_scroll())
             .child(wheel.capture())
+            .when(self.scrollbar, |this| {
+                this.child(crate::Scrollbar::new(
+                    ElementId::NamedChild(self.id.clone().into(), "scrollbar".into()),
+                    scroll.clone(),
+                ))
+            })
             .children(self.header)
             .children(items);
         drawer = match self.kind {

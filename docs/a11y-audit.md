@@ -130,3 +130,12 @@ Tab でのフォーカス移動とフォーカスリングを確認した。
 ### 指摘
 
 （読み上げ確認で見つかったものをここに書く）
+
+## Scrollbar（M6、2026-10-29）
+
+- Canvas による装飾で、アクセシビリティの role / フォーカスを追加しない。スクロール領域の既存の意味を維持する。
+- 自動確認: `tests/a11y_scrollbar.rs`（Tab 順への非介入、領域外ドラッグ・解除、横のページ移動、Passive）。
+  幾何計算と reduce_motion による即時非表示はモジュール内の純関数テスト。
+- gallery: Containment の Scrollbar 見本と根のスクロール。ホバー・ドラッグ中は表示を保持する。
+- 手動確認: Windows / macOS / Linux のスクリーンリーダー、実 GPU の表示、Web のマウス操作は未検証。
+  GPUI のテスト環境では AccessKit ツリーを取得できず、Web は AccessKit 非対応。
