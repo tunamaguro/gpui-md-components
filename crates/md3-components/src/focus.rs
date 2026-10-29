@@ -1,7 +1,8 @@
 //! キーボードフォーカスの表示。
 
 use gpui::{
-    App, ElementId, FocusHandle, IntoElement, Pixels, RenderOnce, Window, div, prelude::*, px,
+    App, Corners, ElementId, FocusHandle, IntoElement, Pixels, RenderOnce, Window, div, prelude::*,
+    px,
 };
 use md3_theme::md3_tokens::state;
 use md3_theme::{CornerRadius, Md3ThemeExt};
@@ -29,6 +30,7 @@ pub fn focus_handle(id: impl Into<ElementId>, window: &mut Window, cx: &mut App)
 #[derive(IntoElement)]
 pub struct FocusRing {
     radius: CornerRadius,
+    corners: Option<Corners<Pixels>>,
     visible: bool,
     inward: bool,
 }
@@ -38,9 +40,16 @@ impl FocusRing {
     pub fn new(radius: CornerRadius) -> Self {
         Self {
             radius,
+            corners: None,
             visible: true,
             inward: false,
         }
+    }
+
+    /// 親要素が角ごとに違う角丸のときに使う（[`FocusRing::new`] の角丸より優先）。
+    pub fn corners(mut self, corners: Corners<Pixels>) -> Self {
+        self.corners = Some(corners);
+        self
     }
 
     /// 要素の内側に描く（リストやメニューの項目のように、外側が切り取られる要素で使う）。
@@ -70,7 +79,10 @@ impl RenderOnce for FocusRing {
             .left(-outset)
             .right(-outset)
             .bottom(-outset)
-            .corner_radius(self.radius.grow(outset));
+            .corner_radius(self.radius.grow(outset))
+            .when_some(self.corners, |this, corners| {
+                this.corners(corners.map(|radius| (*radius + outset).max(px(0.0))))
+            });
         if self.visible {
             ring.border(thickness)
                 .border_color(cx.md3().color(state::FOCUS_INDICATOR_COLOR))

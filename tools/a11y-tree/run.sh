@@ -15,7 +15,7 @@ out=$(realpath -m "${1:-$root/target/a11y-tree}")
 shift || true
 pages=("$@")
 if [ ${#pages[@]} -eq 0 ]; then
-  pages=(foundations buttons selection inputs overlays navigation containment)
+  pages=(foundations buttons selection inputs overlays navigation containment expressive)
 fi
 mkdir -p "$out"
 

@@ -16,7 +16,7 @@ md3-icons.workspace = true
 md3-theme.workspace = true
 
 [features]
-default = ["buttons", "selection", "inputs", "overlays", "navigation", "containment"]
+default = ["buttons", "selection", "inputs", "overlays", "navigation", "containment", "expressive"]
 # Button, IconButton, FAB, SegmentedButton（M4）
 buttons = []
 # Checkbox, RadioButton, Switch, Chip, Slider 等（M4）
@@ -29,6 +29,8 @@ overlays = ["buttons"]
 navigation = ["overlays"]
 # List, Card, Divider（M6）
 containment = []
+# M3 Expressive の ToggleButton, ButtonGroup（M8）
+expressive = []
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }

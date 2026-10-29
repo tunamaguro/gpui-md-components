@@ -4,6 +4,8 @@
 Material Design 3（ベースライン）の UI 部品集。Windows / macOS / Linux / Web（wasm32）で同じ見た目と操作で動き、
 キーボード操作とスクリーンリーダー向けの情報（役割・名前・状態）を全部品に付けている。
 
+- モーション: Standard / Expressive のモーションスキーム（バネ）。OS の「視差効果を減らす」相当の設定
+  （gpui の `App::reduce_motion`）で動きを止められる。
 - 配色: シード色から HCT 色空間でライト / ダークの配色を作る（7 バリアント × 標準 / 中 / 高コントラスト）。
   生成した配色は全組み合わせで WCAG 2.2 のコントラスト比（文字 4.5:1、UI 部品 3:1）を満たすことをテストしている。
 - トークン: 寸法・色の割り当て・形・高さ・タイプスケールは一次資料（androidx Compose Material 3 の `*Tokens.kt` など）から
@@ -32,6 +34,7 @@ Material Design 3（ベースライン）の UI 部品集。Windows / macOS / Li
 | `overlays` | Menu、Dialog、Tooltip、Snackbar、BottomSheet / SideSheet |
 | `navigation` | TopAppBar（4 種）、NavigationBar / Rail / Drawer、NavigationSuite、Tabs |
 | `containment` | Card（3 種）、List / LazyList、Divider |
+| `expressive` | M3 Expressive の ToggleButton、ButtonGroup（Standard / Connected）。押下・選択で形と幅がバネで変わる |
 
 既定ではすべて有効。各部品の仕様とキー操作は [`docs/specs/`](docs/specs/) にある。
 
@@ -100,6 +103,7 @@ impl Render for Root {
 ```sh
 cargo run -p gallery                    # デスクトップ
 MD3_GALLERY_PAGE=inputs cargo run -p gallery   # ページを指定して起動
+MD3_REDUCE_MOTION=1 cargo run -p gallery       # 「視差効果を減らす」を有効にして起動（画面でも切り替えられる）
 cargo xtask web                         # wasm 版を target/web/ にビルド（`nix develop` の環境で）
 python3 -m http.server -d target/web    # 静的ファイルとして配信して http://localhost:8000/ を開く
 ```
@@ -114,7 +118,8 @@ GPUI 側の制約によるものが多い。全体は [利用ガイドの「既�
 - **Web 版にはアクセシビリティツリーが無い。** gpui は wasm で AccessKit を組み込まない（キャンバスに描くだけ）ため、
   Web ではスクリーンリーダーが部品を読めない。キーボード操作とフォーカスリングは動く。
 - Web ではシステムフォントを読めないため、アプリがフォントのデータを渡す必要がある。
-- M3 Expressive（バネのモーション、形のモーフ）は対象外。
+- M3 Expressive は ToggleButton・ButtonGroup とバネのモーションだけ（多角形の形のモーフなどは未実装）。
+  動きは gpui の `App::reduce_motion` に従うが、gpui は OS の「視差効果を減らす」設定を読まないため、アプリが渡す。
 
 ## 開発
 

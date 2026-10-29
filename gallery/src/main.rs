@@ -1,6 +1,6 @@
 //! md3-components の全部品の見本アプリ。
 //!
-//! テーマの切り替え（シード色・バリアント・コントラスト・外観・密度）と、全カラーロール・タイプスケール・
+//! テーマの切り替え（シード色・バリアント・コントラスト・外観・密度・モーション）と、全カラーロール・タイプスケール・
 //! 高さ・アイコンの見本を表示する。Tab / Shift-Tab でフォーカスを移すとフォーカスリングが出る。
 //! wasm 版は `cargo xtask web` でビルドする。ブラウザではシステムフォントを読めないので、ページが
 //! フォントを取得して [`start`] に渡す。
@@ -54,10 +54,12 @@ enum Page {
     Navigation,
     /// 入れ物の部品。
     Containment,
+    /// M3 Expressive の部品。
+    Expressive,
 }
 
 impl Page {
-    const ALL: [Page; 7] = [
+    const ALL: [Page; 8] = [
         Page::Foundations,
         Page::Buttons,
         Page::Selection,
@@ -65,6 +67,7 @@ impl Page {
         Page::Overlays,
         Page::Navigation,
         Page::Containment,
+        Page::Expressive,
     ];
 }
 
@@ -119,6 +122,14 @@ pub struct Demo {
     pub list_selected: Option<usize>,
     /// LazyList で選んだ連絡先。
     pub contact: Option<usize>,
+    /// ToggleButton。
+    pub toggle: bool,
+    /// Standard の ButtonGroup（太字・斜体・下線）。
+    pub formats: [bool; 3],
+    /// Connected の ButtonGroup で選んだ期間。
+    pub range: usize,
+    /// 複数選択の Connected の ButtonGroup。
+    pub shown: [bool; 3],
 }
 
 impl Default for Demo {
@@ -148,6 +159,10 @@ impl Default for Demo {
             drawer_open: false,
             list_selected: Some(0),
             contact: None,
+            toggle: false,
+            formats: [true, false, false],
+            range: 1,
+            shown: [true, false, true],
         }
     }
 }
@@ -184,6 +199,7 @@ impl Gallery {
             Ok("overlays") => Page::Overlays,
             Ok("navigation") => Page::Navigation,
             Ok("containment") => Page::Containment,
+            Ok("expressive") => Page::Expressive,
             _ => Page::Foundations,
         };
         Self {
@@ -227,6 +243,7 @@ impl Render for Gallery {
             .segment(Segment::new("Overlays").icon(IconName::Menu))
             .segment(Segment::new("Navigation").icon(IconName::Home))
             .segment(Segment::new("Containment").icon(IconName::Inbox))
+            .segment(Segment::new("Expressive").icon(IconName::Favorite))
             .selected([page as usize])
             .on_change({
                 let view = view.clone();
@@ -271,6 +288,9 @@ impl Render for Gallery {
                 stories::containment::page(&self.demo, &self.contacts, view, window, cx)
                     .into_any_element()
             }
+            Page::Expressive => {
+                stories::expressive::page(&self.demo, view, window, cx).into_any_element()
+            }
         };
 
         div()
@@ -296,7 +316,7 @@ impl Render for Gallery {
                             .color(ColorRole::OnSurfaceVariant),
                     )
                     .child(stories::theme::controls(window, cx))
-                    .child(div().w(px(1100.0)).child(pages))
+                    .child(div().w(px(1150.0)).child(pages))
                     .child(content),
             )
             .child(self.snackbar.clone())
@@ -304,8 +324,10 @@ impl Render for Gallery {
 }
 
 /// `fonts` は起動時に読み込むフォントのデータ（デスクトップではシステムフォントを使うので空）。
-fn run(app: gpui::Application, probe: bool, fonts: Vec<Vec<u8>>) {
+/// `reduce_motion` は OS・ブラウザの「視差効果を減らす」相当の設定（gpui は OS の設定を読まないので、起動側が渡す）。
+fn run(app: gpui::Application, probe: bool, fonts: Vec<Vec<u8>>, reduce_motion: bool) {
     app.run(move |cx: &mut App| {
+        cx.set_reduce_motion(reduce_motion);
         if !fonts.is_empty() {
             let fonts = fonts.into_iter().map(std::borrow::Cow::Owned).collect();
             if let Err(error) = cx.text_system().add_fonts(fonts) {
@@ -386,16 +408,24 @@ fn exit_with_failure(cx: &mut App) {
 #[cfg(not(target_family = "wasm"))]
 fn main() {
     let probe = std::env::args().skip(1).any(|arg| arg == "--probe");
-    run(gpui_platform::application(), probe, Vec::new());
+    // デスクトップでは OS の設定を読む手段が gpui に無いため、環境変数で指定する（gallery の画面でも切り替えられる）。
+    let reduce_motion = std::env::var("MD3_REDUCE_MOTION").is_ok_and(|value| value == "1");
+    run(
+        gpui_platform::application(),
+        probe,
+        Vec::new(),
+        reduce_motion,
+    );
 }
 
 /// wasm 版のエントリポイント。ブラウザでは gpui がシステムフォントを読めないため、ページが
 /// UI の文字に使うフォント（gpui の既定の候補の「Noto Sans」と、日本語の字を持つフォント）を取得し、
 /// 1 つの配列 `fonts` につなげて、それぞれの長さ `lengths` と一緒に渡す。
 /// `webgl` が真なら WebGPU を使わず WebGL2 で描く（ページの `?renderer=webgl`）。
+/// `reduce_motion` はブラウザの `prefers-reduced-motion: reduce`。
 #[cfg(target_family = "wasm")]
 #[wasm_bindgen::prelude::wasm_bindgen]
-pub fn start(fonts: Vec<u8>, lengths: Vec<u32>, webgl: bool) {
+pub fn start(fonts: Vec<u8>, lengths: Vec<u32>, webgl: bool, reduce_motion: bool) {
     use gpui_platform::WebBackendPreference;
     gpui_platform::web_init();
     let mut rest = fonts.as_slice();
@@ -414,5 +444,6 @@ pub fn start(fonts: Vec<u8>, lengths: Vec<u32>, webgl: bool) {
         gpui_platform::application_with_web_backend(backend),
         false,
         split,
+        reduce_motion,
     );
 }

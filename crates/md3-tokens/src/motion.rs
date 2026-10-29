@@ -101,3 +101,58 @@ pub const DURATION_EXTRA_LONG3: Duration = Duration::from_millis(900);
 
 /// 時間 extra-long4。
 pub const DURATION_EXTRA_LONG4: Duration = Duration::from_millis(1000);
+
+/// バネのモーションの指定。Compose の `spring(dampingRatio, stiffness)` と同じ意味で、質量は 1。
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SpringSpec {
+    /// 減衰比（1 で行き過ぎなし、1 未満で行き過ぎて戻る）。
+    pub damping_ratio: f32,
+    /// 剛性（大きいほど速く目標に着く）。
+    pub stiffness: f32,
+}
+
+impl SpringSpec {
+    /// 減衰比と剛性から作る。
+    pub const fn new(damping_ratio: f32, stiffness: f32) -> Self {
+        Self {
+            damping_ratio,
+            stiffness,
+        }
+    }
+}
+
+/// モーションスキーム standard のバネ default spatial（位置・大きさ・形）。
+pub const STANDARD_SPRING_DEFAULT_SPATIAL: SpringSpec = SpringSpec::new(0.9, 700.0);
+
+/// モーションスキーム standard のバネ default effects（色・不透明度）。
+pub const STANDARD_SPRING_DEFAULT_EFFECTS: SpringSpec = SpringSpec::new(1.0, 1600.0);
+
+/// モーションスキーム standard のバネ fast spatial（位置・大きさ・形）。
+pub const STANDARD_SPRING_FAST_SPATIAL: SpringSpec = SpringSpec::new(0.9, 1400.0);
+
+/// モーションスキーム standard のバネ fast effects（色・不透明度）。
+pub const STANDARD_SPRING_FAST_EFFECTS: SpringSpec = SpringSpec::new(1.0, 3800.0);
+
+/// モーションスキーム standard のバネ slow spatial（位置・大きさ・形）。
+pub const STANDARD_SPRING_SLOW_SPATIAL: SpringSpec = SpringSpec::new(0.9, 300.0);
+
+/// モーションスキーム standard のバネ slow effects（色・不透明度）。
+pub const STANDARD_SPRING_SLOW_EFFECTS: SpringSpec = SpringSpec::new(1.0, 800.0);
+
+/// モーションスキーム expressive のバネ default spatial（位置・大きさ・形）。
+pub const EXPRESSIVE_SPRING_DEFAULT_SPATIAL: SpringSpec = SpringSpec::new(0.8, 380.0);
+
+/// モーションスキーム expressive のバネ default effects（色・不透明度）。
+pub const EXPRESSIVE_SPRING_DEFAULT_EFFECTS: SpringSpec = SpringSpec::new(1.0, 1600.0);
+
+/// モーションスキーム expressive のバネ fast spatial（位置・大きさ・形）。
+pub const EXPRESSIVE_SPRING_FAST_SPATIAL: SpringSpec = SpringSpec::new(0.6, 800.0);
+
+/// モーションスキーム expressive のバネ fast effects（色・不透明度）。
+pub const EXPRESSIVE_SPRING_FAST_EFFECTS: SpringSpec = SpringSpec::new(1.0, 3800.0);
+
+/// モーションスキーム expressive のバネ slow spatial（位置・大きさ・形）。
+pub const EXPRESSIVE_SPRING_SLOW_SPATIAL: SpringSpec = SpringSpec::new(0.8, 200.0);
+
+/// モーションスキーム expressive のバネ slow effects（色・不透明度）。
+pub const EXPRESSIVE_SPRING_SLOW_EFFECTS: SpringSpec = SpringSpec::new(1.0, 800.0);
