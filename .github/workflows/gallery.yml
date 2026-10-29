@@ -2,6 +2,7 @@ name: Gallery
 
 # 見本アプリ（gallery）をビルドして、Actions の実行結果の Artifacts からダウンロードできるようにする。
 # デスクトップ 3 OS のリリースビルドと、Web 版（`cargo xtask web`）。動作確認用で配布物ではないので、保存は 3 日だけ。
+# main への push では、Web 版を GitHub Pages にも公開する（deploy-pages ジョブ）。
 # 動かし方は README の「見本（gallery）」。
 on:
   push:
@@ -133,6 +134,13 @@ jobs:
       - name: Build
         run: cargo run --locked -p xtask -- web
 
+      # 添えるフォント（Noto、SIL Open Font License 1.1）は再配布の条件として著作権表示とライセンスを同梱する。
+      - name: Add font licenses
+        run: |
+          mkdir -p target/web/fonts/licenses
+          cp /usr/share/doc/fonts-noto-core/copyright target/web/fonts/licenses/fonts-noto-core.txt
+          cp /usr/share/doc/fonts-noto-cjk/copyright target/web/fonts/licenses/fonts-noto-cjk.txt
+
       - name: Upload
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -140,3 +148,32 @@ jobs:
           path: target/web/
           retention-days: 3
           if-no-files-found: error
+
+      - name: Upload Pages artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: target/web/
+          retention-days: 3
+
+  # main の Web 版を GitHub Pages に公開する（リポジトリの Pages の Source は「GitHub Actions」）。
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: web
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    # 公開中のデプロイは途中で止めない。
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

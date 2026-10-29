@@ -30,14 +30,14 @@ nix develop -c bash -c '
 
 ## CI（GitHub Actions）
 
-| ワークフロー               | ジョブ                                   | 内容                                                                                                        |
-| -------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `ci.yml`                   | Format / tokens                          | fmt と `xtask check-tokens`（ubuntu）                                                                       |
-|                            | Check (ubuntu / macos-15 / windows-2025) | clippy と test                                                                                              |
-|                            | Build (wasm32)                           | md3-components と gallery の wasm ビルド                                                                    |
-|                            | CI                                       | 上の全ジョブの集約。ブランチ保護の必須チェックにはこれだけを指定する想定（2026-10-29 時点で main は未保護） |
-| `gallery.yml`              | Desktop (3 OS) / Web                     | gallery のリリースビルドを Artifacts に置く（動作確認用、保存 3 日）                                        |
-| `dependabot-automerge.yml` |                                          | Dependabot の PR の自動マージ                                                                               |
+| ワークフロー               | ジョブ                                   | 内容                                                                                                                                                 |
+| -------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci.yml`                   | Format / tokens                          | fmt と `xtask check-tokens`（ubuntu）                                                                                                                |
+|                            | Check (ubuntu / macos-15 / windows-2025) | clippy と test                                                                                                                                       |
+|                            | Build (wasm32)                           | md3-components と gallery の wasm ビルド                                                                                                             |
+|                            | CI                                       | 上の全ジョブの集約。ブランチ保護の必須チェックにはこれだけを指定する想定（2026-10-29 時点で main は未保護）                                          |
+| `gallery.yml`              | Desktop (3 OS) / Web                     | gallery のリリースビルドを Artifacts に置く（動作確認用、保存 3 日）。main への push では Web 版を GitHub Pages に公開する（Deploy to GitHub Pages） |
+| `dependabot-automerge.yml` |                                          | Dependabot の PR の自動マージ                                                                                                                        |
 
 - 「Pin toolchain」の手順で `RUSTUP_TOOLCHAIN` を `rust-toolchain.toml` の版に固定している（消さない。消すと毎回ツールチェーンを落とし直す）。
 - キャッシュは `Swatinem/rust-cache`（`moonrepo/setup-rust` は `cache: false`）。ジョブごとに `shared-key` を分け、
@@ -47,7 +47,7 @@ nix develop -c bash -c '
 ## PR の進め方
 
 - 1 つの作業のまとまり（部品 1 つ、修正のまとまり）= 1 ブランチ = 1 PR。main に直接 push しない。
-- CI が緑になったら squash merge する（人間の確認は待たない運用）。ただし v1.0 のタグ付けと Web 版の公開は人間に確認する。
+- CI が緑になったら squash merge する（人間の確認は待たない運用）。ただし v1.0 のタグ付けは人間に確認する（Web 版は main へのマージで自動的に GitHub Pages に出る）。
 - コミットの末尾: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`。
   PR 本文の末尾: `🤖 Generated with [Claude Code](https://claude.com/claude-code)`。
 - 手順は skill `ship-pr`（`.agents/skills/ship-pr/`）。
