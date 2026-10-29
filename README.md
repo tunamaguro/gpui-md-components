@@ -110,6 +110,8 @@ cargo xtask web                         # wasm 版を target/web/ にビルド�
 python3 -m http.server -d target/web    # 静的ファイルとして配信して http://localhost:8000/ を開く
 ```
 
+main の Web 版は GitHub Pages で公開している: https://tunamaguro.github.io/gpui-md-components/
+
 wasm 版で WebGPU が使えない環境では `?renderer=webgl` を付けると WebGL2 で描く。
 
 ### CI のビルドを試す（動作確認用）

@@ -47,4 +47,4 @@ sleep 20; until s=$(gh pr checks <番号> 2>&1) && echo "$s" | grep -q 'Check (w
 - 全部 pass（dependabot の skipping は無視）なら `gh pr merge <番号> --squash --delete-branch`、
   そのあと `git checkout main && git pull`。
 - 落ちたら `gh run view --job <job id> --log-failed` で原因を見て直し、push し直す。
-- 人間の確認を待たずにマージしてよい。ただし v1.0 のタグ付けと Web 版の公開はしない（人間に確認する）。
+- 人間の確認を待たずにマージしてよい。ただし v1.0 のタグ付けはしない（人間に確認する）。main にマージすると Web 版の gallery が GitHub Pages に公開される。
