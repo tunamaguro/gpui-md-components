@@ -4,8 +4,8 @@ use std::ops::Range;
 use std::rc::Rc;
 
 use gpui::{
-    AnyElement, App, ElementId, Entity, FocusHandle, IntoElement, KeyDownEvent, RenderOnce, Role,
-    ScrollStrategy, SharedString, UniformListScrollHandle, Window, div, prelude::*, px,
+    App, Div, ElementId, Entity, FocusHandle, IntoElement, KeyDownEvent, RenderOnce, Role,
+    ScrollStrategy, SharedString, Stateful, UniformListScrollHandle, Window, div, prelude::*, px,
     uniform_list,
 };
 use md3_theme::Md3ThemeExt;
@@ -150,7 +150,7 @@ impl ListItem {
         on_key: impl Fn(&KeyDownEvent, &mut Window, &mut App) + 'static,
         window: &mut Window,
         cx: &mut App,
-    ) -> AnyElement {
+    ) -> Stateful<Div> {
         let node = self.a11y_node(index, count);
         let lines = self.line_count();
         let focusable = self.focusable();
@@ -287,6 +287,7 @@ impl ListItem {
             });
 
         let mut item = base
+            .debug_selector(|| format!("md3-list-item-{id}"))
             .a11y(node)
             .w_full()
             .min_h(px(height))
@@ -331,7 +332,7 @@ impl ListItem {
                     .visible(control.focus_visible),
             );
         }
-        item.into_any_element()
+        item
     }
 }
 
@@ -424,12 +425,24 @@ impl RenderOnce for List {
             .iter()
             .map(|(key, _)| focus_handle(item_id(&self.id, key), window, cx))
             .collect();
+        // 高さを限ったリストはスクロールする。矢印・Tab で移った項目を見える範囲に入れる。
+        let scroll = self
+            .max_height
+            .map(|_| crate::scroll::scroll_handle(&self.id, window, cx));
+        let reveal = scroll
+            .as_ref()
+            .map(|_| crate::scroll::reveal_state(&self.id, window, cx));
         let mut list = div()
             .id(self.id.clone())
+            .debug_selector(|| format!("md3-list-{}", self.id))
             .a11y(self.a11y_node())
             .flex()
             .flex_col();
         for (index, (key, item)) in self.items.into_iter().enumerate() {
+            let reveal = scroll.clone().zip(reveal.clone()).map(|(scroll, reveal)| {
+                crate::scroll::reveal_on_focus(scroll, handles[index].clone(), reveal)
+                    .into_any_element()
+            });
             let handles = handles.clone();
             let focusable = focusable.clone();
             let on_key = move |event: &KeyDownEvent, window: &mut Window, cx: &mut App| {
@@ -444,17 +457,19 @@ impl RenderOnce for List {
                     window.focus(handle, cx);
                 }
             };
-            list = list.child(item.render(
-                item_id(&self.id, &key),
-                tab_target == Some(index),
-                (index, count),
-                on_key,
-                window,
-                cx,
-            ));
+            list = list.child(
+                item.render(
+                    item_id(&self.id, &key),
+                    tab_target == Some(index),
+                    (index, count),
+                    on_key,
+                    window,
+                    cx,
+                )
+                .children(reveal),
+            );
         }
-        if let Some(height) = self.max_height {
-            let scroll = crate::scroll::scroll_handle(&self.id, window, cx);
+        if let (Some(height), Some(scroll)) = (self.max_height, scroll) {
             let wheel = crate::scroll::NestedScroll::new(&self.id, scroll.clone(), window, cx);
             list = list
                 .max_h(height)

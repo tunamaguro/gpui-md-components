@@ -137,6 +137,9 @@ impl RenderOnce for NavigationDrawer {
         let theme = cx.md3().clone();
         let count = self.items.len();
         let pill = theme.corner(tokens::ACTIVE_INDICATOR_SHAPE);
+        // 項目が多ければスクロールする。矢印・Tab で移った項目を見える範囲に入れる。
+        let scroll = crate::scroll::scroll_handle(&self.id, window, cx);
+        let reveal = crate::scroll::reveal_state(&self.id, window, cx);
         let items: Vec<AnyElement> = self
             .items
             .iter()
@@ -217,7 +220,13 @@ impl RenderOnce for NavigationDrawer {
                     )
                     .child(FocusRing::new(pill).visible(control.focus_visible));
                 if !item.disabled {
-                    element = element.on_key_down(destinations.on_key(index, true));
+                    element = element
+                        .child(crate::scroll::reveal_on_focus(
+                            scroll.clone(),
+                            destinations.handles[index].clone(),
+                            reveal.clone(),
+                        ))
+                        .on_key_down(destinations.on_key(index, true));
                     if let Some(on_change) = self.on_change.clone() {
                         element =
                             element.on_click(move |_, window, cx| on_change(index, window, cx));
@@ -227,7 +236,6 @@ impl RenderOnce for NavigationDrawer {
             })
             .collect();
 
-        let scroll = crate::scroll::scroll_handle(&self.id, window, cx);
         let wheel = crate::scroll::NestedScroll::new(&self.id, scroll.clone(), window, cx);
         let mut drawer = div()
             .id(self.id.clone())

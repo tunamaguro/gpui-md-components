@@ -38,6 +38,7 @@
 
 - 役割: List / ListItem（selected、位置）
 - 名前: リストのラベル、項目の見出し
+- `max_height` で高さを限ったときは、フォーカスが移った項目（矢印・Tab・初期フォーカス）は、スクロール領域の見える範囲に最小の量だけ動かして入れる（WCAG 2.2 の 2.4.11 Focus Not Obscured）。LazyList は `scroll_to_item` で同じことをする
 
 ## 既知の制限・仕様からの逸脱
 

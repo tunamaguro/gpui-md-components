@@ -20,6 +20,9 @@ API はいつも固定 rev のソース（`~/.cargo/git/checkouts/zed-*/37faef8/
 - 部品の中に新しいスクロール領域を作ったら `NestedScroll` と `Scrollbar`（`crates/md3-components/src/scrollbar.rs`）を付ける。
   オーバーレイの本文なら `scroll::content(..)` がまとめてやる（Dialog / Sheet が例）。
   バーは領域の最後の子に置く（`ScrollbarSource` を実装すれば独自の仮想リストにも付く）。
+- **`Window::focus` も Tab の移動もスクロールしない。** スクロール領域の中でフォーカスを動かす部品は、
+  各項目の子に `scroll::reveal_on_focus(..)` を置き、移った項目を見える範囲に入れる（WCAG 2.2 の 2.4.11。List / Menu / Drawer が例）。
+  `uniform_list` なら `UniformListScrollHandle::scroll_to_item` を使う（LazyList）。
 
 ## モーション
 
