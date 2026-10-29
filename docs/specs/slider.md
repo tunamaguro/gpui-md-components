@@ -39,8 +39,12 @@
 
 - 役割: Slider
 - 名前: ラベル引数（必須）
-- 状態: value / min / max / step
-- キー操作: APG の Slider
+- 状態: value / min / max / step。value は描画と同じく、範囲に収めて刻みに丸めた値
+- キー操作: APG の Slider（矢印で 1 ステップ、Page Up / Down で 10 ステップ、Home / End で端）
+- 支援技術からの操作: Increment / Decrement（矢印と同じ 1 ステップ）と SetValue（範囲と刻みに丸める）を `on_a11y_action` で受ける。
+  キーボードを使わない操作（VoiceOver の上下スワイプ、AT-SPI の Value の設定など）でも値を変えられるようにするため（WCAG 2.2 の 4.1.2）
+- 離散値の値は `最小 + 刻み × n` と最大値。刻みで範囲を割り切れないときも、End・ドラッグで最大値を選べる
+  （APG Slider の End は最大値に移す）。最大値から 1 ステップ戻ると、その下の格子の値に移る
 
 ## デスクトップ向け調整（密度など）
 

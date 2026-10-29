@@ -5,7 +5,10 @@ use std::rc::Rc;
 use gpui::{
     App, Bounds, Corners, ElementId, Entity, Hsla, IntoElement, KeyDownEvent, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, RenderOnce, Role, SharedString, Window,
-    canvas, fill, point, prelude::*, px, size,
+    accesskit::{Action, ActionData},
+    canvas, fill, point,
+    prelude::*,
+    px, size,
 };
 use md3_theme::md3_tokens::component::slider as tokens;
 use md3_theme::md3_tokens::layout;
@@ -27,6 +30,9 @@ type ChangeHandler = Rc<dyn Fn(f32, &mut Window, &mut App) + 'static>;
 /// スライダー。ラベル（読み上げ用の名前）が必須。
 ///
 /// キー操作（APG の Slider）: 矢印で 1 ステップ、Page Up / Page Down で 10 ステップ、Home / End で端。
+/// 支援技術からの増減（Increment / Decrement）と値の設定（SetValue）も受ける（WCAG 2.2 の 4.1.2）。
+///
+/// 離散値の値は `最小 + 刻み × n` と最大値。刻みで範囲を割り切れなくても最大値は選べる。
 #[derive(IntoElement)]
 pub struct Slider {
     id: ElementId,
@@ -93,7 +99,8 @@ impl Slider {
         A11yNode::new(Role::Slider)
             .label(self.label.clone())
             .range(RangeValue {
-                value: f64::from(self.value),
+                // 描画と同じく、範囲に収めて刻みに丸めた値を読ませる。
+                value: f64::from(self.slider_range().clamp(self.value)),
                 min: f64::from(self.min),
                 max: f64::from(self.max),
                 step: Some(f64::from(self.key_step())),
@@ -104,6 +111,15 @@ impl Slider {
     /// キー操作 1 回の変化量。離散値ならその刻み、連続値なら範囲の 1%。
     fn key_step(&self) -> f32 {
         self.step.unwrap_or((self.max - self.min) / 100.0)
+    }
+
+    fn slider_range(&self) -> SliderRange {
+        SliderRange {
+            min: self.min,
+            max: self.max,
+            step: self.step,
+            key_step: self.key_step(),
+        }
     }
 }
 
@@ -117,15 +133,44 @@ pub(crate) struct SliderRange {
 }
 
 impl SliderRange {
-    /// 範囲に収め、離散値なら刻みに丸める。
+    /// 範囲に収め、離散値なら最も近い値（`最小 + 刻み × n` か最大値）に丸める。
     pub(crate) fn clamp(&self, value: f32) -> f32 {
+        if value.is_nan() {
+            return self.min;
+        }
         let value = value.clamp(self.min, self.max);
         match self.step {
-            Some(step) => ((value - self.min) / step)
-                .round()
-                .mul_add(step, self.min)
-                .min(self.max),
+            Some(step) => {
+                let snapped = ((value - self.min) / step).round().mul_add(step, self.min);
+                if snapped >= self.max || self.max - value < (value - snapped).abs() {
+                    self.max
+                } else {
+                    snapped
+                }
+            }
             None => value,
+        }
+    }
+
+    /// `steps` ステップ進めた値（負なら戻す）。離散値なら刻みの格子の上を動き、端で止まる。
+    pub(crate) fn step_by(&self, value: f32, steps: i32) -> f32 {
+        let value = self.clamp(value);
+        let Some(step) = self.step else {
+            return self.clamp(value + self.key_step * steps as f32);
+        };
+        // 格子の上にない値（最大値など）からは、進む向きの最初の格子点を 1 ステップ目にする。
+        const EPSILON: f32 = 1e-4;
+        let position = (value - self.min) / step;
+        let base = if steps > 0 {
+            (position + EPSILON).floor()
+        } else {
+            (position - EPSILON).ceil()
+        };
+        let next = (base + steps as f32).mul_add(step, self.min);
+        if next >= self.max {
+            self.max
+        } else {
+            next.max(self.min)
         }
     }
 
@@ -140,16 +185,32 @@ impl SliderRange {
 
     /// キーに対応する新しい値。対応しないキーなら `None`。
     pub(crate) fn key(&self, value: f32, key: &str) -> Option<f32> {
-        let next = match key {
-            "right" | "up" => value + self.key_step,
-            "left" | "down" => value - self.key_step,
-            "pageup" => value + self.key_step * 10.0,
-            "pagedown" => value - self.key_step * 10.0,
-            "home" => self.min,
-            "end" => self.max,
-            _ => return None,
-        };
-        Some(self.clamp(next))
+        match key {
+            "right" | "up" => Some(self.step_by(value, 1)),
+            "left" | "down" => Some(self.step_by(value, -1)),
+            "pageup" => Some(self.step_by(value, 10)),
+            "pagedown" => Some(self.step_by(value, -10)),
+            "home" => Some(self.min),
+            "end" => Some(self.max),
+            _ => None,
+        }
+    }
+
+    /// 支援技術からの操作に対応する新しい値。対応しない操作なら `None`。
+    pub(crate) fn a11y_action(
+        &self,
+        value: f32,
+        action: Action,
+        data: Option<&ActionData>,
+    ) -> Option<f32> {
+        match (action, data) {
+            (Action::Increment, _) => Some(self.step_by(value, 1)),
+            (Action::Decrement, _) => Some(self.step_by(value, -1)),
+            (Action::SetValue, Some(ActionData::NumericValue(next))) => {
+                Some(self.clamp(*next as f32))
+            }
+            _ => None,
+        }
     }
 }
 
@@ -166,12 +227,7 @@ struct SliderPaint {
 impl RenderOnce for Slider {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let node = self.a11y_node();
-        let range = SliderRange {
-            min: self.min,
-            max: self.max,
-            step: self.step,
-            key_step: self.key_step(),
-        };
+        let range = self.slider_range();
         let value = range.clamp(self.value);
         let fraction = range.fraction(value);
         let drag: Entity<DragState> = window.use_keyed_state(
@@ -262,38 +318,46 @@ impl RenderOnce for Slider {
                             }
                         }
                     }
-                })
-                .child(
-                    canvas(
-                        |_, _, _| (),
-                        move |_, (), window, _| {
-                            let drag_move = drag.clone();
-                            let on_change = on_change.clone();
-                            window.on_mouse_event(
-                                move |event: &MouseMoveEvent, phase, window, cx| {
-                                    let state = drag_move.read(cx);
-                                    if !phase.bubble() || !state.dragging {
-                                        return;
+                });
+            for action in [Action::Increment, Action::Decrement, Action::SetValue] {
+                let on_change = on_change.clone();
+                slider = slider.on_a11y_action(action, move |data, window, cx| {
+                    if let Some(next) = range.a11y_action(value, action, data)
+                        && next != value
+                    {
+                        on_change(next, window, cx);
+                    }
+                });
+            }
+            slider = slider.child(
+                canvas(
+                    |_, _, _| (),
+                    move |_, (), window, _| {
+                        let drag_move = drag.clone();
+                        let on_change = on_change.clone();
+                        window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
+                            let state = drag_move.read(cx);
+                            if !phase.bubble() || !state.dragging {
+                                return;
+                            }
+                            if let (true, Some(bounds)) = (event.dragging(), state.bounds) {
+                                on_change(value_at(event.position.x, bounds), window, cx);
+                            }
+                        });
+                        window.on_mouse_event(move |_: &MouseUpEvent, phase, _, cx| {
+                            if phase.bubble() {
+                                drag.update(cx, |state, cx| {
+                                    if state.dragging {
+                                        state.dragging = false;
+                                        cx.notify();
                                     }
-                                    if let (true, Some(bounds)) = (event.dragging(), state.bounds) {
-                                        on_change(value_at(event.position.x, bounds), window, cx);
-                                    }
-                                },
-                            );
-                            window.on_mouse_event(move |_: &MouseUpEvent, phase, _, cx| {
-                                if phase.bubble() {
-                                    drag.update(cx, |state, cx| {
-                                        if state.dragging {
-                                            state.dragging = false;
-                                            cx.notify();
-                                        }
-                                    });
-                                }
-                            });
-                        },
-                    )
-                    .size_full(),
-                );
+                                });
+                            }
+                        });
+                    },
+                )
+                .size_full(),
+            );
         }
         slider
     }
@@ -407,6 +471,59 @@ mod tests {
         assert_eq!(range.key(5.0, "home"), Some(0.0));
         assert_eq!(range.key(5.0, "end"), Some(10.0));
         assert_eq!(range.key(5.0, "a"), None);
+    }
+
+    #[test]
+    fn max_is_reachable_when_step_does_not_divide_range() {
+        let range = SliderRange {
+            min: 0.0,
+            max: 10.0,
+            step: Some(3.0),
+            key_step: 3.0,
+        };
+        assert_eq!(range.key(5.0, "end"), Some(10.0));
+        assert_eq!(range.clamp(9.6), 10.0, "最大値のほうが近い");
+        assert_eq!(range.clamp(9.4), 9.0);
+        assert_eq!(range.key(9.0, "right"), Some(10.0));
+        assert_eq!(range.key(10.0, "left"), Some(9.0), "格子の 9 に戻る");
+        assert_eq!(range.key(10.0, "pagedown"), Some(0.0));
+    }
+
+    #[test]
+    fn assistive_actions_change_the_value() {
+        let discrete = range(Some(1.0));
+        assert_eq!(
+            discrete.a11y_action(5.0, Action::Increment, None),
+            Some(6.0)
+        );
+        assert_eq!(
+            discrete.a11y_action(5.0, Action::Decrement, None),
+            Some(4.0)
+        );
+        assert_eq!(
+            discrete.a11y_action(5.0, Action::SetValue, Some(&ActionData::NumericValue(7.4))),
+            Some(7.0)
+        );
+        assert_eq!(
+            discrete.a11y_action(5.0, Action::SetValue, Some(&ActionData::NumericValue(99.0))),
+            Some(10.0)
+        );
+        assert_eq!(discrete.a11y_action(5.0, Action::SetValue, None), None);
+        assert_eq!(discrete.a11y_action(5.0, Action::Click, None), None);
+        let continuous = range(None);
+        assert_eq!(
+            continuous.a11y_action(5.0, Action::Increment, None),
+            Some(5.1)
+        );
+    }
+
+    #[test]
+    fn reported_value_matches_the_drawn_value() {
+        let node = Slider::new("s", 3.1, "評価")
+            .range(0.0, 10.0)
+            .step(2.0)
+            .a11y_node();
+        assert_eq!(node.range.map(|r| r.value), Some(4.0));
     }
 
     #[test]
