@@ -1,8 +1,7 @@
 # ButtonGroup 仕様要約（M3 Expressive）
 
-- 出典: Jetpack Compose Material 3 の実装（`ButtonGroup.kt` の `ButtonGroup`、`ButtonGroupDefaults`、`animateWidth`）とトークン。m3.material.io の本文はこの PR では参照していない（Compose の実装に合わせた）。
+- 出典: Jetpack Compose Material 3 の実装（`ButtonGroup.kt` の `ButtonGroup`、`ButtonGroupDefaults`、`animateWidth`）とトークン。m3.material.io の本文は参照していない（Compose の実装に合わせた）。
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/ButtonGroupSmallTokens.kt`、`ConnectedButtonGroupSmallTokens.kt` @ b8256a52
-- マイルストーン: M8
 
 ## バリアント
 

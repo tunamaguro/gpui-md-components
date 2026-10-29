@@ -41,7 +41,7 @@ nix develop -c bash -c '
 
 ## PR の進め方
 
-- 1 つの作業（マイルストーン、または 1 つの修正のまとまり）= 1 ブランチ = 1 PR。main に直接 push しない。
+- 1 つの作業のまとまり（部品 1 つ、修正のまとまり）= 1 ブランチ = 1 PR。main に直接 push しない。
 - CI が緑になったら squash merge する（人間の確認は待たない運用）。ただし v1.0 のタグ付けと Web 版の公開は人間に確認する。
 - コミットの末尾: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`。
   PR 本文の末尾: `🤖 Generated with [Claude Code](https://claude.com/claude-code)`。

@@ -3,22 +3,19 @@
 GPUI（Zed の UI フレームワーク）上に Material Design 3（ベースライン）を移植するワークスペース。
 対象プラットフォームは Windows / macOS / Linux / Web（wasm32）。
 
-## 現状
-
-M0〜M8 は実装済み（main にマージ済み）。残りは人間の確認待ち（読み上げ確認・Web 版の公開・v1.0 タグ）と
-未対応の候補だけ。**まず `docs/agents/handoff.md` を読む。**
+実装していないこと・確認していないこと・人間の判断待ちは `docs/agents/backlog.md` にまとめてある。
+作業を始める前に読み、片付けたら更新する。
 
 ## 最初に読むもの
 
-1. `docs/agents/handoff.md` — 現状、人間待ちの項目、未対応の候補（バックログ）
+1. `docs/agents/backlog.md` — 未対応事項（未確認の範囲、人間の判断待ち、未実装の候補）
 2. `docs/agents/overview.md` — 目的、選定理由、スコープ（何をやらないか）
 3. `docs/agents/architecture.md` — crate 構成、依存ルール、Rust の設計規約、共有部品
-4. `docs/agents/milestones.md` — M0〜M8 の状態と完了条件。作業はマイルストーンか handoff.md の項目に紐づける
-5. `docs/agents/resources.md` — 仕様・トークン値・アルゴリズムの「正」の場所とライセンス
-6. `docs/agents/a11y.md` — アクセシビリティの実装規約と検証手順
-7. `docs/agents/component-workflow.md` — コンポーネント1つを実装する手順（毎回これに従う）
-8. `docs/agents/gpui-notes.md` — GPUI（固定 rev）で踏んだ挙動と回避策
-9. `docs/agents/dev-environment.md` — Nix、CI、PR の進め方、Codex との分担、画面の確認
+4. `docs/agents/resources.md` — 仕様・トークン値・アルゴリズムの「正」の場所とライセンス
+5. `docs/agents/a11y.md` — アクセシビリティの実装規約と検証手順
+6. `docs/agents/component-workflow.md` — コンポーネント1つを実装する手順（毎回これに従う）
+7. `docs/agents/gpui-notes.md` — GPUI（固定 rev）で踏んだ挙動と回避策
+8. `docs/agents/dev-environment.md` — Nix、CI、PR の進め方、Codex との分担、画面の確認
 
 ## skill（`.claude/skills/`）
 

@@ -2,7 +2,6 @@
 
 - 出典: Jetpack Compose Material 3 の実装（`TextField.kt`, `OutlinedTextField.kt`, `TextFieldDefaults.kt`）とトークン。入力処理は gpui の `examples/input.rs` を移植した。
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/FilledTextFieldTokens.kt`, `OutlinedTextFieldTokens.kt` @ b8256a52
-- マイルストーン: M5
 
 ## バリアント
 
@@ -68,4 +67,4 @@
 
 ## 既定モーション
 
-Filled TextField（共通の FieldFrame を使う Filled Select も同様）の下線幅を FastSpatial で補間する。disabled と reduce_motion は即時変更。参照: TextField.kt L815–826 @ b8256a52。Outlined 枠線幅とラベルの移動・縮小は今回未対応（ラベル切り欠きと IME 入力レイアウトを合わせた変更が必要）。
+Filled TextField（共通の FieldFrame を使う Filled Select も同様）の下線幅を FastSpatial で補間する。disabled と reduce_motion は即時変更。参照: TextField.kt L815–826 @ b8256a52。Outlined 枠線幅とラベルの移動・縮小は未対応（ラベル切り欠きと IME 入力レイアウトを合わせた変更が必要）。

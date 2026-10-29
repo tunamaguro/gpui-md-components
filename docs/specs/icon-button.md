@@ -1,8 +1,7 @@
 # IconButton 仕様要約
 
-- 出典: Jetpack Compose Material 3 の実装（`IconButton.kt`）とトークン。m3.material.io の本文はこの PR では参照していない（Compose の実装に合わせた）。
+- 出典: Jetpack Compose Material 3 の実装（`IconButton.kt`）とトークン。m3.material.io の本文は参照していない（Compose の実装に合わせた）。
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/{Standard,Filled,FilledTonal,Outlined,Small}IconButtonTokens.kt` @ b8256a52
-- マイルストーン: M4
 
 ## バリアント
 

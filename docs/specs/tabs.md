@@ -2,7 +2,6 @@
 
 - 出典: Jetpack Compose Material 3 の `Tab.kt`, `TabRow.kt`（`PrimaryTabRow`, `SecondaryTabRow`）とトークン
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/PrimaryNavigationTabTokens.kt`, `SecondaryNavigationTabTokens.kt`, `DividerTokens.kt` @ b8256a52
-- マイルストーン: M6
 
 ## バリアント
 

@@ -2,7 +2,6 @@
 
 - 出典: Jetpack Compose Material 3 の `NavigationBar.kt`, `NavigationRail.kt`, `NavigationDrawer.kt` とトークン。幅のクラスは androidx.window の `WindowSizeClass.kt`
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/NavigationBarTokens.kt`, `NavigationBarVerticalItemTokens.kt`, `NavigationRail*Tokens.kt`, `NavigationDrawerTokens.kt` @ b8256a52
-- マイルストーン: M6
 
 ## バリアント
 
@@ -48,7 +47,7 @@
 ## 既知の制限・仕様からの逸脱
 
 - バッジ、選択中のアイコンの差し替え（塗りのアイコン）は未実装。
-- Expanded の幅で Compose の `NavigationSuiteScaffold` は既定で Rail を選ぶが、マイルストーンの要件（compact / medium / expanded 以上で切り替え）に合わせて Drawer にした。
+- Expanded の幅で Compose の `NavigationSuiteScaffold` は既定で Rail を選ぶが、このライブラリの方針（compact / medium / expanded 以上で切り替え）に合わせて Drawer にした。
 - Rail の展開（expanded rail）、Drawer の見出し（セクション）、ドラッグで開閉する操作、開閉のアニメーションは未実装。
 
 ## 既定モーション

@@ -137,7 +137,7 @@ LazyList、Menu / Select、Dialog、BottomSheet / SideSheet、NavigationDrawer �
 
 ## 8. 既定のモーションと Snackbar
 
-Switch、RadioGroup の内側の円、NavigationBar / Rail の選択背景、Filled TextField / Select の下線は既存の Theme::spring を使う。Standard / Expressive の切替にも従う。OS 設定はアプリから `cx.set_reduce_motion(true)` で反映する。今回追加したバネはすべて即時に最終値となり、Snackbar の退場待ちもなくなる。
+Switch、RadioGroup の内側の円、NavigationBar / Rail の選択背景、Filled TextField / Select の下線は既存の Theme::spring を使う。Standard / Expressive の切替にも従う。OS 設定はアプリから `cx.set_reduce_motion(true)` で反映する。`reduce_motion` が true のとき、これらのバネはすべて即時に最終値となり、Snackbar の退場待ちもなくなる。
 
 Snackbar は最新の知らせへの Replace が既定。順番を待たせるには `cx.new(|_| SnackbarHost::new("閉じる").policy(SnackbarPolicy::Queue))` を使う。Queue の操作付きメッセージは、既定では操作か閉じるまで次に進まない。`SnackbarMessage::on_result` で操作と破棄を区別できる。gallery の Overlays には Queue / Replace のスイッチを設け、静的見本には「静的見本」の文言を付けた。通常の Selection / Navigation / Inputs の操作サンプルで状態間のモーションを確認できる。
 
@@ -145,7 +145,7 @@ Snackbar は最新の知らせへの Replace が既定。順番を待たせる�
 
 Switch は Space / Enter を押したまま Tab で移動した場合も、フォーカス喪失時につまみの押下を取り消す。キーを別の要素で離しても押下寸法は残らない。Selection の操作サンプルで確認でき、`reduce_motion` では通常の寸法へ即時に戻る。
 
-実装していない既定モーションの一覧は [`docs/agents/handoff.md`](agents/handoff.md) にある。
+実装していない既定モーションの一覧は [`docs/agents/backlog.md`](agents/backlog.md) にある。
 
 ## 既知の制限
 

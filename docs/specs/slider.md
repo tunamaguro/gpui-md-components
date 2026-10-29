@@ -1,8 +1,7 @@
 # Slider 仕様要約
 
-- 出典: Jetpack Compose Material 3 の実装（`Slider.kt`）とトークン。m3.material.io の本文はこの PR では参照していない（Compose の実装に合わせた）。
+- 出典: Jetpack Compose Material 3 の実装（`Slider.kt`）とトークン。m3.material.io の本文は参照していない（Compose の実装に合わせた）。
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/SliderTokens.kt` @ b8256a52
-- マイルストーン: M4
 
 ## バリアント
 

@@ -2,7 +2,6 @@
 
 - 出典: https://m3.material.io/components/<component>/specs（参照日: YYYY-MM-DD）
 - トークン出典: `compose/material3/.../tokens/<Component>Tokens.kt` @ <commit>
-- マイルストーン: M?
 
 ## バリアント
 

@@ -1,7 +1,6 @@
 # Scrollbar 仕様要約
 
 - 出典: AndroidX Compose `Scrollbar.kt` / `NonInteractiveScrollbarDefaults` @ `b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6`（Apache-2.0）
-- マイルストーン: M6（共通スクロール表示）、M7（アクセシビリティの確認）
 - 独立した MD3 Scrollbar の仕様ページに代えて、指定された Compose 実装を数値と表示条件の根拠にする。
 
 ## バリアント

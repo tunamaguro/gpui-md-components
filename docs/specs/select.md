@@ -2,7 +2,6 @@
 
 - 出典: Jetpack Compose Material 3 の `ExposedDropdownMenu.kt`。見た目は TextField（読み取り専用）とメニューの組み合わせ。
 - トークン出典: TextField と Menu のトークン（`text-field.md`, `menu.md` を参照）
-- マイルストーン: M5
 
 ## バリアント
 

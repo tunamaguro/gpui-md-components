@@ -2,7 +2,6 @@
 
 - 出典: Jetpack Compose Material 3 の `Snackbar.kt`（`OneRowSnackbar`）、`SnackbarHost.kt` とトークン
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/SnackbarTokens.kt` @ b8256a52
-- マイルストーン: M5
 
 ## バリアント
 
@@ -42,11 +41,11 @@
 - AccessKit に Status・polite を渡す。実際の読み上げは未確認。Web の AccessKit 非対応は従来どおり。
 - スワイプで閉じる操作は未実装。
 
-## 既定モーションと追加方針（M5）
+## 既定モーションと表示の方針
 
 - `SnackbarHost::new(...).policy(SnackbarPolicy::Replace)` が既定。新しい知らせは現在の知らせを退場させ、待機分も破棄して最新の 1 件を残す。
 - `SnackbarPolicy::Queue` は Compose の順番待ち。操作付きの既定は Indefinite なので、操作か閉じるまで次の知らせは待つ。`set_policy` は以後の追加に適用する。
-- M3 の同時表示は 1 件。積み重ね表示にはしない。今回の既定 Replace は、利用者が続けて発行した知らせを即座に反映し、待機を故障と誤解しにくくするための製品側の選択（Compose の既定からの差）。
+- M3 の同時表示は 1 件。積み重ね表示にはしない。既定を Replace にしたのは、利用者が続けて発行した知らせを即座に反映し、待機を故障と誤解しにくくするための製品側の選択（Compose の既定からの差）。
 - 入場は FastEffects のフェードと FastSpatial の 0.8→1、退場は FastEffects のフェード。退場完了まで旧メッセージを保持し、その後に次を描く。退場中の操作は無効、live 通知も停止する。新しい ID の Status・polite で各表示を通知する。
 - `SnackbarMessage::on_result` は ActionPerformed / Dismissed を一度だけ返す。時間切れ・閉じる・置換は Dismissed（待機中に置換された知らせも含む）。現在の知らせ・待機分ともホストの更新完了後に `App::defer` で通知し、結果ハンドラーから同じホストに次の知らせを追加できる。操作ハンドラーは操作ボタンでのみ実行し、結果通知より先に完了する。
 - `reduce_motion` では即時切替。退場中に設定が有効になった場合も次の描画で即時完了する。退場完了はバネの描画値から判定し、専用の待機タイマーは使わない。4 秒 / 10 秒の表示時間はアクセシビリティ設定にかかわらず維持する。

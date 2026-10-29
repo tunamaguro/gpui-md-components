@@ -2,7 +2,6 @@
 
 - 出典: Jetpack Compose Material 3 の `AppBar.kt`（`TopAppBar`, `CenterAlignedTopAppBar`, `MediumTopAppBar`, `LargeTopAppBar`）とトークン
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/AppBarTokens.kt`, `AppBarSmallTokens.kt`, `AppBarMediumTokens.kt`, `AppBarLargeTokens.kt` @ b8256a52
-- マイルストーン: M6
 
 ## バリアント
 

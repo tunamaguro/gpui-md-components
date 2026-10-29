@@ -24,7 +24,7 @@ md-components/
     ├── specs/              # コンポーネントごとの仕様要約（component-workflow.md 参照）
     ├── TOKENS_SOURCE.md    # 転記した値と出典の対応表
     ├── guide.md            # 利用者向けガイド
-    └── a11y-audit.md       # M7 の監査記録
+    └── a11y-audit.md       # アクセシビリティの監査記録
 ```
 
 ## 依存の向き

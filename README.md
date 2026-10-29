@@ -138,7 +138,7 @@ GPUI 側の制約によるものが多い。全体は [利用ガイドの「既�
 ## 開発
 
 開発環境は Nix の flake（`nix develop`、または direnv の `use flake`）で用意する。作業の手順と規約は
-[`AGENTS.md`](AGENTS.md) と [`docs/agents/`](docs/agents/) にある（現状と残りの作業は [`docs/agents/handoff.md`](docs/agents/handoff.md)）。
+[`AGENTS.md`](AGENTS.md) と [`docs/agents/`](docs/agents/) にある（未対応事項は [`docs/agents/backlog.md`](docs/agents/backlog.md)）。
 
 ```sh
 cargo fmt --all --check

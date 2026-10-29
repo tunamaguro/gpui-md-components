@@ -2,7 +2,6 @@
 
 - 出典: Jetpack Compose Material 3 の `ModalBottomSheet.kt`, `SheetDefaults`。サイドシートは Compose に無いため material-web のトークンと MDC Android のカタログの余白を使った。
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/SheetBottomTokens.kt`, `ScrimTokens.kt` @ b8256a52、material-web `_md-comp-sheet-side.scss` @ 86cb0d48
-- マイルストーン: M5
 
 ## バリアント
 

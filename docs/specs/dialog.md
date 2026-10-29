@@ -2,7 +2,6 @@
 
 - 出典: Jetpack Compose Material 3 の `AlertDialog.kt`（`AlertDialogContent`）とトークン
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/DialogTokens.kt`, `ScrimTokens.kt` @ b8256a52
-- マイルストーン: M5
 
 ## バリアント
 

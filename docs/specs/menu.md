@@ -2,7 +2,6 @@
 
 - 出典: Jetpack Compose Material 3 の `Menu.kt`（`DropdownMenu`, `DropdownMenuItem`, `MenuDefaults`）とトークン
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/MenuTokens.kt`, `ListTokens.kt` @ b8256a52
-- マイルストーン: M5
 
 ## バリアント
 

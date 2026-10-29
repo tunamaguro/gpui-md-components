@@ -1,8 +1,7 @@
 # RadioButton / RadioGroup 仕様要約
 
-- 出典: Jetpack Compose Material 3 の実装（`RadioButton.kt`）とトークン。m3.material.io の本文はこの PR では参照していない（Compose の実装に合わせた）。
+- 出典: Jetpack Compose Material 3 の実装（`RadioButton.kt`）とトークン。m3.material.io の本文は参照していない（Compose の実装に合わせた）。
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/RadioButtonTokens.kt` @ b8256a52
-- マイルストーン: M4
 
 ## バリアント
 
@@ -53,4 +52,4 @@
 
 ## 既定モーション
 
-内側の円は選択解除時も要素を保持し、直径 0↔既存の RADIO_BUTTON_DOT_SIZE を FastSpatial で補間する。reduce_motion は即時変更。参照: RadioButton.kt L137–143 @ b8256a52。色の DefaultEffects は今回は未対応（hover と disabled の既存スタイルを保持）。
+内側の円は選択解除時も要素を保持し、直径 0↔既存の RADIO_BUTTON_DOT_SIZE を FastSpatial で補間する。reduce_motion は即時変更。参照: RadioButton.kt L137–143 @ b8256a52。色の DefaultEffects は未対応（hover と disabled の既存スタイルを保持）。

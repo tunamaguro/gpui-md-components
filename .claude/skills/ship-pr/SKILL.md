@@ -30,7 +30,7 @@ fmt の差分は `nix develop -c cargo fmt --all` で直す。どれかが落ち
 - コミットメッセージは日本語。1 行目に要約、本文に変更点の箇条書き。末尾に
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`。
 - `git push -u origin <branch>` のあと `gh pr create --base main`。本文に書くもの:
-  - 何を・なぜ（対応するマイルストーン、所見、handoff.md の項目）
+  - 何を・なぜ（ユーザーの所見、`docs/agents/backlog.md` の項目など。片付けた項目は backlog.md から消す）
   - `## 確認`: 通したチェック、gallery で確かめたこと（skill `gallery-check`）、`codex review` の結果、
     確認していないこと（Windows / macOS 実機、トラックパッドなど）
   - 誰が実装したか（Codex / Claude）。Codex のレビューを回していなければそう書く

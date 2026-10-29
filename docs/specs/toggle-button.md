@@ -1,8 +1,7 @@
 # ToggleButton 仕様要約（M3 Expressive）
 
-- 出典: Jetpack Compose Material 3 の実装（`ToggleButton.kt` の `ToggleButton`、`ToggleButtonDefaults`、`Button.kt` の `contentPaddingFor`）とトークン。m3.material.io の本文はこの PR では参照していない（Compose の実装に合わせた）。
+- 出典: Jetpack Compose Material 3 の実装（`ToggleButton.kt` の `ToggleButton`、`ToggleButtonDefaults`、`Button.kt` の `contentPaddingFor`）とトークン。m3.material.io の本文は参照していない（Compose の実装に合わせた）。
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/ButtonSmallTokens.kt`、`FilledButtonTokens.kt`、`ExpressiveMotionTokens.kt`、`StandardMotionTokens.kt` @ b8256a52
-- マイルストーン: M8
 
 ## バリアント
 

@@ -1621,7 +1621,7 @@
 | md3_tokens::component::connected_button_group_small::PRESSED_INNER_CORNER_CORNER_SIZE | ExtraSmall | ConnectedButtonGroupSmallTokens.kt | L35 PressedInnerCornerCornerSize = ShapeTokens.CornerValueExtraSmall | androidx@b8256a52 |
 | md3_tokens::component::connected_button_group_small::SELECTED_INNER_CORNER_CORNER_SIZE_PERCENT | 50.0 | ConnectedButtonGroupSmallTokens.kt | L36 SelectedInnerCornerCornerSizePercent = 50.0f | androidx@b8256a52 |
 
-## Scrollbar（M6）
+## Scrollbar
 
 | Rust の定数 | 値 | 出典ファイル | 行 / セクション | 取得したコミットまたは日付 |
 | --- | --- | --- | --- | --- |
@@ -1635,13 +1635,13 @@
 | md3_tokens::component::scrollbar::FADE_DELAY_MILLIS | 400 | Scrollbar.kt | NonInteractiveScrollbarDefaults.ThumbFadeDelayMillis | androidx@b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6 |
 | md3_tokens::component::scrollbar::FADE_DURATION_MILLIS | 250 | Scrollbar.kt | NonInteractiveScrollbarDefaults.ThumbFadeDurationMillis | androidx@b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6 |
 
-## 既定モーションと Snackbar（M4・M5・M6）
+## 既定モーションと Snackbar
 
 | Rust の定数 / 用途 | 値 | 出典ファイル | 行 / セクション | 取得したコミット |
 | --- | --- | --- | --- | --- |
 | md3_tokens::layout::SNACKBAR_ENTER_SCALE | 0.8 | compose/material3/.../material3/SnackbarHost.kt | L414 animatedScale の初期値 | androidx@b8256a52 |
 | Switch の位置・寸法 | FastSpatial（既存 Theme::spring） | Switch.kt | SwitchImpl / ThumbNode、押下は SnapSpec | androidx@b8256a52 |
-| Switch の色（今回の指定） | FastEffects（既存 Theme::spring） | MotionScheme.kt / tokens/MotionSchemeKeyTokens.kt | 既存 FastEffects の定義を再利用。Switch.kt 自体の色は即時変更 | androidx@b8256a52 |
+| Switch の色（Compose からの追加） | FastEffects（既存 Theme::spring） | MotionScheme.kt / tokens/MotionSchemeKeyTokens.kt | 既存 FastEffects の定義を再利用。Switch.kt 自体の色は即時変更 | androidx@b8256a52 |
 | RadioButton の内円直径 | 0 ↔ 既存 RADIO_BUTTON_DOT_SIZE、FastSpatial | RadioButton.kt | L137–143 animatedDotRadius（既存寸法表参照） | androidx@b8256a52 |
 | NavigationBar / Rail の選択背景 | 幅 0↔1 倍 FastSpatial、透明度 0↔1 DefaultEffects | NavigationBar.kt / NavigationRail.kt | L233–247 animationProgress / alpha | androidx@b8256a52 |
 | Filled TextField の下線幅 | 既存 ACTIVE_INDICATOR_HEIGHT / FOCUS_ACTIVE_INDICATOR_HEIGHT、FastSpatial | TextField.kt | L815–826 widthAnimatable、disabled は snap | androidx@b8256a52 |

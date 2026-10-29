@@ -2,7 +2,6 @@
 
 - 出典: Jetpack Compose Material 3 の `ListItem.kt` とトークン。仮想化は gpui の `uniform_list`
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/ListTokens.kt` @ b8256a52
-- マイルストーン: M6
 
 ## バリアント
 
