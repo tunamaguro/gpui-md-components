@@ -37,6 +37,7 @@ Material Design 3（ベースライン）の UI 部品集。Windows / macOS / Li
 | `containment` | Card（3 種）、List / LazyList、Divider |
 | `expressive` | M3 Expressive の ToggleButton、ButtonGroup（Standard / Connected）。押下・選択で形と幅がバネで変わる |
 
+feature に関係なく使える共通部品: Scrollbar（控えめなスクロールバー。デスクトップではドラッグできる）。
 既定ではすべて有効。各部品の仕様とキー操作は [`docs/specs/`](docs/specs/) にある。
 
 ## 使い方
@@ -137,7 +138,7 @@ GPUI 側の制約によるものが多い。全体は [利用ガイドの「既�
 ## 開発
 
 開発環境は Nix の flake（`nix develop`、または direnv の `use flake`）で用意する。作業の手順と規約は
-[`AGENTS.md`](AGENTS.md) と [`docs/agents/`](docs/agents/) にある。
+[`AGENTS.md`](AGENTS.md) と [`docs/agents/`](docs/agents/) にある（現状と残りの作業は [`docs/agents/handoff.md`](docs/agents/handoff.md)）。
 
 ```sh
 cargo fmt --all --check

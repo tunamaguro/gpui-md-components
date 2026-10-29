@@ -30,7 +30,7 @@ Apple HIG は移植用途の許諾がない。libadwaita は GTK 前提。
 
 ### v1.0 でやらない
 
-- M3 Expressive（バネ物理モーション、形状モーフ）→ M8（任意）
+- M3 Expressive（バネ物理モーション、形状モーフ）→ M8（任意）。M8 でバネのモーションと ToggleButton / ButtonGroup は実装済み、形状モーフは未実装
 - フォント同梱
 - モバイル（iOS / Android）
 - リップル以外の装飾的エフェクト

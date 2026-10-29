@@ -7,20 +7,23 @@
 ```
 md-components/
 ├── Cargo.toml              # [workspace] と [workspace.dependencies]（gpui の rev 固定はここ1か所）
-├── CLAUDE.md
+├── AGENTS.md               # エージェント向けの作業指示（入口）
+├── .claude/skills/         # 繰り返す作業の手順（skill）
 ├── crates/
 │   ├── md3-color/          # HCT / CAM16 / TonalPalette / DynamicScheme（純 Rust、依存ゼロ）
 │   ├── md3-tokens/         # タイプスケール・角丸・高さ・モーション・状態不透明度・密度（純 Rust）
 │   ├── md3-icons/          # 使うアイコンの SVG バイト列と IconName enum（純 Rust）
 │   ├── md3-theme/          # Theme（gpui Global）、gpui 型への変換、OS 外観追従
 │   └── md3-components/     # StateLayer / FocusRing / 各コンポーネント
-├── gallery/                # 全部品の見本アプリ（gpui_platform / wasm-bindgen を使うのはここと examples だけ）
-├── examples/
-├── xtask/                  # 開発用コマンド（std のみ）
+├── gallery/                # 全部品の見本アプリ（gpui_platform / wasm-bindgen を使うのはここだけ。examples/ は未作成）
+├── xtask/                  # 開発用コマンド（std のみ）: check-tokens、web
+├── tools/a11y-tree/        # Linux の AT-SPI ツリーを書き出すスクリプト（nixpkgs の道具を使う。依存ではない）
+├── nix/                    # flake のモジュール（devshell、パッケージ）
 └── docs/
     ├── agents/             # このディレクトリ
     ├── specs/              # コンポーネントごとの仕様要約（component-workflow.md 参照）
     ├── TOKENS_SOURCE.md    # 転記した値と出典の対応表
+    ├── guide.md            # 利用者向けガイド
     └── a11y-audit.md       # M7 の監査記録
 ```
 
@@ -77,7 +80,23 @@ wasm-bindgen = "<上流 zed と同じ要求版>"
 7. **wasm 互換**
    - 描画経路で `std::thread`、ブロッキング、`Mutex` を使わない。`std::time::Instant` は wasm で使えないので GPUI の時間 API を使う。
 8. **feature で分割**
-   - `md3-components` は `buttons`, `selection`, `inputs`, `overlays`, `navigation`, `containment` の feature を持つ。default は全部有効。
+   - `md3-components` は `buttons`, `selection`, `inputs`, `overlays`, `navigation`, `containment`, `expressive` の feature を持つ。default は全部有効。
+
+## md3-components の共有部品
+
+部品を作るときはまずこれらを使う。
+
+| モジュール | 役割 |
+| --- | --- |
+| `state_layer.rs` / `focus.rs` | 状態レイヤーとフォーカスリング。角が不揃いな部品は `.corners(Corners)` を渡す |
+| `style.rs` | `StyledExt`（`corners` など） |
+| `motion.rs` | 色をテーマのバネで補間する `motion::color`（`Theme::spring` と組み合わせる） |
+| `control.rs` | 操作部品の共通処理（フォーカス・hover・押下・強制状態 `ForcedState`、矢印移動の `step`） |
+| `scroll.rs` | 入れ子スクロール（`NestedScroll`）、オーバーレイ本文（`content`） |
+| `scrollbar.rs` | `Scrollbar` と `ScrollbarSource` |
+| `expressive/press.rs` | 押下の状態機械（押下・解除・キャンセル） |
+
+GPUI の挙動で注意する点は [`gpui-notes.md`](gpui-notes.md)。
 
 ## コンポーネント実装例（API 名は固定 rev で要確認）
 

@@ -99,6 +99,53 @@ cx.set_reduce_motion(user_prefers_reduced_motion); // 起動時と、設定が�
 - 描画は WebGPU、使えなければ WebGL2。`gpui_platform::application_with_web_backend` で指定できる。
 - 共有メモリ（atomics）を使わない通常のビルドなら、配信に COOP / COEP ヘッダーは要らない。
 - 編集のショートカットは OS を区別できないため Ctrl（macOS のブラウザでも Ctrl）。
+- `cargo xtask web` は `cargo metadata` からビルド成果物の場所を取得するため、`CARGO_TARGET_DIR` や Cargo 設定の `build.target-dir` を指定しても wasm を見つけられる。配信用の出力先は引き続きワークスペース直下の `target/web/`。`nix develop` の `MD3_WEB_FONTS` は Linux・Darwin の両方で設定する。
+
+## 7. スクロール
+
+### 入れ子のスクロール
+
+LazyList・`max_height` を付けた List・Menu（Select のポップアップを含む）・NavigationDrawer・
+Dialog / BottomSheet / SideSheet の本文は、内側が動ける方向の
+ホイールを消費する。端を越える差分は内側の端まで移動して消費し、すでに端にいる方向の
+次の入力を外側へ渡す。開始フェーズのある精密スクロールは、いったん内側が消費したら
+終了・キャンセルまで保持する。開始フェーズのない入力はイベントごとに端を判定する。
+利用側で追加する任意の GPUI スクロール領域には自動では適用されない（外側も一緒に動く）。
+
+### スクロールバー
+
+スクロール領域を `ScrollHandle` で追跡し、最後の子に `Scrollbar` を足します。
+位置の供給元を表示領域として描くため、バーのための高さや幅を確保する必要はありません。
+
+```rust,ignore
+let scroll = gpui::ScrollHandle::new(); // ビューまたは use_keyed_state で保持する
+let area = gpui::div().id("content").h(gpui::px(240.0))
+    .overflow_y_scroll().track_scroll(&scroll)
+    .child(content)
+    .child(md3_components::Scrollbar::new("content-scrollbar", scroll.clone()));
+```
+
+既定は縦・ドラッグ可能・静止後にフェードです。`.axis(gpui::Axis::Horizontal)` で横、
+`.interaction(ScrollbarInteraction::Passive)` で表示のみ、`.fade(false)` で常時表示にできます。
+独自の仮想リストには `ScrollbarSource` を実装します。位置は先頭を 0 とした正の距離です。
+キーボード操作とアクセシビリティはコンテナ側で用意します。バー自体は Tab 順に入りません。
+
+LazyList、Menu / Select、Dialog、BottomSheet / SideSheet、NavigationDrawer は既定でバーを表示します。
+通常の List は `.max_height(px(240.0))` でスクロール可能にすると表示します。
+各部品の `.scrollbar(false)` で表示を止められます。gallery の Containment ページに
+縦の操作型・表示のみ・横・内容が収まる場合の見本があります。
+
+## 8. 既定のモーションと Snackbar
+
+Switch、RadioGroup の内側の円、NavigationBar / Rail の選択背景、Filled TextField / Select の下線は既存の Theme::spring を使う。Standard / Expressive の切替にも従う。OS 設定はアプリから `cx.set_reduce_motion(true)` で反映する。今回追加したバネはすべて即時に最終値となり、Snackbar の退場待ちもなくなる。
+
+Snackbar は最新の知らせへの Replace が既定。順番を待たせるには `cx.new(|_| SnackbarHost::new("閉じる").policy(SnackbarPolicy::Queue))` を使う。Queue の操作付きメッセージは、既定では操作か閉じるまで次に進まない。`SnackbarMessage::on_result` で操作と破棄を区別できる。gallery の Overlays には Queue / Replace のスイッチを設け、静的見本には「静的見本」の文言を付けた。通常の Selection / Navigation / Inputs の操作サンプルで状態間のモーションを確認できる。
+
+`on_result` は待機分の破棄も含め、ホストの更新が完了してから一度だけ呼ばれる。結果ハンドラー内で同じ `Entity<SnackbarHost>` を更新して次の知らせを追加できる。操作ボタンのハンドラーは結果通知より先に完了する。Overlays の「結果から次の知らせ」→「確認」でこの使い方を試せる。
+
+Switch は Space / Enter を押したまま Tab で移動した場合も、フォーカス喪失時につまみの押下を取り消す。キーを別の要素で離しても押下寸法は残らない。Selection の操作サンプルで確認でき、`reduce_motion` では通常の寸法へ即時に戻る。
+
+実装していない既定モーションの一覧は [`docs/agents/handoff.md`](agents/handoff.md) にある。
 
 ## 既知の制限
 
@@ -132,74 +179,3 @@ cx.set_reduce_motion(user_prefers_reduced_motion); // 起動時と、設定が�
 - Linux の描画は Vulkan（wgpu）。GPU ドライバが無い環境では mesa の lavapipe（CPU 描画）で動く（遅い）。
 - Web はブラウザの WebGPU / WebGL2 に依存する。ソフトウェア描画（SwiftShader）の WebGPU では
   描画デバイスが失われることがあり、その場合は `?renderer=webgl`（gallery）で WebGL2 を使う。
-
-
-## 入れ子のスクロール（M5 / M6）
-
-LazyList・Menu（Select のポップアップを含む）・NavigationDrawer は、内側が動ける方向の
-ホイールを消費する。端を越える差分は内側の端まで移動して消費し、すでに端にいる方向の
-次の入力を外側へ渡す。開始フェーズのある精密スクロールは、いったん内側が消費したら
-終了・キャンセルまで保持する。開始フェーズのない入力はイベントごとに端を判定する。
-List・Dialog・BottomSheet・SideSheet 自体にはスクロール領域がない。これらの中に置く
-LazyList は同じ制御を使うが、利用側で追加する任意の GPUI スクロール領域には自動適用されない。
-
-## Web ビルドの出力先（M7）
-
-`cargo xtask web` は `cargo metadata` からビルド成果物の場所を取得するため、
-`CARGO_TARGET_DIR` や Cargo 設定の `build.target-dir` を指定しても wasm を見つけられる。
-配信用の出力先は引き続きワークスペース直下の `target/web/`。
-`nix develop` の `MD3_WEB_FONTS` は Linux・Darwin の両方で設定する。
-
-## スクロールバー（M6）
-
-スクロール領域を `ScrollHandle` で追跡し、最後の子に `Scrollbar` を足します。
-位置の供給元を表示領域として描くため、バーのための高さや幅を確保する必要はありません。
-
-```rust,ignore
-let scroll = gpui::ScrollHandle::new(); // ビューまたは use_keyed_state で保持する
-let area = gpui::div().id("content").h(gpui::px(240.0))
-    .overflow_y_scroll().track_scroll(&scroll)
-    .child(content)
-    .child(md3_components::Scrollbar::new("content-scrollbar", scroll.clone()));
-```
-
-既定は縦・ドラッグ可能・静止後にフェードです。`.axis(gpui::Axis::Horizontal)` で横、
-`.interaction(ScrollbarInteraction::Passive)` で表示のみ、`.fade(false)` で常時表示にできます。
-独自の仮想リストには `ScrollbarSource` を実装します。位置は先頭を 0 とした正の距離です。
-キーボード操作とアクセシビリティはコンテナ側で用意します。バー自体は Tab 順に入りません。
-
-LazyList、Menu / Select、Dialog、BottomSheet / SideSheet、NavigationDrawer は既定でバーを表示します。
-通常の List は `.max_height(px(240.0))` でスクロール可能にすると表示します。
-各部品の `.scrollbar(false)` で表示を止められます。gallery の Containment ページに
-縦の操作型・表示のみ・横・内容が収まる場合の見本があります。
-
-## 既定モーションと Snackbar の順番（M4・M5・M6）
-
-Switch、RadioGroup の内側の円、NavigationBar / Rail の選択背景、Filled TextField / Select の下線は既存の Theme::spring を使う。Standard / Expressive の切替にも従う。OS 設定はアプリから `cx.set_reduce_motion(true)` で反映する。今回追加したバネはすべて即時に最終値となり、Snackbar の退場待ちもなくなる。
-
-Snackbar は最新の知らせへの Replace が既定。順番を待たせるには `cx.new(|_| SnackbarHost::new("閉じる").policy(SnackbarPolicy::Queue))` を使う。Queue の操作付きメッセージは、既定では操作か閉じるまで次に進まない。`SnackbarMessage::on_result` で操作と破棄を区別できる。gallery の Overlays には Queue / Replace のスイッチを設け、静的見本には「静的見本」の文言を付けた。通常の Selection / Navigation / Inputs の操作サンプルで状態間のモーションを確認できる。
-
-`on_result` は待機分の破棄も含め、ホストの更新が完了してから一度だけ呼ばれる。結果ハンドラー内で同じ `Entity<SnackbarHost>` を更新して次の知らせを追加できる。操作ボタンのハンドラーは結果通知より先に完了する。Overlays の「結果から次の知らせ」→「確認」でこの使い方を試せる。
-
-Switch は Space / Enter を押したまま Tab で移動した場合も、フォーカス喪失時につまみの押下を取り消す。キーを別の要素で離しても押下寸法は残らない。Selection の操作サンプルで確認でき、`reduce_motion` では通常の寸法へ即時に戻る。
-
-### 今回の候補調査と未対応
-
-参照はいずれも androidx@b8256a52。小さな変更として追加できるものに絞り、以下を残す。
-
-| 候補 | 今回の対応・理由 |
-| --- | --- |
-| Switch | 位置・寸法・色を実装。押下中の snap は Compose と同じ |
-| Checkbox | 未対応。Checkbox.kt L596–653 のチェック経路の描画率・不定状態のモーフは、現行の SVG / 横線描画の置換が必要。塗りと同期して移植する必要がある |
-| RadioButton | 内側の円を実装。DefaultEffects の色変化は未対応 |
-| Slider | 追加なし。Slider.kt L2760–2766 は押下 / ドラッグの幅を半分に直接変更し、バネによる幅変更はない。既存の即時変更を維持 |
-| TextField | Filled の下線幅を実装。ラベル・Outlined 枠線は切り欠きと入力レイアウトを含む変更が必要なため保留 |
-| Tabs | 未対応。TabRow.kt の DefaultSpatial に根拠はあるが、現在の各タブ内の印を、測定結果を共有する単一インジケーターに移す変更が必要 |
-| NavigationBar / Rail | 選択背景の幅と透明度を実装。アイコン / ラベル色は未対応 |
-| Menu / Select popup | Menu.kt の FastSpatial / FastEffects は確認。アンカー起点の拡大と close 後の保持を伴うため保留 |
-| Dialog | commonMain の AlertDialog.kt には共通の既定 enter アニメーションがなく、プラットフォーム側の Dialog に委譲するため追加なし |
-| BottomSheet / NavigationDrawer | 参照には位置・scrim の遷移がある。閉じる際の保持とフォーカス復帰の時点を合わせる必要があり保留 |
-| SideSheet | Compose に直接対応する commonMain の実装がなく、既定モーションを推測せず追加なし |
-| Tooltip | Tooltip.kt の FastSpatial / FastEffects は確認。現在の GPUI tooltip の表示寿命と退場保持を合わせる必要があり保留 |
-| ExtendedFAB | 現行 ExtendedFab に expanded 状態がないため追加なし。Compose FloatingActionButton.kt の expanded 遷移は確認済み |
-| Snackbar | 入退場、Replace / Queue、結果通知を実装。scale は幅による近似（spec 参照） |
