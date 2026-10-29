@@ -22,6 +22,8 @@ mod icon;
 #[cfg(feature = "inputs")]
 pub mod inputs;
 pub mod keys;
+#[cfg(feature = "selection")]
+mod motion;
 #[cfg(feature = "navigation")]
 pub mod navigation;
 #[cfg(feature = "overlays")]

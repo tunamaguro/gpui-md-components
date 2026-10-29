@@ -1,15 +1,18 @@
+// Ported from Jetpack Compose (https://android.googlesource.com/platform/frameworks/support)
+// Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/RadioButton.kt @ b8256a52
+// Copyright 2020 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //! RadioButton（RadioGroup としてまとめて使う）。
 
 use std::rc::Rc;
 
 use gpui::{
-    App, ElementId, FocusHandle, IntoElement, KeyDownEvent, RenderOnce, Role, SharedString, Window,
-    div, prelude::*, px,
+    AnimationExt, App, ElementId, FocusHandle, IntoElement, KeyDownEvent, RenderOnce, Role,
+    SharedString, SpringAnimation, Window, div, prelude::*, px,
 };
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::radio_button as tokens;
 use md3_theme::md3_tokens::layout;
-use md3_theme::{CornerRadius, Md3ThemeExt, TypeScale};
+use md3_theme::{CornerRadius, Md3ThemeExt, MotionToken, TypeScale};
 
 use crate::a11y::{A11yExt, A11yNode};
 use crate::control::{control, step};
@@ -196,16 +199,20 @@ impl RenderOnce for RadioGroup {
             if !option.disabled {
                 ring = ring.group_hover(control.group.clone(), move |s| s.border_color(hovered));
             }
-            if selected {
-                let mut dot = div()
-                    .size(px(layout::RADIO_BUTTON_DOT_SIZE))
-                    .rounded_full()
-                    .bg(color);
-                if !option.disabled {
-                    dot = dot.group_hover(control.group.clone(), move |s| s.bg(hovered));
-                }
-                ring = ring.child(dot);
+            let mut dot = div().rounded_full().bg(color);
+            if !option.disabled {
+                dot = dot.group_hover(control.group.clone(), move |s| s.bg(hovered));
             }
+            let dot = dot.with_spring(
+                "radio-dot-size",
+                SpringAnimation::new(theme.spring(MotionToken::FastSpatial)).to(if selected {
+                    layout::RADIO_BUTTON_DOT_SIZE
+                } else {
+                    0.0
+                }),
+                |dot, size| dot.size(px(size.max(0.0))),
+            );
+            ring = ring.child(dot);
             let radio = div()
                 .relative()
                 .size(state_size)

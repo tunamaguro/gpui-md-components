@@ -50,3 +50,7 @@
 
 - 単体の RadioButton は公開せず、RadioGroup だけを提供する（APG のキー操作をグループで保証するため）。
 - 無効は AccessKit の disabled としてツリーに出し、Tab でも止まらない。ただし Linux（AT-SPI）では役割によって無効が伝わらない（[`docs/a11y-audit.md`](../a11y-audit.md)）。
+
+## 既定モーション
+
+内側の円は選択解除時も要素を保持し、直径 0↔既存の RADIO_BUTTON_DOT_SIZE を FastSpatial で補間する。reduce_motion は即時変更。参照: RadioButton.kt L137–143 @ b8256a52。色の DefaultEffects は今回は未対応（hover と disabled の既存スタイルを保持）。

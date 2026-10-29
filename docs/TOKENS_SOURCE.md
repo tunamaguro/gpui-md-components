@@ -1634,3 +1634,17 @@
 | md3_tokens::component::scrollbar::CROSS_AXIS_TRACK_INSET | 0.0 | Scrollbar.kt | NonInteractiveScrollbarDefaults.CrossAxisTrackInset | androidx@b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6 |
 | md3_tokens::component::scrollbar::FADE_DELAY_MILLIS | 400 | Scrollbar.kt | NonInteractiveScrollbarDefaults.ThumbFadeDelayMillis | androidx@b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6 |
 | md3_tokens::component::scrollbar::FADE_DURATION_MILLIS | 250 | Scrollbar.kt | NonInteractiveScrollbarDefaults.ThumbFadeDurationMillis | androidx@b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6 |
+
+## 既定モーションと Snackbar（M4・M5・M6）
+
+| Rust の定数 / 用途 | 値 | 出典ファイル | 行 / セクション | 取得したコミット |
+| --- | --- | --- | --- | --- |
+| md3_tokens::layout::SNACKBAR_ENTER_SCALE | 0.8 | compose/material3/.../material3/SnackbarHost.kt | L414 animatedScale の初期値 | androidx@b8256a52 |
+| Switch の位置・寸法 | FastSpatial（既存 Theme::spring） | Switch.kt | SwitchImpl / ThumbNode、押下は SnapSpec | androidx@b8256a52 |
+| Switch の色（今回の指定） | FastEffects（既存 Theme::spring） | MotionScheme.kt / tokens/MotionSchemeKeyTokens.kt | 既存 FastEffects の定義を再利用。Switch.kt 自体の色は即時変更 | androidx@b8256a52 |
+| RadioButton の内円直径 | 0 ↔ 既存 RADIO_BUTTON_DOT_SIZE、FastSpatial | RadioButton.kt | L137–143 animatedDotRadius（既存寸法表参照） | androidx@b8256a52 |
+| NavigationBar / Rail の選択背景 | 幅 0↔1 倍 FastSpatial、透明度 0↔1 DefaultEffects | NavigationBar.kt / NavigationRail.kt | L233–247 animationProgress / alpha | androidx@b8256a52 |
+| Filled TextField の下線幅 | 既存 ACTIVE_INDICATOR_HEIGHT / FOCUS_ACTIVE_INDICATOR_HEIGHT、FastSpatial | TextField.kt | L815–826 widthAnimatable、disabled は snap | androidx@b8256a52 |
+| Snackbar の透明度 / 幅の拡大 | 0↔1 FastEffects / 0.8→1 FastSpatial | SnackbarHost.kt | FadeInFadeOutWithScale / animatedOpacity / animatedScale | androidx@b8256a52 |
+
+バネの剛性・減衰、Switch の 52×32dp、つまみ 16 / 24 / 押下 28dp、枠線 2dp、表示時間 4000 / 10000ms は既存トークンと出典を再利用した。新しい時間定数は追加していない。Snackbar の scale は固定 GPUI の制約により幅で近似する。M3 の各仕様ページは JavaScript 必須で本文を取得できず、振る舞いは上記 Compose の一次資料を採用した。

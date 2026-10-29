@@ -50,3 +50,7 @@
 - バッジ、選択中のアイコンの差し替え（塗りのアイコン）は未実装。
 - Expanded の幅で Compose の `NavigationSuiteScaffold` は既定で Rail を選ぶが、マイルストーンの要件（compact / medium / expanded 以上で切り替え）に合わせて Drawer にした。
 - Rail の展開（expanded rail）、Drawer の見出し（セクション）、ドラッグで開閉する操作、開閉のアニメーションは未実装。
+
+## 既定モーション
+
+NavigationBar / NavigationRail の選択背景をアイコンと独立させ、幅を FastSpatial、透明度を DefaultEffects で補間する。アイコンやヒット領域の幅は変えない。reduce_motion は即時変更。参照: NavigationBar.kt / NavigationRail.kt L233–247、indicatorWidth の算出 @ b8256a52。

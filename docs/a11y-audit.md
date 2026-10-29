@@ -139,3 +139,15 @@ Tab でのフォーカス移動とフォーカスリングを確認した。
 - gallery: Containment の Scrollbar 見本と根のスクロール。ホバー・ドラッグ中は表示を保持する。
 - 手動確認: Windows / macOS / Linux のスクリーンリーダー、実 GPU の表示、Web のマウス操作は未検証。
   GPUI のテスト環境では AccessKit ツリーを取得できず、Web は AccessKit 非対応。
+
+## 既定モーション / Snackbar の追加監査（2026-10-29）
+
+- 対象: M4 Switch / RadioGroup、M5 Snackbar / Filled TextField、M6 NavigationBar / Rail。
+- すべて GPUI の with_spring を通し、reduce_motion では最終値へ即時変更。Snackbar は退場途中で設定を有効にした場合も待たずに進む。表示時間のタイマーは通知内容を読む時間なので維持する。
+- Snackbar は表示ごとの安定 ID、Status、polite を維持。退場中は live を停止し、アクションと閉じるボタンを無効化。Replace の破棄は ActionPerformed と区別して一度だけ通知する。
+- `tests/a11y_snackbar.rs`: 連続 Replace（待機分の破棄を含む）、退場後の次表示、古いタイマーの無効化、Queue の表示時間と無期限、キーボード操作結果、reduce_motion の途中変更を検証。
+- レビュー修正（M4 / M5）: `on_result` は現在の知らせ・置換された待機分ともホストの更新後に通知する。`tests/a11y_snackbar.rs` に、結果ハンドラーが同じ `Entity<SnackbarHost>` に次の知らせを追加し、一度だけ通知される回帰テストを追加した。
+- `tests/a11y_checkbox.rs`: アクティブなウィンドウで Switch の Space / Enter を押したまま次の要素へ移動し、キー解放が届く前に押下寸法から通常寸法へ戻ること、キャンセルで選択が変わらないことを検証（`reduce_motion` 有効、デバッグビルドのつまみ境界を取得）。
+- 実 OS の目視・読み上げ（Orca / VoiceOver / Narrator）と Web の実機操作は未確認。従来の Web AccessKit 非対応は解消していない。
+
+検証結果: `cargo fmt --all --check`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace`、`cargo build -p md3-components --target wasm32-unknown-unknown`、`cargo xtask check-tokens` は通過（1597 定数一致）。`cargo run -p gallery` はビルド後、sandbox から Wayland compositor への接続が Operation not permitted となり起動できなかったため、実画面の目視確認は未実施。

@@ -1,17 +1,20 @@
+// Ported from Jetpack Compose (https://android.googlesource.com/platform/frameworks/support)
+// Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/TextField.kt @ b8256a52
+// Copyright 2021 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //! テキストフィールドの外枠（コンテナ、ラベル、下線 / 枠線、アイコン、補助テキスト）。
 //!
 //! [`TextField`](super::TextField) と [`Select`](super::Select) が共有する。入力部分は呼び出し側が渡す。
 
 use gpui::{
-    AnyElement, App, Bounds, Hsla, PathBuilder, Pixels, SharedString, Window, canvas, div, point,
-    prelude::*, px,
+    AnimationExt, AnyElement, App, Bounds, Hsla, PathBuilder, Pixels, SharedString,
+    SpringAnimation, SpringPlayback, Window, canvas, div, point, prelude::*, px,
 };
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::{
     filled_text_field as filled, outlined_text_field as outlined,
 };
 use md3_theme::md3_tokens::layout;
-use md3_theme::{CornerRadius, Md3ThemeExt, Theme, TypeScale};
+use md3_theme::{CornerRadius, Md3ThemeExt, MotionToken, Theme, TypeScale};
 
 use crate::{Icon, IconName, StyledExt};
 
@@ -349,8 +352,18 @@ impl FieldFrame {
                         .left_0()
                         .right_0()
                         .bottom_0()
-                        .h(indicator_width)
-                        .bg(indicator),
+                        .bg(indicator)
+                        .with_spring(
+                            "field-indicator-thickness",
+                            SpringAnimation::new(theme.spring(MotionToken::FastSpatial))
+                                .to(indicator_width)
+                                .playback(if self.state.disabled {
+                                    SpringPlayback::Completed
+                                } else {
+                                    SpringPlayback::Running
+                                }),
+                            |indicator, width| indicator.h(width),
+                        ),
                 );
             }
             TextFieldVariant::Outlined => {

@@ -65,3 +65,7 @@
 - 単語単位の移動（Ctrl+←→）、取り消し（Undo）は未実装。
 - gpui の a11y API に invalid / required 状態がないため、エラーはツリーに出ない（補助テキストに理由を書くこと）。
 - `init` でキーを割り当てる。wasm では OS を区別できないため Ctrl を使う。
+
+## 既定モーション
+
+Filled TextField（共通の FieldFrame を使う Filled Select も同様）の下線幅を FastSpatial で補間する。disabled と reduce_motion は即時変更。参照: TextField.kt L815–826 @ b8256a52。Outlined 枠線幅とラベルの移動・縮小は今回未対応（ラベル切り欠きと IME 入力レイアウトを合わせた変更が必要）。

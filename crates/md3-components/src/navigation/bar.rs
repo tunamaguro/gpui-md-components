@@ -1,8 +1,11 @@
+// Ported from Jetpack Compose (https://android.googlesource.com/platform/frameworks/support)
+// Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/{NavigationBar,NavigationRail}.kt @ b8256a52
+// Copyright 2022 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //! NavigationBar と NavigationRail（アイコンを丸い選択の印で囲み、ラベルを下に置く項目の並び）。
 
 use gpui::{
-    AnyElement, App, ElementId, IntoElement, Pixels, RenderOnce, SharedString, Window, div,
-    prelude::*, px,
+    AnimationExt, AnyElement, App, ElementId, IntoElement, Pixels, RenderOnce, SharedString,
+    SpringAnimation, Window, div, prelude::*, px,
 };
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::{
@@ -10,7 +13,7 @@ use md3_theme::md3_tokens::component::{
     navigation_rail_collapsed, navigation_rail_color, navigation_rail_vertical_item,
 };
 use md3_theme::md3_tokens::{layout, state};
-use md3_theme::{Md3ThemeExt, Theme};
+use md3_theme::{Md3ThemeExt, MotionToken, Theme};
 
 use super::item::{
     ChangeHandler, Destinations, NavigationItem, destination_a11y_node, navigation_a11y_node,
@@ -69,6 +72,29 @@ fn vertical_item(
         navigation_rail_color::ITEM_INACTIVE_HOVERED_STATE_LAYER
     };
     let pill = theme.corner(navigation_rail_baseline_item::ACTIVE_INDICATOR_SHAPE);
+    let width = style.indicator_width;
+    let progress = if selected { 1.0_f32 } else { 0.0 };
+    let background = div()
+        .absolute()
+        .h_full()
+        .corner_radius(pill)
+        .bg(theme.color(navigation_rail_color::ITEM_ACTIVE_INDICATOR))
+        .with_spring(
+            "navigation-indicator-width",
+            SpringAnimation::new(theme.spring(MotionToken::FastSpatial)).to(progress),
+            move |element, progress| {
+                element
+                    .w(px(width * progress.max(0.0)))
+                    .left(px(width * (1.0 - progress.max(0.0)) / 2.0))
+            },
+        )
+        .with_spring(
+            "navigation-indicator-opacity",
+            SpringAnimation::new(theme.spring(MotionToken::DefaultEffects)).to(progress),
+            |element, opacity| {
+                element.map_element(|element| element.opacity(opacity.clamp(0.0, 1.0)))
+            },
+        );
     let indicator = div()
         .relative()
         .flex_none()
@@ -78,9 +104,7 @@ fn vertical_item(
         .items_center()
         .justify_center()
         .corner_radius(pill)
-        .when(selected, |this| {
-            this.bg(theme.color(navigation_rail_color::ITEM_ACTIVE_INDICATOR))
-        })
+        .child(background)
         .child(
             Icon::new(item.icon)
                 .size(px(style.icon_size))

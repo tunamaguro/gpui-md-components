@@ -5,7 +5,8 @@ use md3_components::buttons::{Button, ButtonVariant, IconButton};
 use md3_components::inputs::{TextField, TextFieldState};
 use md3_components::overlays::{
     BottomSheet, Dialog, DialogAction, Menu, MenuItem, PlainTooltip, RichTooltip, SideSheet,
-    SideSheetKind, Snackbar, SnackbarDuration, SnackbarHost, SnackbarMessage,
+    SideSheetKind, Snackbar, SnackbarDuration, SnackbarHost, SnackbarMessage, SnackbarPolicy,
+    SnackbarResult,
 };
 use md3_components::theme::TypeScale;
 use md3_components::theme::md3_color::ColorRole;
@@ -220,10 +221,14 @@ pub fn page(
             })
         }
     };
+    let policy_host = snackbar.clone();
+    let queue = snackbar.read(cx).current_policy() == SnackbarPolicy::Queue;
     let snackbars = Section::new("Snackbar（ウィンドウの下に出る）")
+        .child(snackbar_policy_toggle(policy_host, queue))
         .child(
             div()
                 .flex()
+                .flex_wrap()
                 .gap_4()
                 .child(
                     Button::new("snackbar-short", "短い知らせ")
@@ -248,7 +253,8 @@ pub fn page(
                             )
                             .duration(SnackbarDuration::Long)
                         })),
-                ),
+                )
+                .child(snackbar_follow_up(snackbar.clone())),
         )
         .child(
             div()
@@ -256,15 +262,15 @@ pub fn page(
                 .flex_col()
                 .gap_3()
                 .w(px(600.0))
-                .child(Snackbar::new("snackbar-sample-1", "写真を保存しました"))
+                .child(Snackbar::new("snackbar-sample-1", "静的見本：保存完了"))
                 .child(
-                    Snackbar::new("snackbar-sample-2", "メールを削除しました")
+                    Snackbar::new("snackbar-sample-2", "静的見本：削除を取り消せます")
                         .action("元に戻す", |_, _| {})
                         .dismiss_action("閉じる", |_, _| {}),
                 )
                 .child(Snackbar::new(
                     "snackbar-sample-3",
-                    "接続が切れました。オンラインに戻ると、変更は自動で送信されます。変更は端末に保存されています。",
+                    "静的見本：オフラインで編集した内容は、次回接続したときに同期されます。変更は端末に保存されています。",
                 )),
         );
 
@@ -377,5 +383,60 @@ pub fn page(
                         )),
                 ),
             )
+        })
+}
+
+/// 結果通知から同じホストに次の知らせを追加する見本。
+fn snackbar_follow_up(host: Entity<SnackbarHost>) -> impl IntoElement {
+    Button::new("snackbar-follow-up", "結果から次の知らせ")
+        .variant(ButtonVariant::FilledTonal)
+        .on_click(move |_, _, cx| {
+            let follow_up = host.downgrade();
+            host.update(cx, |host, cx| {
+                host.show(
+                    SnackbarMessage::new("確認すると、結果から次の知らせを表示します")
+                        .action("確認", |_, _| {})
+                        .on_result(move |result, cx| {
+                            if result == SnackbarResult::ActionPerformed {
+                                follow_up
+                                    .update(cx, |host, cx| {
+                                        host.show(
+                                            SnackbarMessage::new("確認の結果を受け取りました"),
+                                            cx,
+                                        );
+                                    })
+                                    .ok();
+                            }
+                        }),
+                    cx,
+                );
+            });
+        })
+}
+
+fn snackbar_policy_toggle(host: Entity<SnackbarHost>, queue: bool) -> impl IntoElement {
+    div()
+        .flex()
+        .items_center()
+        .gap_3()
+        .child(
+            md3_components::selection::Switch::new("snackbar-policy", queue, "順番を待つ（Queue）")
+                .on_change(move |queue, _, cx| {
+                    host.update(cx, |host, cx| {
+                        host.set_policy(
+                            if queue {
+                                SnackbarPolicy::Queue
+                            } else {
+                                SnackbarPolicy::Replace
+                            },
+                            cx,
+                        );
+                    })
+                }),
+        )
+        .child(if queue {
+            "Queue：現在の知らせが閉じるまで順番待ち"
+        } else {
+            "Replace（既定）：最新の知らせに置換"
         })
 }
