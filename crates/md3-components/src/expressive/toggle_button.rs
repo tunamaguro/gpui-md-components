@@ -33,6 +33,8 @@ pub(crate) struct GroupSlot {
     pub flexible: bool,
     /// 縮められる最小の幅。
     pub min_width: Pixels,
+    /// 押されたときに隣の項目が縮んで吸収できる幅の合計（広がりの上限）。
+    pub capacity: Pixels,
     /// connected の並びの両端か（左端、右端）。connected でなければ `None`。
     pub connected: Option<(bool, bool)>,
 }
@@ -153,6 +155,16 @@ pub(crate) fn target_radius(
     } else {
         radius(tokens::CONTAINER_SHAPE_ROUND)
     }
+}
+
+/// 押された項目が広がる幅。`expansion` はバネの値（押下で 1、行き過ぎて 1 を超えることがある）。
+///
+/// 広がりは幅の 15% だが、隣の項目が縮んで吸収できる幅（`capacity`）を超えるとグループの幅から
+/// はみ出すため、バネの行き過ぎを含めて `capacity` までに抑える（隣の無い 1 項目のグループは広がらない）。
+/// 戻りの行き過ぎで負になるときは狭くなるだけで、隣が伸びて埋めるので抑えない。
+pub(crate) fn expanded_width(slot: &GroupSlot, expansion: f32) -> Pixels {
+    let extra = (slot.natural * EXPANDED_RATIO).min(slot.capacity) * expansion;
+    slot.natural + extra.min(slot.capacity)
 }
 
 /// 内側の角の半径 `inner` から 4 つの角を作る。connected の並びの両端は外側の角を丸いままにする。
@@ -286,7 +298,7 @@ impl RenderOnce for ToggleButton {
                 move |this, expansion| {
                     this.map_element(|button| {
                         let button = button
-                            .flex_basis(slot.natural * (1.0 + EXPANDED_RATIO * expansion))
+                            .flex_basis(expanded_width(&slot, expansion))
                             .min_w(slot.min_width);
                         if slot.flexible {
                             button.flex_grow(1.0).flex_shrink(1.0)
@@ -334,6 +346,41 @@ mod tests {
         let corners = corners_of(px(8.0), px(20.0), Some((true, false)));
         assert_eq!(corners.top_left, px(20.0));
         assert_eq!(corners.top_right, px(8.0));
+    }
+
+    fn slot(natural: f32, capacity: f32) -> GroupSlot {
+        GroupSlot {
+            natural: px(natural),
+            flexible: false,
+            min_width: px(natural - 32.0),
+            capacity: px(capacity),
+            connected: None,
+        }
+    }
+
+    #[test]
+    fn expansion_is_fifteen_percent_when_neighbors_can_absorb_it() {
+        let slot = slot(100.0, 64.0);
+        assert_eq!(expanded_width(&slot, 0.0), px(100.0));
+        assert_eq!(expanded_width(&slot, 1.0), px(115.0));
+    }
+
+    #[test]
+    fn expansion_of_a_long_label_is_capped_by_the_neighbors_compression() {
+        // 端の項目（隣は 1 つで、縮められるのは余白の 32px まで）。15% は 45px で上限を超える。
+        let slot = slot(300.0, 32.0);
+        assert_eq!(expanded_width(&slot, 1.0), px(332.0));
+        // バネの行き過ぎでも上限を超えない。
+        assert_eq!(expanded_width(&slot, 1.3), px(332.0));
+        // 戻りの行き過ぎ（負）は狭くなるだけ。
+        assert!(expanded_width(&slot, -0.2) < px(300.0));
+    }
+
+    #[test]
+    fn single_item_group_does_not_expand() {
+        let slot = slot(120.0, 0.0);
+        assert_eq!(expanded_width(&slot, 1.0), px(120.0));
+        assert_eq!(expanded_width(&slot, 1.3), px(120.0));
     }
 
     #[test]
