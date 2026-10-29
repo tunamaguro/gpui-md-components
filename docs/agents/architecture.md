@@ -8,7 +8,7 @@
 md-components/
 ├── Cargo.toml              # [workspace] と [workspace.dependencies]（gpui の rev 固定はここ1か所）
 ├── AGENTS.md               # エージェント向けの作業指示（入口）
-├── .claude/skills/         # 繰り返す作業の手順（skill）
+├── .agents/skills/         # 繰り返す作業の手順（skill）
 ├── crates/
 │   ├── md3-color/          # HCT / CAM16 / TonalPalette / DynamicScheme（純 Rust、依存ゼロ）
 │   ├── md3-tokens/         # タイプスケール・角丸・高さ・モーション・状態不透明度・密度（純 Rust）

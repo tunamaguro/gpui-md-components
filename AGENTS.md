@@ -17,7 +17,7 @@ GPUI（Zed の UI フレームワーク）上に Material Design 3（ベース�
 7. `docs/agents/gpui-notes.md` — GPUI（固定 rev）で踏んだ挙動と回避策
 8. `docs/agents/dev-environment.md` — Nix、CI、PR の進め方、Codex との分担、画面の確認
 
-## skill（`.claude/skills/`）
+## skill（`.agents/skills/`）
 
 | skill | 使う場面 |
 | --- | --- |

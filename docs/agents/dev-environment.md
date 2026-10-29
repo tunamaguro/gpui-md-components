@@ -11,6 +11,9 @@
     フォント（`FONTCONFIG_FILE`）
 - コマンドは `nix develop -c <cmd>` で実行する。外で gallery を起動するとフォントが見つからず panic することがある。
 - `Cargo.toml` の profile や toolchain の固定は変えない。
+- `nix build`（crane）のソースは `nix/build.nix` の `lib.fileset` で決まる。Cargo のソース以外は含まれないので、
+  `include_bytes!` / `include_str!` で埋め込むファイルを新しい場所に足したら、そこにも足す
+  （今は `crates/md3-icons/assets` と `xtask/web`）。足し忘れると cargo では通っても `nix build` だけ落ちる。
 
 ## 完了チェック（全 PR）
 
@@ -45,7 +48,7 @@ nix develop -c bash -c '
 - CI が緑になったら squash merge する（人間の確認は待たない運用）。ただし v1.0 のタグ付けと Web 版の公開は人間に確認する。
 - コミットの末尾: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`。
   PR 本文の末尾: `🤖 Generated with [Claude Code](https://claude.com/claude-code)`。
-- 手順は skill `ship-pr`（`.claude/skills/ship-pr/`）。
+- 手順は skill `ship-pr`（`.agents/skills/ship-pr/`）。
 
 ## Codex との分担
 

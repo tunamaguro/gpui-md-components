@@ -37,7 +37,16 @@ let
   );
 
   commonArgs = {
-    src = craneLib.cleanCargoSource ../.;
+    # Cargo のソースに加えて、`include_bytes!` / `include_str!` で埋め込むファイル
+    # （md3-icons の SVG、xtask web の index.html）を含める。
+    src = lib.fileset.toSource {
+      root = ../.;
+      fileset = lib.fileset.unions [
+        (craneLib.fileset.commonCargoSources ../.)
+        ../crates/md3-icons/assets
+        ../xtask/web
+      ];
+    };
     cargoLock = ../Cargo.lock;
     strictDeps = true;
     nativeBuildInputs = [ pkgs.pkg-config ];

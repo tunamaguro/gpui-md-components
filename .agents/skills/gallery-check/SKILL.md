@@ -10,7 +10,7 @@ Codex の sandbox は Wayland に繋がらないので、画面の確認はこ�
 
 ## 手順
 
-スクリプトは `.claude/skills/gallery-check/scripts/`。撮った画像は Read で見る。出力先は scratchpad にする。
+スクリプトは `.agents/skills/gallery-check/scripts/`。撮った画像は Read で見る。出力先は scratchpad にする。
 
 1. 起動（ビルドも行う。既存の gallery は止める）:
    `scripts/launch.sh <ページ> [ログ]`

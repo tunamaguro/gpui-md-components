@@ -11,7 +11,7 @@ description: 実装を Codex CLI（gpt-6.1-sol / xhigh）に任せる。Claude �
 
 scratchpad に `prompt.md` を作る:
 
-1. `.claude/skills/codex-delegate/templates/common.md` をコピーし、`{{COMPOSE_DIR}}` を Compose のソースの場所に置き換える
+1. `.agents/skills/codex-delegate/templates/common.md` をコピーし、`{{COMPOSE_DIR}}` を Compose のソースの場所に置き換える
    （無ければ「not checked out; use https://github.com/androidx/androidx at the commit recorded in docs/TOKENS_SOURCE.md」）。
 2. 末尾に `## Task: ...` を足す。書くもの:
    - ユーザーの症状・要望（原文の意図）と、Claude が調べた原因・対象ファイルと行

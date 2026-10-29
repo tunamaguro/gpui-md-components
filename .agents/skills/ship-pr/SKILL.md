@@ -25,6 +25,8 @@ nix develop -c bash -c '
 
 fmt の差分は `nix develop -c cargo fmt --all` で直す。どれかが落ちたら直してからやり直す。
 
+`nix/` や埋め込むファイル（`include_bytes!` / `include_str!`）を変えたときは `nix build --no-link` も通す（時間がかかる）。
+
 ## 3. コミットと PR
 
 - コミットメッセージは日本語。1 行目に要約、本文に変更点の箇条書き。末尾に
