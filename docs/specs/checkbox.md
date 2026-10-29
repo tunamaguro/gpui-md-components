@@ -49,4 +49,4 @@
 ## 既知の制限・仕様からの逸脱
 
 - チェックは Material Symbols の `check` アイコン、不定の横線は箱の幅の 0.6 倍の簡略形で、Compose のパス描画・アニメーションとは違う。
-- gpui の a11y API に無効状態がないため、無効はツリーに出ない（Tab で止まらないことで表す）。
+- 無効は AccessKit の disabled としてツリーに出し、Tab でも止まらない。ただし Linux（AT-SPI）では役割によって無効が伝わらない（[`docs/a11y-audit.md`](../a11y-audit.md)）。

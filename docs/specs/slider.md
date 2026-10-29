@@ -52,4 +52,4 @@
 - 値のラベル（ドラッグ中の吹き出し）、目盛り、範囲スライダー、縦向きは未実装。
 - 終端の点の色は、トークン（StopIndicatorColor = SecondaryContainer、非活性トラックと同色）ではなく活性トラックの色にした。
 - フォーカスリングはつまみではなくスライダー全体を囲む。
-- gpui の a11y API に無効状態がないため、無効はツリーに出ない（Tab で止まらないことで表す）。
+- 無効は AccessKit の disabled としてツリーに出し、Tab でも止まらない。ただし Linux（AT-SPI）では役割によって無効が伝わらない（[`docs/a11y-audit.md`](../a11y-audit.md)）。
