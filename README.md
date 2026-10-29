@@ -110,6 +110,18 @@ python3 -m http.server -d target/web    # 静的ファイルとして配信し�
 
 wasm 版で WebGPU が使えない環境では `?renderer=webgl` を付けると WebGL2 で描く。
 
+### CI のビルドを試す（動作確認用）
+
+push・PR ごとに GitHub Actions の「Gallery」ワークフローが gallery をビルドし、実行結果のページの Artifacts に置く
+（動作確認用で配布物ではないので、3 日で消える）。
+
+| Artifact | 動かし方 |
+| --- | --- |
+| `gallery-linux-x86_64` | `tar xzf gallery-linux-x86_64.tar.gz && ./gallery`（Vulkan のドライバと libxkbcommon が要る） |
+| `gallery-macos-arm64` | `tar xzf gallery-macos-arm64.tar.gz && xattr -d com.apple.quarantine gallery; ./gallery`（署名していないため） |
+| `gallery-windows-x86_64` | `gallery.exe` を実行（署名していないため SmartScreen の警告が出る） |
+| `gallery-web` | 展開したフォルダで `python3 -m http.server` を実行し、`http://localhost:8000/` を開く（`file://` では動かない） |
+
 ## 既知の制限
 
 GPUI 側の制約によるものが多い。全体は [利用ガイドの「既知の制限」](docs/guide.md#%E6%97%A2%E7%9F%A5%E3%81%AE%E5%88%B6%E9%99%90)、
