@@ -55,7 +55,7 @@
 
 確認できた状態の例:
 
-- Checkbox の checked / indeterminate、RadioButton・SegmentedButton・Tabs・NavigationBar の selected、
+- Checkbox の checked / indeterminate、RadioButton・SegmentedButton（単一選択）の checked、Tabs・NavigationBar の selected、
   トグルの IconButton・SegmentedButton（複数選択）の pressed。
 - Slider の値（`value=3.0` など）、Progress の値と indeterminate。
 - 無効な Checkbox / Slider / TextField / Select は enabled・focusable が外れる（read only）。

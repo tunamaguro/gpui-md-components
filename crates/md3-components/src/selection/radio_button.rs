@@ -14,7 +14,7 @@ use md3_theme::md3_tokens::component::radio_button as tokens;
 use md3_theme::md3_tokens::layout;
 use md3_theme::{CornerRadius, Md3ThemeExt, MotionToken, TypeScale};
 
-use crate::a11y::{A11yExt, A11yNode};
+use crate::a11y::{A11yExt, A11yNode, toggled};
 use crate::control::{control, step};
 use crate::{FocusRing, ForcedState, StateLayer, Text, focus_handle};
 
@@ -110,7 +110,7 @@ impl RadioGroup {
         Some(
             A11yNode::new(Role::RadioButton)
                 .label(option.label.clone())
-                .selected(self.selected == Some(index))
+                .toggled(toggled(self.selected == Some(index)))
                 .position(index, self.options.len())
                 .disabled(option.disabled),
         )
@@ -282,6 +282,7 @@ impl RenderOnce for RadioGroup {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gpui::Toggled;
 
     #[test]
     fn options_report_selection_and_position() {
@@ -293,7 +294,11 @@ mod tests {
         assert_eq!(group.a11y_node().role, Role::RadioGroup);
         let first = group.option_a11y_node(0).expect("option");
         assert_eq!(first.role, Role::RadioButton);
-        assert_eq!(first.selected, Some(true));
+        assert_eq!(first.toggled, Some(Toggled::True));
+        assert_eq!(
+            first.selected, None,
+            "ラジオの選択は checked（toggled）で伝える"
+        );
         assert_eq!(first.position, Some((1, 3)));
         assert!(group.option_a11y_node(2).expect("option").disabled);
     }
