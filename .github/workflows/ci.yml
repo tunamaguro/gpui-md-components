@@ -41,6 +41,15 @@ jobs:
       - name: Format
         run: cargo fmt --all --check
 
+      # check-tokens の実行でも cargo がワークスペース全体の依存（zed などの git 依存）を取得するので、
+      # ~/.cargo だけをキャッシュする（xtask は std だけなので target は要らない）。
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: fmt
+          cache-targets: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
       # docs/TOKENS_SOURCE.md と md3-tokens の定数の突き合わせ。xtask は std だけなのでシステム依存なしで動く。
       - name: Check tokens
         run: cargo run --locked -p xtask -- check-tokens
@@ -74,15 +83,23 @@ jobs:
         shell: bash
         run: echo "RUSTUP_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_ENV"
 
-      # キャッシュ（~/.cargo/registry と target/debug）は main でだけ保存し、他のブランチは main のものを復元する。
+      # moonrepo/setup-rust のキャッシュは使わない。cache-base を指定するとキーに Cargo.lock が入らず、
+      # 最初に保存したキャッシュが更新されないうえ、~/.cargo/git（zed などの git 依存）を含まず毎回取り直すため。
       - name: Setup Rust
         uses: moonrepo/setup-rust@abb2d32350334249b178c401e5ec5836e0cd88d3 # v1.3.0
         with:
           components: clippy
-          cache-base: main
-          cache-extra-identifier: check
+          cache: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ~/.cargo（registry と git）と target を、Cargo.lock を含むキーでキャッシュする。保存は main でだけ行い、
+      # 他のブランチは main のものを復元する。
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: check
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
