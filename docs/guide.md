@@ -7,6 +7,8 @@ md3-components を GPUI のアプリで使うための手引き。部品ごと�
 
 - `gpui` は md-components と**同じ git rev** を使う（`Cargo.toml` の `[workspace.dependencies]` を参照）。
   rev が違うと gpui の型が別物になり、部品を要素として渡せない。
+  自分で依存に書く代わりに、再公開の `md3_components::gpui` を使ってもよい。
+  `gpui_platform` も feature `platform`（既定では無効）を付ければ `md3_components::gpui_platform` で使える。
 - 必要な部品群だけを feature で選べる（`buttons` / `selection` / `inputs` / `overlays` / `navigation` / `containment` / `expressive`、既定は全部）。
   `inputs` と `navigation` は `overlays` を、`overlays` は `buttons` を自動で有効にする。
 
