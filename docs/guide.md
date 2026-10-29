@@ -149,3 +149,26 @@ LazyList は同じ制御を使うが、利用側で追加する任意の GPUI �
 `CARGO_TARGET_DIR` や Cargo 設定の `build.target-dir` を指定しても wasm を見つけられる。
 配信用の出力先は引き続きワークスペース直下の `target/web/`。
 `nix develop` の `MD3_WEB_FONTS` は Linux・Darwin の両方で設定する。
+
+## スクロールバー（M6）
+
+スクロール領域を `ScrollHandle` で追跡し、最後の子に `Scrollbar` を足します。
+位置の供給元を表示領域として描くため、バーのための高さや幅を確保する必要はありません。
+
+```rust,ignore
+let scroll = gpui::ScrollHandle::new(); // ビューまたは use_keyed_state で保持する
+let area = gpui::div().id("content").h(gpui::px(240.0))
+    .overflow_y_scroll().track_scroll(&scroll)
+    .child(content)
+    .child(md3_components::Scrollbar::new("content-scrollbar", scroll.clone()));
+```
+
+既定は縦・ドラッグ可能・静止後にフェードです。`.axis(gpui::Axis::Horizontal)` で横、
+`.interaction(ScrollbarInteraction::Passive)` で表示のみ、`.fade(false)` で常時表示にできます。
+独自の仮想リストには `ScrollbarSource` を実装します。位置は先頭を 0 とした正の距離です。
+キーボード操作とアクセシビリティはコンテナ側で用意します。バー自体は Tab 順に入りません。
+
+LazyList、Menu / Select、Dialog、BottomSheet / SideSheet、NavigationDrawer は既定でバーを表示します。
+通常の List は `.max_height(px(240.0))` でスクロール可能にすると表示します。
+各部品の `.scrollbar(false)` で表示を止められます。gallery の Containment ページに
+縦の操作型・表示のみ・横・内容が収まる場合の見本があります。

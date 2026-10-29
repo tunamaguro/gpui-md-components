@@ -92,6 +92,7 @@ pub(crate) enum MenuKind {
 /// Esc・Tab・外側の押下で閉じる。キーボードで閉じたときは、開く前の要素にフォーカスを戻す。
 #[derive(IntoElement)]
 pub struct Menu {
+    scrollbar: bool,
     id: ElementId,
     label: SharedString,
     items: Vec<MenuItem>,
@@ -104,9 +105,16 @@ pub struct Menu {
 }
 
 impl Menu {
+    /// スクロールバーの表示を切り替える（既定は表示）。
+    pub fn scrollbar(mut self, visible: bool) -> Self {
+        self.scrollbar = visible;
+        self
+    }
+
     /// ID とラベル（読み上げ用の名前）から作る。
     pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
         Self {
+            scrollbar: true,
             id: id.into(),
             label: label.into(),
             items: Vec::new(),
@@ -394,6 +402,12 @@ impl RenderOnce for Menu {
             .track_scroll(&scroll)
             .on_scroll(wheel.on_scroll())
             .child(wheel.capture())
+            .when(self.scrollbar, |this| {
+                this.child(crate::Scrollbar::new(
+                    ElementId::NamedChild(self.id.clone().into(), "scrollbar".into()),
+                    scroll.clone(),
+                ))
+            })
             .occlude()
             .on_key_down(move |event, window, cx| {
                 let focused = handles

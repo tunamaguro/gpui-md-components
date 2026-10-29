@@ -53,6 +53,7 @@ impl DialogAction {
 /// ```
 #[derive(IntoElement)]
 pub struct Dialog {
+    scrollbar: bool,
     id: ElementId,
     headline: SharedString,
     icon: Option<IconName>,
@@ -65,9 +66,16 @@ pub struct Dialog {
 }
 
 impl Dialog {
+    /// スクロールバーの表示を切り替える（既定は表示）。
+    pub fn scrollbar(mut self, visible: bool) -> Self {
+        self.scrollbar = visible;
+        self
+    }
+
     /// ID と見出し（読み上げ用の名前を兼ねる）から作る。
     pub fn new(id: impl Into<ElementId>, headline: impl Into<SharedString>) -> Self {
         Self {
+            scrollbar: true,
             id: id.into(),
             headline: headline.into(),
             icon: None,
@@ -176,6 +184,7 @@ impl RenderOnce for Dialog {
             .flex_col()
             .min_w(px(layout::DIALOG_MIN_WIDTH))
             .max_w(px(layout::DIALOG_MAX_WIDTH))
+            .max_h((window.viewport_size().height - px(layout::DIALOG_SPACE * 2.0)).max(px(0.0)))
             .p(px(layout::DIALOG_SPACE))
             .bg(theme.color(tokens::CONTAINER_COLOR))
             .corner_radius(theme.corner(tokens::CONTAINER_SHAPE))
@@ -195,6 +204,7 @@ impl RenderOnce for Dialog {
             })
             .child(
                 div()
+                    .flex_none()
                     .when(centered, |this| this.flex().justify_center().text_center())
                     .when(has_body, |this| {
                         this.pb(px(layout::DIALOG_TITLE_BOTTOM_SPACE))
@@ -203,18 +213,27 @@ impl RenderOnce for Dialog {
                     .text_color(theme.color(tokens::HEADLINE_COLOR))
                     .child(self.headline),
             )
-            .when_some(self.supporting_text, |this, text| {
-                this.child(
-                    div()
-                        .type_style(&theme.text_style(tokens::SUPPORTING_TEXT_FONT))
-                        .text_color(theme.color(tokens::SUPPORTING_TEXT_COLOR))
-                        .child(text),
-                )
-            })
-            .children(self.children)
+            .child(crate::scroll::content(
+                &self.id,
+                self.supporting_text
+                    .map(|text| {
+                        div()
+                            .type_style(&theme.text_style(tokens::SUPPORTING_TEXT_FONT))
+                            .text_color(theme.color(tokens::SUPPORTING_TEXT_COLOR))
+                            .child(text)
+                            .into_any_element()
+                    })
+                    .into_iter()
+                    .chain(self.children)
+                    .collect(),
+                self.scrollbar,
+                window,
+                cx,
+            ))
             .when_some(actions, |this, actions| {
                 this.child(
                     div()
+                        .flex_none()
                         .pt(px(layout::DIALOG_TEXT_BOTTOM_SPACE))
                         .child(actions),
                 )

@@ -65,3 +65,5 @@ pub mod standard_icon_button;
 pub mod suggestion_chip;
 pub mod switch;
 pub mod text_button;
+
+pub mod scrollbar;

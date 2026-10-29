@@ -6,6 +6,7 @@ pub mod expressive;
 pub mod inputs;
 pub mod navigation;
 pub mod overlays;
+pub mod scrollbar;
 pub mod selection;
 pub mod theme;
 

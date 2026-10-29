@@ -1620,3 +1620,17 @@
 | md3_tokens::component::connected_button_group_small::INNER_CORNER_CORNER_SIZE | Small | ConnectedButtonGroupSmallTokens.kt | L34 InnerCornerCornerSize = ShapeTokens.CornerValueSmall | androidx@b8256a52 |
 | md3_tokens::component::connected_button_group_small::PRESSED_INNER_CORNER_CORNER_SIZE | ExtraSmall | ConnectedButtonGroupSmallTokens.kt | L35 PressedInnerCornerCornerSize = ShapeTokens.CornerValueExtraSmall | androidx@b8256a52 |
 | md3_tokens::component::connected_button_group_small::SELECTED_INNER_CORNER_CORNER_SIZE_PERCENT | 50.0 | ConnectedButtonGroupSmallTokens.kt | L36 SelectedInnerCornerCornerSizePercent = 50.0f | androidx@b8256a52 |
+
+## Scrollbar（M6）
+
+| Rust の定数 | 値 | 出典ファイル | 行 / セクション | 取得したコミットまたは日付 |
+| --- | --- | --- | --- | --- |
+| md3_tokens::component::scrollbar::THICKNESS | 4.0 | Scrollbar.kt | NonInteractiveScrollbarDefaults.Thickness | androidx@b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6 |
+| md3_tokens::component::scrollbar::THUMB_COLOR | Outline | Scrollbar.kt | NonInteractiveScrollbarDefaults.thumbColor | androidx@b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6 |
+| md3_tokens::component::scrollbar::THUMB_OPACITY | 0.7 | Scrollbar.kt | NonInteractiveScrollbarDefaults.ThumbOpacity | androidx@b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6 |
+| md3_tokens::component::scrollbar::THUMB_MIN_LENGTH | 24.0 | Scrollbar.kt | NonInteractiveScrollbarDefaults.ThumbMinLength | androidx@b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6 |
+| md3_tokens::component::scrollbar::THUMB_MAX_LENGTH_FRACTION | 0.9 | Scrollbar.kt | NonInteractiveScrollbarDefaults.ThumbMaxLengthFraction | androidx@b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6 |
+| md3_tokens::component::scrollbar::MAIN_AXIS_TRACK_INSET | 2.0 | Scrollbar.kt | NonInteractiveScrollbarDefaults.MainAxisTrackInset | androidx@b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6 |
+| md3_tokens::component::scrollbar::CROSS_AXIS_TRACK_INSET | 0.0 | Scrollbar.kt | NonInteractiveScrollbarDefaults.CrossAxisTrackInset | androidx@b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6 |
+| md3_tokens::component::scrollbar::FADE_DELAY_MILLIS | 400 | Scrollbar.kt | NonInteractiveScrollbarDefaults.ThumbFadeDelayMillis | androidx@b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6 |
+| md3_tokens::component::scrollbar::FADE_DURATION_MILLIS | 250 | Scrollbar.kt | NonInteractiveScrollbarDefaults.ThumbFadeDurationMillis | androidx@b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6 |
