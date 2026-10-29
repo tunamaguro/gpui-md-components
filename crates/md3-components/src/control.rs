@@ -16,7 +16,19 @@ pub enum ForcedState {
     Pressed,
 }
 
-/// 操作要素の土台の状態。
+/// 操作要素の土台の状態。部品を持つ feature がすべて無効だと使われない。
+#[cfg_attr(
+    not(any(
+        feature = "buttons",
+        feature = "selection",
+        feature = "inputs",
+        feature = "overlays",
+        feature = "navigation",
+        feature = "containment",
+        feature = "expressive"
+    )),
+    allow(dead_code)
+)]
 pub(crate) struct Control {
     /// 状態レイヤーが参照するグループ名。
     pub group: SharedString,
@@ -28,6 +40,18 @@ pub(crate) struct Control {
 ///
 /// ID からグループ名とフォーカスハンドルを作り、無効でなければフォーカスできるようにする。
 /// `tab_stop` が `false` なら Tab では止まらない（グループ内を矢印キーで移る部品の、選択されていない項目）。
+#[cfg_attr(
+    not(any(
+        feature = "buttons",
+        feature = "selection",
+        feature = "inputs",
+        feature = "overlays",
+        feature = "navigation",
+        feature = "containment",
+        feature = "expressive"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn control(
     id: &ElementId,
     disabled: bool,
