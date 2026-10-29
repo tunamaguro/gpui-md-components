@@ -10,23 +10,23 @@
 ## 構成要素（アナトミー）
 
 1. 状態レイヤー（40dp の円）
-2. 20dp の円（線 2dp）
-3. 選択時の中の点（12dp）
-4. ラベル（Body Large）
+1. 20dp の円（線 2dp）
+1. 選択時の中の点（12dp）
+1. ラベル（Body Large）
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| 状態レイヤー | 40dp | `radio_button::STATE_LAYER_SIZE` |
-| 円 | 20dp | `ICON_SIZE` |
-| 線 / 点 | 2dp / 12dp | `layout::RADIO_BUTTON_*` |
+| 項目         | 値         | トークン                         |
+| ------------ | ---------- | -------------------------------- |
+| 状態レイヤー | 40dp       | `radio_button::STATE_LAYER_SIZE` |
+| 円           | 20dp       | `ICON_SIZE`                      |
+| 線 / 点      | 2dp / 12dp | `layout::RADIO_BUTTON_*`         |
 
 ## 色（状態別）
 
-| 要素 | enabled | hover | focused | pressed | disabled |
-| --- | --- | --- | --- | --- | --- |
-| 円（選択） | Primary | 同 | 同 | 同 | OnSurface 38% |
+| 要素         | enabled          | hover     | focused   | pressed   | disabled      |
+| ------------ | ---------------- | --------- | --------- | --------- | ------------- |
+| 円（選択）   | Primary          | 同        | 同        | 同        | OnSurface 38% |
 | 円（非選択） | OnSurfaceVariant | OnSurface | OnSurface | OnSurface | OnSurface 38% |
 
 ## 振る舞い

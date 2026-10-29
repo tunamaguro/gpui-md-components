@@ -13,30 +13,33 @@
 ## 構成要素（アナトミー）
 
 1. コンテナ（Bar: SurfaceContainer / Rail: Surface / Drawer: Standard は Surface、Modal は SurfaceContainerLow、Level 1、右の角 Large）
-2. 選択の印（SecondaryContainer。Bar と Rail は 56 × 32dp の丸、Drawer は高さ 56dp の丸い帯）
-3. アイコン（24dp。選択中は OnSecondaryContainer、それ以外は OnSurfaceVariant）
-4. ラベル（Bar と Rail は Label Medium、選択中は Secondary / Drawer は Label Large、選択中は OnSecondaryContainer）
+1. 選択の印（SecondaryContainer。Bar と Rail は 56 × 32dp の丸、Drawer は高さ 56dp の丸い帯）
+1. アイコン（24dp。選択中は OnSecondaryContainer、それ以外は OnSurfaceVariant）
+1. ラベル（Bar と Rail は Label Medium、選択中は Secondary / Drawer は Label Large、選択中は OnSecondaryContainer）
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| Bar の高さ | 80dp | `navigation_bar::TALL_CONTAINER_HEIGHT` |
-| Bar の項目の間 | 8dp | `layout::NAVIGATION_BAR_ITEM_HORIZONTAL_SPACE` |
-| Bar の印の上 | 12dp | `layout::NAVIGATION_BAR_INDICATOR_VERTICAL_OFFSET` |
-| Rail の幅 | 80dp | `navigation_rail_collapsed::NARROW_CONTAINER_WIDTH` |
-| Rail の上下・項目の間 | 4dp | `layout::NAVIGATION_RAIL_VERTICAL_SPACE` |
-| Drawer の幅 | 360dp（最小 240dp） | `navigation_drawer::CONTAINER_WIDTH`, `layout::NAVIGATION_DRAWER_MIN_WIDTH` |
-| Drawer の項目 | 高さ 56dp、外側 12dp、内側 左 16 / 右 24dp、アイコンとの間 12dp | `layout::NAVIGATION_DRAWER_ITEM_*` |
-| 幅のクラスの境界 | 600 / 840 / 1200 / 1600dp | `layout::WINDOW_WIDTH_*` |
+| 項目                  | 値                                                              | トークン                                                                    |
+| --------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Bar の高さ            | 80dp                                                            | `navigation_bar::TALL_CONTAINER_HEIGHT`                                     |
+| Bar の項目の間        | 8dp                                                             | `layout::NAVIGATION_BAR_ITEM_HORIZONTAL_SPACE`                              |
+| Bar の印の上          | 12dp                                                            | `layout::NAVIGATION_BAR_INDICATOR_VERTICAL_OFFSET`                          |
+| Rail の幅             | 80dp                                                            | `navigation_rail_collapsed::NARROW_CONTAINER_WIDTH`                         |
+| Rail の上下・項目の間 | 4dp                                                             | `layout::NAVIGATION_RAIL_VERTICAL_SPACE`                                    |
+| Drawer の幅           | 360dp（最小 240dp）                                             | `navigation_drawer::CONTAINER_WIDTH`, `layout::NAVIGATION_DRAWER_MIN_WIDTH` |
+| Drawer の項目         | 高さ 56dp、外側 12dp、内側 左 16 / 右 24dp、アイコンとの間 12dp | `layout::NAVIGATION_DRAWER_ITEM_*`                                          |
+| 幅のクラスの境界      | 600 / 840 / 1200 / 1600dp                                       | `layout::WINDOW_WIDTH_*`                                                    |
 
 ## 振る舞い
 
 - Drawer のホイールは領域内で動けるときに消費し、端から始まる入力だけ祖先へ渡す。精密スクロールの消費はジェスチャー終了まで保持する。
 
 - Tab では選択中の項目（無ければ最初の有効な項目）で 1 回だけ止まる。
+
 - 矢印キー（Bar は ←→、Rail と Drawer は ↑↓）と Home / End でフォーカスだけを移し、Enter / Space / クリックで選ぶ（手動の選択）。
+
 - Modal の Drawer は Dialog と同じく、開くと有効な選択項目（無効・削除済みなら最初の有効項目、有効項目がなければ内部）にフォーカスし、Tab は中で回り、Esc とスクリムで閉じ、閉じると元へ戻す。
+
 - NavigationSuite は既定でウィンドウの幅（`WindowSizeClass::of`）から形を選ぶ。`.layout()` で固定できる。
 
 ## アクセシビリティ

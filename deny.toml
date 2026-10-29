@@ -14,3 +14,16 @@ allow = [
   "Unicode-DFS-2016",
   "Zlib",
 ]
+
+# gpui の間接依存。MPL-2.0 はこの 3 つに限って認める（新しい MPL の依存が入ったら気づけるように）。
+[[licenses.exceptions]]
+crate = "dwrote"
+allow = ["MPL-2.0"]
+
+[[licenses.exceptions]]
+crate = "cbindgen"
+allow = ["MPL-2.0"]
+
+[[licenses.exceptions]]
+crate = "option-ext"
+allow = ["MPL-2.0"]

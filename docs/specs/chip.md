@@ -11,25 +11,25 @@
 ## 構成要素（アナトミー）
 
 1. コンテナ（32dp、角丸 Small）
-2. 先頭アイコン（18dp、Filter の選択中はチェック）
-3. ラベル（Label Large）
-4. 末尾の削除アイコン（Input）
+1. 先頭アイコン（18dp、Filter の選択中はチェック）
+1. ラベル（Label Large）
+1. 末尾の削除アイコン（Input）
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| 高さ | 32dp（密度で減る） | `assist_chip::CONTAINER_HEIGHT` |
-| 左右の余白 | 8dp + ラベルの左右 8dp | `layout::CHIP_*` |
-| 枠線 | 1dp | `FLAT_OUTLINE_WIDTH` |
+| 項目       | 値                     | トークン                        |
+| ---------- | ---------------------- | ------------------------------- |
+| 高さ       | 32dp（密度で減る）     | `assist_chip::CONTAINER_HEIGHT` |
+| 左右の余白 | 8dp + ラベルの左右 8dp | `layout::CHIP_*`                |
+| 枠線       | 1dp                    | `FLAT_OUTLINE_WIDTH`            |
 
 ## 色（状態別）
 
-| 要素 | enabled | hover | focused | pressed | disabled |
-| --- | --- | --- | --- | --- | --- |
-| 枠線（Flat） | OutlineVariant | 同 | 同 | 同 | OnSurface 12% |
-| コンテナ（Filter 選択） | SecondaryContainer | 同 | 同 | 同 | OnSurface 12% |
-| ラベル | OnSurface / OnSurfaceVariant | 同 | 同 | 同 | OnSurface 38% |
+| 要素                    | enabled                      | hover | focused | pressed | disabled      |
+| ----------------------- | ---------------------------- | ----- | ------- | ------- | ------------- |
+| 枠線（Flat）            | OutlineVariant               | 同    | 同      | 同      | OnSurface 12% |
+| コンテナ（Filter 選択） | SecondaryContainer           | 同    | 同      | 同      | OnSurface 12% |
+| ラベル                  | OnSurface / OnSurfaceVariant | 同    | 同      | 同      | OnSurface 38% |
 
 ## 振る舞い
 

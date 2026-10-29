@@ -14,14 +14,14 @@
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| 高さ | 40dp（密度で減る） | `button_group_small::CONTAINER_HEIGHT` |
-| 項目の間（Standard） | 12dp | `button_group_small::BETWEEN_SPACE` |
-| 項目の間（Connected） | 2dp | `connected_button_group_small::BETWEEN_SPACE` |
-| 外側の角（Connected） | 丸 | `connected_button_group_small::CONTAINER_SHAPE` |
+| 項目                  | 値                                        | トークン                                                                                                    |
+| --------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 高さ                  | 40dp（密度で減る）                        | `button_group_small::CONTAINER_HEIGHT`                                                                      |
+| 項目の間（Standard）  | 12dp                                      | `button_group_small::BETWEEN_SPACE`                                                                         |
+| 項目の間（Connected） | 2dp                                       | `connected_button_group_small::BETWEEN_SPACE`                                                               |
+| 外側の角（Connected） | 丸                                        | `connected_button_group_small::CONTAINER_SHAPE`                                                             |
 | 内側の角（Connected） | 8dp、押下中 4dp、選択中は高さの 50%（丸） | `INNER_CORNER_CORNER_SIZE`, `PRESSED_INNER_CORNER_CORNER_SIZE`, `SELECTED_INNER_CORNER_CORNER_SIZE_PERCENT` |
-| 押された項目の広がり | 幅の 15% | Compose の `ButtonGroupDefaults.ExpandedRatio`（トークンではない） |
+| 押された項目の広がり  | 幅の 15%                                  | Compose の `ButtonGroupDefaults.ExpandedRatio`（トークンではない）                                          |
 
 ## 色（状態別）
 

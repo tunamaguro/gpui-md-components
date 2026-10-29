@@ -9,10 +9,10 @@
 
 ## 寸法・色
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| 太さ | 1dp | `divider::THICKNESS` |
-| 色 | OutlineVariant | `divider::COLOR` |
+| 項目 | 値             | トークン             |
+| ---- | -------------- | -------------------- |
+| 太さ | 1dp            | `divider::THICKNESS` |
+| 色   | OutlineVariant | `divider::COLOR`     |
 
 ## アクセシビリティ
 

@@ -79,16 +79,16 @@ cx.set_reduce_motion(user_prefers_reduced_motion); // 起動時と、設定が�
 
 全部品の割り当ては [`docs/agents/a11y.md`](agents/a11y.md) の表にある。要点:
 
-| 部品 | 操作 |
-| --- | --- |
-| ボタン類・Checkbox・Switch・Chip・Card・ToggleButton | Tab で移動、Enter / Space で押す |
-| ButtonGroup | 各項目が Tab で止まり、Enter / Space で切り替える |
-| RadioGroup・SegmentedButton・Tabs | Tab でグループに入り、矢印で移って選ぶ（Home / End） |
-| NavigationBar / Rail / Drawer | 矢印でフォーカスだけを移し、Enter / Space で選ぶ |
-| List / LazyList | 矢印で移る（端で止まる）、Enter / Space で選ぶ |
-| Slider | 矢印で 1 段、Home / End で端 |
-| Menu・Select | 開くと最初の項目にフォーカス、矢印で移動、Enter で選ぶ、Esc で閉じて元に戻る |
-| Dialog・モーダルな Sheet / Drawer | 開くと中にフォーカスし、Tab は中に閉じ込める。Esc で閉じ、開いた要素にフォーカスを戻す |
+| 部品                                                 | 操作                                                                                   |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| ボタン類・Checkbox・Switch・Chip・Card・ToggleButton | Tab で移動、Enter / Space で押す                                                       |
+| ButtonGroup                                          | 各項目が Tab で止まり、Enter / Space で切り替える                                      |
+| RadioGroup・SegmentedButton・Tabs                    | Tab でグループに入り、矢印で移って選ぶ（Home / End）                                   |
+| NavigationBar / Rail / Drawer                        | 矢印でフォーカスだけを移し、Enter / Space で選ぶ                                       |
+| List / LazyList                                      | 矢印で移る（端で止まる）、Enter / Space で選ぶ                                         |
+| Slider                                               | 矢印で 1 段、Home / End で端                                                           |
+| Menu・Select                                         | 開くと最初の項目にフォーカス、矢印で移動、Enter で選ぶ、Esc で閉じて元に戻る           |
+| Dialog・モーダルな Sheet / Drawer                    | 開くと中にフォーカスし、Tab は中に閉じ込める。Esc で閉じ、開いた要素にフォーカスを戻す |
 
 ## 6. Web（wasm32）
 

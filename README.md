@@ -17,25 +17,25 @@ Material Design 3（ベースライン）の UI 部品集。Windows / macOS / Li
 
 ## crate
 
-| crate | 内容 |
-| --- | --- |
-| `md3-color` | HCT 色空間・配色アルゴリズム（material-color-utilities の移植。GPU 不要） |
-| `md3-tokens` | デザイントークンの定数 |
-| `md3-icons` | Material Symbols のアイコン（よく使う 30 個） |
-| `md3-theme` | テーマ（gpui の `Global`）、gpui の型への変換、OS のライト / ダークへの追従 |
-| `md3-components` | 部品。feature で分割（下表） |
-| `gallery` | 全部品・全状態の見本アプリ |
-| `xtask` | 開発用コマンド（std のみ） |
+| crate            | 内容                                                                        |
+| ---------------- | --------------------------------------------------------------------------- |
+| `md3-color`      | HCT 色空間・配色アルゴリズム（material-color-utilities の移植。GPU 不要）   |
+| `md3-tokens`     | デザイントークンの定数                                                      |
+| `md3-icons`      | Material Symbols のアイコン（よく使う 30 個）                               |
+| `md3-theme`      | テーマ（gpui の `Global`）、gpui の型への変換、OS のライト / ダークへの追従 |
+| `md3-components` | 部品。feature で分割（下表）                                                |
+| `gallery`        | 全部品・全状態の見本アプリ                                                  |
+| `xtask`          | 開発用コマンド（std のみ）                                                  |
 
-| feature | 部品 |
-| --- | --- |
-| `buttons` | Button（5 種）、IconButton、FAB / ExtendedFAB、SegmentedButton |
-| `selection` | Checkbox、RadioButton、Switch、Chip（4 種）、Slider、Progress（線形 / 円形）、Badge |
-| `inputs` | TextField（Filled / Outlined、IME 対応）、Select、SearchBar |
-| `overlays` | Menu、Dialog、Tooltip、Snackbar、BottomSheet / SideSheet |
-| `navigation` | TopAppBar（4 種）、NavigationBar / Rail / Drawer、NavigationSuite、Tabs |
-| `containment` | Card（3 種）、List / LazyList、Divider |
-| `expressive` | M3 Expressive の ToggleButton、ButtonGroup（Standard / Connected）。押下・選択で形と幅がバネで変わる |
+| feature       | 部品                                                                                                 |
+| ------------- | ---------------------------------------------------------------------------------------------------- |
+| `buttons`     | Button（5 種）、IconButton、FAB / ExtendedFAB、SegmentedButton                                       |
+| `selection`   | Checkbox、RadioButton、Switch、Chip（4 種）、Slider、Progress（線形 / 円形）、Badge                  |
+| `inputs`      | TextField（Filled / Outlined、IME 対応）、Select、SearchBar                                          |
+| `overlays`    | Menu、Dialog、Tooltip、Snackbar、BottomSheet / SideSheet                                             |
+| `navigation`  | TopAppBar（4 種）、NavigationBar / Rail / Drawer、NavigationSuite、Tabs                              |
+| `containment` | Card（3 種）、List / LazyList、Divider                                                               |
+| `expressive`  | M3 Expressive の ToggleButton、ButtonGroup（Standard / Connected）。押下・選択で形と幅がバネで変わる |
 
 feature に関係なく使える共通部品: Scrollbar（控えめなスクロールバー。デスクトップではドラッグできる）。
 既定ではすべて有効。各部品の仕様とキー操作は [`docs/specs/`](docs/specs/) にある。
@@ -117,12 +117,12 @@ wasm 版で WebGPU が使えない環境では `?renderer=webgl` を付けると
 push・PR ごとに GitHub Actions の「Gallery」ワークフローが gallery をビルドし、実行結果のページの Artifacts に置く
 （動作確認用で配布物ではないので、3 日で消える）。
 
-| Artifact | 動かし方 |
-| --- | --- |
-| `gallery-linux-x86_64` | `tar xzf gallery-linux-x86_64.tar.gz && ./gallery`（Vulkan のドライバと libxkbcommon が要る） |
-| `gallery-macos-arm64` | `tar xzf gallery-macos-arm64.tar.gz && xattr -d com.apple.quarantine gallery; ./gallery`（署名していないため） |
-| `gallery-windows-x86_64` | `gallery.exe` を実行（署名していないため SmartScreen の警告が出る） |
-| `gallery-web` | 展開したフォルダで `python3 -m http.server` を実行し、`http://localhost:8000/` を開く（`file://` では動かない） |
+| Artifact                 | 動かし方                                                                                                        |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `gallery-linux-x86_64`   | `tar xzf gallery-linux-x86_64.tar.gz && ./gallery`（Vulkan のドライバと libxkbcommon が要る）                   |
+| `gallery-macos-arm64`    | `tar xzf gallery-macos-arm64.tar.gz && xattr -d com.apple.quarantine gallery; ./gallery`（署名していないため）  |
+| `gallery-windows-x86_64` | `gallery.exe` を実行（署名していないため SmartScreen の警告が出る）                                             |
+| `gallery-web`            | 展開したフォルダで `python3 -m http.server` を実行し、`http://localhost:8000/` を開く（`file://` では動かない） |
 
 ## 既知の制限
 

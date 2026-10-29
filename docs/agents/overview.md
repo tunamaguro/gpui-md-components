@@ -12,9 +12,9 @@ Windows / macOS / Linux / Web で同じ見た目・同じ操作性・スクリ�
 MD3 を選んだ理由:
 
 1. ガイドライン・画像・資料が Apache 2.0 または CC BY 4.0。Material Symbols も Apache 2.0。トークン値の転記と配色アルゴリズムの移植に法的な曖昧さがない。
-2. OS 固有の見た目を真似ないので、4 プラットフォームどこでも成立する。
-3. HCT 色空間による配色生成でコントラストを保証でき、標準 / 中 / 高の 3 段階コントラストを持つ。
-4. トークンが機械可読（Compose の `*Tokens.kt`、material-web の tokens）で、正解を参照しやすい。
+1. OS 固有の見た目を真似ないので、4 プラットフォームどこでも成立する。
+1. HCT 色空間による配色生成でコントラストを保証でき、標準 / 中 / 高の 3 段階コントラストを持つ。
+1. トークンが機械可読（Compose の `*Tokens.kt`、material-web の tokens）で、正解を参照しやすい。
 
 不採用の主な理由: Fluent 2 は Windows 色が強く Segoe UI が再配布不可。Carbon は業務アプリ特化で固定 4 テーマ。
 Apple HIG は移植用途の許諾がない。libadwaita は GTK 前提。

@@ -13,12 +13,12 @@ scratchpad に `prompt.md` を作る:
 
 1. `.agents/skills/codex-delegate/templates/common.md` をコピーし、`{{COMPOSE_DIR}}` を Compose のソースの場所に置き換える
    （無ければ「not checked out; use https://github.com/androidx/androidx at the commit recorded in docs/TOKENS_SOURCE.md」）。
-2. 末尾に `## Task: ...` を足す。書くもの:
+1. 末尾に `## Task: ...` を足す。書くもの:
    - ユーザーの症状・要望（原文の意図）と、Claude が調べた原因・対象ファイルと行
    - 設計の方針（公開 API の形、拡張点、既定値）。Claude の判断として決めておく。Codex に選ばせない
    - 一次資料の場所と、使う値の見込み（Codex に開いて確かめさせる）
    - テストと gallery の見本に求めること
-1 PR に入る量にする。互いに同じファイルを触る作業は並行させず順番に回す。
+     1 PR に入る量にする。互いに同じファイルを触る作業は並行させず順番に回す。
 
 ## 2. 実行する
 
@@ -34,9 +34,9 @@ nix develop -c bash -c "timeout 7200 codex exec -m gpt-6.1-sol -c model_reasonin
 
 ## 3. 検証する（Codex の報告をそのまま信じない）
 
-1. 完了チェック（skill `ship-pr` の 2）を Claude が自分で回す。
-2. 差分を読む: 依存の追加・`unsafe`・推測の値・規約違反・不要な変更がないか。
-3. 画面で確かめる（skill `gallery-check`）。ユーザーの所見があれば、その操作を再現する。
+1. 完了チェック（skill `ship-pr` の 2。`nix fmt` / `nix flake check` を含む）を Claude が自分で回す。Codex は sandbox から Nix を使えないので cargo でしか確かめていない。
+1. 差分を読む: 依存の追加・`unsafe`・推測の値・規約違反・不要な変更がないか。
+1. 画面で確かめる（skill `gallery-check`）。ユーザーの所見があれば、その操作を再現する。
 
 ## 4. レビューと修正
 

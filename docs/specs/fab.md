@@ -12,24 +12,24 @@
 ## 構成要素（アナトミー）
 
 1. コンテナ（影 Level3）
-2. アイコン
-3. ラベル（Extended のみ）
+1. アイコン
+1. ラベル（Extended のみ）
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| 大きさ | 40 / 56 / 96dp | `fab_small` / `fab_baseline` / `fab_large::CONTAINER_WIDTH` |
-| 角丸 | Medium / Large / ExtraLarge | `*::CONTAINER_SHAPE` |
-| Extended の高さ | 56dp | `extended_fab_primary::CONTAINER_HEIGHT` |
-| Extended の余白 | アイコン左 16dp、ラベル左右 20dp、間 12dp | `layout::EXTENDED_FAB_*` |
+| 項目            | 値                                        | トークン                                                    |
+| --------------- | ----------------------------------------- | ----------------------------------------------------------- |
+| 大きさ          | 40 / 56 / 96dp                            | `fab_small` / `fab_baseline` / `fab_large::CONTAINER_WIDTH` |
+| 角丸            | Medium / Large / ExtraLarge               | `*::CONTAINER_SHAPE`                                        |
+| Extended の高さ | 56dp                                      | `extended_fab_primary::CONTAINER_HEIGHT`                    |
+| Extended の余白 | アイコン左 16dp、ラベル左右 20dp、間 12dp | `layout::EXTENDED_FAB_*`                                    |
 
 ## 色（状態別）
 
-| 要素 | enabled | hover | focused | pressed | disabled |
-| --- | --- | --- | --- | --- | --- |
-| コンテナ | PrimaryContainer + Level3 | + Level4 | Level3 | Level3 | — |
-| アイコン | OnPrimaryContainer | 同 | 同 | 同 | — |
+| 要素     | enabled                   | hover    | focused | pressed | disabled |
+| -------- | ------------------------- | -------- | ------- | ------- | -------- |
+| コンテナ | PrimaryContainer + Level3 | + Level4 | Level3  | Level3  | —        |
+| アイコン | OnPrimaryContainer        | 同       | 同      | 同      | —        |
 
 ## 振る舞い
 

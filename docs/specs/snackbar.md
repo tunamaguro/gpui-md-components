@@ -10,20 +10,20 @@
 ## 構成要素（アナトミー）
 
 1. コンテナ（InverseSurface、角 ExtraSmall、Level 3）
-2. 文字（Body Medium、InverseOnSurface）
-3. 操作のボタン（Text Button、InversePrimary）
-4. 閉じるボタン（IconButton、InverseOnSurface）
+1. 文字（Body Medium、InverseOnSurface）
+1. 操作のボタン（Text Button、InversePrimary）
+1. 閉じるボタン（IconButton、InverseOnSurface）
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| 最大幅 | 600dp | `layout::SNACKBAR_MAX_WIDTH` |
-| 左の余白 | 16dp | `layout::SNACKBAR_HORIZONTAL_SPACE` |
-| 文字の上下 | 14dp | `layout::SNACKBAR_VERTICAL_SPACE` |
-| ボタンの外側 | 8dp | `layout::SNACKBAR_BUTTON_SIDE_SPACE` |
-| ウィンドウ端との間隔 | 12dp | `layout::SNACKBAR_OUTER_SPACE` |
-| 表示時間 | 短い 4 秒 / 長い 10 秒 / 無期限 | `layout::SNACKBAR_SHORT_DURATION`, `SNACKBAR_LONG_DURATION` |
+| 項目                 | 値                              | トークン                                                    |
+| -------------------- | ------------------------------- | ----------------------------------------------------------- |
+| 最大幅               | 600dp                           | `layout::SNACKBAR_MAX_WIDTH`                                |
+| 左の余白             | 16dp                            | `layout::SNACKBAR_HORIZONTAL_SPACE`                         |
+| 文字の上下           | 14dp                            | `layout::SNACKBAR_VERTICAL_SPACE`                           |
+| ボタンの外側         | 8dp                             | `layout::SNACKBAR_BUTTON_SIDE_SPACE`                        |
+| ウィンドウ端との間隔 | 12dp                            | `layout::SNACKBAR_OUTER_SPACE`                              |
+| 表示時間             | 短い 4 秒 / 長い 10 秒 / 無期限 | `layout::SNACKBAR_SHORT_DURATION`, `SNACKBAR_LONG_DURATION` |
 
 ## 振る舞い
 

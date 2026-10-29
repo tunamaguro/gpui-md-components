@@ -10,22 +10,22 @@
 ## 構成要素（アナトミー）
 
 1. スクリム（Scrim 32%）
-2. コンテナ（SurfaceContainerHigh、角 ExtraLarge、Level 3）
-3. アイコン（任意、Secondary、24dp）
-4. 見出し（Headline Small、アイコンがあれば中央揃え）
-5. 補助テキスト（Body Medium、OnSurfaceVariant）と任意の中身
-6. 操作のボタン（Text Button、右揃え）
+1. コンテナ（SurfaceContainerHigh、角 ExtraLarge、Level 3）
+1. アイコン（任意、Secondary、24dp）
+1. 見出し（Headline Small、アイコンがあれば中央揃え）
+1. 補助テキスト（Body Medium、OnSurfaceVariant）と任意の中身
+1. 操作のボタン（Text Button、右揃え）
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| 幅 | 280〜560dp | `layout::DIALOG_MIN_WIDTH`, `DIALOG_MAX_WIDTH` |
-| 内側の余白 | 24dp | `layout::DIALOG_SPACE` |
-| アイコンの下 | 16dp | `layout::DIALOG_ICON_BOTTOM_SPACE` |
-| 見出しの下 | 16dp | `layout::DIALOG_TITLE_BOTTOM_SPACE` |
-| 本文の下 | 24dp | `layout::DIALOG_TEXT_BOTTOM_SPACE` |
-| ボタンの間 | 8dp | `layout::DIALOG_BUTTON_SPACE` |
+| 項目         | 値         | トークン                                       |
+| ------------ | ---------- | ---------------------------------------------- |
+| 幅           | 280〜560dp | `layout::DIALOG_MIN_WIDTH`, `DIALOG_MAX_WIDTH` |
+| 内側の余白   | 24dp       | `layout::DIALOG_SPACE`                         |
+| アイコンの下 | 16dp       | `layout::DIALOG_ICON_BOTTOM_SPACE`             |
+| 見出しの下   | 16dp       | `layout::DIALOG_TITLE_BOTTOM_SPACE`            |
+| 本文の下     | 24dp       | `layout::DIALOG_TEXT_BOTTOM_SPACE`             |
+| ボタンの間   | 8dp        | `layout::DIALOG_BUTTON_SPACE`                  |
 
 ## 振る舞い
 

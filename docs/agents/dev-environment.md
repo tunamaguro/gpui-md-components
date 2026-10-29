@@ -18,24 +18,26 @@
 ## 完了チェック（全 PR）
 
 ```sh
+nix fmt                     # rustfmt / mdformat / taplo / nixfmt（treefmt）で整形する
+nix flake check             # 整形の確認、clippy（-D warnings）、test、release ビルド、cargo audit / deny
 nix develop -c bash -c '
-  cargo fmt --all --check &&
-  cargo clippy --workspace --all-targets -- -D warnings &&
-  cargo test --workspace &&
   cargo build -p md3-components --target wasm32-unknown-unknown &&
-  cargo xtask check-tokens'
+  cargo xtask check-tokens'  # flake check に入っていないもの
 ```
+
+- `nix flake check` は crane のビルドなので時間がかかる。作業中の確認は `nix develop -c cargo clippy ...` / `cargo test -p <crate>` など cargo を直接使ってよい。
+- `nix fmt` は Markdown も整形する（番号付きリストは `1.` にそろう）。整形の差分も PR に含める。
 
 ## CI（GitHub Actions）
 
-| ワークフロー | ジョブ | 内容 |
-| --- | --- | --- |
-| `ci.yml` | Format / tokens | fmt と `xtask check-tokens`（ubuntu） |
-| | Check (ubuntu / macos-15 / windows-2025) | clippy と test |
-| | Build (wasm32) | md3-components と gallery の wasm ビルド |
-| | CI | 上の全ジョブの集約。ブランチ保護の必須チェックにはこれだけを指定する想定（2026-10-29 時点で main は未保護） |
-| `gallery.yml` | Desktop (3 OS) / Web | gallery のリリースビルドを Artifacts に置く（動作確認用、保存 3 日） |
-| `dependabot-automerge.yml` | | Dependabot の PR の自動マージ |
+| ワークフロー               | ジョブ                                   | 内容                                                                                                        |
+| -------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `ci.yml`                   | Format / tokens                          | fmt と `xtask check-tokens`（ubuntu）                                                                       |
+|                            | Check (ubuntu / macos-15 / windows-2025) | clippy と test                                                                                              |
+|                            | Build (wasm32)                           | md3-components と gallery の wasm ビルド                                                                    |
+|                            | CI                                       | 上の全ジョブの集約。ブランチ保護の必須チェックにはこれだけを指定する想定（2026-10-29 時点で main は未保護） |
+| `gallery.yml`              | Desktop (3 OS) / Web                     | gallery のリリースビルドを Artifacts に置く（動作確認用、保存 3 日）                                        |
+| `dependabot-automerge.yml` |                                          | Dependabot の PR の自動マージ                                                                               |
 
 - 「Pin toolchain」の手順で `RUSTUP_TOOLCHAIN` を `rust-toolchain.toml` の版に固定している（消さない。消すと毎回ツールチェーンを落とし直す）。
 - キャッシュは `Swatinem/rust-cache`（`moonrepo/setup-rust` は `cache: false`）。ジョブごとに `shared-key` を分け、

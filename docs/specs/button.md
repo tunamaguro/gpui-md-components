@@ -11,26 +11,26 @@
 ## 構成要素（アナトミー）
 
 1. コンテナ（Elevated は影、Outlined は枠線、Text は無し）
-2. 先頭アイコン（任意、18dp）
-3. ラベル（Label Large）
+1. 先頭アイコン（任意、18dp）
+1. ラベル（Label Large）
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| 高さ | 40dp（密度で減る） | `baseline_button::CONTAINER_HEIGHT` |
-| 最小幅 | 58dp | `layout::BUTTON_MIN_WIDTH` |
-| 左右の余白 | 24dp（アイコン付きは左 16dp、Text は 12dp） | `baseline_button::LEADING_SPACE` ほか |
-| アイコンとラベルの間 | 8dp | `baseline_button::ICON_LABEL_SPACE` |
-| 角丸 | Full | `baseline_button::CONTAINER_SHAPE_ROUND` |
+| 項目                 | 値                                          | トークン                                 |
+| -------------------- | ------------------------------------------- | ---------------------------------------- |
+| 高さ                 | 40dp（密度で減る）                          | `baseline_button::CONTAINER_HEIGHT`      |
+| 最小幅               | 58dp                                        | `layout::BUTTON_MIN_WIDTH`               |
+| 左右の余白           | 24dp（アイコン付きは左 16dp、Text は 12dp） | `baseline_button::LEADING_SPACE` ほか    |
+| アイコンとラベルの間 | 8dp                                         | `baseline_button::ICON_LABEL_SPACE`      |
+| 角丸                 | Full                                        | `baseline_button::CONTAINER_SHAPE_ROUND` |
 
 ## 色（状態別）
 
-| 要素 | enabled | hover | focused | pressed | disabled |
-| --- | --- | --- | --- | --- | --- |
-| コンテナ（Filled） | Primary | Primary + 影 Level1 | Primary | Primary | OnSurface 10% |
-| ラベル（Filled） | OnPrimary | OnPrimary | OnPrimary | OnPrimary | OnSurfaceVariant 38% |
-| 状態レイヤー | — | ラベル色 8% | ラベル色 10% | ラベル色 10% | 無し |
+| 要素               | enabled   | hover               | focused      | pressed      | disabled             |
+| ------------------ | --------- | ------------------- | ------------ | ------------ | -------------------- |
+| コンテナ（Filled） | Primary   | Primary + 影 Level1 | Primary      | Primary      | OnSurface 10%        |
+| ラベル（Filled）   | OnPrimary | OnPrimary           | OnPrimary    | OnPrimary    | OnSurfaceVariant 38% |
+| 状態レイヤー       | —         | ラベル色 8%         | ラベル色 10% | ラベル色 10% | 無し                 |
 
 ## 振る舞い
 

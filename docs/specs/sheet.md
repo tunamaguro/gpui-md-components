@@ -11,18 +11,18 @@
 ## 構成要素（アナトミー）
 
 1. スクリム（モーダルのみ、Scrim 32%）
-2. コンテナ（BottomSheet: SurfaceContainerLow、上の角 ExtraLarge、Level 1 / SideSheet Standard: Surface、左の区切り線 / Modal: SurfaceContainerLow、左の角 Large、Level 1）
-3. ドラッグハンドル（BottomSheet、32 × 4dp、OnSurfaceVariant）
-4. 見出し（SideSheet、Title Large）と閉じるボタン
+1. コンテナ（BottomSheet: SurfaceContainerLow、上の角 ExtraLarge、Level 1 / SideSheet Standard: Surface、左の区切り線 / Modal: SurfaceContainerLow、左の角 Large、Level 1）
+1. ドラッグハンドル（BottomSheet、32 × 4dp、OnSurfaceVariant）
+1. 見出し（SideSheet、Title Large）と閉じるボタン
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| BottomSheet の最大幅 | 640dp | `layout::BOTTOM_SHEET_MAX_WIDTH` |
-| ハンドルの上下 | 22dp | `layout::BOTTOM_SHEET_DRAG_HANDLE_VERTICAL_SPACE` |
-| SideSheet の幅 | 256dp | `side_sheet` のトークン |
-| SideSheet の余白 | 16dp、見出しの下 24dp | `layout::SIDE_SHEET_CONTENT_SPACE`, `SIDE_SHEET_HEADLINE_BOTTOM_SPACE` |
+| 項目                 | 値                    | トークン                                                               |
+| -------------------- | --------------------- | ---------------------------------------------------------------------- |
+| BottomSheet の最大幅 | 640dp                 | `layout::BOTTOM_SHEET_MAX_WIDTH`                                       |
+| ハンドルの上下       | 22dp                  | `layout::BOTTOM_SHEET_DRAG_HANDLE_VERTICAL_SPACE`                      |
+| SideSheet の幅       | 256dp                 | `side_sheet` のトークン                                                |
+| SideSheet の余白     | 16dp、見出しの下 24dp | `layout::SIDE_SHEET_CONTENT_SPACE`, `SIDE_SHEET_HEADLINE_BOTTOM_SPACE` |
 
 ## 振る舞い
 

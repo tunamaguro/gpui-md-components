@@ -21,12 +21,13 @@ Do NOT commit; leave changes in the working tree. Do not touch .envrc, nix toolc
 Cargo profile settings or CI workflows unless the task says so.
 
 Done criteria (run them all; they must pass):
+
 - cargo fmt --all --check
 - cargo clippy --workspace --all-targets -- -D warnings
 - cargo test --workspace
 - cargo build -p md3-components --target wasm32-unknown-unknown
 - cargo xtask check-tokens
-- gallery shows every new state/sample; docs/specs/*.md, docs/guide.md, README and docs/a11y-audit.md are updated
+- gallery shows every new state/sample; docs/specs/\*.md, docs/guide.md, README and docs/a11y-audit.md are updated
   where relevant. Comments and docs are in Japanese — match the existing style.
-Finish with a concise summary per item, listing token values you used with their source, and anything you could
-not verify.
+  Finish with a concise summary per item, listing token values you used with their source, and anything you could
+  not verify.

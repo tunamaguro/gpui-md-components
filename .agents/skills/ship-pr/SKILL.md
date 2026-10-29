@@ -15,17 +15,15 @@ description: 作業ツリーの変更を完了チェック（fmt / clippy / test
 ## 2. 完了チェック
 
 ```sh
+nix fmt                     # rustfmt / mdformat / taplo / nixfmt（treefmt）で整形する
+nix flake check             # 整形の確認、clippy（-D warnings）、test、release ビルド、cargo audit / deny
 nix develop -c bash -c '
-  cargo fmt --all --check &&
-  cargo clippy --workspace --all-targets -- -D warnings &&
-  cargo test --workspace &&
   cargo build -p md3-components --target wasm32-unknown-unknown &&
-  cargo xtask check-tokens'
+  cargo xtask check-tokens'  # flake check に入っていないもの
 ```
 
-fmt の差分は `nix develop -c cargo fmt --all` で直す。どれかが落ちたら直してからやり直す。
-
-`nix/` や埋め込むファイル（`include_bytes!` / `include_str!`）を変えたときは `nix build --no-link` も通す（時間がかかる）。
+`nix fmt` の整形の差分もコミットに含める。どれかが落ちたら直してからやり直す（落ちた derivation のログは `nix log <drv>`）。
+`nix flake check` は時間がかかるのでバックグラウンドで回す。作業中の確認は cargo を直接使ってよい。
 
 ## 3. コミットと PR
 

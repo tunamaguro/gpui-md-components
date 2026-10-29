@@ -10,23 +10,23 @@
 ## 構成要素（アナトミー）
 
 1. トラック（52×32dp、非選択は枠線 2dp）
-2. つまみ（非選択 16dp、選択・アイコン付き 24dp、押下 28dp）
-3. 状態レイヤー（つまみの周り 40dp）
+1. つまみ（非選択 16dp、選択・アイコン付き 24dp、押下 28dp）
+1. 状態レイヤー（つまみの周り 40dp）
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| トラック | 52×32dp | `switch::TRACK_WIDTH`, `TRACK_HEIGHT` |
-| つまみ | 16 / 24 / 28dp | `UNSELECTED_HANDLE_WIDTH` ほか |
+| 項目     | 値             | トークン                              |
+| -------- | -------------- | ------------------------------------- |
+| トラック | 52×32dp        | `switch::TRACK_WIDTH`, `TRACK_HEIGHT` |
+| つまみ   | 16 / 24 / 28dp | `UNSELECTED_HANDLE_WIDTH` ほか        |
 
 ## 色（状態別）
 
-| 要素 | enabled | hover | focused | pressed | disabled |
-| --- | --- | --- | --- | --- | --- |
-| トラック（選択） | Primary | 同 | 同 | 同 | OnSurface 12% |
-| つまみ（選択） | OnPrimary | PrimaryContainer | PrimaryContainer | PrimaryContainer | Surface |
-| つまみ（非選択） | Outline | OnSurfaceVariant | OnSurfaceVariant | OnSurfaceVariant | OnSurface 38% |
+| 要素             | enabled   | hover            | focused          | pressed          | disabled      |
+| ---------------- | --------- | ---------------- | ---------------- | ---------------- | ------------- |
+| トラック（選択） | Primary   | 同               | 同               | 同               | OnSurface 12% |
+| つまみ（選択）   | OnPrimary | PrimaryContainer | PrimaryContainer | PrimaryContainer | Surface       |
+| つまみ（非選択） | Outline   | OnSurfaceVariant | OnSurfaceVariant | OnSurfaceVariant | OnSurface 38% |
 
 ## 振る舞い
 

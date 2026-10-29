@@ -6,16 +6,16 @@
 ## 構成要素（アナトミー）
 
 1. コンテナ（SurfaceContainerHigh、完全な丸）
-2. 先頭のアイコン（検索。押せるアイコンに置き換えられる）
-3. 入力文字（Body Large、OnSurface）と placeholder（OnSurfaceVariant）
-4. 末尾の押せるアイコン（消去など）
+1. 先頭のアイコン（検索。押せるアイコンに置き換えられる）
+1. 入力文字（Body Large、OnSurface）と placeholder（OnSurfaceVariant）
+1. 末尾の押せるアイコン（消去など）
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| 高さ | 56dp | `search_bar::CONTAINER_HEIGHT` |
-| 幅 | 360〜720dp | `layout::SEARCH_BAR_MIN_WIDTH`, `SEARCH_BAR_MAX_WIDTH` |
+| 項目     | 値                                  | トークン                                                         |
+| -------- | ----------------------------------- | ---------------------------------------------------------------- |
+| 高さ     | 56dp                                | `search_bar::CONTAINER_HEIGHT`                                   |
+| 幅       | 360〜720dp                          | `layout::SEARCH_BAR_MIN_WIDTH`, `SEARCH_BAR_MAX_WIDTH`           |
 | アイコン | 48dp の領域の中央、領域を端から 4dp | `layout::MIN_INTERACTIVE_SIZE`, `layout::SEARCH_BAR_ICON_OFFSET` |
 
 ## 振る舞い

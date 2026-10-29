@@ -13,15 +13,15 @@
 
 透明なトラックと丸いつまみ。色は全操作状態で `outline`、不透明度 0.7。
 
-| 項目 | 値 | Compose の名前 |
-| --- | --- | --- |
-| 太さ | 4dp | Thickness |
-| 最小長 | 24dp | ThumbMinLength |
-| 最大長 | トラック長の 0.9 | ThumbMaxLengthFraction |
-| 主軸余白 | 両端 2dp | MainAxisTrackInset |
-| 交差軸余白 | 0dp | CrossAxisTrackInset |
-| 待機 | 400ms | ThumbFadeDelayMillis |
-| フェード | 250ms | ThumbFadeDurationMillis |
+| 項目       | 値               | Compose の名前          |
+| ---------- | ---------------- | ----------------------- |
+| 太さ       | 4dp              | Thickness               |
+| 最小長     | 24dp             | ThumbMinLength          |
+| 最大長     | トラック長の 0.9 | ThumbMaxLengthFraction  |
+| 主軸余白   | 両端 2dp         | MainAxisTrackInset      |
+| 交差軸余白 | 0dp              | CrossAxisTrackInset     |
+| 待機       | 400ms            | ThumbFadeDelayMillis    |
+| フェード   | 250ms            | ThumbFadeDurationMillis |
 
 ## 振る舞い
 

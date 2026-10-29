@@ -9,22 +9,22 @@ GPUI（Zed の UI フレームワーク）上に Material Design 3（ベース�
 ## 最初に読むもの
 
 1. `docs/agents/backlog.md` — 未対応事項（未確認の範囲、人間の判断待ち、未実装の候補）
-2. `docs/agents/overview.md` — 目的、選定理由、スコープ（何をやらないか）
-3. `docs/agents/architecture.md` — crate 構成、依存ルール、Rust の設計規約、共有部品
-4. `docs/agents/resources.md` — 仕様・トークン値・アルゴリズムの「正」の場所とライセンス
-5. `docs/agents/a11y.md` — アクセシビリティの実装規約と検証手順
-6. `docs/agents/component-workflow.md` — コンポーネント1つを実装する手順（毎回これに従う）
-7. `docs/agents/gpui-notes.md` — GPUI（固定 rev）で踏んだ挙動と回避策
-8. `docs/agents/dev-environment.md` — Nix、CI、PR の進め方、Codex との分担、画面の確認
+1. `docs/agents/overview.md` — 目的、選定理由、スコープ（何をやらないか）
+1. `docs/agents/architecture.md` — crate 構成、依存ルール、Rust の設計規約、共有部品
+1. `docs/agents/resources.md` — 仕様・トークン値・アルゴリズムの「正」の場所とライセンス
+1. `docs/agents/a11y.md` — アクセシビリティの実装規約と検証手順
+1. `docs/agents/component-workflow.md` — コンポーネント1つを実装する手順（毎回これに従う）
+1. `docs/agents/gpui-notes.md` — GPUI（固定 rev）で踏んだ挙動と回避策
+1. `docs/agents/dev-environment.md` — Nix、CI、PR の進め方、Codex との分担、画面の確認
 
 ## skill（`.agents/skills/`）
 
-| skill | 使う場面 |
-| --- | --- |
-| `ship-pr` | 完了チェック → コミット → PR → CI 待ち → squash merge |
-| `codex-delegate` | 実装を Codex に任せ、レビュー・修正を回す |
-| `gallery-check` | gallery を起動して操作・撮影し、見た目と動きを確かめる |
-| `add-component` | 部品を 1 つ追加する（component-workflow.md の手順を実行する） |
+| skill            | 使う場面                                                      |
+| ---------------- | ------------------------------------------------------------- |
+| `ship-pr`        | 完了チェック → コミット → PR → CI 待ち → squash merge         |
+| `codex-delegate` | 実装を Codex に任せ、レビュー・修正を回す                     |
+| `gallery-check`  | gallery を起動して操作・撮影し、見た目と動きを確かめる        |
+| `add-component`  | 部品を 1 つ追加する（component-workflow.md の手順を実行する） |
 
 ## 絶対に守るルール
 
@@ -40,8 +40,9 @@ GPUI（Zed の UI フレームワーク）上に Material Design 3（ベース�
 
 ## 完了の定義（全 PR 共通）
 
-- `cargo fmt --check`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace` が通る
+- `nix fmt` で整形し、`nix flake check`（整形・clippy・test・ビルド・audit / deny）が通る
 - `cargo build -p md3-components --target wasm32-unknown-unknown` と `cargo xtask check-tokens` が通る
+  （手順は `docs/agents/dev-environment.md` の「完了チェック」。作業中は cargo を直接使ってよい）
 - 新規コンポーネントは gallery に全状態（enabled / hover / focused / pressed / disabled、該当すれば selected / error）の見本がある
 - 公開 API に doc コメントがある（`#![deny(missing_docs)]`）
 

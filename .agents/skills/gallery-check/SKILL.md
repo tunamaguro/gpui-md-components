@@ -16,16 +16,16 @@ Codex の sandbox は Wayland に繋がらないので、画面の確認はこ�
    `scripts/launch.sh <ページ> [ログ]`
    ページ: `foundations buttons selection inputs overlays navigation containment expressive`。
    モーションを減らす設定で見るなら `MD3_REDUCE_MOTION=1 scripts/launch.sh ...`。
-2. 目的の見本まで送る: `scripts/xdo.sh scroll 1100 600 <段数>`（ページ右側の空いた所で回すと、中のリストを回さない）。
+1. 目的の見本まで送る: `scripts/xdo.sh scroll 1100 600 <段数>`（ページ右側の空いた所で回すと、中のリストを回さない）。
    撮ってから位置を決める。ウィンドウは 1200×900、座標はスクリーンショットと同じ。
-3. 操作:
+1. 操作:
    - ホバー `scripts/xdo.sh move X Y` / クリック `click X Y` / ドラッグ `drag X1 Y1 X2 Y2`
    - キー `scripts/xdo.sh key Tab space Escape`（フォーカスリングや APG のキー操作の確認）
-4. 撮る: `scripts/shot.sh <出力.png> [WxH+X+Y]`。小さな差は切り出して拡大して見る
+1. 撮る: `scripts/shot.sh <出力.png> [WxH+X+Y]`。小さな差は切り出して拡大して見る
    （`nix shell nixpkgs#imagemagick -c magick in.png -crop ... -scale 200% out.png`）。
-5. 色の有無を数値で確かめたいとき（細いバーなど）:
+1. 色の有無を数値で確かめたいとき（細いバーなど）:
    `magick in.png -crop 8x900+1192+0 -scale 8x30! txt:- | grep -v '#FDF7FF'` のように画素を出す。
-6. 終わったら `pkill -x gallery`（`pkill -f` は自分のシェルも殺すので使わない）。
+1. 終わったら `pkill -x gallery`（`pkill -f` は自分のシェルも殺すので使わない）。
 
 ## 注意
 
