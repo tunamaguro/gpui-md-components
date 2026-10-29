@@ -60,7 +60,7 @@ fn input_chip_is_removed_with_backspace(cx: &mut TestAppContext) {
         move |_, _| {
             let set = removed.clone();
             Chip::new("tag", ChipKind::Input, "rust")
-                .on_remove(move |_, _| set.set(true))
+                .on_remove("rust を削除", move |_, _| set.set(true))
                 .into_any_element()
         }
     });
@@ -94,4 +94,23 @@ fn value_components_expose_ranges() {
 
     let chip = Chip::new("f", ChipKind::Filter, "未読").a11y_node();
     assert_eq!(chip.toggled, Some(Toggled::False));
+}
+
+#[test]
+fn input_chip_remove_icon_is_a_named_button() {
+    let chip = Chip::new("tag", ChipKind::Input, "rust").on_remove("rust を削除", |_, _| {});
+    let remove = chip.remove_a11y_node().expect("削除アイコン");
+    assert_eq!(remove.role, Role::Button);
+    assert_eq!(remove.label.as_deref(), Some("rust を削除"));
+    assert!(!remove.disabled);
+    let disabled = Chip::new("tag", ChipKind::Input, "rust")
+        .disabled(true)
+        .on_remove("rust を削除", |_, _| {});
+    assert!(disabled.remove_a11y_node().expect("削除アイコン").disabled);
+    // 削除の処理が無ければアイコンは飾りで、ツリーに出さない。
+    assert!(
+        Chip::new("tag", ChipKind::Input, "rust")
+            .remove_a11y_node()
+            .is_none()
+    );
 }

@@ -34,12 +34,15 @@
 ## 振る舞い
 
 - Filter は `on_click` で呼び出し側が選択を反転する。
-- Input は Backspace / Delete か削除アイコンで `on_remove`。
+- Input は Backspace / Delete か削除アイコンで `on_remove(削除アイコンの名前, 処理)`。
+- 削除アイコンの押せる範囲は 24×24（WCAG 2.2 の 2.5.8 Target Size (Minimum)）。アイコン（18dp）より広い分は負の余白で打ち消し、見た目の配置は変えない。
 
 ## アクセシビリティ
 
 - 役割: Filter は CheckBox（toggled）、他は Button
 - 名前: ラベル
+- 削除アイコン（Input）: チップの子の Button。名前は `on_remove` の引数（必須。「rust を削除」など）。
+  支援技術から見つけて押せるようにするため（WCAG 2.2 の 4.1.2 Name, Role, Value）
 - キー操作: Enter / Space、Input は Backspace / Delete で削除
 
 ## デスクトップ向け調整（密度など）
@@ -49,5 +52,5 @@
 ## 既知の制限・仕様からの逸脱
 
 - Input chip の先頭のアバターは未対応。
-- 削除アイコンは独立したフォーカス位置を持たない（チップ自体のキー操作で削除する）。
+- 削除アイコンは独立したフォーカス位置を持たない（チップ自体のキー操作で削除する。支援技術からは子の Button を押せる）。
 - 無効は AccessKit の disabled としてツリーに出し、Tab でも止まらない。ただし Linux（AT-SPI）では役割によって無効が伝わらない（[`docs/a11y-audit.md`](../a11y-audit.md)）。

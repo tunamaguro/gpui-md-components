@@ -161,6 +161,7 @@ type SharedRemoveHandler = std::rc::Rc<dyn Fn(&mut Window, &mut App) + 'static>;
 ///
 /// Filter は押すたびに `on_click` で選択状態を反転させる（呼び出し側が状態を持つ）。
 /// Input は Backspace / Delete キーか削除アイコンで `on_remove` を呼ぶ。
+/// 削除アイコンは名前付きのボタンとして支援技術に出す（WCAG 2.2 の 4.1.2）。
 #[derive(IntoElement)]
 pub struct Chip {
     id: ElementId,
@@ -171,9 +172,13 @@ pub struct Chip {
     elevated: bool,
     disabled: bool,
     on_click: Option<ClickHandler>,
-    on_remove: Option<RemoveHandler>,
+    on_remove: Option<(SharedString, RemoveHandler)>,
     forced: Option<ForcedState>,
 }
+
+/// 削除アイコンの押せる範囲の一辺。WCAG 2.2 の 2.5.8 Target Size (Minimum) の 24 CSS px。
+/// アイコン（18dp）より広い分は負の余白で打ち消し、見た目の配置は変えない。
+const REMOVE_TARGET_SIZE: f32 = 24.0;
 
 impl Chip {
     /// ID、種類、ラベルから作る。
@@ -225,9 +230,13 @@ impl Chip {
         self
     }
 
-    /// 削除されたときの処理（Input）。
-    pub fn on_remove(mut self, handler: impl Fn(&mut Window, &mut App) + 'static) -> Self {
-        self.on_remove = Some(Box::new(handler));
+    /// 削除されたときの処理（Input）。`label` は削除アイコンの読み上げ用の名前（「rust を削除」など）。
+    pub fn on_remove(
+        mut self,
+        label: impl Into<SharedString>,
+        handler: impl Fn(&mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_remove = Some((label.into(), Box::new(handler)));
         self
     }
 
@@ -248,11 +257,22 @@ impl Chip {
         };
         node.label(self.label.clone()).disabled(self.disabled)
     }
+
+    /// 削除アイコンのアクセシビリティ情報。削除できる Input のチップだけにある。
+    pub fn remove_a11y_node(&self) -> Option<A11yNode> {
+        let (label, _) = self.on_remove.as_ref()?;
+        (self.kind == ChipKind::Input).then(|| {
+            A11yNode::new(Role::Button)
+                .label(label.clone())
+                .disabled(self.disabled)
+        })
+    }
 }
 
 impl RenderOnce for Chip {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let node = self.a11y_node();
+        let remove_node = self.remove_a11y_node();
         let (base, control) = control(&self.id, self.disabled, true, self.forced, window, cx);
         let theme = cx.md3();
         let style = ChipStyle::of(self.kind, self.selected, self.elevated);
@@ -317,15 +337,26 @@ impl RenderOnce for Chip {
             };
         }
 
-        let on_remove: Option<SharedRemoveHandler> =
-            self.on_remove.filter(|_| !disabled).map(std::rc::Rc::from);
+        let on_remove: Option<SharedRemoveHandler> = self
+            .on_remove
+            .filter(|_| !disabled)
+            .map(|(_, handler)| std::rc::Rc::from(handler));
         chip.when_some(leading, |this, icon| {
             this.child(Icon::new(icon).size(icon_size).tint(leading_color))
         })
         .child(div().px(px(layout::CHIP_LABEL_SPACE)).child(self.label))
         .when_some(trailing, |this, icon| {
+            let overhang = px((REMOVE_TARGET_SIZE - assist_chip::ICON_SIZE) / 2.0);
             let mut remove = div()
                 .id("remove")
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .size(px(REMOVE_TARGET_SIZE))
+                .mx(-overhang)
+                .my(-overhang)
+                .when_some(remove_node, |this, node| this.a11y(node))
                 .child(Icon::new(icon).size(icon_size).tint(trailing_color));
             if let Some(on_remove) = on_remove.clone() {
                 remove = remove.on_click(move |_, window, cx| {

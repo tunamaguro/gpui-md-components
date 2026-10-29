@@ -202,6 +202,7 @@ pub fn page(
                         .children(tags.into_iter().map(|tag| {
                             let view = view.clone();
                             Chip::new(format!("tag-{tag}"), ChipKind::Input, tag).on_remove(
+                                format!("{tag} を削除"),
                                 move |_, cx| {
                                     Gallery::update_demo(&view, cx, |demo| {
                                         demo.tags.retain(|t| *t != tag)
