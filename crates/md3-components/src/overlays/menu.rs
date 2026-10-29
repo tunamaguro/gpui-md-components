@@ -256,6 +256,11 @@ impl RenderOnce for Menu {
         let margin_y = px(layout::MENU_VERTICAL_MARGIN);
         let item_space = px(layout::MENU_ITEM_HORIZONTAL_SPACE);
 
+        // 開いたメニューは画面に収まらなければスクロールする。矢印で移った項目を見える範囲に入れる。
+        let scroll = crate::scroll::scroll_handle(&self.id, window, cx);
+        let reveal = focus
+            .is_some()
+            .then(|| crate::scroll::reveal_state(&self.id, window, cx));
         let mut rows = Vec::with_capacity(self.items.len());
         for (index, (item, id)) in self.items.into_iter().zip(item_ids).enumerate() {
             let forced = self
@@ -355,6 +360,13 @@ impl RenderOnce for Menu {
                         .inward()
                         .visible(control.focus_visible),
                 );
+            if let (Some(reveal), Some(handle)) = (&reveal, &handles[index]) {
+                row = row.child(crate::scroll::reveal_on_focus(
+                    scroll.clone(),
+                    handle.clone(),
+                    reveal.clone(),
+                ));
+            }
             if !item.disabled {
                 let on_select = item.on_select;
                 let close = close.clone();
@@ -392,7 +404,6 @@ impl RenderOnce for Menu {
         let handle = focus.read(cx).handle.clone();
         let on_outside = self.on_dismiss.clone();
         let anchor_for_outside = anchor_bounds.clone();
-        let scroll = crate::scroll::scroll_handle(&self.id, window, cx);
         let wheel = crate::scroll::NestedScroll::new(&self.id, scroll.clone(), window, cx);
         container = container
             .key_context(MENU_CONTEXT)

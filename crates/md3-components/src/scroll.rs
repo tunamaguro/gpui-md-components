@@ -133,6 +133,79 @@ fn gesture_step(
     (consume, (active && !ended, active && consume && !ended))
 }
 
+/// フォーカスが移ってきた要素を、スクロール領域の見える範囲に入れる（WCAG 2.2 の 2.4.11）。
+///
+/// gpui の `Window::focus` も Tab の移動もスクロールしないため、スクロール領域の中で
+/// フォーカスを動かす部品は、各項目の子にこれを置く。フォーカスが移ってきたときに一度だけ、
+/// 項目が収まる最小の量だけ動かす（ホイールで外へ動かしても、フォーカスが同じなら引き戻さない）。
+/// `last` は領域ごとに 1 つ（[`reveal_state`]）。
+#[cfg(any(feature = "containment", feature = "overlays", feature = "navigation"))]
+pub(crate) fn reveal_on_focus(
+    scroll: ScrollHandle,
+    focus: gpui::FocusHandle,
+    last: RevealState,
+) -> impl IntoElement {
+    canvas(
+        move |bounds, window, _| {
+            let focused = focus.is_focused(window);
+            let is_last = last.borrow().as_ref() == Some(&focus);
+            if !focused {
+                // 領域の外へ出たら忘れる（戻ってきたときにまた見せる）。
+                if is_last {
+                    *last.borrow_mut() = None;
+                }
+                return;
+            }
+            if is_last {
+                return;
+            }
+            *last.borrow_mut() = Some(focus.clone());
+            if let Some(offset) = reveal_offset(scroll.bounds(), bounds, scroll.offset()) {
+                scroll.set_offset(offset);
+                window.refresh();
+            }
+        },
+        |_, _, _, _| {},
+    )
+    .absolute()
+    .inset_0()
+}
+
+/// 最後に見せた項目のフォーカス。領域ごとに描画をまたいで保つ。
+#[cfg(any(feature = "containment", feature = "overlays", feature = "navigation"))]
+pub(crate) type RevealState = Rc<std::cell::RefCell<Option<gpui::FocusHandle>>>;
+
+/// [`reveal_on_focus`] の状態を取り出す。
+#[cfg(any(feature = "containment", feature = "overlays", feature = "navigation"))]
+pub(crate) fn reveal_state(id: &ElementId, window: &mut Window, cx: &mut App) -> RevealState {
+    window
+        .use_keyed_state(
+            ElementId::NamedChild(id.clone().into(), "reveal-on-focus".into()),
+            cx,
+            |_, _| Rc::new(std::cell::RefCell::new(None)),
+        )
+        .read(cx)
+        .clone()
+}
+
+/// `item` を `viewport` に収める新しいオフセット。動かす必要がなければ `None`。
+/// 項目が領域より高ければ上端を合わせる。
+#[cfg(any(feature = "containment", feature = "overlays", feature = "navigation"))]
+fn reveal_offset(
+    viewport: gpui::Bounds<Pixels>,
+    item: gpui::Bounds<Pixels>,
+    offset: Point<Pixels>,
+) -> Option<Point<Pixels>> {
+    let delta = if item.top() < viewport.top() || item.size.height > viewport.size.height {
+        viewport.top() - item.top()
+    } else if item.bottom() > viewport.bottom() {
+        viewport.bottom() - item.bottom()
+    } else {
+        return None;
+    };
+    (delta != px(0.0)).then(|| gpui::point(offset.x, offset.y + delta))
+}
+
 /// オーバーレイの本文。ヘッダーと操作ボタンを残したまま縮小できる領域。
 #[cfg(feature = "overlays")]
 pub(crate) fn content(
@@ -164,6 +237,35 @@ pub(crate) fn content(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(any(feature = "containment", feature = "overlays", feature = "navigation"))]
+    fn reveal_scrolls_the_minimum_amount() {
+        use gpui::{Bounds, point};
+
+        let viewport = Bounds::new(point(px(0.0), px(100.0)), gpui::size(px(200.0), px(300.0)));
+        let offset = point(px(0.0), px(-50.0));
+        let item = |top: f32, height: f32| {
+            Bounds::new(point(px(0.0), px(top)), gpui::size(px(200.0), px(height)))
+        };
+        // 見えていれば動かさない。
+        assert_eq!(reveal_offset(viewport, item(150.0, 48.0), offset), None);
+        // 下にはみ出したら、下端を合わせる分だけ進める。
+        assert_eq!(
+            reveal_offset(viewport, item(380.0, 48.0), offset),
+            Some(point(px(0.0), px(-78.0)))
+        );
+        // 上にはみ出したら、上端を合わせる分だけ戻す。
+        assert_eq!(
+            reveal_offset(viewport, item(80.0, 48.0), offset),
+            Some(point(px(0.0), px(-30.0)))
+        );
+        // 領域より高い項目は上端を合わせる。
+        assert_eq!(
+            reveal_offset(viewport, item(120.0, 400.0), offset),
+            Some(point(px(0.0), px(-70.0)))
+        );
+    }
 
     #[test]
     fn edges_pass_through_but_crossing_an_edge_is_consumed() {

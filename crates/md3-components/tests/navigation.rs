@@ -343,3 +343,45 @@ fn modal_drawer_falls_back_from_disabled_selection(cx: &mut TestAppContext) {
     support::press(cx, "enter");
     assert_eq!(selected.get(), Some(2));
 }
+
+/// 高さを限ったリストで、キーボードで移った項目が見える範囲に入る（WCAG 2.2 の 2.4.11）。
+/// 位置は `debug_selector` で測るため、デバッグビルドでだけ走る（gpui はリリースでは記録しない）。
+#[cfg(debug_assertions)]
+#[gpui::test]
+fn focused_item_is_scrolled_into_view(cx: &mut TestAppContext) {
+    let cx = support::open(cx, |_, _| {
+        (0..20)
+            .fold(
+                List::new("mail", "受信トレイ").max_height(px(120.0)),
+                |list, index| {
+                    list.item(
+                        format!("k{index}"),
+                        ListItem::new(format!("メール {index}")).on_select(|_, _| {}),
+                    )
+                },
+            )
+            .into_any_element()
+    });
+    let item_selector = |index: usize| -> &'static str {
+        let id = gpui::ElementId::NamedChild(
+            std::sync::Arc::new("mail".into()),
+            SharedString::from(format!("k{index}")),
+        );
+        Box::leak(format!("md3-list-item-{id}").into_boxed_str())
+    };
+    let visible = |cx: &mut gpui::VisualTestContext, index: usize| {
+        let list = cx.debug_bounds("md3-list-mail").expect("list bounds");
+        let item = cx.debug_bounds(item_selector(index)).expect("item bounds");
+        item.top() >= list.top() && item.bottom() <= list.bottom()
+    };
+    assert!(!visible(cx, 19), "最初は最後の項目が見えていない");
+    support::tab(cx);
+    support::press(cx, "end");
+    assert!(visible(cx, 19), "End で移った最後の項目が見える");
+    support::press(cx, "home");
+    assert!(visible(cx, 0), "Home で先頭に戻ると先頭が見える");
+    for _ in 0..5 {
+        support::press(cx, "down");
+    }
+    assert!(visible(cx, 5), "下矢印で移った項目が見える");
+}

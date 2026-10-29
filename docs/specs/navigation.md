@@ -46,6 +46,7 @@
 
 - 役割: Navigation（Modal の Drawer は Dialog）。項目は Tab（selected、位置）
 - 名前: 並びのラベル、項目のラベル
+- Drawer の項目がスクロールするときは、フォーカスが移った項目（矢印・Tab・初期フォーカス）は、スクロール領域の見える範囲に最小の量だけ動かして入れる（WCAG 2.2 の 2.4.11 Focus Not Obscured）
 
 ## 既知の制限・仕様からの逸脱
 
