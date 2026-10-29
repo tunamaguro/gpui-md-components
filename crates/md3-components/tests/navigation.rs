@@ -189,3 +189,96 @@ fn modal_drawer_takes_focus_and_escape_restores_it(cx: &mut TestAppContext) {
     support::press(cx, "enter");
     assert!(open.get(), "フォーカスは開いたボタンに戻る");
 }
+
+#[gpui::test]
+fn nested_lazy_list_consumes_wheel_until_its_edge(cx: &mut TestAppContext) {
+    let outer = gpui::ScrollHandle::new();
+    let inner = UniformListScrollHandle::new();
+    let cx = support::open(cx, {
+        let outer = outer.clone();
+        let inner = inner.clone();
+        move |_, _| {
+            div()
+                .id("page")
+                .w(px(300.0))
+                .h(px(300.0))
+                .overflow_y_scroll()
+                .track_scroll(&outer)
+                .child(
+                    LazyList::new("nested-list", "項目", 100, &inner, |index, _| {
+                        (
+                            format!("{index}").into(),
+                            ListItem::new(format!("項目 {index}")),
+                        )
+                    })
+                    .h(px(150.0))
+                    .w_full(),
+                )
+                .child(div().h(px(1000.0)))
+                .into_any_element()
+        }
+    });
+    let wheel = |cx: &mut gpui::VisualTestContext, delta, phase| {
+        cx.update(|window, cx| {
+            window.dispatch_event(
+                gpui::PlatformInput::Scroll(gpui::ScrollEvent {
+                    position: gpui::point(px(50.0), px(50.0)),
+                    delta: gpui::ScrollDelta::Pixels(gpui::point(px(0.0), px(delta))),
+                    touch_phase: phase,
+                    ..Default::default()
+                }),
+                cx,
+            );
+        });
+        support::draw(cx);
+    };
+    wheel(cx, -30.0, gpui::TouchPhase::Started);
+    assert_eq!(outer.offset().y, px(0.0));
+    assert_eq!(inner.0.borrow().base_handle.offset().y, px(-30.0));
+    wheel(cx, -10000.0, gpui::TouchPhase::Moved);
+    assert_eq!(outer.offset().y, px(0.0));
+    wheel(cx, -30.0, gpui::TouchPhase::Moved);
+    assert_eq!(
+        outer.offset().y,
+        px(0.0),
+        "同じジェスチャーは端でも消費する"
+    );
+    wheel(cx, 0.0, gpui::TouchPhase::Ended);
+    wheel(cx, -30.0, gpui::TouchPhase::Started);
+    assert_eq!(
+        outer.offset().y,
+        px(-30.0),
+        "端から始まる次の操作は祖先に渡す"
+    );
+    wheel(cx, 30.0, gpui::TouchPhase::Started);
+    assert_eq!(
+        outer.offset().y,
+        px(-30.0),
+        "逆方向へ動けるときは内側だけ動く"
+    );
+}
+
+#[gpui::test]
+fn modal_drawer_falls_back_from_disabled_selection(cx: &mut TestAppContext) {
+    use md3_components::navigation::{NavigationDrawer, NavigationDrawerKind};
+    let selected = Rc::new(Cell::new(None));
+    let cx = support::open(cx, {
+        let selected = selected.clone();
+        move |_, _| {
+            let selected = selected.clone();
+            NavigationDrawer::new("drawer", "移動")
+                .kind(NavigationDrawerKind::Modal)
+                .item(NavigationItem::new(IconName::Home, "無効").disabled(true))
+                .item(NavigationItem::new(IconName::Search, "検索"))
+                .item(NavigationItem::new(IconName::Settings, "設定"))
+                .selected(Some(0))
+                .on_change(move |index, _, _| selected.set(Some(index)))
+                .into_any_element()
+        }
+    });
+    support::press(cx, "enter");
+    assert_eq!(selected.get(), Some(1));
+    support::press(cx, "down");
+    support::press(cx, "enter");
+    assert_eq!(selected.get(), Some(2));
+}

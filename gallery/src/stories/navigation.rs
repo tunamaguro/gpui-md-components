@@ -134,6 +134,27 @@ pub fn page(
                 ),
             ))
             .child(sample(
+                "CenterAligned（長いタイトル・複数の操作）",
+                frame(
+                    600.0,
+                    64.0,
+                    cx,
+                    TopAppBar::new(
+                        "bar-long",
+                        "プロジェクトの共有受信トレイと未読メッセージの一覧・詳細設定",
+                    )
+                    .variant(TopAppBarVariant::CenterAligned)
+                    .navigation_icon(IconButton::new("bar-long-menu", IconName::Menu, "メニュー"))
+                    .action(IconButton::new("bar-long-search", IconName::Search, "検索"))
+                    .action(IconButton::new("bar-long-add", IconName::Add, "追加"))
+                    .action(IconButton::new(
+                        "bar-long-more",
+                        IconName::MoreVert,
+                        "その他",
+                    )),
+                ),
+            ))
+            .child(sample(
                 "Medium",
                 frame(
                     600.0,

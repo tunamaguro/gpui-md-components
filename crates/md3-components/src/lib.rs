@@ -26,6 +26,8 @@ pub mod keys;
 pub mod navigation;
 #[cfg(feature = "overlays")]
 pub mod overlays;
+#[cfg(any(feature = "containment", feature = "overlays", feature = "navigation"))]
+mod scroll;
 #[cfg(feature = "selection")]
 pub mod selection;
 mod state_layer;

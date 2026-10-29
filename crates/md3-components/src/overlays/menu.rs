@@ -384,11 +384,16 @@ impl RenderOnce for Menu {
         let handle = focus.read(cx).handle.clone();
         let on_outside = self.on_dismiss.clone();
         let anchor_for_outside = anchor_bounds.clone();
+        let scroll = crate::scroll::scroll_handle(&self.id, window, cx);
+        let wheel = crate::scroll::NestedScroll::new(&self.id, scroll.clone(), window, cx);
         container = container
             .key_context(MENU_CONTEXT)
             .track_focus(&handle)
             .max_h(viewport.height - margin_y * 2.0)
             .overflow_y_scroll()
+            .track_scroll(&scroll)
+            .on_scroll(wheel.on_scroll())
+            .child(wheel.capture())
             .occlude()
             .on_key_down(move |event, window, cx| {
                 let focused = handles

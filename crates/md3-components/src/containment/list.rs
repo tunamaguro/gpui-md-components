@@ -513,6 +513,12 @@ impl RenderOnce for LazyList {
         let count = self.count;
         let build = self.build.clone();
         let scroll = self.scroll.clone();
+        let wheel = crate::scroll::NestedScroll::new(
+            &self.id,
+            self.scroll.0.borrow().base_handle.clone(),
+            window,
+            cx,
+        );
         let items = uniform_list(
             ElementId::NamedChild(self.id.clone().into(), "items".into()),
             count,
@@ -586,6 +592,7 @@ impl RenderOnce for LazyList {
             },
         )
         .track_scroll(&self.scroll)
+        .on_scroll(wheel.on_scroll())
         .size_full();
         let node = self.a11y_node();
         let mut base = self.base;
@@ -597,6 +604,7 @@ impl RenderOnce for LazyList {
             .flex()
             .flex_col()
             .child(items)
+            .child(wheel.capture())
     }
 }
 
