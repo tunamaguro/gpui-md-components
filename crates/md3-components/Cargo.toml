@@ -16,20 +16,28 @@ md3-icons.workspace = true
 md3-theme.workspace = true
 
 [features]
-default = ["buttons", "selection", "inputs", "overlays", "navigation", "containment", "expressive"]
-# Button, IconButton, FAB, SegmentedButton（M4）
+default = [
+  "buttons",
+  "selection",
+  "inputs",
+  "overlays",
+  "navigation",
+  "containment",
+  "expressive",
+]
+# Button, IconButton, FAB, SegmentedButton
 buttons = []
-# Checkbox, RadioButton, Switch, Chip, Slider 等（M4）
+# Checkbox, RadioButton, Switch, Chip, Slider 等
 selection = []
-# TextField, Select（M5）、SearchBar（M6）。Select はメニューを使う
+# TextField, Select、SearchBar。Select はメニューを使う
 inputs = ["overlays"]
-# Menu, Dialog, Tooltip, Snackbar, Sheet（M5）。Dialog などはボタンを使う
+# Menu, Dialog, Tooltip, Snackbar, Sheet。Dialog などはボタンを使う
 overlays = ["buttons"]
-# TopAppBar, NavigationBar / Rail / Drawer, Tabs（M6）。アプリバーはアイコンボタン、モーダルなドロワーはオーバーレイを使う
+# TopAppBar, NavigationBar / Rail / Drawer, Tabs。アプリバーはアイコンボタン、モーダルなドロワーはオーバーレイを使う
 navigation = ["overlays"]
-# List, Card, Divider（M6）
+# List, Card, Divider
 containment = []
-# M3 Expressive の ToggleButton, ButtonGroup（M8）
+# M3 Expressive の ToggleButton, ButtonGroup
 expressive = []
 
 [dev-dependencies]

@@ -2,7 +2,6 @@
 
 - 出典: Jetpack Compose Material 3 の `Tab.kt`, `TabRow.kt`（`PrimaryTabRow`, `SecondaryTabRow`）とトークン
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/PrimaryNavigationTabTokens.kt`, `SecondaryNavigationTabTokens.kt`, `DividerTokens.kt` @ b8256a52
-- マイルストーン: M6
 
 ## バリアント
 
@@ -11,19 +10,19 @@
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| 高さ | 48dp（Primary でアイコンとラベルの両方なら 72dp） | `primary_navigation_tab::CONTAINER_HEIGHT`, `layout::TAB_LARGE_HEIGHT` |
-| ラベルの左右 | 16dp | `layout::TAB_HORIZONTAL_SPACE` |
-| 印の太さ | 3dp | `primary_navigation_tab::ACTIVE_INDICATOR_HEIGHT` |
-| 下の区切り線 | 1dp、OutlineVariant | `divider::THICKNESS`, `divider::COLOR` |
+| 項目         | 値                                                | トークン                                                               |
+| ------------ | ------------------------------------------------- | ---------------------------------------------------------------------- |
+| 高さ         | 48dp（Primary でアイコンとラベルの両方なら 72dp） | `primary_navigation_tab::CONTAINER_HEIGHT`, `layout::TAB_LARGE_HEIGHT` |
+| ラベルの左右 | 16dp                                              | `layout::TAB_HORIZONTAL_SPACE`                                         |
+| 印の太さ     | 3dp                                               | `primary_navigation_tab::ACTIVE_INDICATOR_HEIGHT`                      |
+| 下の区切り線 | 1dp、OutlineVariant                               | `divider::THICKNESS`, `divider::COLOR`                                 |
 
 ## 色（状態別）
 
-| 要素 | 選択中 | 選択外 | hover / focused / pressed | disabled |
-| --- | --- | --- | --- | --- |
+| 要素   | 選択中                            | 選択外           | hover / focused / pressed  | disabled      |
+| ------ | --------------------------------- | ---------------- | -------------------------- | ------------- |
 | ラベル | Primary（Secondary は OnSurface） | OnSurfaceVariant | 状態レイヤー（ラベルの色） | OnSurface 38% |
-| 印 | Primary | — | — | — |
+| 印     | Primary                           | —                | —                          | —             |
 
 ## 振る舞い
 

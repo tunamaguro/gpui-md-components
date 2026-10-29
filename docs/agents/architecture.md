@@ -7,21 +7,24 @@
 ```
 md-components/
 ├── Cargo.toml              # [workspace] と [workspace.dependencies]（gpui の rev 固定はここ1か所）
-├── CLAUDE.md
+├── AGENTS.md               # エージェント向けの作業指示（入口）
+├── .agents/skills/         # 繰り返す作業の手順（skill）
 ├── crates/
 │   ├── md3-color/          # HCT / CAM16 / TonalPalette / DynamicScheme（純 Rust、依存ゼロ）
 │   ├── md3-tokens/         # タイプスケール・角丸・高さ・モーション・状態不透明度・密度（純 Rust）
 │   ├── md3-icons/          # 使うアイコンの SVG バイト列と IconName enum（純 Rust）
 │   ├── md3-theme/          # Theme（gpui Global）、gpui 型への変換、OS 外観追従
 │   └── md3-components/     # StateLayer / FocusRing / 各コンポーネント
-├── gallery/                # 全部品の見本アプリ（gpui_platform / wasm-bindgen を使うのはここと examples だけ）
-├── examples/
-├── xtask/                  # 開発用コマンド（std のみ）
+├── gallery/                # 全部品の見本アプリ（gpui_platform / wasm-bindgen を使うのはここだけ。examples/ は未作成）
+├── xtask/                  # 開発用コマンド（std のみ）: check-tokens、web
+├── tools/a11y-tree/        # Linux の AT-SPI ツリーを書き出すスクリプト（nixpkgs の道具を使う。依存ではない）
+├── nix/                    # flake のモジュール（devshell、パッケージ）
 └── docs/
     ├── agents/             # このディレクトリ
     ├── specs/              # コンポーネントごとの仕様要約（component-workflow.md 参照）
     ├── TOKENS_SOURCE.md    # 転記した値と出典の対応表
-    └── a11y-audit.md       # M7 の監査記録
+    ├── guide.md            # 利用者向けガイド
+    └── a11y-audit.md       # アクセシビリティの監査記録
 ```
 
 ## 依存の向き
@@ -61,23 +64,39 @@ wasm-bindgen = "<上流 zed と同じ要求版>"
 1. **不正状態を型で排除する**
    - 操作可能な要素はコンストラクタで `ElementId` を必須にする（a11y の安定 ID になる）。
    - アイコンのみのボタンはラベル必須: `IconButton::new(id, icon, label)`。
-2. **バリアントは enum**
+1. **バリアントは enum**
    - `ButtonStyle::{Filled, Tonal, Elevated, Outlined, Text}` など。
    - `ColorRole` は全ロールを列挙し、`Scheme::color(role)` を網羅 `match` で実装する（ワイルドカード `_` 禁止）。
-3. **単位は newtype**
+1. **単位は newtype**
    - `Tone(f32)`（0〜100 に丸め）、`Hue`、`Chroma`、`Dp`。生の `f32` を公開 API に出さない。
-4. **GPUI の慣習に合わせる**
+1. **GPUI の慣習に合わせる**
    - 状態を持たない部品: `#[derive(IntoElement)]` + `RenderOnce` + メソッドチェーンのビルダー。
    - 状態を持つ部品（TextField 等）: `Entity` + `Render`。
-5. **テーマは拡張トレイトで取得**
+1. **テーマは拡張トレイトで取得**
    - `trait Md3ThemeExt { fn md3(&self) -> &Theme; }` を `App` に実装し `cx.md3()` で参照。
-6. **安全性**
+1. **安全性**
    - 全 crate `#![forbid(unsafe_code)]`、`#![deny(missing_docs)]`。
    - `md3-color` は panic しない設計（入力を丸める、`Option` を返す）。
-7. **wasm 互換**
+1. **wasm 互換**
    - 描画経路で `std::thread`、ブロッキング、`Mutex` を使わない。`std::time::Instant` は wasm で使えないので GPUI の時間 API を使う。
-8. **feature で分割**
-   - `md3-components` は `buttons`, `selection`, `inputs`, `overlays`, `navigation`, `containment` の feature を持つ。default は全部有効。
+1. **feature で分割**
+   - `md3-components` は `buttons`, `selection`, `inputs`, `overlays`, `navigation`, `containment`, `expressive` の feature を持つ。default は全部有効。
+
+## md3-components の共有部品
+
+部品を作るときはまずこれらを使う。
+
+| モジュール                    | 役割                                                                                     |
+| ----------------------------- | ---------------------------------------------------------------------------------------- |
+| `state_layer.rs` / `focus.rs` | 状態レイヤーとフォーカスリング。角が不揃いな部品は `.corners(Corners)` を渡す            |
+| `style.rs`                    | `StyledExt`（`corners` など）                                                            |
+| `motion.rs`                   | 色をテーマのバネで補間する `motion::color`（`Theme::spring` と組み合わせる）             |
+| `control.rs`                  | 操作部品の共通処理（フォーカス・hover・押下・強制状態 `ForcedState`、矢印移動の `step`） |
+| `scroll.rs`                   | 入れ子スクロール（`NestedScroll`）、オーバーレイ本文（`content`）                        |
+| `scrollbar.rs`                | `Scrollbar` と `ScrollbarSource`                                                         |
+| `expressive/press.rs`         | 押下の状態機械（押下・解除・キャンセル）                                                 |
+
+GPUI の挙動で注意する点は [`gpui-notes.md`](gpui-notes.md)。
 
 ## コンポーネント実装例（API 名は固定 rev で要確認）
 

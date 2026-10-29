@@ -1,8 +1,7 @@
 # Slider 仕様要約
 
-- 出典: Jetpack Compose Material 3 の実装（`Slider.kt`）とトークン。m3.material.io の本文はこの PR では参照していない（Compose の実装に合わせた）。
+- 出典: Jetpack Compose Material 3 の実装（`Slider.kt`）とトークン。m3.material.io の本文は参照していない（Compose の実装に合わせた）。
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/SliderTokens.kt` @ b8256a52
-- マイルストーン: M4
 
 ## バリアント
 
@@ -11,25 +10,25 @@
 ## 構成要素（アナトミー）
 
 1. 活性トラック（16dp、外側の角は Full、つまみ側は 2dp）
-2. つまみ（4×44dp の棒、押下・フォーカスで幅 2dp）
-3. 非活性トラック
-4. 終端の点（4dp）
+1. つまみ（4×44dp の棒、押下・フォーカスで幅 2dp）
+1. 非活性トラック
+1. 終端の点（4dp）
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| つまみ | 4×44dp | `slider::HANDLE_WIDTH`, `HANDLE_HEIGHT` |
-| トラック | 16dp | `INACTIVE_TRACK_HEIGHT` |
-| つまみとトラックの間 | 6dp | `ACTIVE_HANDLE_LEADING_SPACE` |
-| 内側の角 | 2dp | `layout::SLIDER_TRACK_INSIDE_CORNER` |
+| 項目                 | 値     | トークン                                |
+| -------------------- | ------ | --------------------------------------- |
+| つまみ               | 4×44dp | `slider::HANDLE_WIDTH`, `HANDLE_HEIGHT` |
+| トラック             | 16dp   | `INACTIVE_TRACK_HEIGHT`                 |
+| つまみとトラックの間 | 6dp    | `ACTIVE_HANDLE_LEADING_SPACE`           |
+| 内側の角             | 2dp    | `layout::SLIDER_TRACK_INSIDE_CORNER`    |
 
 ## 色（状態別）
 
-| 要素 | enabled | hover | focused | pressed | disabled |
-| --- | --- | --- | --- | --- | --- |
-| 活性トラック・つまみ | Primary | 同 | 同 | 同 | OnSurface 38% |
-| 非活性トラック | SecondaryContainer | 同 | 同 | 同 | OnSurface 12% |
+| 要素                 | enabled            | hover | focused | pressed | disabled      |
+| -------------------- | ------------------ | ----- | ------- | ------- | ------------- |
+| 活性トラック・つまみ | Primary            | 同    | 同      | 同      | OnSurface 38% |
+| 非活性トラック       | SecondaryContainer | 同    | 同      | 同      | OnSurface 12% |
 
 ## 振る舞い
 

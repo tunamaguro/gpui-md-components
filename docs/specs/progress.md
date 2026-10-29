@@ -1,8 +1,7 @@
 # Progress indicator 仕様要約
 
-- 出典: Jetpack Compose Material 3 の実装（`ProgressIndicator.kt`）とトークン。m3.material.io の本文はこの PR では参照していない（Compose の実装に合わせた）。
+- 出典: Jetpack Compose Material 3 の実装（`ProgressIndicator.kt`）とトークン。m3.material.io の本文は参照していない（Compose の実装に合わせた）。
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/{Linear,Circular}ProgressIndicatorTokens.kt, ProgressIndicatorTokens.kt` @ b8256a52
-- マイルストーン: M4
 
 ## バリアント
 
@@ -12,24 +11,24 @@
 ## 構成要素（アナトミー）
 
 1. 活性部分（Primary）
-2. すき間（4dp）
-3. トラック（SecondaryContainer）
-4. 終端の点（線の確定のみ）
+1. すき間（4dp）
+1. トラック（SecondaryContainer）
+1. 終端の点（線の確定のみ）
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| 線の太さ | 4dp | `linear_progress_indicator::TRACK_THICKNESS` |
-| 円の大きさ | 40dp、太さ 4dp | `circular_progress_indicator::SIZE` |
-| すき間 | 4dp | `TRACK_ACTIVE_SPACE` |
+| 項目       | 値             | トークン                                     |
+| ---------- | -------------- | -------------------------------------------- |
+| 線の太さ   | 4dp            | `linear_progress_indicator::TRACK_THICKNESS` |
+| 円の大きさ | 40dp、太さ 4dp | `circular_progress_indicator::SIZE`          |
+| すき間     | 4dp            | `TRACK_ACTIVE_SPACE`                         |
 
 ## 色（状態別）
 
-| 要素 | enabled | hover | focused | pressed | disabled |
-| --- | --- | --- | --- | --- | --- |
-| 活性部分 | Primary | — | — | — | — |
-| トラック | SecondaryContainer | — | — | — | — |
+| 要素     | enabled            | hover | focused | pressed | disabled |
+| -------- | ------------------ | ----- | ------- | ------- | -------- |
+| 活性部分 | Primary            | —     | —       | —       | —        |
+| トラック | SecondaryContainer | —     | —       | —       | —        |
 
 ## 振る舞い
 

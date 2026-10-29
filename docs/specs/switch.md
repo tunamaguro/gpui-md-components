@@ -1,8 +1,7 @@
 # Switch 仕様要約
 
-- 出典: Jetpack Compose Material 3 の実装（`Switch.kt`）とトークン。m3.material.io の本文はこの PR では参照していない（Compose の実装に合わせた）。
+- 出典: Jetpack Compose Material 3 の実装（`Switch.kt`）とトークン。m3.material.io の本文は参照していない（Compose の実装に合わせた）。
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/SwitchTokens.kt` @ b8256a52
-- マイルストーン: M4
 
 ## バリアント
 
@@ -11,23 +10,23 @@
 ## 構成要素（アナトミー）
 
 1. トラック（52×32dp、非選択は枠線 2dp）
-2. つまみ（非選択 16dp、選択・アイコン付き 24dp、押下 28dp）
-3. 状態レイヤー（つまみの周り 40dp）
+1. つまみ（非選択 16dp、選択・アイコン付き 24dp、押下 28dp）
+1. 状態レイヤー（つまみの周り 40dp）
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| トラック | 52×32dp | `switch::TRACK_WIDTH`, `TRACK_HEIGHT` |
-| つまみ | 16 / 24 / 28dp | `UNSELECTED_HANDLE_WIDTH` ほか |
+| 項目     | 値             | トークン                              |
+| -------- | -------------- | ------------------------------------- |
+| トラック | 52×32dp        | `switch::TRACK_WIDTH`, `TRACK_HEIGHT` |
+| つまみ   | 16 / 24 / 28dp | `UNSELECTED_HANDLE_WIDTH` ほか        |
 
 ## 色（状態別）
 
-| 要素 | enabled | hover | focused | pressed | disabled |
-| --- | --- | --- | --- | --- | --- |
-| トラック（選択） | Primary | 同 | 同 | 同 | OnSurface 12% |
-| つまみ（選択） | OnPrimary | PrimaryContainer | PrimaryContainer | PrimaryContainer | Surface |
-| つまみ（非選択） | Outline | OnSurfaceVariant | OnSurfaceVariant | OnSurfaceVariant | OnSurface 38% |
+| 要素             | enabled   | hover            | focused          | pressed          | disabled      |
+| ---------------- | --------- | ---------------- | ---------------- | ---------------- | ------------- |
+| トラック（選択） | Primary   | 同               | 同               | 同               | OnSurface 12% |
+| つまみ（選択）   | OnPrimary | PrimaryContainer | PrimaryContainer | PrimaryContainer | Surface       |
+| つまみ（非選択） | Outline   | OnSurfaceVariant | OnSurfaceVariant | OnSurfaceVariant | OnSurface 38% |
 
 ## 振る舞い
 
@@ -53,4 +52,4 @@
 
 選択変更のつまみ位置・寸法は Theme::spring(FastSpatial)。押下中は Compose ThumbNode と同じく位置・寸法を snap し、離した後にバネで戻す（マウス、Space / Enter、強制 pressed）。トラック・枠線・つまみ・アイコンの色は FastEffects。ID を保って途中の反転にも追従する。reduce_motion は GPUI が最終値に即時変更する。参照: Switch.kt L162–201、L280–326 @ b8256a52。色補間は GPUI の Hsla 成分で行い、Compose の色空間補間とは差がある。
 
-補足: 固定 Compose の Switch.kt の色は即時変更であり、FastEffects の色補間は今回の依頼に従った追加。バネの数値は既存 MotionScheme トークンを再利用した。
+補足: 固定 Compose の Switch.kt の色は即時変更であり、FastEffects の色補間は Compose からの追加（色の変化も滑らかにするための判断）。バネの数値は既存 MotionScheme トークンを再利用した。

@@ -15,6 +15,11 @@
         mdformat = {
           enable = true;
           includes = [ "*.md" ];
+          # 表（GFM）と skill の YAML frontmatter を壊さないためのプラグイン。
+          plugins = ps: [
+            ps.mdformat-gfm
+            ps.mdformat-frontmatter
+          ];
         };
 
         taplo = {

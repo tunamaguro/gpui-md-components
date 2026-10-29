@@ -1,7 +1,6 @@
 # Scrollbar 仕様要約
 
 - 出典: AndroidX Compose `Scrollbar.kt` / `NonInteractiveScrollbarDefaults` @ `b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6`（Apache-2.0）
-- マイルストーン: M6（共通スクロール表示）、M7（アクセシビリティの確認）
 - 独立した MD3 Scrollbar の仕様ページに代えて、指定された Compose 実装を数値と表示条件の根拠にする。
 
 ## バリアント
@@ -14,15 +13,15 @@
 
 透明なトラックと丸いつまみ。色は全操作状態で `outline`、不透明度 0.7。
 
-| 項目 | 値 | Compose の名前 |
-| --- | --- | --- |
-| 太さ | 4dp | Thickness |
-| 最小長 | 24dp | ThumbMinLength |
-| 最大長 | トラック長の 0.9 | ThumbMaxLengthFraction |
-| 主軸余白 | 両端 2dp | MainAxisTrackInset |
-| 交差軸余白 | 0dp | CrossAxisTrackInset |
-| 待機 | 400ms | ThumbFadeDelayMillis |
-| フェード | 250ms | ThumbFadeDurationMillis |
+| 項目       | 値               | Compose の名前          |
+| ---------- | ---------------- | ----------------------- |
+| 太さ       | 4dp              | Thickness               |
+| 最小長     | 24dp             | ThumbMinLength          |
+| 最大長     | トラック長の 0.9 | ThumbMaxLengthFraction  |
+| 主軸余白   | 両端 2dp         | MainAxisTrackInset      |
+| 交差軸余白 | 0dp              | CrossAxisTrackInset     |
+| 待機       | 400ms            | ThumbFadeDelayMillis    |
+| フェード   | 250ms            | ThumbFadeDurationMillis |
 
 ## 振る舞い
 

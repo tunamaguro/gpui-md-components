@@ -1,8 +1,7 @@
 # Checkbox 仕様要約
 
-- 出典: Jetpack Compose Material 3 の実装（`Checkbox.kt`）とトークン。m3.material.io の本文はこの PR では参照していない（Compose の実装に合わせた）。
+- 出典: Jetpack Compose Material 3 の実装（`Checkbox.kt`）とトークン。m3.material.io の本文は参照していない（Compose の実装に合わせた）。
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/CheckboxTokens.kt` @ b8256a52
-- マイルストーン: M4
 
 ## バリアント
 
@@ -12,24 +11,24 @@
 ## 構成要素（アナトミー）
 
 1. 状態レイヤー（40dp の円）
-2. 18dp の箱（角丸 2dp）
-3. チェックまたは横線
+1. 18dp の箱（角丸 2dp）
+1. チェックまたは横線
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| 状態レイヤー | 40dp（密度で減る） | `checkbox::STATE_LAYER_SIZE` |
-| 箱 | 18dp、角丸 2dp | `CONTAINER_SIZE`, `CONTAINER_SHAPE` |
-| 枠線 | 2dp | `UNSELECTED_OUTLINE_WIDTH` |
+| 項目         | 値                 | トークン                            |
+| ------------ | ------------------ | ----------------------------------- |
+| 状態レイヤー | 40dp（密度で減る） | `checkbox::STATE_LAYER_SIZE`        |
+| 箱           | 18dp、角丸 2dp     | `CONTAINER_SIZE`, `CONTAINER_SHAPE` |
+| 枠線         | 2dp                | `UNSELECTED_OUTLINE_WIDTH`          |
 
 ## 色（状態別）
 
-| 要素 | enabled | hover | focused | pressed | disabled |
-| --- | --- | --- | --- | --- | --- |
-| 箱（選択） | Primary | 同 | 同 | 同 | OnSurface 38% |
+| 要素           | enabled          | hover     | focused   | pressed   | disabled      |
+| -------------- | ---------------- | --------- | --------- | --------- | ------------- |
+| 箱（選択）     | Primary          | 同        | 同        | 同        | OnSurface 38% |
 | 枠線（非選択） | OnSurfaceVariant | OnSurface | OnSurface | OnSurface | OnSurface 38% |
-| エラー | Error / OnError | 同 | 同 | 同 | — |
+| エラー         | Error / OnError  | 同        | 同        | 同        | —             |
 
 ## 振る舞い
 

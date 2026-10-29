@@ -1,20 +1,20 @@
-# アクセシビリティ監査（M7）
+# アクセシビリティ監査
 
 手順は [`docs/agents/a11y.md`](agents/a11y.md) の「検証手順（3 段階）」。
 
-- 対象: md-components（M6 マージ後の main + M7 の変更）、gpui @ `37faef81`（AccessKit 0.24 / accesskit_unix 0.22）
+- 対象: md-components の全部品、gpui @ `37faef81`（AccessKit 0.24 / accesskit_unix 0.22）
 - 実施日: 2026-10-29
 
 ## 結果の要約
 
-| 段階 | 状態 | 結果 |
-| --- | --- | --- |
-| 1. 自動テスト | 実施 | 全部品の役割・名前・状態と、キー操作・フォーカス移動をテストで確認。コントラストは全配色で基準を満たす |
-| 2. ツリー確認 | Linux で実施（自動） | 全 8 ページ（M8 の expressive を含む）で名前の無い要素 0。役割・状態は想定どおり。監査中に見つかった不具合 2 件は修正済み（下記） |
-| 2. ツリー確認 | macOS / Windows **未実施** | 人による確認が必要 |
-| 3. 読み上げ確認 | **未実施（全 OS）** | VoiceOver / Narrator / Orca での確認が必要。下の表に記録する |
+| 段階            | 状態                       | 結果                                                                                                   |
+| --------------- | -------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 1. 自動テスト   | 実施                       | 全部品の役割・名前・状態と、キー操作・フォーカス移動をテストで確認。コントラストは全配色で基準を満たす |
+| 2. ツリー確認   | Linux で実施（自動）       | 全 8 ページで名前の無い要素 0。役割・状態は想定どおり。監査中に見つかった不具合 2 件は修正済み（下記） |
+| 2. ツリー確認   | macOS / Windows **未実施** | 人による確認が必要                                                                                     |
+| 3. 読み上げ確認 | **未実施（全 OS）**        | VoiceOver / Narrator / Orca での確認が必要。下の表に記録する                                           |
 
-**M7 の完了条件「重大指摘ゼロ」は、手順 3 の読み上げ確認が終わるまで判定できない。**
+**「重大な指摘ゼロ」（v1.0 タグの条件）は、手順 3 の読み上げ確認が終わるまで判定できない。**
 自動で確認できた範囲（手順 1、Linux の手順 2）では、未修正の重大な指摘は無い。
 ただし Web 版にはアクセシビリティツリーが無い（gpui の制約、下記）ことは既知の制限として残る。
 
@@ -30,7 +30,7 @@
 - **コントラスト**（`crates/md3-theme/tests/contrast.rs`）: シード色 22 色（色相 30° ごとの 12 色、既定の紫、黒・白・灰、
   RGB の原色と補色）× バリアント 7 × コントラスト 3 × ライト / ダーク = 924 配色で、前景と背景の 37 組が
   WCAG 2.2 の基準（文字 4.5:1、UI 部品 3:1）を満たす。不合格 0。
-  - Primary / Secondary / Tertiary / Error は Text ボタン・タブ・エラー文などで文字色にもなるため、M7 で面の上での基準を
+  - Primary / Secondary / Tertiary / Error は Text ボタン・タブ・エラー文などで文字色にもなるため、監査で面の上での基準を
     3:1 から 4.5:1 に上げた（`Theme::check_contrast` も同じ基準）。標準コントラストでも最小 4.62:1 で合格。
   - 無効状態の部品（38% の不透明度）は WCAG 2.2 の 1.4.3 / 1.4.11 の対象外。
 
@@ -42,16 +42,16 @@
 （専用の D-Bus セッションで動くので、デスクトップのスクリーンリーダーは要らない）。見えている部品だけがツリーに出るため、
 1 ページを 9 か所で書き出して合わせた。
 
-| ページ | 異なる要素 | 主な役割 | 名前の無い要素 |
-| --- | --- | --- | --- |
-| foundations | 31 | button、radio button（ページの切り替え） | 0 |
-| buttons | 54 | button、toggle button、radio button（SegmentedButton） | 0 |
-| selection | 77 | check box、radio button、toggle button（Chip）、slider、progress bar | 0 |
-| inputs | 70 | entry、combo box | 0 |
-| overlays | 65 | menu / menu item、dialog、tool tip、status bar（Snackbar） | 0 |
-| navigation | 52 | landmark（Navigation）、heading、page tab list / page tab、dialog、list | 0 |
-| containment | 49 | list / list item、button（押せる Card） | 0 |
-| expressive（M8 で追加） | 51 | toggle button（ToggleButton、ButtonGroup の項目）、panel（ButtonGroup） | 0 |
+| ページ      | 異なる要素 | 主な役割                                                                | 名前の無い要素 |
+| ----------- | ---------- | ----------------------------------------------------------------------- | -------------- |
+| foundations | 31         | button、radio button（ページの切り替え）                                | 0              |
+| buttons     | 54         | button、toggle button、radio button（SegmentedButton）                  | 0              |
+| selection   | 77         | check box、radio button、toggle button（Chip）、slider、progress bar    | 0              |
+| inputs      | 70         | entry、combo box                                                        | 0              |
+| overlays    | 65         | menu / menu item、dialog、tool tip、status bar（Snackbar）              | 0              |
+| navigation  | 52         | landmark（Navigation）、heading、page tab list / page tab、dialog、list | 0              |
+| containment | 49         | list / list item、button（押せる Card）                                 | 0              |
+| expressive  | 51         | toggle button（ToggleButton、ButtonGroup の項目）、panel（ButtonGroup） | 0              |
 
 確認できた状態の例:
 
@@ -103,35 +103,35 @@ Tab でのフォーカス移動とフォーカスリングを確認した。
 チェック項目（各部品）: ① Tab で移動できる ② 役割と名前が読まれる ③ 状態が読まれる ④ Space / Enter / 矢印で操作でき、
 変化後の状態が読まれる ⑤ 無効状態が伝わる。結果は ✅（問題なし）/ ⚠️（軽微）/ ❌（重大）で記入し、⚠️ / ❌ は下に詳細を書く。
 
-| 部品 | macOS VoiceOver | Windows Narrator | Linux Orca |
-| --- | --- | --- | --- |
-| Button / IconButton / FAB | 未 | 未 | 未 |
-| SegmentedButton | 未 | 未 | 未 |
-| Checkbox | 未 | 未 | 未 |
-| RadioGroup | 未 | 未 | 未 |
-| Switch | 未 | 未 | 未 |
-| Chip | 未 | 未 | 未 |
-| Slider | 未 | 未 | 未 |
-| Progress | 未 | 未 | 未 |
-| TextField / SearchBar | 未 | 未 | 未 |
-| Select | 未 | 未 | 未 |
-| Menu | 未 | 未 | 未 |
-| Dialog | 未 | 未 | 未 |
-| Tooltip | 未 | 未 | 未 |
-| Snackbar（表示時に読まれるか） | 未 | 未 | 未 |
-| BottomSheet / SideSheet | 未 | 未 | 未 |
-| TopAppBar | 未 | 未 | 未 |
-| NavigationBar / Rail / Drawer | 未 | 未 | 未 |
-| Tabs | 未 | 未 | 未 |
-| List / LazyList | 未 | 未 | 未 |
-| Card | 未 | 未 | 未 |
-| ToggleButton / ButtonGroup（M8） | 未 | 未 | 未 |
+| 部品                           | macOS VoiceOver | Windows Narrator | Linux Orca |
+| ------------------------------ | --------------- | ---------------- | ---------- |
+| Button / IconButton / FAB      | 未              | 未               | 未         |
+| SegmentedButton                | 未              | 未               | 未         |
+| Checkbox                       | 未              | 未               | 未         |
+| RadioGroup                     | 未              | 未               | 未         |
+| Switch                         | 未              | 未               | 未         |
+| Chip                           | 未              | 未               | 未         |
+| Slider                         | 未              | 未               | 未         |
+| Progress                       | 未              | 未               | 未         |
+| TextField / SearchBar          | 未              | 未               | 未         |
+| Select                         | 未              | 未               | 未         |
+| Menu                           | 未              | 未               | 未         |
+| Dialog                         | 未              | 未               | 未         |
+| Tooltip                        | 未              | 未               | 未         |
+| Snackbar（表示時に読まれるか） | 未              | 未               | 未         |
+| BottomSheet / SideSheet        | 未              | 未               | 未         |
+| TopAppBar                      | 未              | 未               | 未         |
+| NavigationBar / Rail / Drawer  | 未              | 未               | 未         |
+| Tabs                           | 未              | 未               | 未         |
+| List / LazyList                | 未              | 未               | 未         |
+| Card                           | 未              | 未               | 未         |
+| ToggleButton / ButtonGroup     | 未              | 未               | 未         |
 
 ### 指摘
 
 （読み上げ確認で見つかったものをここに書く）
 
-## Scrollbar（M6、2026-10-29）
+## Scrollbar（2026-10-29）
 
 - Canvas による装飾で、アクセシビリティの role / フォーカスを追加しない。スクロール領域の既存の意味を維持する。
 - 自動確認: `tests/a11y_scrollbar.rs`（Tab 順への非介入、領域外ドラッグ・解除、横のページ移動、Passive）。
@@ -142,11 +142,11 @@ Tab でのフォーカス移動とフォーカスリングを確認した。
 
 ## 既定モーション / Snackbar の追加監査（2026-10-29）
 
-- 対象: M4 Switch / RadioGroup、M5 Snackbar / Filled TextField、M6 NavigationBar / Rail。
+- 対象: Switch / RadioGroup、Snackbar / Filled TextField、NavigationBar / Rail。
 - すべて GPUI の with_spring を通し、reduce_motion では最終値へ即時変更。Snackbar は退場途中で設定を有効にした場合も待たずに進む。表示時間のタイマーは通知内容を読む時間なので維持する。
 - Snackbar は表示ごとの安定 ID、Status、polite を維持。退場中は live を停止し、アクションと閉じるボタンを無効化。Replace の破棄は ActionPerformed と区別して一度だけ通知する。
 - `tests/a11y_snackbar.rs`: 連続 Replace（待機分の破棄を含む）、退場後の次表示、古いタイマーの無効化、Queue の表示時間と無期限、キーボード操作結果、reduce_motion の途中変更を検証。
-- レビュー修正（M4 / M5）: `on_result` は現在の知らせ・置換された待機分ともホストの更新後に通知する。`tests/a11y_snackbar.rs` に、結果ハンドラーが同じ `Entity<SnackbarHost>` に次の知らせを追加し、一度だけ通知される回帰テストを追加した。
+- レビュー修正: `on_result` は現在の知らせ・置換された待機分ともホストの更新後に通知する。`tests/a11y_snackbar.rs` に、結果ハンドラーが同じ `Entity<SnackbarHost>` に次の知らせを追加し、一度だけ通知される回帰テストを追加した。
 - `tests/a11y_checkbox.rs`: アクティブなウィンドウで Switch の Space / Enter を押したまま次の要素へ移動し、キー解放が届く前に押下寸法から通常寸法へ戻ること、キャンセルで選択が変わらないことを検証（`reduce_motion` 有効、デバッグビルドのつまみ境界を取得）。
 - 実 OS の目視・読み上げ（Orca / VoiceOver / Narrator）と Web の実機操作は未確認。従来の Web AccessKit 非対応は解消していない。
 

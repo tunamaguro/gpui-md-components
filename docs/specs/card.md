@@ -2,7 +2,6 @@
 
 - 出典: Jetpack Compose Material 3 の `Card.kt`（`Card`, `ElevatedCard`, `OutlinedCard`）とトークン
 - トークン出典: `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/tokens/ElevatedCardTokens.kt`, `FilledCardTokens.kt`, `OutlinedCardTokens.kt` @ b8256a52
-- マイルストーン: M6
 
 ## バリアント
 
@@ -12,17 +11,17 @@
 
 ## 寸法
 
-| 項目 | 値 | トークン |
-| --- | --- | --- |
-| 角 | Medium（12dp） | `*_card::CONTAINER_SHAPE` |
-| 枠線（Outlined） | 1dp | `outlined_card::OUTLINE_WIDTH` |
+| 項目             | 値             | トークン                       |
+| ---------------- | -------------- | ------------------------------ |
+| 角               | Medium（12dp） | `*_card::CONTAINER_SHAPE`      |
+| 枠線（Outlined） | 1dp            | `outlined_card::OUTLINE_WIDTH` |
 
 ## 色（状態別）
 
-| 要素 | enabled | hover | focused | pressed | disabled |
-| --- | --- | --- | --- | --- | --- |
-| 状態レイヤー | — | OnSurface 8% | OnSurface 10% | OnSurface 10% | — |
-| コンテナ | 種類の色 | 同左（影が上がる） | 同左 | 同左 | 無効の色を下地に重ねた不透明な色（Compose の `compositeOver`） |
+| 要素         | enabled  | hover              | focused       | pressed       | disabled                                                       |
+| ------------ | -------- | ------------------ | ------------- | ------------- | -------------------------------------------------------------- |
+| 状態レイヤー | —        | OnSurface 8%       | OnSurface 10% | OnSurface 10% | —                                                              |
+| コンテナ     | 種類の色 | 同左（影が上がる） | 同左          | 同左          | 無効の色を下地に重ねた不透明な色（Compose の `compositeOver`） |
 
 ## 振る舞い
 

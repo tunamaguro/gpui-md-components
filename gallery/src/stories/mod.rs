@@ -108,7 +108,7 @@ pub fn option_row(
         .children(options)
 }
 
-/// 切り替え UI の 1 つの選択肢（M4 の部品ができるまでの、基礎部品を組み合わせた仮のボタン）。
+/// 切り替え UI の 1 つの選択肢（基礎部品を組み合わせた、gallery 専用の選択ボタン）。
 pub struct Choice {
     id: SharedString,
     label: SharedString,

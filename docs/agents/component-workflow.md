@@ -19,7 +19,10 @@
 - architecture.md の設計規約に従う（`ElementId` 必須、enum バリアント、ビルダー、`RenderOnce`）。
 - 状態色は `StateLayer` で合成する。直接 hover 色を計算しない。
 - a11y は a11y.md の表に従い、`A11yExt` 経由で付与する。
-- GPUI の API はその都度、固定 rev のソースで確認する。
+- GPUI の API はその都度、固定 rev のソースで確認する。既知の落とし穴は `gpui-notes.md`。
+- スクロール領域を持つなら `NestedScroll` と `Scrollbar` を付ける（`architecture.md` の「共有部品」）。
+- 状態の変化に Compose が既定でアニメーションを付けているなら、`Theme::spring` のバネで付ける。`reduce_motion` で止まることを確かめる。
+- 利用者のコールバックは Entity の update の中から直接呼ばない（`cx.defer`）。押下状態はフォーカスを失ったときにも解除する。
 
 ## 4. gallery に見本を追加する
 
@@ -31,14 +34,18 @@
 - `tests/a11y_<component>.rs`: 役割・名前・状態・キー操作（a11y.md の手順 1）。
 - 見た目のロジック（色の選択、寸法計算）は純関数に切り出して単体テストする。
 
-## 6. 完了チェック
+## 6. 画面で確かめる
 
-- [ ] CLAUDE.md の「完了の定義」を全て満たす
+- gallery を起動して、追加した見本を撮って確かめる（skill `gallery-check`）。
+
+## 7. 完了チェック
+
+- [ ] AGENTS.md の「完了の定義」を全て満たす
 - [ ] `docs/specs/<component>.md` がある
 - [ ] `docs/TOKENS_SOURCE.md` に転記した全値がある
 - [ ] gallery に全状態の見本がある
 - [ ] a11y テストがある
-- [ ] PR 説明に、対応するマイルストーン（M4 など）と、仕様から外れた点・未対応点を書く
+- [ ] PR 説明に、何をなぜ変えたかと、仕様から外れた点・未対応点を書く
 
 ## 困ったとき
 
