@@ -13,6 +13,8 @@ mod focus;
 /// キー操作と割り当て。
 pub mod keys;
 mod navigation;
+/// オーバーレイのフォーカスと重ね描き。
+pub mod overlay;
 /// 押下状態の追跡。
 pub mod press;
 mod radio_group;

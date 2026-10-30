@@ -16,9 +16,9 @@ use md3_theme::md3_tokens::component::snackbar as tokens;
 use md3_theme::md3_tokens::layout;
 use md3_theme::{Elevation, Md3ThemeExt, MotionToken};
 
-use super::layer::{DismissHandler, SNACKBAR_PRIORITY, window_layer};
 use crate::buttons::{Button, ButtonVariant, IconButton};
 use crate::{IconName, StyledExt};
+use gpui_headless::overlay::{DismissHandler, SNACKBAR_PRIORITY, window_layer};
 use gpui_headless::{A11yExt, A11yNode};
 
 /// スナックバー（1 件）。通常は [`SnackbarHost`] が描く。

@@ -13,12 +13,12 @@ use md3_theme::md3_tokens::component::{list, menu as tokens};
 use md3_theme::md3_tokens::layout;
 use md3_theme::{Elevation, Md3ThemeExt, TypeScale};
 
-use super::layer::{
-    DismissHandler, InitialFocus, MENU_PRIORITY, dismiss_and_restore, overlay_focus,
-};
 use crate::control::control;
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
 use gpui_headless::keys::{Dismiss, MENU_CONTEXT};
+use gpui_headless::overlay::{
+    DismissHandler, InitialFocus, MENU_PRIORITY, dismiss_and_restore, overlay_focus,
+};
 use gpui_headless::step;
 use gpui_headless::{A11yExt, A11yNode};
 

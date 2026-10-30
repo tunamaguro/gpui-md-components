@@ -15,9 +15,9 @@ use md3_theme::md3_tokens::component::{plain_tooltip, rich_tooltip};
 use md3_theme::md3_tokens::layout;
 use md3_theme::{Elevation, Md3ThemeExt};
 
-use super::layer::DismissHandler;
 use crate::StyledExt;
 use crate::buttons::{Button, ButtonVariant};
+use gpui_headless::overlay::DismissHandler;
 
 /// Plain ツールチップ（短い説明）。
 pub struct PlainTooltip {

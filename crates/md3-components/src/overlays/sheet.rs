@@ -11,13 +11,14 @@ use md3_theme::md3_tokens::component::{divider, sheet_bottom, side_sheet};
 use md3_theme::md3_tokens::layout;
 use md3_theme::{CornerRadius, Elevation, Md3ThemeExt};
 
-use super::layer::{
-    DismissHandler, InitialFocus, MODAL_PRIORITY, dismiss_and_restore, modal_container,
-    overlay_focus, scrim, window_layer,
-};
+use super::layer::scrim;
 use crate::buttons::IconButton;
 use crate::control::control;
 use crate::{FocusRing, IconName, StyledExt};
+use gpui_headless::overlay::{
+    DismissHandler, InitialFocus, MODAL_PRIORITY, dismiss_and_restore, modal_container,
+    overlay_focus, window_layer,
+};
 use gpui_headless::{A11yExt, A11yNode};
 
 /// 角丸の半径（`Full` はこの部品では使わない）。

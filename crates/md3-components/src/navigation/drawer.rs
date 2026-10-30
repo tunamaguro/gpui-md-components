@@ -13,11 +13,12 @@ use md3_theme::{CornerRadius, Elevation, Md3ThemeExt};
 
 use super::bar::destination_builders;
 use super::item::{ChangeHandler, NavigationItem, navigation};
-use crate::overlays::layer::{
-    DismissHandler, InitialFocus, MODAL_PRIORITY, dismiss_and_restore, modal_container,
-    overlay_focus, scrim, window_layer,
-};
+use crate::overlays::layer::scrim;
 use crate::{FocusRing, Icon, StateLayer, StyledExt};
+use gpui_headless::overlay::{
+    DismissHandler, InitialFocus, MODAL_PRIORITY, dismiss_and_restore, modal_container,
+    overlay_focus, window_layer,
+};
 
 /// ドロワーの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

@@ -11,12 +11,13 @@ use md3_theme::md3_tokens::component::dialog as tokens;
 use md3_theme::md3_tokens::layout;
 use md3_theme::{Elevation, Md3ThemeExt};
 
-use super::layer::{
-    DismissHandler, InitialFocus, MODAL_PRIORITY, dismiss_and_restore, modal_container,
-    overlay_focus, restore_focus, scrim, window_layer,
-};
+use super::layer::scrim;
 use crate::buttons::{Button, ButtonVariant};
 use crate::{Icon, IconName, StyledExt};
+use gpui_headless::overlay::{
+    DismissHandler, InitialFocus, MODAL_PRIORITY, dismiss_and_restore, modal_container,
+    overlay_focus, restore_focus, window_layer,
+};
 use gpui_headless::{A11yExt, A11yNode};
 
 /// ダイアログの下に並ぶ操作（Text ボタン）。
