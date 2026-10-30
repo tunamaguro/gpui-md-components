@@ -1,4 +1,6 @@
-// Ported from Jetpack Compose: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/Switch.kt @ b8256a52. See NOTICE.
+// Ported from Jetpack Compose (https://android.googlesource.com/platform/frameworks/support)
+// Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/Switch.kt @ b8256a52
+// Copyright 2022 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //! Switch。
 
 use gpui::{

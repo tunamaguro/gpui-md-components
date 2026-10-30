@@ -1,4 +1,6 @@
-// Ported from Jetpack Compose: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/SnackbarHost.kt (SNACKBAR_ENTER_SCALE) @ b8256a52. See NOTICE.
+// Ported from Jetpack Compose (https://android.googlesource.com/platform/frameworks/support)
+// Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/SnackbarHost.kt (SNACKBAR_ENTER_SCALE) @ b8256a52
+// Copyright 2020 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //! コンポーネントの配置の値のうち、Compose の tokens ではなく部品の実装（`*Defaults` など）にあるもの。
 //!
 //! 出典は `docs/TOKENS_SOURCE.md`。単位は dp。

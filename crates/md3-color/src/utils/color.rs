@@ -1,4 +1,6 @@
-// Ported from material-color-utilities: typescript/utils/color_utils.ts @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3. See NOTICE.
+// Ported from material-color-utilities (https://github.com/material-foundation/material-color-utilities)
+// Source: typescript/utils/color_utils.ts @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3
+// Copyright 2021 Google LLC. Licensed under the Apache License, Version 2.0.
 
 //! 色空間の変換（sRGB / 線形 RGB / XYZ / L*a*b* / L*）。ARGB は `u32` で扱う。
 

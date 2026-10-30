@@ -33,7 +33,7 @@ GPUI（Zed の UI フレームワーク）上に Material Design 3（ベース�
 - 全 crate に `#![forbid(unsafe_code)]`。`md3-color` では `unwrap` / `expect` / `panic!` 禁止（`clippy::unwrap_used`, `clippy::expect_used` を deny）。
 - 描画経路で `std::thread`、ブロッキング、`Mutex` を使わない（wasm32 で動かなくなる）。
 - トークン値・寸法を推測で書かない。必ず `docs/agents/resources.md` の一次資料から転記し、出典を `docs/TOKENS_SOURCE.md` に追記する。
-- 移植・転記した Apache 2.0 のコードやデータには、ファイル先頭に `// Ported from <移植元>: <パス> @ <コミット>. See NOTICE.` の 1 行を書く。著作権表示とライセンス情報はルートの `NOTICE` に集約し、新しい移植元や著作権年を追加したら `NOTICE` も更新する。
+- 移植・転記した Apache 2.0 のコードやデータには、ファイル先頭に出典コメント（移植元・コミット・著作権表示）を書く。`NOTICE` ファイルは置かない。
 - 公開 crate 名・型名に "Material" の語を使わない（Google の商標）。`md3` を使う。
 - フォントは同梱しない。既定はシステムフォント、利用者が `Theme` で指定する。
 - 操作できる要素は `ElementId` を必須引数にし、a11y の役割・名前・状態を必ず付ける。a11y は Material Design 3 のアクセシビリティ指針・WCAG 2.2・WAI-ARIA APG に従う（`docs/agents/a11y.md` の「従う資料」）。

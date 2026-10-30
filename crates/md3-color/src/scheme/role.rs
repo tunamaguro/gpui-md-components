@@ -1,4 +1,7 @@
-// Ported from material-color-utilities: typescript/dynamiccolor/color_spec_2021.ts, tone_delta_pair.ts @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3. See NOTICE.
+// Ported from material-color-utilities (https://github.com/material-foundation/material-color-utilities)
+// Source: typescript/dynamiccolor/color_spec_2021.ts, tone_delta_pair.ts
+//         @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3
+// Copyright 2021 Google LLC. Licensed under the Apache License, Version 2.0.
 
 //! 各カラーロールの定義（2021 仕様）。
 //!

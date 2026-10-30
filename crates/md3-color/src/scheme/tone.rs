@@ -1,4 +1,7 @@
-// Ported from material-color-utilities: typescript/dynamiccolor/dynamic_color.ts (DynamicColor, ColorCalculationDelegateImpl2021) @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3. See NOTICE.
+// Ported from material-color-utilities (https://github.com/material-foundation/material-color-utilities)
+// Source: typescript/dynamiccolor/dynamic_color.ts (DynamicColor, ColorCalculationDelegateImpl2021)
+//         @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3
+// Copyright 2021 Google LLC. Licensed under the Apache License, Version 2.0.
 
 //! コントラスト制約を適用して各役割のトーンを決める（2021 仕様）。
 

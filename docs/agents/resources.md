@@ -28,10 +28,12 @@
 | md3_tokens::button::filled::CONTAINER_HEIGHT | 40 | FilledButtonTokens.kt | ContainerHeight | androidx@<commit> |
 ```
 
-3. 移植・転記したコードやデータはファイル先頭に次の 1 行のコメントを書く。パスとコミットを残し、出典の識別に必要で `docs/TOKENS_SOURCE.md` に記録されていない注記も残す。著作権表示とライセンス情報はルートの `NOTICE` に集約する。新しい移植元や著作権年を追加したら、`NOTICE` にも追記する。
+3. 移植したコード（配色アルゴリズムなど）はファイル先頭に次のコメントを書く。`NOTICE` ファイルは置かないので、出典と著作権表示はこのコメントが唯一の記録になる。
 
 ```rust
-// Ported from material-color-utilities: typescript/hct/hct_solver.ts @ <commit>. See NOTICE.
+// Ported from material-color-utilities (https://github.com/material-foundation/material-color-utilities)
+// Source: typescript/hct/hct_solver.ts @ <commit>
+// Copyright 2021 Google LLC. Licensed under the Apache License, Version 2.0.
 ```
 
 4. "Material" は Google の商標。crate 名・型名に使わない。doc コメントで「Material Design 3 の仕様に基づく」と書くのは可。

@@ -1,4 +1,6 @@
-// Ported from material-color-utilities: typescript/temperature/temperature_cache.ts @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3. See NOTICE.
+// Ported from material-color-utilities (https://github.com/material-foundation/material-color-utilities)
+// Source: typescript/temperature/temperature_cache.ts @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3
+// Copyright 2021 Google LLC. Licensed under the Apache License, Version 2.0.
 
 //! 色の温度（暖色・寒色の度合い）に基づく類似色・補色の計算。
 
