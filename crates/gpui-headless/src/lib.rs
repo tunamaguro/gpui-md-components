@@ -9,6 +9,7 @@ mod card;
 mod checkbox;
 mod chip;
 mod control;
+mod dialog;
 mod focus;
 /// キー操作と割り当て。
 pub mod keys;
@@ -31,6 +32,7 @@ pub use card::{Card, CardBase};
 pub use checkbox::{Checkbox, CheckboxState};
 pub use chip::Chip;
 pub use control::{ControlState, control, step};
+pub use dialog::Dialog;
 pub use focus::{VisibleFocus, clear_focus_visible, focus_handle, is_focus_visible};
 pub use keys::init;
 pub use navigation::{Navigation, NavigationBase, NavigationItem};
