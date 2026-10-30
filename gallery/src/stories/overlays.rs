@@ -1,8 +1,9 @@
 //! オーバーレイの部品のページ。
 
 use gpui::{AnyElement, App, Entity, IntoElement, WeakEntity, Window, div, prelude::*, px};
+use gpui_headless::TextFieldState;
 use md3_components::buttons::{Button, ButtonVariant, IconButton};
-use md3_components::inputs::{TextField, TextFieldState};
+use md3_components::inputs::TextField;
 use md3_components::overlays::{
     BottomSheet, Dialog, DialogAction, Menu, MenuItem, PlainTooltip, RichTooltip, SideSheet,
     SideSheetKind, Snackbar, SnackbarDuration, SnackbarHost, SnackbarMessage, SnackbarPolicy,

@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use gpui::{
     Animation, AnimationExt, App, Bounds, ElementId, Hsla, IntoElement, PathBuilder, Pixels, Point,
-    RenderOnce, Role, SharedString, Window, canvas, div, fill, point, prelude::*, px, size,
+    RenderOnce, SharedString, Window, canvas, fill, point, prelude::*, px, size,
 };
 use md3_theme::Md3ThemeExt;
 use md3_theme::md3_tokens::component::{
@@ -14,21 +14,7 @@ use md3_theme::md3_tokens::component::{
 };
 use md3_theme::md3_tokens::layout;
 
-use gpui_headless::{A11yExt, A11yNode, RangeValue};
-
-/// 進み具合のアクセシビリティ情報。
-fn progress_node(label: &SharedString, value: Option<f32>) -> A11yNode {
-    let node = A11yNode::new(Role::ProgressIndicator).label(label.clone());
-    match value {
-        Some(value) => node.range(RangeValue {
-            value: f64::from(value.clamp(0.0, 1.0)),
-            min: 0.0,
-            max: 1.0,
-            step: None,
-        }),
-        None => node,
-    }
-}
+use gpui_headless::Progress;
 
 #[derive(Clone, Copy)]
 struct ProgressPaint {
@@ -67,20 +53,13 @@ impl LinearProgress {
             label: label.into(),
         }
     }
-
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        progress_node(&self.label, self.value)
-    }
 }
 
 impl RenderOnce for LinearProgress {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let paint = progress_paint(cx);
-        let node = self.a11y_node();
-        let base = div()
-            .id(self.id.clone())
-            .a11y(node)
+        let base = Progress::new(self.id, self.value, self.label)
+            .build()
             .h(px(linear::HEIGHT))
             .w_full()
             .min_w(px(linear::HEIGHT * 4.0));
@@ -198,20 +177,13 @@ impl CircularProgress {
             label: label.into(),
         }
     }
-
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        progress_node(&self.label, self.value)
-    }
 }
 
 impl RenderOnce for CircularProgress {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let paint = progress_paint(cx);
-        let node = self.a11y_node();
-        let base = div()
-            .id(self.id.clone())
-            .a11y(node)
+        let base = Progress::new(self.id, self.value, self.label)
+            .build()
             .size(px(circular::SIZE));
         match self.value {
             Some(value) => {
@@ -348,23 +320,5 @@ fn paint_arc(
             )
             .corner_radii(thickness / 2.0),
         );
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn determinate_progress_reports_value() {
-        let node = LinearProgress::new("p", Some(0.25), "読み込み中").a11y_node();
-        assert_eq!(node.role, Role::ProgressIndicator);
-        assert_eq!(node.range.map(|r| r.value), Some(0.25));
-    }
-
-    #[test]
-    fn indeterminate_progress_has_no_value() {
-        let node = CircularProgress::new("p", None, "読み込み中").a11y_node();
-        assert_eq!(node.range, None);
     }
 }

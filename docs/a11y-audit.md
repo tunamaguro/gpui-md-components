@@ -22,9 +22,9 @@
 
 `cargo test --workspace` で実行する（CI で Linux / macOS / Windows）。
 
-- **部品の a11y 情報**: 全部品が `a11y_node()`（役割・名前・状態を組み立てる純関数。要素に当てるものと同じ）を公開し、
+- **部品の a11y 情報**: 各 headless 部品（未移行の部品は MD3 側）が `a11y_node()`（役割・名前・状態を組み立てる純関数。要素に当てるものと同じ）を公開し、
   単体テストで役割・名前・選択 / 切り替え / 値・無効・modal・invalid・live を確認する。
-- Button 系、Checkbox、Switch、Chip、Card、RadioGroup、SegmentedButton、ButtonGroup、Tabs、Navigation、Slider の役割・名前・状態とキー操作は `crates/gpui-headless/tests/` で検証する。
+- Button 系、Checkbox、Switch、Chip、Card、RadioGroup、SegmentedButton、ButtonGroup、Tabs、Navigation、Slider、TextField、SearchField、AppBar、Progress の役割・名前・状態とキー操作は `crates/gpui-headless/tests/` で検証する。
   分離後の gallery と実環境の a11y ツリーは画面に接続できない環境では比較できず、別途確認する。
 - **キー操作**（`crates/md3-components/tests/` と `crates/gpui-headless/tests/`）: Button / Checkbox / RadioGroup / Slider / TextField / Menu / Dialog /
   Snackbar / Tabs / NavigationBar / List / LazyList / モーダルな Drawer で、Tab での到達、Enter / Space / 矢印 / Home / End、

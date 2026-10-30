@@ -3,6 +3,7 @@
 #![deny(missing_docs)]
 
 mod a11y;
+mod app_bar;
 mod button;
 mod button_group;
 mod card;
@@ -19,17 +20,21 @@ mod navigation;
 pub mod overlay;
 /// 押下状態の追跡。
 pub mod press;
+mod progress;
 mod radio_group;
 mod scroll;
+mod scrollbar;
 mod segmented_button;
 mod select;
 mod slider;
 mod snackbar;
 mod switch;
 mod tabs;
+mod text_field;
 mod tooltip;
 
 pub use a11y::{A11yExt, A11yNode, RangeValue, toggled};
+pub use app_bar::AppBar;
 pub use button::Button;
 pub use button_group::{ButtonGroup, ButtonItem};
 pub use card::{Card, CardBase};
@@ -41,8 +46,12 @@ pub use focus::{VisibleFocus, clear_focus_visible, focus_handle, is_focus_visibl
 pub use keys::init;
 pub use menu::{Menu, MenuItem, MenuKind, MenuPopup, MenuRow};
 pub use navigation::{Navigation, NavigationBase, NavigationItem};
+pub use progress::Progress;
 pub use radio_group::{RadioGroup, RadioItem};
 pub use scroll::{NestedScroll, ScrollScope, reveal_offset, reveal_on_focus, scroll_handle};
+pub use scrollbar::{
+    Scrollbar, ScrollbarGeometry, ScrollbarInteraction, ScrollbarSource, ScrollbarState,
+};
 pub use segmented_button::{SegmentItem, SegmentedButton};
 pub use select::{Select, SelectState};
 pub use slider::{Slider, SliderState};
@@ -52,4 +61,8 @@ pub use snackbar::{
 };
 pub use switch::{Switch, SwitchState};
 pub use tabs::{TabItem, Tabs};
+pub use text_field::{
+    SearchField, TextField, TextFieldControl, TextFieldEvent, TextFieldState, TextPaint,
+    grapheme_count,
+};
 pub use tooltip::{DescribedTooltip, Tooltip};

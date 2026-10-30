@@ -15,8 +15,6 @@
 pub mod buttons;
 #[cfg(feature = "containment")]
 pub mod containment;
-#[cfg(any(feature = "overlays", feature = "containment"))]
-mod control;
 #[cfg(feature = "expressive")]
 pub mod expressive;
 mod focus;
@@ -48,7 +46,7 @@ pub use gpui_platform;
 pub use icon::Icon;
 pub use md3_icons::IconName;
 pub use md3_theme as theme;
-pub use scrollbar::{Scrollbar, ScrollbarInteraction, ScrollbarSource};
+pub use scrollbar::Scrollbar;
 pub use state_layer::StateLayer;
 pub use style::StyledExt;
 pub use surface::Surface;

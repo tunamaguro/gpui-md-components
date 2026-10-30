@@ -14,7 +14,6 @@ use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::list as tokens;
 use md3_theme::md3_tokens::layout;
 
-use crate::control::control;
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
 use gpui_headless::{A11yExt, A11yNode};
 
@@ -146,7 +145,15 @@ impl ListItem {
         let node = self.a11y_node(index, count);
         let lines = self.line_count();
         let focusable = self.focusable();
-        let (base, control) = control(&id, !focusable, tab_stop, window, cx);
+        let (base, control) = gpui_headless::control(
+            &id,
+            !focusable,
+            tab_stop,
+            window,
+            cx,
+            crate::focus::reveal_margin(),
+            format!("md3-{id}").into(),
+        );
         let theme = cx.md3().clone();
         let disabled = |role: ColorRole, opacity: f32| theme.color(role).opacity(opacity);
         let headline_color = if self.disabled {

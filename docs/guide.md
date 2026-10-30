@@ -73,7 +73,7 @@ cx.set_reduce_motion(user_prefers_reduced_motion); // 起動時と、設定が�
 - **同じ ID・同じ `TextFieldState` を同時に 2 か所に描かない。** フォーカスハンドルを 2 つの要素が共有し、
   アクセシビリティが有効なときに gpui のデバッグビルドの検査で panic する（リリースビルドでは警告）。
 - 部品は値を持たない。選択・入力値・開閉は利用者が持ち、`selected(..)` などで渡して `on_change` などで受け取る。
-  例外は TextField（`TextFieldState` を `Entity` で持つ）と、フォーカスや一時的な表示状態（部品が内部で保持）。
+  例外は TextField（`gpui_headless::TextFieldState` を `Entity` で持つ）と、フォーカスや一時的な表示状態（部品が内部で保持）。
 - 無効な部品（`.disabled(true)`）は Tab で止まらず、操作できない。
 - 見本用の `inline()` は gallery 向けで、アプリでは使わない（`#[doc(hidden)]`）。
 - gallery には各バリアントの操作できる見本と disabled、該当すれば selected / error の見本を並べる。hover / focused / pressed はマウスやキーボードで実際に操作して確かめる。
@@ -163,8 +163,8 @@ let area = gpui::div().id("content").h(gpui::px(240.0))
 ```
 
 既定は縦・ドラッグ可能・静止後にフェードです。`.axis(gpui::Axis::Horizontal)` で横、
-`.interaction(ScrollbarInteraction::Passive)` で表示のみ、`.fade(false)` で常時表示にできます。
-独自の仮想リストには `ScrollbarSource` を実装します。位置は先頭を 0 とした正の距離です。
+`.interaction(gpui_headless::ScrollbarInteraction::Passive)` で表示のみ、`.fade(false)` で常時表示にできます。
+独自の仮想リストには `gpui_headless::ScrollbarSource` を実装します。位置は先頭を 0 とした正の距離です。
 キーボード操作とアクセシビリティはコンテナ側で用意します。バー自体は Tab 順に入りません。
 
 LazyList、Menu / Select、Dialog、BottomSheet / SideSheet、NavigationDrawer は既定でバーを表示します。
@@ -221,7 +221,7 @@ Checkbox の値には `gpui_headless::CheckboxState` を使います。
 
 ## 見た目を持たない操作部品
 
-独自の見た目を作る場合、`gpui-headless` の `Button`、`Checkbox`、`Switch`、`Chip`、`Card`、`RadioGroup`、`SegmentedButton`、`ButtonGroup`、`Tabs`、`Navigation`、`Slider` を使えます。
+独自の見た目を作る場合、`gpui-headless` の `TextField`、`SearchField`、`AppBar`、`Progress`、`Scrollbar`、`Button`、`Checkbox`、`Switch`、`Chip`、`Card`、`RadioGroup`、`SegmentedButton`、`ButtonGroup`、`Tabs`、`Navigation`、`Slider` を使えます。
 `build` が返す要素に見た目を付け、描画用の状態からフォーカスやホバーを参照します。
 フォーカスリングを外側に描く場合は、その外周までの余白を `reveal_margin` に渡します。
 Button の `toggled` は通常のボタンとトグルを区別し、Chip の `selected` は Filter 相当の状態を表します。

@@ -98,7 +98,9 @@ wasm-bindgen = "<上流 zed と同じ要求版>"
 | `gpui-headless` の `control` / `focus` / `a11y` | 操作部品の共通処理、フォーカス、アクセシビリティ情報、矢印移動の `step`                                            |
 | `gpui-headless` の `scroll`                     | 入れ子スクロール（`NestedScroll`）、表示領域（`ScrollScope`）、キーボードで移った要素を見せる（`reveal_on_focus`） |
 | `scroll.rs`                                     | オーバーレイ本文（`content`）                                                                                      |
-| `scrollbar.rs`                                  | `Scrollbar` と `ScrollbarSource`                                                                                   |
+| `gpui-headless` の `scrollbar`                  | スクロール位置の供給元、つまみの幾何とポインタ操作                                                                |
+| `scrollbar.rs`                                  | スクロールバーの色・形・フェード                                                                                   |
+| `gpui-headless` の `keys`                       | 編集・オーバーレイのアクションとキー割り当て                                                                        |
 | `gpui-headless` の `press`                      | 押下の状態機械（押下・解除）。最短時間は呼び出し側から渡す                                                         |
 
 `control()` は有効な要素に `reveal_on_focus` を付ける。control を使わない Card と TextField / SearchBar にも付ける。

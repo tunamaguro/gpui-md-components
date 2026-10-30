@@ -20,7 +20,7 @@
 
 ## 振る舞い
 
-- 入力は TextField と同じ（`TextFieldState`、IME、編集のキー）。結果の一覧は呼び出し側が描く（gallery は List を使う）。
+- 入力は TextField と同じ（`gpui_headless::TextFieldState`、IME、編集のキー）。結果の一覧は呼び出し側が描く（gallery は List を使う）。
 
 ## アクセシビリティ
 

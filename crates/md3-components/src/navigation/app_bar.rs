@@ -1,8 +1,7 @@
 //! TopAppBar（Small / CenterAligned / Medium / Large）。
 
 use gpui::{
-    AnyElement, App, ElementId, IntoElement, RenderOnce, Role, SharedString, Window, div,
-    prelude::*, px,
+    AnyElement, App, ElementId, IntoElement, RenderOnce, SharedString, Window, div, prelude::*, px,
 };
 use md3_theme::md3_tokens::component::{app_bar, app_bar_large, app_bar_medium, app_bar_small};
 use md3_theme::md3_tokens::layout;
@@ -10,7 +9,7 @@ use md3_theme::{Md3ThemeExt, TypeScale};
 
 use crate::StyledExt;
 use crate::buttons::IconButton;
-use gpui_headless::{A11yExt, A11yNode};
+use gpui_headless::AppBar;
 
 /// トップアプリバーの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -94,16 +93,11 @@ impl TopAppBar {
         self.scrolled = scrolled;
         self
     }
-
-    /// アクセシビリティツリーに出す情報（役割 Header。タイトルは Heading）。
-    pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::Header).label(self.title.clone())
-    }
 }
 
 impl RenderOnce for TopAppBar {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
+        let headless = AppBar::new(self.id, self.title.clone());
         let theme = cx.md3();
         let container = if self.scrolled {
             app_bar::ON_SCROLL_CONTAINER_COLOR
@@ -119,12 +113,8 @@ impl RenderOnce for TopAppBar {
         let trailing = icon_width * self.actions.len() as f32
             + px(app_bar::ICON_BUTTON_SPACE) * self.actions.len().saturating_sub(1) as f32;
         let centered_inset = leading.max(trailing) + px(layout::TOP_APP_BAR_HORIZONTAL_SPACE);
-        let title = div()
-            .id(ElementId::NamedChild(
-                self.id.clone().into(),
-                "title".into(),
-            ))
-            .a11y(A11yNode::new(Role::Heading).label(self.title.clone()))
+        let title = headless
+            .build_heading()
             .min_w_0()
             .type_style(&theme.text_style(self.variant.title_font()))
             .text_color(theme.color(app_bar::TITLE_COLOR))
@@ -170,9 +160,8 @@ impl RenderOnce for TopAppBar {
                 .child(actions)
         };
 
-        let bar = div()
-            .id(self.id)
-            .a11y(node)
+        let bar = headless
+            .build()
             .w_full()
             .h(px(self.variant.height()))
             .flex_none()
