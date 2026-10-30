@@ -6,7 +6,6 @@
 
 - 独自テーマの custom ページ: 実画面で hover / pressed / focus と操作、AT-SPI ツリーを未確認。
 
-- headless 分離の段階 2: gallery の見た目・操作と、分離前 main に対する a11y ツリーの一致は画面に接続できる環境で未確認。
 
 - 自動テストと、Linux（WSL、X11、lavapipe）の gallery での目視・マウス操作までは確認した。
 
