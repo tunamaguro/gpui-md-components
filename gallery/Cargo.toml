@@ -15,5 +15,8 @@ gpui.workspace = true
 gpui_platform.workspace = true
 md3-components.workspace = true
 
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+
 [target.'cfg(target_family = "wasm")'.dependencies]
 wasm-bindgen.workspace = true

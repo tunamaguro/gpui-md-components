@@ -48,6 +48,7 @@ API はいつも固定 rev のソース（`~/.cargo/git/checkouts/zed-*/37faef8/
 
 ## 状態とイベント
 
+- **マウス移動で入力方法が Mouse に変わる。** `Window::dispatch_event` は座標が変わらない `MouseMove` でも切り替え、Windows は移動がなくても WM_MOUSEMOVE を送る。`is_focus_visible` はキーボードフォーカスの表示を保持し、フォーカス喪失で解除する。共通の操作要素と Card はクリックでも解除する。gpui は `FocusHandle` の ID を公開しないため、寿命を延ばさない `WeakFocusHandle` を識別に使う。
 - **Entity の更新中に同じ Entity を更新すると panic する**（`cannot update ... while it is already being updated`）。
   利用者のコールバック（例: Snackbar の `on_result`）を Entity の update の中から呼ばない。`cx.defer` で後に回す。
 - **フォーカスが移ると key-up が届かない。** Space / Enter の押下で状態を持つ部品は、フォーカスを失ったときにも

@@ -230,32 +230,38 @@ impl Gallery {
     }
 }
 
+fn page_selector(page: Page, view: gpui::WeakEntity<Gallery>) -> SegmentedButton {
+    SegmentedButton::new("pages", "ページ")
+        .segment(Segment::new("Foundations").icon(IconName::Palette))
+        .segment(Segment::new("Buttons").icon(IconName::Add))
+        .segment(Segment::new("Selection").icon(IconName::Star))
+        .segment(Segment::new("Inputs").icon(IconName::Edit))
+        .segment(Segment::new("Overlays").icon(IconName::Menu))
+        .segment(Segment::new("Navigation").icon(IconName::Home))
+        .segment(Segment::new("Containment").icon(IconName::Inbox))
+        .segment(Segment::new("Expressive").icon(IconName::Favorite))
+        // ページ移動でありラジオグループではないため、全項目を Tab で選べるようにする。
+        .multi_select(true)
+        .selected([page as usize])
+        .on_change({
+            let view = view.clone();
+            move |index, _, cx| {
+                let page = Page::ALL.get(index).copied().unwrap_or_default();
+                view.update(cx, |this, cx| {
+                    this.page = page;
+                    cx.notify();
+                })
+                .ok();
+            }
+        })
+}
+
 impl Render for Gallery {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let current = cx.md3().clone();
         let view = cx.entity().downgrade();
         let page = self.page;
-        let pages = SegmentedButton::new("pages", "ページ")
-            .segment(Segment::new("Foundations").icon(IconName::Palette))
-            .segment(Segment::new("Buttons").icon(IconName::Add))
-            .segment(Segment::new("Selection").icon(IconName::Star))
-            .segment(Segment::new("Inputs").icon(IconName::Edit))
-            .segment(Segment::new("Overlays").icon(IconName::Menu))
-            .segment(Segment::new("Navigation").icon(IconName::Home))
-            .segment(Segment::new("Containment").icon(IconName::Inbox))
-            .segment(Segment::new("Expressive").icon(IconName::Favorite))
-            .selected([page as usize])
-            .on_change({
-                let view = view.clone();
-                move |index, _, cx| {
-                    let page = Page::ALL.get(index).copied().unwrap_or_default();
-                    view.update(cx, |this, cx| {
-                        this.page = page;
-                        cx.notify();
-                    })
-                    .ok();
-                }
-            });
+        let pages = page_selector(page, view.clone());
         let content = match page {
             Page::Foundations => stories::theme::foundations(&current).into_any_element(),
             Page::Buttons => {
@@ -467,4 +473,62 @@ pub fn start(fonts: Vec<u8>, lengths: Vec<u32>, webgl: bool, reduce_motion: bool
         split,
         reduce_motion,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gpui::TestAppContext;
+
+    struct SelectorTest {
+        root: FocusHandle,
+        gallery: Entity<Gallery>,
+    }
+
+    impl Render for SelectorTest {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div()
+                .id("selector-test")
+                .track_focus(&self.root)
+                .on_action(|_: &FocusNext, window, cx| window.focus_next(cx))
+                .child(page_selector(Page::Foundations, self.gallery.downgrade()))
+        }
+    }
+
+    #[gpui::test]
+    fn tab_reaches_every_page_selector_segment(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            cx.bind_keys([KeyBinding::new("tab", FocusNext, None)]);
+            md3_components::init(cx);
+        });
+        let (_, cx) = cx.add_window_view(|window, cx| {
+            let gallery = cx.new(|cx| Gallery::new(window, cx));
+            let root = cx.focus_handle();
+            window.focus(&root, cx);
+            SelectorTest { root, gallery }
+        });
+        cx.update(|window, cx| {
+            window.refresh();
+            window.draw(cx).clear(cx);
+        });
+        let root = cx.update(|window, cx| window.focused(cx).expect("ルートにフォーカス"));
+        let mut focused = Vec::new();
+        for _ in 0..Page::ALL.len() {
+            cx.simulate_keystrokes("tab");
+            cx.update(|window, cx| {
+                window.refresh();
+                window.draw(cx).clear(cx);
+                let handle = window.focused(cx).expect("ページ項目にフォーカス");
+                assert_ne!(handle, root, "Tab でページ項目に移る");
+                if !focused.contains(&handle) {
+                    focused.push(handle);
+                }
+            });
+        }
+        assert_eq!(
+            focused.len(),
+            Page::ALL.len(),
+            "Tab で全ページの項目に移動する"
+        );
+    }
 }

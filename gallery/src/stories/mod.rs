@@ -133,7 +133,7 @@ impl Choice {
         on_select: impl Fn(&mut App) + 'static,
     ) -> gpui::AnyElement {
         let handle = focus_handle(self.id.clone(), window, cx);
-        let focused = is_focus_visible(&handle, window);
+        let focused = is_focus_visible(&handle, window, cx);
         let reveal =
             md3_components::reveal_on_focus(&self.id.clone().into(), handle.clone(), window, cx);
         let theme = cx.md3();

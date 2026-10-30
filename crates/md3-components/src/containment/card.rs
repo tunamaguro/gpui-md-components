@@ -205,6 +205,10 @@ impl RenderOnce for Card {
             let handler = clickable.handler;
             card = card
                 .track_focus(&handle)
+                .on_mouse_down(gpui::MouseButton::Left, {
+                    let handle = handle.clone();
+                    move |_, window, cx| crate::focus::clear_focus_visible(&handle, window, cx)
+                })
                 .child(crate::reveal_on_focus(
                     &clickable.id,
                     handle.clone(),
@@ -213,7 +217,7 @@ impl RenderOnce for Card {
                 ))
                 .cursor_pointer()
                 .on_click(move |event, window, cx| handler(event, window, cx));
-            is_focus_visible(&handle, window)
+            is_focus_visible(&handle, window, cx)
         };
         let hovered = theme.shadows(Elevation::from_dp(style.hovered_elevation));
         let card = if disabled {
