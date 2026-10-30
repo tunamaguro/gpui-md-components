@@ -15,6 +15,14 @@
 pub mod buttons;
 #[cfg(feature = "containment")]
 pub mod containment;
+#[cfg(any(
+    feature = "buttons",
+    feature = "selection",
+    feature = "inputs",
+    feature = "overlays",
+    feature = "navigation",
+    feature = "containment"
+))]
 mod control;
 #[cfg(feature = "expressive")]
 pub mod expressive;

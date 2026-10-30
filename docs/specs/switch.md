@@ -53,3 +53,5 @@
 選択変更のつまみ位置・寸法は Theme::spring(FastSpatial)。押下中は Compose ThumbNode と同じく位置・寸法を snap し、離した後にバネで戻す（マウス、Space / Enter）。トラック・枠線・つまみ・アイコンの色は FastEffects。ID を保って途中の反転にも追従する。reduce_motion は GPUI が最終値に即時変更する。参照: Switch.kt L162–201、L280–326 @ b8256a52。色補間は GPUI の Hsla 成分で行い、Compose の色空間補間とは差がある。
 
 補足: 固定 Compose の Switch.kt の色は即時変更であり、FastEffects の色補間は Compose からの追加（色の変化も滑らかにするための判断）。バネの数値は既存 MotionScheme トークンを再利用した。
+
+状態と操作は `gpui_headless::Switch` が担う。

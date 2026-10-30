@@ -51,3 +51,5 @@
 - Input chip の先頭のアバターは未対応。
 - 削除アイコンは独立したフォーカス位置を持たない（チップ自体のキー操作で削除する）。
 - 無効は AccessKit の disabled としてツリーに出し、Tab でも止まらない。ただし Linux（AT-SPI）では役割によって無効が伝わらない（[`docs/a11y-audit.md`](../a11y-audit.md)）。
+
+役割・名前・選択状態とキー操作は `gpui_headless::Chip` が担う。

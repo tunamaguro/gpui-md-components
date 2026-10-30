@@ -1,19 +1,14 @@
 //! スクロール領域とフォーカス追従。
 #[cfg(feature = "overlays")]
 use gpui::prelude::*;
-#[cfg(any(feature = "inputs", feature = "containment"))]
-use gpui::{App, ElementId, FocusHandle, IntoElement, Window, px};
-#[cfg(all(
-    feature = "overlays",
-    not(any(feature = "inputs", feature = "containment"))
-))]
+#[cfg(feature = "inputs")]
+use gpui::{App, ElementId, FocusHandle, IntoElement, Window};
+#[cfg(all(feature = "overlays", not(feature = "inputs")))]
 use gpui::{App, ElementId, IntoElement, Window};
 #[cfg(feature = "overlays")]
 use gpui_headless::{NestedScroll, ScrollScope, scroll_handle};
-#[cfg(any(feature = "inputs", feature = "containment"))]
-use md3_theme::md3_tokens::state;
 
-#[cfg(any(feature = "inputs", feature = "containment"))]
+#[cfg(feature = "inputs")]
 /// フォーカスした要素を祖先のスクロール領域に表示する。
 pub(crate) fn reveal_on_focus(
     id: &ElementId,
@@ -21,13 +16,7 @@ pub(crate) fn reveal_on_focus(
     window: &mut Window,
     cx: &mut App,
 ) -> impl IntoElement + use<> {
-    gpui_headless::reveal_on_focus(
-        id,
-        focus,
-        window,
-        cx,
-        px(state::FOCUS_INDICATOR_THICKNESS + state::FOCUS_INDICATOR_OUTER_OFFSET),
-    )
+    gpui_headless::reveal_on_focus(id, focus, window, cx, crate::focus::reveal_margin())
 }
 
 /// オーバーレイの本文。ヘッダーと操作ボタンを残したまま縮小できる領域。

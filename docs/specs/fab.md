@@ -49,3 +49,5 @@
 
 - Tertiary / Surface の色の FAB はトークンを転記していないため未対応。
 - 無効は AccessKit の disabled としてツリーに出し、Tab でも止まらない。ただし Linux（AT-SPI）では役割によって無効が伝わらない（[`docs/a11y-audit.md`](../a11y-audit.md)）。
+
+役割・名前と操作は `gpui_headless::Button` が担う。

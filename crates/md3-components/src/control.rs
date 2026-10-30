@@ -1,35 +1,7 @@
 //! 操作要素の共通処理。
 
-#[cfg(any(
-    feature = "buttons",
-    feature = "selection",
-    feature = "inputs",
-    feature = "overlays",
-    feature = "navigation",
-    feature = "containment",
-    feature = "expressive"
-))]
-use gpui::{App, Div, ElementId, Stateful, Window, px};
-#[cfg(any(
-    feature = "buttons",
-    feature = "selection",
-    feature = "inputs",
-    feature = "overlays",
-    feature = "navigation",
-    feature = "containment",
-    feature = "expressive"
-))]
-use md3_theme::md3_tokens::state;
+use gpui::{App, Div, ElementId, Stateful, Window};
 
-#[cfg(any(
-    feature = "buttons",
-    feature = "selection",
-    feature = "inputs",
-    feature = "overlays",
-    feature = "navigation",
-    feature = "containment",
-    feature = "expressive"
-))]
 pub(crate) fn control(
     id: &ElementId,
     disabled: bool,
@@ -43,7 +15,7 @@ pub(crate) fn control(
         tab_stop,
         window,
         cx,
-        px(state::FOCUS_INDICATOR_THICKNESS + state::FOCUS_INDICATOR_OUTER_OFFSET),
+        crate::focus::reveal_margin(),
         format!("md3-{id}").into(),
     )
 }

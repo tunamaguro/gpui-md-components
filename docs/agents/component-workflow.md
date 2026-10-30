@@ -18,7 +18,7 @@
 - `md3-components/src/<category>/<component>.rs` に実装し、対応する feature で囲む。
 - architecture.md の設計規約に従う（`ElementId` 必須、enum バリアント、ビルダー、`RenderOnce`）。
 - 状態色は `StateLayer` で合成する。直接 hover 色を計算しない。
-- a11y は a11y.md の表に従い、`A11yExt` 経由で付与する。
+- a11y とキー操作は a11y.md の表に従い `gpui-headless` に実装し、`A11yExt` 経由で付与する。MD3 側は headless の要素に見た目を付ける。
 - GPUI の API はその都度、固定 rev のソースで確認する。既知の落とし穴は `gpui-notes.md`。
 - スクロール領域を持つなら `NestedScroll` と `Scrollbar` を付ける（`architecture.md` の「共有部品」）。
 - 状態の変化に Compose が既定でアニメーションを付けているなら、`Theme::spring` のバネで付ける。`reduce_motion` で止まることを確かめる。
@@ -31,7 +31,7 @@
 
 ## 5. テストを書く
 
-- `tests/a11y_<component>.rs`: 役割・名前・状態・キー操作（a11y.md の手順 1）。
+- `crates/gpui-headless/tests/`: 役割・名前・状態・キー操作（a11y.md の手順 1）。
 - 見た目のロジック（色の選択、寸法計算）は純関数に切り出して単体テストする。
 
 ## 6. 画面で確かめる

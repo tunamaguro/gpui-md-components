@@ -1,0 +1,62 @@
+//! チップの役割とキー操作。
+mod support;
+use gpui::{Role, TestAppContext, Toggled, prelude::*};
+use gpui_headless::Chip;
+use std::{cell::Cell, rc::Rc};
+
+#[gpui::test]
+fn filter_chip_toggles_with_space(cx: &mut TestAppContext) {
+    let on = Rc::new(Cell::new(false));
+    let cx = support::open(cx, {
+        let on = on.clone();
+        move |window, cx| {
+            let set = on.clone();
+            Chip::new("unread", "未読")
+                .selected(Some(on.get()))
+                .on_click(move |_, _, _| set.set(!set.get()))
+                .build(window, cx)
+                .0
+                .size(gpui::px(40.))
+                .into_any_element()
+        }
+    });
+    support::tab(cx);
+    support::press(cx, "space");
+    assert!(on.get());
+}
+
+#[gpui::test]
+fn input_chip_is_removed_with_backspace(cx: &mut TestAppContext) {
+    let removed = Rc::new(Cell::new(false));
+    let cx = support::open(cx, {
+        let removed = removed.clone();
+        move |window, cx| {
+            let set = removed.clone();
+            Chip::new("tag", "rust")
+                .on_remove(move |_, _| set.set(true))
+                .build(window, cx)
+                .0
+                .size(gpui::px(40.))
+                .into_any_element()
+        }
+    });
+    support::tab(cx);
+    support::press(cx, "backspace");
+    assert!(removed.get());
+}
+
+#[test]
+fn chip_exposes_role_and_state() {
+    let filter = Chip::new("c", "未読").selected(Some(true)).a11y_node();
+    assert_eq!(filter.role, Role::CheckBox);
+    assert_eq!(filter.toggled, Some(Toggled::True));
+    assert_eq!(
+        Chip::new("f", "未読")
+            .selected(Some(false))
+            .a11y_node()
+            .toggled,
+        Some(Toggled::False)
+    );
+    let assist = Chip::new("a", "予定に追加").a11y_node();
+    assert_eq!(assist.role, Role::Button);
+}

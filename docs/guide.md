@@ -216,3 +216,13 @@ Switch は Space / Enter を押したまま Tab で移動した場合も、フ�
 - Linux の描画は Vulkan（wgpu）。GPU ドライバが無い環境では mesa の lavapipe（CPU 描画）で動く（遅い）。
 - Web はブラウザの WebGPU / WebGL2 に依存する。ソフトウェア描画（SwiftShader）の WebGPU では
   描画デバイスが失われることがあり、その場合は `?renderer=webgl`（gallery）で WebGL2 を使う。
+
+Checkbox の値には `gpui_headless::CheckboxState` を使います。
+
+## 見た目を持たない操作部品
+
+独自の見た目を作る場合、`gpui-headless` の `Button`、`Checkbox`、`Switch`、`Chip`、`Card` を使えます。
+`build` が返す要素に見た目を付け、描画用の状態からフォーカスやホバーを参照します。
+フォーカスリングを外側に描く場合は、その外周までの余白を `reveal_margin` に渡します。
+Button の `toggled` は通常のボタンとトグルを区別し、Chip の `selected` は Filter 相当の状態を表します。
+Card は装飾用と押せるものを `CardBase` で区別し、渡した子要素と寸法を保ちます。

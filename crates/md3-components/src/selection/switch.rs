@@ -4,23 +4,14 @@
 //! Switch。
 
 use gpui::{
-    AnimationExt, App, ElementId, IntoElement, MouseButton, RenderOnce, Role, SharedString,
-    SpringAnimation, SpringPlayback, Subscription, Window, div, prelude::*, px,
+    AnimationExt, App, ElementId, IntoElement, RenderOnce, SharedString, SpringAnimation,
+    SpringPlayback, Window, div, prelude::*, px,
 };
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::switch as tokens;
 use md3_theme::{CornerRadius, Md3ThemeExt, MotionToken};
 
-use crate::control::control;
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
-use gpui_headless::{A11yExt, A11yNode, toggled};
-
-/// 押下・ホバーと、要素の寿命に結び付いた押下キャンセル。
-struct SwitchInteraction {
-    pressed: bool,
-    hovered: bool,
-    _blur_subscription: Subscription,
-}
 
 /// 選択状態ごとの色（トークンの値）。
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -97,90 +88,21 @@ impl Switch {
         self.on_change = Some(Box::new(handler));
         self
     }
-
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::Switch)
-            .label(self.label.clone())
-            .toggled(toggled(self.selected))
-            .disabled(self.disabled)
-    }
 }
 
 impl RenderOnce for Switch {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
-        let (mut base, control) = control(&self.id, self.disabled, true, window, cx);
-        let focus_handle = gpui_headless::focus_handle(self.id.clone(), window, cx);
-        let interaction = window.use_keyed_state(
-            ElementId::NamedChild(std::sync::Arc::new(self.id.clone()), "interaction".into()),
-            cx,
-            |window, cx| SwitchInteraction {
-                pressed: false,
-                hovered: false,
-                _blur_subscription: cx.on_blur(
-                    &focus_handle,
-                    window,
-                    |state: &mut SwitchInteraction, _, cx| {
-                        // フォーカス移動後はキー解放が届かないため、ここで押下を取り消す。
-                        if state.pressed {
-                            state.pressed = false;
-                            cx.notify();
-                        }
-                    },
-                ),
-            },
-        );
-        let pressed = !self.disabled && interaction.read(cx).pressed;
-        let hovered = interaction.read(cx).hovered;
-        if !self.disabled {
-            let down = interaction.clone();
-            let up = interaction.clone();
-            let outside = interaction.clone();
-            let key_down = interaction.clone();
-            let key_up = interaction.clone();
-            base = base
-                .on_key_down(move |event, _, cx| {
-                    if matches!(event.keystroke.key.as_str(), "space" | "enter") {
-                        key_down.update(cx, |s, cx| {
-                            s.pressed = true;
-                            cx.notify();
-                        });
-                    }
-                })
-                .on_key_up(move |event, _, cx| {
-                    if matches!(event.keystroke.key.as_str(), "space" | "enter") {
-                        key_up.update(cx, |s, cx| {
-                            s.pressed = false;
-                            cx.notify();
-                        });
-                    }
-                })
-                .on_mouse_down(MouseButton::Left, move |_, _, cx| {
-                    down.update(cx, |s, cx| {
-                        s.pressed = true;
-                        cx.notify();
-                    })
-                })
-                .on_mouse_up(MouseButton::Left, move |_, _, cx| {
-                    up.update(cx, |s, cx| {
-                        s.pressed = false;
-                        cx.notify();
-                    })
-                })
-                .on_mouse_up_out(MouseButton::Left, move |_, _, cx| {
-                    outside.update(cx, |s, cx| {
-                        s.pressed = false;
-                        cx.notify();
-                    })
-                })
-                .on_hover(move |hovered, _, cx| {
-                    interaction.update(cx, |s, cx| {
-                        s.hovered = *hovered;
-                        cx.notify();
-                    })
-                });
+        let mut headless = gpui_headless::Switch::new(self.id.clone(), self.selected, self.label)
+            .disabled(self.disabled)
+            .group(format!("md3-{}", self.id))
+            .reveal_margin(crate::focus::reveal_margin());
+        if let Some(handler) = self.on_change {
+            headless = headless.on_change(handler);
         }
+        let (base, state) = headless.build(window, cx);
+        let pressed = state.pressed;
+        let hovered = state.hovered;
+        let control = state.control;
         let theme = cx.md3();
         let colors = SwitchColors::of(self.selected);
         let track_radius = theme.corner(tokens::TRACK_SHAPE);
@@ -360,35 +282,22 @@ impl RenderOnce for Switch {
                 },
             );
 
-        base.a11y(node)
-            .w(px(tokens::TRACK_WIDTH))
+        base.w(px(tokens::TRACK_WIDTH))
             .h(px(tokens::TRACK_HEIGHT))
             .child(track)
             .child(layer)
             .child(handle)
             .child(FocusRing::new(track_radius).visible(control.focus_visible))
-            .when_some(self.on_change.filter(|_| !disabled), |this, handler| {
-                let next = !self.selected;
-                this.on_click(move |_, window, cx| handler(next, window, cx))
-            })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::Toggled;
 
     #[test]
     fn selected_track_is_primary() {
         assert_eq!(SwitchColors::of(true).track, ColorRole::Primary);
         assert!(SwitchColors::of(false).track_outline.is_some());
-    }
-
-    #[test]
-    fn switch_reports_toggled() {
-        let node = Switch::new("s", true, "Wi-Fi").a11y_node();
-        assert_eq!(node.role, Role::Switch);
-        assert_eq!(node.toggled, Some(Toggled::True));
     }
 }

@@ -49,3 +49,5 @@
 
 - チェックは Material Symbols の `check` アイコン、不定の横線は箱の幅の 0.6 倍の簡略形で、Compose のパス描画・アニメーションとは違う。
 - 無効は AccessKit の disabled としてツリーに出し、Tab でも止まらない。ただし Linux（AT-SPI）では役割によって無効が伝わらない（[`docs/a11y-audit.md`](../a11y-audit.md)）。
+
+状態と操作は `gpui_headless::Checkbox`、値は `gpui_headless::CheckboxState` が担う。

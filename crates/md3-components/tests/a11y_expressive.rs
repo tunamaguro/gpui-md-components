@@ -21,27 +21,6 @@ fn use_expressive(cx: &mut TestAppContext, reduce_motion: bool) {
     });
 }
 
-#[gpui::test]
-fn toggle_button_flips_with_space_and_enter(cx: &mut TestAppContext) {
-    use_expressive(cx, false);
-    let on = Rc::new(Cell::new(false));
-    let cx = support::open(cx, {
-        let on = on.clone();
-        move |_, _| {
-            let toggle = on.clone();
-            ToggleButton::new("bold", "太字")
-                .checked(on.get())
-                .on_change(move |checked, _, _| toggle.set(checked))
-                .into_any_element()
-        }
-    });
-    support::tab(cx);
-    support::press(cx, "space");
-    assert!(on.get());
-    support::press(cx, "enter");
-    assert!(!on.get());
-}
-
 /// 3 つの項目の選択の状態を持つ ButtonGroup を描く。`single` なら選択を 1 つに限る。
 fn group_harness(
     cx: &mut TestAppContext,

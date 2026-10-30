@@ -4,9 +4,13 @@
 
 ## 確認していないこと
 
+- headless 分離の段階 2: gallery の見た目・操作と、分離前 main に対する a11y ツリーの一致は画面に接続できる環境で未確認。
+
 - 自動テストと、Linux（WSL、X11、lavapipe）の gallery での目視・マウス操作までは確認した。
+
 - Windows / macOS の実機での見た目と操作、トラックパッドの精密スクロールは未確認
   （CI の Gallery ワークフローの Artifacts で試せる）。
+
 - macOS / Windows での a11y ツリーの確認、全 OS での読み上げ確認は未実施（`docs/a11y-audit.md`）。
 
 ## 人間の判断・作業が要るもの

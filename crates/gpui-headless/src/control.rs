@@ -5,6 +5,9 @@ use gpui::{App, Div, ElementId, MouseButton, SharedString, Stateful, Window, div
 use crate::{focus_handle, is_focus_visible};
 
 /// 操作要素の土台の状態。
+///
+/// ホバー・押下の見た目には土台の `.hover()` / `.active()`、または子要素の
+/// `.group_hover(state.group, ..)` / `.group_active(state.group, ..)` を使う。
 pub struct ControlState {
     /// ホバーなどで参照するグループ名。
     pub group: SharedString,

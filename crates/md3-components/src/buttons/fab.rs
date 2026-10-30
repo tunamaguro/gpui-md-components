@@ -1,7 +1,7 @@
 //! FAB（Floating action button）と Extended FAB。
 
 use gpui::{
-    App, ClickEvent, ElementId, IntoElement, RenderOnce, Role, SharedString, Window, prelude::*, px,
+    App, ClickEvent, ElementId, IntoElement, RenderOnce, SharedString, Window, prelude::*, px,
 };
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::{
@@ -11,9 +11,7 @@ use md3_theme::md3_tokens::component::{
 use md3_theme::md3_tokens::layout;
 use md3_theme::{Elevation, Md3ThemeExt, Shape};
 
-use crate::control::control;
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
-use gpui_headless::{A11yExt, A11yNode};
 
 /// FAB の大きさ。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -106,13 +104,19 @@ impl FabParts {
     /// 背景・影・状態レイヤーを付けた土台と前景色のロールを返す。
     fn render(
         self,
-        node: A11yNode,
+        label: SharedString,
         shape: Shape,
         window: &mut Window,
         cx: &mut App,
         content: impl FnOnce(gpui::Stateful<gpui::Div>, ColorRole) -> gpui::Stateful<gpui::Div>,
     ) -> gpui::Stateful<gpui::Div> {
-        let (base, control) = control(&self.id, false, true, window, cx);
+        let mut behaviour = gpui_headless::Button::new(self.id.clone(), label)
+            .group(format!("md3-{}", self.id))
+            .reveal_margin(crate::focus::reveal_margin());
+        if let Some(handler) = self.on_click {
+            behaviour = behaviour.on_click(handler);
+        }
+        let (base, control) = behaviour.build(window, cx);
         let theme = cx.md3();
         let (container, content_role) = self.color.roles();
         let radius = theme.corner(shape);
@@ -123,7 +127,6 @@ impl FabParts {
             fab_primary_container::HOVERED_CONTAINER_ELEVATION,
         ));
         let fab = base
-            .a11y(node)
             .flex()
             .items_center()
             .justify_center()
@@ -144,7 +147,6 @@ impl FabParts {
                 .focused(control.focus_visible),
             )
             .child(FocusRing::new(radius).visible(control.focus_visible))
-            .when_some(self.on_click, |this, handler| this.on_click(handler))
     }
 }
 
@@ -190,20 +192,14 @@ impl Fab {
         self.parts.on_click = Some(Box::new(handler));
         self
     }
-
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::Button).label(self.label.clone())
-    }
 }
 
 impl RenderOnce for Fab {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
         let size = self.size;
         let icon = self.icon;
         self.parts
-            .render(node, size.shape(), window, cx, |fab, content| {
+            .render(self.label, size.shape(), window, cx, |fab, content| {
                 fab.size(px(size.container()))
                     .child(Icon::new(icon).size(px(size.icon())).color(content))
             })
@@ -248,21 +244,15 @@ impl ExtendedFab {
         self.parts.on_click = Some(Box::new(handler));
         self
     }
-
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::Button).label(self.label.clone())
-    }
 }
 
 impl RenderOnce for ExtendedFab {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
         let text_style = cx.md3().text_style(extended_fab_primary::LABEL_TEXT_FONT);
         let icon = self.icon;
         let label = self.label;
         self.parts.render(
-            node,
+            label.clone(),
             extended_fab_primary::CONTAINER_SHAPE,
             window,
             cx,

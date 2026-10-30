@@ -49,6 +49,9 @@ base.size(px(40.)).bg(my_color).when(state.focus_visible, |this| this.border_2()
 ```
 
 `state` には `group`（hover 用のグループ名）、`focus_visible`、`disabled` を持たせる。
+ホバー・押下のスタイルは土台の `.hover()` / `.active()`、子要素の
+`.group_hover(state.group, ..)` / `.group_active(state.group, ..)` で付ける。
+描画の計算に状態自体が必要な Switch などは、共通状態とともに部品固有の状態として返す。
 
 ### 項目を持つ部品
 

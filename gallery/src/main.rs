@@ -19,9 +19,9 @@ use gpui::{
     UniformListScrollHandle, Window, WindowBounds, WindowOptions, actions, div, prelude::*, px,
     size,
 };
+use gpui_headless::CheckboxState;
 use md3_components::buttons::{Segment, SegmentedButton};
 use md3_components::overlays::SnackbarHost;
-use md3_components::selection::CheckboxState;
 use md3_components::theme::md3_color::ColorRole;
 use md3_components::theme::{self, Md3ThemeExt, TypeScale};
 use md3_components::{IconName, StyledExt, Text};
