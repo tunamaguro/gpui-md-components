@@ -53,3 +53,5 @@
 ## 既定モーション
 
 内側の円は選択解除時も要素を保持し、直径 0↔既存の RADIO_BUTTON_DOT_SIZE を FastSpatial で補間する。reduce_motion は即時変更。参照: RadioButton.kt L137–143 @ b8256a52。色の DefaultEffects は未対応（hover と disabled の既存スタイルを保持）。
+
+操作とアクセシビリティ情報は `gpui-headless` が持ち、寸法と描画は `md3-components` が担う。

@@ -15,12 +15,8 @@ use md3_theme::md3_tokens::component::{
 use md3_theme::md3_tokens::{layout, state};
 use md3_theme::{Md3ThemeExt, MotionToken, Theme};
 
-use super::item::{
-    ChangeHandler, Destinations, NavigationItem, destination_a11y_node, navigation_a11y_node,
-};
-use crate::control::control;
+use super::item::{ChangeHandler, NavigationItem, navigation};
 use crate::{FocusRing, Icon, StateLayer, StyledExt};
-use gpui_headless::A11yExt;
 
 /// 縦に積む項目の寸法と色。
 struct ItemStyle {
@@ -36,15 +32,12 @@ struct ItemStyle {
 #[allow(clippy::too_many_arguments)]
 fn vertical_item(
     theme: &Theme,
-    id: &ElementId,
+    base: gpui::Stateful<gpui::Div>,
+    control: gpui_headless::ControlState,
     item: &NavigationItem,
     selected: bool,
-    tab_stop: bool,
     style: &ItemStyle,
-    window: &mut Window,
-    cx: &mut App,
-) -> (gpui::Stateful<gpui::Div>, bool) {
-    let (base, control) = control(id, item.disabled, tab_stop, window, cx);
+) -> gpui::Stateful<gpui::Div> {
     let (icon_role, label_role) = if selected {
         (
             navigation_rail_color::ITEM_ACTIVE_ICON,
@@ -120,8 +113,7 @@ fn vertical_item(
             .disabled(item.disabled),
         )
         .child(FocusRing::new(pill).visible(control.focus_visible));
-    let element = base
-        .flex()
+    base.flex()
         .flex_col()
         .items_center()
         .pt(px(style.top_space))
@@ -134,50 +126,7 @@ fn vertical_item(
                 .text_color(disabled(label_role))
                 .whitespace_nowrap()
                 .child(item.label.clone()),
-        );
-    (element, item.disabled)
-}
-
-/// 項目の並びを作る共通部分。
-#[allow(clippy::too_many_arguments)]
-fn destinations(
-    id: &ElementId,
-    items: &[NavigationItem],
-    selected: Option<usize>,
-    on_change: Option<ChangeHandler>,
-    vertical: bool,
-    style: &ItemStyle,
-    window: &mut Window,
-    cx: &mut App,
-) -> Vec<AnyElement> {
-    let destinations = Destinations::new(id, items, selected, window, cx);
-    let theme = cx.md3().clone();
-    let count = items.len();
-    items
-        .iter()
-        .enumerate()
-        .map(|(index, item)| {
-            let is_selected = selected == Some(index);
-            let (element, disabled) = vertical_item(
-                &theme,
-                &destinations.ids[index],
-                item,
-                is_selected,
-                destinations.tab_target == Some(index),
-                style,
-                window,
-                cx,
-            );
-            let mut element = element.a11y(destination_a11y_node(item, index, count, is_selected));
-            if !disabled {
-                element = element.on_key_down(destinations.on_key(index, vertical));
-                if let Some(on_change) = on_change.clone() {
-                    element = element.on_click(move |_, window, cx| on_change(index, window, cx));
-                }
-            }
-            element.into_any_element()
-        })
-        .collect()
+        )
 }
 
 macro_rules! destination_builders {
@@ -237,11 +186,6 @@ impl NavigationBar {
     }
 
     destination_builders!();
-
-    /// アクセシビリティツリーに出す情報（役割 Navigation。項目は Tab）。
-    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
-        navigation_a11y_node(&self.label)
-    }
 }
 
 impl RenderOnce for NavigationBar {
@@ -254,21 +198,23 @@ impl RenderOnce for NavigationBar {
             top_space: layout::NAVIGATION_BAR_INDICATOR_VERTICAL_OFFSET,
             bottom_space: 0.0,
         };
-        let node = self.a11y_node();
-        let items = destinations(
-            &self.id,
+        let nav = navigation(
+            self.id,
+            self.label,
             &self.items,
             self.selected,
             self.on_change,
             false,
-            &style,
-            window,
-            cx,
         );
+        let theme = cx.md3().clone();
+        let nav = nav.build(window, cx, |item, _, _| {
+            let source = &self.items[item.index];
+            vertical_item(&theme, item.base, item.state, source, item.selected, &style)
+                .into_any_element()
+        });
+        let items = nav.items;
         let theme = cx.md3();
-        div()
-            .id(self.id)
-            .a11y(node)
+        nav.base
             .w_full()
             .h(px(navigation_bar::TALL_CONTAINER_HEIGHT))
             .flex_none()
@@ -317,11 +263,6 @@ impl NavigationRail {
     }
 
     destination_builders!();
-
-    /// アクセシビリティツリーに出す情報（役割 Navigation。項目は Tab）。
-    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
-        navigation_a11y_node(&self.label)
-    }
 }
 
 impl RenderOnce for NavigationRail {
@@ -334,22 +275,24 @@ impl RenderOnce for NavigationRail {
             top_space: layout::NAVIGATION_RAIL_ITEM_VERTICAL_SPACE,
             bottom_space: layout::NAVIGATION_RAIL_ITEM_VERTICAL_SPACE,
         };
-        let node = self.a11y_node();
-        let items = destinations(
-            &self.id,
+        let nav = navigation(
+            self.id,
+            self.label,
             &self.items,
             self.selected,
             self.on_change,
             true,
-            &style,
-            window,
-            cx,
         );
+        let theme = cx.md3().clone();
+        let nav = nav.build(window, cx, |item, _, _| {
+            let source = &self.items[item.index];
+            vertical_item(&theme, item.base, item.state, source, item.selected, &style)
+                .into_any_element()
+        });
+        let items = nav.items;
         let theme = cx.md3();
         let space: Pixels = px(layout::NAVIGATION_RAIL_VERTICAL_SPACE);
-        div()
-            .id(self.id)
-            .a11y(node)
+        nav.base
             .w(px(navigation_rail_collapsed::NARROW_CONTAINER_WIDTH))
             .h_full()
             .flex_none()
@@ -367,19 +310,5 @@ impl RenderOnce for NavigationRail {
                 )
             })
             .children(items.into_iter().map(|item| div().w_full().child(item)))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use gpui::Role;
-
-    #[test]
-    fn bars_are_navigation_landmarks() {
-        let bar = NavigationBar::new("n", "メイン");
-        let node = bar.a11y_node();
-        assert_eq!(node.role, Role::Navigation);
-        assert_eq!(node.label.as_deref(), Some("メイン"));
     }
 }

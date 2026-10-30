@@ -38,3 +38,5 @@
 
 - スクロールするタブの行（ScrollableTabRow）と印のアニメーションは未実装。
 - Compose の `Tab` は既定で選択外も選択中と同じ色だが、トークン（`INACTIVE_LABEL_TEXT_COLOR`）の値を使った。
+
+操作とアクセシビリティ情報は `gpui-headless` が持ち、寸法と描画は `md3-components` が担う。

@@ -70,6 +70,9 @@ impl Button {
             None => node,
         }
     }
+    pub(crate) fn id(&self) -> &ElementId {
+        &self.id
+    }
     /// 操作を付けた要素と描画用の状態を返す。
     pub fn build(self, window: &mut Window, cx: &mut App) -> (Stateful<Div>, ControlState) {
         let node = self.a11y_node();

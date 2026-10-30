@@ -3,31 +3,16 @@
 // Copyright 2020 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //! RadioButton（RadioGroup としてまとめて使う）。
 
-use gpui_headless::focus_handle;
-use std::rc::Rc;
-
 use gpui::{
-    AnimationExt, App, ElementId, FocusHandle, IntoElement, KeyDownEvent, RenderOnce, Role,
-    SharedString, SpringAnimation, Window, div, prelude::*, px,
+    AnimationExt, App, ElementId, IntoElement, RenderOnce, SharedString, SpringAnimation, Window,
+    div, prelude::*, px,
 };
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::radio_button as tokens;
 use md3_theme::md3_tokens::layout;
 use md3_theme::{CornerRadius, Md3ThemeExt, MotionToken, TypeScale};
 
-use crate::control::control;
 use crate::{FocusRing, StateLayer, Text};
-use gpui_headless::step;
-use gpui_headless::{A11yExt, A11yNode, toggled};
-
-/// ラジオボタンの選択肢。
-#[derive(Clone, Debug)]
-struct RadioOption {
-    label: SharedString,
-    disabled: bool,
-}
-
-type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App) + 'static>;
 
 /// ラジオボタンのグループ。選択肢ごとにラジオボタンとラベルを縦に並べる。
 ///
@@ -35,85 +20,43 @@ type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App) + 'static>;
 /// 矢印キーでグループ内を移ると同時に選択する。
 #[derive(IntoElement)]
 pub struct RadioGroup {
-    id: ElementId,
-    label: SharedString,
-    options: Vec<RadioOption>,
-    selected: Option<usize>,
+    inner: gpui_headless::RadioGroup,
     horizontal: bool,
-    on_change: Option<ChangeHandler>,
 }
-
 impl RadioGroup {
     /// ID とグループのラベル（読み上げ用の名前）から作る。
     pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
         Self {
-            id: id.into(),
-            label: label.into(),
-            options: Vec::new(),
-            selected: None,
+            inner: gpui_headless::RadioGroup::new(id, label)
+                .reveal_margin(crate::focus::reveal_margin())
+                .group_prefix("md3"),
             horizontal: false,
-            on_change: None,
         }
     }
-
     /// 選択肢を加える。
     pub fn option(mut self, label: impl Into<SharedString>) -> Self {
-        self.options.push(RadioOption {
-            label: label.into(),
-            disabled: false,
-        });
+        self.inner = self.inner.option(label);
         self
     }
-
     /// 無効な選択肢を加える。
     pub fn disabled_option(mut self, label: impl Into<SharedString>) -> Self {
-        self.options.push(RadioOption {
-            label: label.into(),
-            disabled: true,
-        });
+        self.inner = self.inner.disabled_option(label);
         self
     }
-
     /// 選択中の項目。
     pub fn selected(mut self, selected: Option<usize>) -> Self {
-        self.selected = selected;
+        self.inner = self.inner.selected(selected);
         self
     }
-
     /// 横に並べる。
     pub fn horizontal(mut self, horizontal: bool) -> Self {
         self.horizontal = horizontal;
         self
     }
-
-    /// 選択が変わったときの処理。引数は選ばれた項目の位置。
+    /// 選択が変わったときの処理。
     pub fn on_change(mut self, handler: impl Fn(usize, &mut Window, &mut App) + 'static) -> Self {
-        self.on_change = Some(Rc::new(handler));
+        self.inner = self.inner.on_change(handler);
         self
-    }
-
-    /// グループのアクセシビリティ情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::RadioGroup).label(self.label.clone())
-    }
-
-    /// 選択肢のアクセシビリティ情報。
-    pub fn option_a11y_node(&self, index: usize) -> Option<A11yNode> {
-        let option = self.options.get(index)?;
-        Some(
-            A11yNode::new(Role::RadioButton)
-                .label(option.label.clone())
-                .toggled(toggled(self.selected == Some(index)))
-                .position(index, self.options.len())
-                .disabled(option.disabled),
-        )
-    }
-
-    fn option_id(&self, index: usize) -> ElementId {
-        ElementId::NamedChild(
-            std::sync::Arc::new(self.id.clone()),
-            SharedString::from(format!("{index}")),
-        )
     }
 }
 
@@ -134,34 +77,19 @@ pub(crate) fn icon_color(selected: bool) -> (ColorRole, ColorRole) {
 
 impl RenderOnce for RadioGroup {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let count = self.options.len();
-        let enabled: Rc<[bool]> = self.options.iter().map(|o| !o.disabled).collect();
-        let tab_target = self
-            .selected
-            .filter(|&i| enabled.get(i).copied().unwrap_or(false))
-            .or_else(|| enabled.iter().position(|&e| e));
-        let handles: Rc<[FocusHandle]> = (0..count)
-            .map(|index| focus_handle(self.option_id(index), window, cx))
-            .collect();
-
-        let mut group = div().id(self.id.clone()).a11y(self.a11y_node()).flex();
-        group = if self.horizontal {
-            group.flex_row().flex_wrap().gap_4()
-        } else {
-            group.flex_col()
-        };
-        for (index, option) in self.options.iter().enumerate() {
-            let selected = self.selected == Some(index);
-            let (base, control) = control(
-                &self.option_id(index),
-                option.disabled,
-                tab_target == Some(index),
-                window,
-                cx,
-            );
+        let horizontal = self.horizontal;
+        let group = self.inner.build(window, cx, |item, _window, cx| {
+            let gpui_headless::RadioItem {
+                base,
+                state: control,
+                label,
+                selected,
+                ..
+            } = item;
+            let disabled = control.disabled;
             let theme = cx.md3();
             let (role, hovered_role) = icon_color(selected);
-            let color = if option.disabled {
+            let color = if disabled {
                 let opacity = if selected {
                     tokens::DISABLED_SELECTED_ICON_OPACITY
                 } else {
@@ -185,11 +113,11 @@ impl RenderOnce for RadioGroup {
                 .flex()
                 .items_center()
                 .justify_center();
-            if !option.disabled {
+            if !disabled {
                 ring = ring.group_hover(control.group.clone(), move |s| s.border_color(hovered));
             }
             let mut dot = div().rounded_full().bg(color);
-            if !option.disabled {
+            if !disabled {
                 dot = dot.group_hover(control.group.clone(), move |s| s.bg(hovered));
             }
             let dot = dot.with_spring(
@@ -217,80 +145,37 @@ impl RenderOnce for RadioGroup {
                     )
                     .radius(radius)
                     .focused(control.focus_visible)
-                    .disabled(option.disabled),
+                    .disabled(disabled),
                 )
                 .child(FocusRing::new(radius).visible(control.focus_visible));
 
-            let label_color = if option.disabled {
+            let label_color = if disabled {
                 theme
                     .color(ColorRole::OnSurface)
                     .opacity(tokens::DISABLED_UNSELECTED_ICON_OPACITY)
             } else {
                 theme.color(ColorRole::OnSurface)
             };
-            let mut item = base
+            let item = base
                 .flex()
                 .items_center()
                 .pr_2()
                 .text_color(label_color)
                 .child(radio)
-                .child(Text::new(TypeScale::BodyLarge, option.label.clone()));
-            if let Some(node) = self.option_a11y_node(index) {
-                item = item.a11y(node);
-            }
-            if !option.disabled
-                && let Some(on_change) = self.on_change.clone()
-            {
-                let on_click = on_change.clone();
-                item = item.on_click(move |_, window, cx| on_click(index, window, cx));
-                let handles = handles.clone();
-                let enabled = enabled.clone();
-                item = item.on_key_down(move |event: &KeyDownEvent, window, cx| {
-                    let forward = match event.keystroke.key.as_str() {
-                        "right" | "down" => true,
-                        "left" | "up" => false,
-                        _ => return,
-                    };
-                    let Some(next) = step(&enabled, index, forward) else {
-                        return;
-                    };
-                    cx.stop_propagation();
-                    if let Some(handle) = handles.get(next) {
-                        window.focus(handle, cx);
-                    }
-                    on_change(next, window, cx);
-                });
-            }
-            group = group.child(item);
+                .child(Text::new(TypeScale::BodyLarge, label));
+            item.into_any_element()
+        });
+        if horizontal {
+            group.flex().flex_row().flex_wrap().gap_4()
+        } else {
+            group.flex().flex_col()
         }
-        group
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::Toggled;
-
-    #[test]
-    fn options_report_selection_and_position() {
-        let group = RadioGroup::new("g", "サイズ")
-            .option("小")
-            .option("中")
-            .disabled_option("大")
-            .selected(Some(0));
-        assert_eq!(group.a11y_node().role, Role::RadioGroup);
-        let first = group.option_a11y_node(0).expect("option");
-        assert_eq!(first.role, Role::RadioButton);
-        assert_eq!(first.toggled, Some(Toggled::True));
-        assert_eq!(
-            first.selected, None,
-            "ラジオの選択は checked（toggled）で伝える"
-        );
-        assert_eq!(first.position, Some((1, 3)));
-        assert!(group.option_a11y_node(2).expect("option").disabled);
-    }
-
     #[test]
     fn selected_uses_primary() {
         assert_eq!(icon_color(true).0, ColorRole::Primary);
