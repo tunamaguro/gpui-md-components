@@ -19,3 +19,10 @@ fn dialog_is_modal_unless_turned_off() {
     assert!(Dialog::new("d", "x").a11y_node().modal);
     assert!(!Dialog::new("d", "x").modal(false).a11y_node().modal);
 }
+
+#[test]
+fn complementary_panels_are_not_modal() {
+    let node = Dialog::new("s", "フィルタ").complementary().a11y_node();
+    assert_eq!(node.role, Role::Complementary);
+    assert!(!node.modal);
+}

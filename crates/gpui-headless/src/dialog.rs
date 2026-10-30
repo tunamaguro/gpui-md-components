@@ -11,6 +11,7 @@ pub struct Dialog {
     label: SharedString,
     alert: bool,
     modal: bool,
+    complementary: bool,
 }
 
 impl Dialog {
@@ -21,6 +22,7 @@ impl Dialog {
             label: label.into(),
             alert: false,
             modal: true,
+            complementary: false,
         }
     }
 
@@ -36,9 +38,18 @@ impl Dialog {
         self
     }
 
+    /// 本文の脇にある補足の領域にする（支援技術に `Complementary` と伝える）。モーダルにはならない。
+    pub fn complementary(mut self) -> Self {
+        self.complementary = true;
+        self.modal = false;
+        self
+    }
+
     /// アクセシビリティツリーに出す情報。
     pub fn a11y_node(&self) -> A11yNode {
-        let role = if self.alert {
+        let role = if self.complementary {
+            Role::Complementary
+        } else if self.alert {
             Role::AlertDialog
         } else {
             Role::Dialog
