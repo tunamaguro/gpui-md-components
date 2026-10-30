@@ -1,13 +1,10 @@
 //! List（1〜3 行の項目、仮想化した LazyList）。
 
-use gpui_headless::focus_handle;
-use std::ops::Range;
 use std::rc::Rc;
 
 use gpui::{
-    App, Div, ElementId, Entity, FocusHandle, IntoElement, KeyDownEvent, RenderOnce, Role,
-    ScrollStrategy, SharedString, Stateful, UniformListScrollHandle, Window, div, prelude::*, px,
-    uniform_list,
+    App, Div, ElementId, IntoElement, RenderOnce, SharedString, Stateful, UniformListScrollHandle,
+    Window, div, prelude::*, px,
 };
 use md3_theme::Md3ThemeExt;
 use md3_theme::md3_color::ColorRole;
@@ -15,7 +12,7 @@ use md3_theme::md3_tokens::component::list as tokens;
 use md3_theme::md3_tokens::layout;
 
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
-use gpui_headless::{A11yExt, A11yNode};
+use gpui_headless::ListRow;
 
 type SelectHandler = Rc<dyn Fn(&mut Window, &mut App)>;
 
@@ -119,41 +116,25 @@ impl ListItem {
         }
     }
 
-    /// 矢印キーで止まれるか。
-    fn focusable(&self) -> bool {
-        self.on_select.is_some() && !self.disabled
-    }
-
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self, index: usize, count: usize) -> A11yNode {
-        A11yNode::new(Role::ListItem)
-            .label(self.headline.clone())
+    fn headless(&self) -> gpui_headless::ListItem {
+        let mut item = gpui_headless::ListItem::new(self.headline.clone())
             .selected(self.selected)
-            .position(index, count)
-            .disabled(self.disabled)
+            .disabled(self.disabled);
+        if let Some(on_select) = self.on_select.clone() {
+            item = item.on_select(move |window, cx| on_select(window, cx));
+        }
+        item
     }
 
-    fn render(
-        self,
-        id: ElementId,
-        tab_stop: bool,
-        (index, count): (usize, usize),
-        on_key: impl Fn(&KeyDownEvent, &mut Window, &mut App) + 'static,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Stateful<Div> {
-        let node = self.a11y_node(index, count);
+    fn render(self, row: ListRow, cx: &mut App) -> Stateful<Div> {
+        let ListRow {
+            base,
+            state: control,
+            id,
+            ..
+        } = row;
         let lines = self.line_count();
-        let focusable = self.focusable();
-        let (base, control) = gpui_headless::control(
-            &id,
-            !focusable,
-            tab_stop,
-            window,
-            cx,
-            crate::focus::reveal_margin(),
-            format!("md3-{id}").into(),
-        );
+        let focusable = !control.disabled;
         let theme = cx.md3().clone();
         let disabled = |role: ColorRole, opacity: f32| theme.color(role).opacity(opacity);
         let headline_color = if self.disabled {
@@ -287,7 +268,6 @@ impl ListItem {
 
         let mut item = base
             .debug_selector(|| format!("md3-list-item-{id}"))
-            .a11y(node)
             .w_full()
             .min_h(px(height))
             .flex()
@@ -305,7 +285,7 @@ impl ListItem {
             .children(leading)
             .child(text)
             .children(trailing);
-        if let Some(on_select) = self.on_select.filter(|_| focusable) {
+        if focusable {
             item = item
                 .child(
                     StateLayer::new(
@@ -320,34 +300,10 @@ impl ListItem {
                     FocusRing::new(radius)
                         .inward()
                         .visible(control.focus_visible),
-                )
-                .on_click(move |_, window, cx| on_select(window, cx))
-                .on_key_down(on_key);
+                );
         }
         item
     }
-}
-
-/// 矢印キーで次に止まる項目（端で止まり、回らない）。`Home` / `End` は端の項目。
-fn list_step(
-    mut focusable: impl FnMut(usize) -> bool,
-    count: usize,
-    from: usize,
-    key: &str,
-) -> Option<usize> {
-    let mut candidates: Box<dyn Iterator<Item = usize>> = match key {
-        "down" => Box::new(from + 1..count),
-        "up" => Box::new((0..from).rev()),
-        "home" => Box::new(0..count),
-        "end" => Box::new((0..count).rev()),
-        _ => return None,
-    };
-    candidates.find(|&index| focusable(index))
-}
-
-/// 項目の ID（リストの ID とデータのキーから作る）。
-fn item_id(list: &ElementId, key: &SharedString) -> ElementId {
-    ElementId::NamedChild(list.clone().into(), key.clone())
 }
 
 /// 全項目を描くリスト。項目が多いときは [`LazyList`] を使う。
@@ -362,117 +318,68 @@ pub struct List {
     label: SharedString,
     items: Vec<(SharedString, ListItem)>,
 }
-
 impl List {
+    /// ID と名前（読み上げられる）から作る。
+    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            items: Vec::new(),
+            max_height: None,
+            scrollbar: true,
+        }
+    }
     /// 高さを制限し、超過する項目をスクロール可能にする。
     pub fn max_height(mut self, height: gpui::Pixels) -> Self {
-        self.max_height = Some(height.max(px(0.0)));
+        self.max_height = Some(height.max(px(0.)));
         self
     }
-
     /// スクロールバーの表示を切り替える（既定は表示）。
     pub fn scrollbar(mut self, visible: bool) -> Self {
         self.scrollbar = visible;
         self
     }
-
-    /// ID と名前（読み上げられる）から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
-        Self {
-            scrollbar: true,
-            max_height: None,
-            id: id.into(),
-            label: label.into(),
-            items: Vec::new(),
-        }
-    }
-
-    /// 項目を足す。`key` はデータの安定したキー（並び替えても変わらないもの）。
+    /// 安定したキーと項目を足す。
     pub fn item(mut self, key: impl Into<SharedString>, item: ListItem) -> Self {
         self.items.push((key.into(), item));
         self
     }
-
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::List).label(self.label.clone())
-    }
 }
-
 impl RenderOnce for List {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let count = self.items.len();
-        let focusable: Rc<[bool]> = self
-            .items
-            .iter()
-            .map(|(_, item)| item.focusable())
-            .collect();
-        let tab_target = self
-            .items
-            .iter()
-            .position(|(_, item)| item.selected && item.focusable())
-            .or_else(|| focusable.iter().position(|&f| f));
-        let handles: Rc<[FocusHandle]> = self
-            .items
-            .iter()
-            .map(|(key, _)| focus_handle(item_id(&self.id, key), window, cx))
-            .collect();
-        // 高さを限ったリストはスクロールする。矢印・Tab で移った項目を見える範囲に入れる。
-        let scroll = self
-            .max_height
-            .map(|_| gpui_headless::scroll_handle(&self.id, window, cx));
-        let mut list = div()
-            .id(self.id.clone())
-            .debug_selector(|| format!("md3-list-{}", self.id))
-            .a11y(self.a11y_node())
-            .flex()
-            .flex_col();
-        for (index, (key, item)) in self.items.into_iter().enumerate() {
-            let handles = handles.clone();
-            let focusable = focusable.clone();
-            let on_key = move |event: &KeyDownEvent, window: &mut Window, cx: &mut App| {
-                let next = list_step(
-                    |i| focusable.get(i).copied().unwrap_or(false),
-                    count,
-                    index,
-                    event.keystroke.key.as_str(),
-                );
-                if let Some(handle) = next.and_then(|next| handles.get(next)) {
-                    cx.stop_propagation();
-                    window.focus(handle, cx);
-                }
-            };
-            list = list.child(item.render(
-                item_id(&self.id, &key),
-                tab_target == Some(index),
-                (index, count),
-                on_key,
-                window,
-                cx,
-            ));
+        let mut list = gpui_headless::List::new(self.id.clone(), self.label)
+            .reveal_margin(crate::focus::reveal_margin())
+            .group_prefix("md3");
+        if let Some(height) = self.max_height {
+            list = list.max_height(height);
         }
-        if let (Some(height), Some(scroll)) = (self.max_height, scroll) {
-            let wheel = gpui_headless::NestedScroll::new(&self.id, scroll.clone(), window, cx);
-            list = list
-                .max_h(height)
-                .overflow_y_scroll()
-                .track_scroll(&scroll)
-                .on_scroll(wheel.on_scroll())
-                .child(wheel.capture())
-                .when(self.scrollbar, |this| {
-                    this.child(crate::Scrollbar::new(
-                        ElementId::NamedChild(self.id.clone().into(), "scrollbar".into()),
+        for (key, item) in &self.items {
+            list = list.item(key.clone(), item.headless());
+        }
+        let items = self.items;
+        let id = self.id;
+        list.build(window, cx, move |row, _, cx| {
+            items[row.index]
+                .1
+                .clone()
+                .render(row, cx)
+                .into_any_element()
+        })
+        .finish(|base, scroll| {
+            base.debug_selector(|| format!("md3-list-{id}")).when_some(
+                scroll.filter(|_| self.scrollbar),
+                |base, scroll| {
+                    base.child(crate::Scrollbar::new(
+                        ElementId::NamedChild(id.clone().into(), "scrollbar".into()),
                         scroll.clone(),
                     ))
-                });
-            return gpui_headless::ScrollScope::new(scroll, list).into_any_element();
-        }
-        list.into_any_element()
+                },
+            )
+        })
     }
 }
 
 type ItemBuilder = Rc<dyn Fn(usize, &mut App) -> (SharedString, ListItem)>;
-
 /// 見えている項目だけを描くリスト（gpui の `uniform_list`）。項目の高さはすべて同じにすること。
 ///
 /// 大きさ（高さ）は呼び出し側が指定する。キー操作は [`List`] と同じで、
@@ -486,25 +393,10 @@ pub struct LazyList {
     count: usize,
     scroll: UniformListScrollHandle,
     build: ItemBuilder,
-    base: gpui::Div,
+    base: Div,
 }
-
-/// LazyList の描画をまたいで残す状態。
-struct LazyListState {
-    /// Tab で止まる項目（最後にフォーカスした項目）。
-    active: usize,
-    /// 描いたらフォーカスを移す項目。
-    pending: Option<usize>,
-}
-
 impl LazyList {
-    /// スクロールバーの表示を切り替える（既定は表示）。
-    pub fn scrollbar(mut self, visible: bool) -> Self {
-        self.scrollbar = visible;
-        self
-    }
-
-    /// ID、名前、項目数、スクロールの状態、項目を作る関数から作る。
+    /// ID、名前、項目数、スクロール状態、項目を作る関数から作る。
     ///
     /// `build(index)` は項目のキーと中身を返す。キーはデータの安定したキーにする。
     pub fn new(
@@ -524,138 +416,49 @@ impl LazyList {
             base: div(),
         }
     }
-
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::List).label(self.label.clone())
+    /// スクロールバーの表示を切り替える（既定は表示）。
+    pub fn scrollbar(mut self, visible: bool) -> Self {
+        self.scrollbar = visible;
+        self
     }
 }
-
 impl gpui::Styled for LazyList {
     fn style(&mut self) -> &mut gpui::StyleRefinement {
         self.base.style()
     }
 }
-
 impl RenderOnce for LazyList {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let state: Entity<LazyListState> = window.use_keyed_state(
-            ElementId::NamedChild(self.id.clone().into(), "state".into()),
-            cx,
-            |_, _| LazyListState {
-                active: 0,
-                pending: None,
-            },
-        );
-        let list_id = self.id.clone();
-        let count = self.count;
-        let build = self.build.clone();
-        let scroll = self.scroll.clone();
-        let wheel = gpui_headless::NestedScroll::new(
-            &self.id,
-            self.scroll.0.borrow().base_handle.clone(),
-            window,
-            cx,
-        );
-        let items = uniform_list(
-            ElementId::NamedChild(self.id.clone().into(), "items".into()),
-            count,
-            move |range: Range<usize>, window, cx| {
-                let (active, pending) = {
-                    let state = state.read(cx);
-                    (state.active, state.pending)
-                };
-                let built: Vec<_> = range
-                    .clone()
-                    .map(|index| (index, build(index, cx)))
-                    .collect();
-                let active_is_visible = built
-                    .iter()
-                    .any(|(index, (_, item))| *index == active && item.focusable());
-                let tab_target = if active_is_visible {
-                    Some(active)
-                } else {
-                    built
-                        .iter()
-                        .find(|(_, (_, item))| item.focusable())
-                        .map(|(index, _)| *index)
-                };
-                built
-                    .into_iter()
-                    .map(|(index, (key, item))| {
-                        let id = item_id(&list_id, &key);
-                        if pending == Some(index) {
-                            let handle = focus_handle(id.clone(), window, cx);
-                            window.focus(&handle, cx);
-                            state.update(cx, |state, _| {
-                                state.pending = None;
-                                state.active = index;
-                            });
-                        }
-                        let on_key = {
-                            let state = state.clone();
-                            let build = build.clone();
-                            let scroll = scroll.clone();
-                            move |event: &KeyDownEvent, window: &mut Window, cx: &mut App| {
-                                let next = list_step(
-                                    |i| build(i, cx).1.focusable(),
-                                    count,
-                                    index,
-                                    event.keystroke.key.as_str(),
-                                );
-                                if let Some(next) = next {
-                                    cx.stop_propagation();
-                                    scroll.scroll_to_item(next, ScrollStrategy::Nearest);
-                                    state.update(cx, |state, _| state.pending = Some(next));
-                                    window.refresh();
-                                }
-                            }
-                        };
-                        let activate = state.clone();
-                        div()
-                            .w_full()
-                            .on_mouse_down(gpui::MouseButton::Left, move |_, _, cx| {
-                                activate.update(cx, |state, _| state.active = index)
-                            })
-                            .child(item.render(
-                                id,
-                                tab_target == Some(index),
-                                (index, count),
-                                on_key,
-                                window,
-                                cx,
-                            ))
-                    })
-                    .collect()
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let build = self.build;
+        let list = gpui_headless::LazyList::new(
+            self.id.clone(),
+            self.label,
+            self.count,
+            &self.scroll,
+            move |index, cx| {
+                let (key, item) = build(index, cx);
+                let behaviour = item.headless();
+                (key, behaviour, item)
             },
         )
-        .track_scroll(&self.scroll)
-        .on_scroll(wheel.on_scroll())
-        .size_full();
-        let node = self.a11y_node();
-        let mut base = self.base;
-        let mut container = div();
-        *container.style() = base.style().clone();
-        container
-            .id(self.id.clone())
-            .a11y(node)
-            .flex()
-            .flex_col()
-            .child(items)
-            .child(wheel.capture())
-            .when(self.scrollbar, |this| {
-                this.child(crate::Scrollbar::new(
-                    ElementId::NamedChild(self.id.clone().into(), "scrollbar".into()),
-                    self.scroll.clone(),
-                ))
-            })
+        .reveal_margin(crate::focus::reveal_margin())
+        .group_prefix("md3");
+        let mut base = list.build(window, cx, |row, item, _, cx| {
+            item.render(row, cx).into_any_element()
+        });
+        *base.style() = self.base.style().clone();
+        base.flex().flex_col().when(self.scrollbar, |base| {
+            base.child(crate::Scrollbar::new(
+                ElementId::NamedChild(self.id.into(), "scrollbar".into()),
+                self.scroll,
+            ))
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn line_count_follows_the_content() {
         assert_eq!(ListItem::new("a").line_count(), 1);
@@ -668,26 +471,5 @@ mod tests {
                 .line_count(),
             3
         );
-    }
-
-    #[test]
-    fn arrows_stop_at_the_ends_and_skip_items_that_cannot_focus() {
-        let focusable = [true, false, true, true];
-        let f = |i: usize| focusable[i];
-        assert_eq!(list_step(f, 4, 0, "down"), Some(2));
-        assert_eq!(list_step(f, 4, 3, "down"), None);
-        assert_eq!(list_step(f, 4, 2, "up"), Some(0));
-        assert_eq!(list_step(f, 4, 0, "up"), None);
-        assert_eq!(list_step(f, 4, 2, "home"), Some(0));
-        assert_eq!(list_step(f, 4, 0, "end"), Some(3));
-        assert_eq!(list_step(f, 4, 0, "left"), None);
-    }
-
-    #[test]
-    fn items_are_list_items_with_their_position() {
-        let node = ListItem::new("受信トレイ").selected(true).a11y_node(1, 3);
-        assert_eq!(node.role, Role::ListItem);
-        assert_eq!(node.selected, Some(true));
-        assert_eq!(node.position, Some((2, 3)));
     }
 }
