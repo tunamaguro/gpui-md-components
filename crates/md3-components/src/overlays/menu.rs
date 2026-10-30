@@ -1,26 +1,18 @@
 //! Menu（ドロップダウンメニュー）。
 
-use gpui_headless::focus_handle;
 use std::rc::Rc;
-use std::sync::Arc;
 
 use gpui::{
-    AnchoredPositionMode, App, Bounds, Edges, ElementId, Entity, FocusHandle, IntoElement, Pixels,
-    RenderOnce, Role, SharedString, Window, anchored, canvas, deferred, div, prelude::*, px,
+    App, Edges, ElementId, IntoElement, RenderOnce, SharedString, Window, div, prelude::*, px,
 };
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::{list, menu as tokens};
 use md3_theme::md3_tokens::layout;
 use md3_theme::{Elevation, Md3ThemeExt, TypeScale};
 
-use crate::control::control;
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
-use gpui_headless::keys::{Dismiss, MENU_CONTEXT};
-use gpui_headless::overlay::{
-    DismissHandler, InitialFocus, MENU_PRIORITY, dismiss_and_restore, overlay_focus,
-};
-use gpui_headless::step;
-use gpui_headless::{A11yExt, A11yNode};
+use gpui_headless::MenuKind;
+use gpui_headless::overlay::DismissHandler;
 
 /// メニューの項目。
 pub struct MenuItem {
@@ -74,15 +66,6 @@ impl MenuItem {
         self.on_select = Some(Rc::new(handler));
         self
     }
-}
-
-/// メニューの使われ方。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum MenuKind {
-    /// 操作の一覧（`menu` / `menuitem`）。
-    Actions,
-    /// 値の選択肢（`listbox` / `option`）。Select が使う。
-    Options,
 }
 
 /// ドロップダウンメニュー。開いている間だけ描く。
@@ -172,89 +155,50 @@ impl Menu {
         self.inline = true;
         self
     }
-
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        let role = match self.kind {
-            MenuKind::Actions => Role::Menu,
-            MenuKind::Options => Role::ListBox,
-        };
-        A11yNode::new(role).label(self.label.clone())
-    }
-
-    /// 項目のアクセシビリティツリーに出す情報。
-    pub fn item_a11y_node(&self, index: usize) -> Option<A11yNode> {
-        let item = self.items.get(index)?;
-        let node = match self.kind {
-            MenuKind::Actions => A11yNode::new(Role::MenuItem),
-            MenuKind::Options => {
-                A11yNode::new(Role::ListBoxOption).selected(self.selected == Some(index))
-            }
-        };
-        Some(
-            node.label(item.label.clone())
-                .position(index, self.items.len())
-                .disabled(item.disabled),
-        )
-    }
 }
 
 impl RenderOnce for Menu {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let parent = Arc::new(self.id.clone());
-        let item_ids: Vec<ElementId> = (0..self.items.len())
-            .map(|index| ElementId::NamedChild(parent.clone(), format!("item-{index}").into()))
-            .collect();
-        let enabled: Vec<bool> = self.items.iter().map(|item| !item.disabled).collect();
-        // control() と同じキーで取り出すので、同じフォーカスハンドルになる。
-        let handles: Vec<Option<FocusHandle>> = item_ids
-            .iter()
-            .zip(&enabled)
-            .map(|(id, &enabled)| enabled.then(|| focus_handle(id.clone(), window, cx)))
-            .collect();
-        let initial = self
-            .selected
-            .filter(|&index| enabled.get(index).copied().unwrap_or(false))
-            .or_else(|| enabled.iter().position(|&enabled| enabled))
-            .and_then(|index| handles.get(index).cloned().flatten());
-        let focus = (!self.inline).then(|| {
-            overlay_focus(
-                &self.id,
-                move || match initial {
-                    Some(handle) => InitialFocus::Handle(handle),
-                    None => InitialFocus::Within,
-                },
-                window,
-                cx,
-            )
-        });
-        let anchor_bounds: Entity<Option<Bounds<Pixels>>> = window.use_keyed_state(
-            ElementId::NamedChild(parent.clone(), "anchor".into()),
-            cx,
-            |_, _| None,
-        );
-        let close = focus
-            .as_ref()
-            .and_then(|focus| dismiss_and_restore(self.on_dismiss.clone(), focus));
-
-        let node = self.a11y_node();
-        let item_nodes: Vec<Option<A11yNode>> = (0..self.items.len())
-            .map(|index| self.item_a11y_node(index))
-            .collect();
+        let selector = format!("md3-menu-{}", self.id);
         let theme = &cx.md3().clone();
-        let radius = theme.corner(tokens::CONTAINER_SHAPE);
         let label_style = theme.text_style(TypeScale::LabelLarge);
         let trailing_style = theme.text_style(list::ITEM_TRAILING_SUPPORTING_TEXT_FONT);
-        let viewport = window.viewport_size();
-        let margin_y = px(layout::MENU_VERTICAL_MARGIN);
         let item_space = px(layout::MENU_ITEM_HORIZONTAL_SPACE);
+        let margin_y = px(layout::MENU_VERTICAL_MARGIN);
+        let margin_x = px(layout::MENU_HORIZONTAL_MARGIN);
 
-        // 開いたメニューは画面に収まらなければスクロールする。矢印で移った項目を見える範囲に入れる。
-        let scroll = gpui_headless::scroll_handle(&self.id, window, cx);
-        let mut rows = Vec::with_capacity(self.items.len());
-        for (index, (item, id)) in self.items.into_iter().zip(item_ids).enumerate() {
-            let (base, control) = control(&id, item.disabled, false, window, cx);
-            let selected = self.kind == MenuKind::Options && self.selected == Some(index);
+        let mut menu = gpui_headless::Menu::new(self.id.clone(), self.label)
+            .kind(self.kind)
+            .selected(self.selected)
+            .match_anchor_width(self.match_anchor_width)
+            .inline(self.inline)
+            .window_margin(Edges {
+                top: margin_y,
+                bottom: margin_y,
+                left: margin_x,
+                right: margin_x,
+            })
+            .reveal_margin(crate::focus::reveal_margin())
+            .group_prefix("md3");
+        if let Some(on_dismiss) = self.on_dismiss {
+            menu = menu.on_dismiss(move |window, cx| on_dismiss(window, cx));
+        }
+        let mut looks = Vec::with_capacity(self.items.len());
+        for item in self.items {
+            let mut row = gpui_headless::MenuItem::new(item.label.clone()).disabled(item.disabled);
+            if let Some(on_select) = item.on_select.clone() {
+                row = row.on_select(move |window, cx| on_select(window, cx));
+            }
+            menu = menu.item(row);
+            looks.push(item);
+        }
+
+        let mut looks = looks.into_iter();
+        let popup = menu.build(window, cx, |row, _, _| {
+            let Some(item) = looks.next() else {
+                return row.base.into_any_element();
+            };
+            let (base, control, id, selected) = (row.base, row.state, row.id, row.selected);
             let (text, leading, trailing) = if item.disabled {
                 (
                     theme
@@ -282,9 +226,7 @@ impl RenderOnce for Menu {
                 )
             };
             let has_trailing = item.trailing_icon.is_some() || item.trailing_text.is_some();
-            let mut row = base
-                .debug_selector(|| format!("md3-menu-item-{id}"))
-                .when_some(item_nodes[index].clone(), |this, node| this.a11y(node))
+            base.debug_selector(|| format!("md3-menu-item-{id}"))
                 .w_full()
                 .h(theme.dense(layout::MENU_ITEM_HEIGHT))
                 .px(item_space)
@@ -346,158 +288,32 @@ impl RenderOnce for Menu {
                     FocusRing::new(md3_theme::CornerRadius::Fixed(px(0.0)))
                         .inward()
                         .visible(control.focus_visible),
-                );
-            if !item.disabled {
-                let on_select = item.on_select;
-                let close = close.clone();
-                row = row.on_click(move |_, window, cx| {
-                    if let Some(on_select) = &on_select {
-                        on_select(window, cx);
-                    }
-                    if let Some(close) = &close {
-                        close(window, cx);
-                    }
-                });
-            }
-            rows.push(row);
-        }
-
-        let mut container = div()
-            .id(self.id.clone())
-            .debug_selector(|| format!("md3-menu-{}", self.id))
-            .a11y(node)
-            .flex()
-            .flex_col()
-            .py(px(layout::MENU_VERTICAL_SPACE))
-            .min_w(px(layout::MENU_MIN_WIDTH))
-            .bg(theme.color(tokens::CONTAINER_COLOR))
-            .corner_radius(radius)
-            .shadow(theme.shadows(Elevation::from_dp(tokens::CONTAINER_ELEVATION)))
-            .children(rows);
-        container = match (self.match_anchor_width, *anchor_bounds.read(cx)) {
-            (true, Some(bounds)) => container.w(bounds.size.width),
-            _ => container.max_w(px(layout::MENU_MAX_WIDTH)),
-        };
-
-        let Some(focus) = focus else {
-            return container.into_any_element();
-        };
-        let handle = focus.read(cx).handle.clone();
-        let on_outside = self.on_dismiss.clone();
-        let anchor_for_outside = anchor_bounds.clone();
-        let wheel = gpui_headless::NestedScroll::new(&self.id, scroll.clone(), window, cx);
-        container = container
-            .key_context(MENU_CONTEXT)
-            .track_focus(&handle)
-            .max_h(viewport.height - margin_y * 2.0)
-            .overflow_y_scroll()
-            .track_scroll(&scroll)
-            .on_scroll(wheel.on_scroll())
-            .child(wheel.capture())
-            .when(self.scrollbar, |this| {
-                this.child(crate::Scrollbar::new(
-                    ElementId::NamedChild(self.id.clone().into(), "scrollbar".into()),
-                    scroll.clone(),
-                ))
-            })
-            .occlude()
-            .on_key_down(move |event, window, cx| {
-                let focused = handles
-                    .iter()
-                    .position(|handle| handle.as_ref().is_some_and(|h| h.is_focused(window)));
-                let target = match (event.keystroke.key.as_str(), focused) {
-                    ("down", Some(from)) => step(&enabled, from, true),
-                    ("up", Some(from)) => step(&enabled, from, false),
-                    ("down" | "home", None) | ("home", Some(_)) => {
-                        enabled.iter().position(|&enabled| enabled)
-                    }
-                    ("up" | "end", None) | ("end", Some(_)) => {
-                        enabled.iter().rposition(|&enabled| enabled)
-                    }
-                    _ => return,
-                };
-                if let Some(handle) = target.and_then(|index| handles.get(index).cloned().flatten())
-                {
-                    window.focus(&handle, cx);
-                }
-                cx.stop_propagation();
-            })
-            .when_some(close, |this, close| {
-                this.on_action(move |_: &Dismiss, window, cx| close(window, cx))
-            })
-            .when_some(on_outside, |this, on_outside| {
-                // 外側の押下で閉じる。押した先にフォーカスが移るので、フォーカスは戻さない。
-                // 基準の要素の上の押下は無視する（基準の要素の on_click が閉じる）。
-                this.on_mouse_down_out(move |event, window, cx| {
-                    let on_anchor = anchor_for_outside
-                        .read(cx)
-                        .is_some_and(|bounds| bounds.contains(&event.position));
-                    if !on_anchor {
-                        on_outside(window, cx);
-                    }
-                })
-            });
-
-        let edges = Edges {
-            top: margin_y,
-            bottom: margin_y,
-            left: px(layout::MENU_HORIZONTAL_MARGIN),
-            right: px(layout::MENU_HORIZONTAL_MARGIN),
-        };
-        // 親（基準の要素と同じ大きさ）を覆う層の下端に、メニューを重ね描きする。
-        div()
-            .absolute()
-            .inset_0()
-            .child(
-                canvas(
-                    move |bounds, _, cx| {
-                        anchor_bounds.update(cx, |stored, _| *stored = Some(bounds))
-                    },
-                    |_, _, _, _| {},
                 )
-                .size_full(),
-            )
-            .child(
-                div().absolute().top_full().left_0().child(
-                    deferred(
-                        anchored()
-                            .position_mode(AnchoredPositionMode::Window)
-                            .snap_to_window_with_margin(edges)
-                            .child(gpui_headless::ScrollScope::new(scroll, container)),
-                    )
-                    .with_priority(MENU_PRIORITY),
-                ),
-            )
-            .into_any_element()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn menu_items_are_menuitems_in_a_set() {
-        let menu = Menu::new("m", "編集")
-            .item(MenuItem::new("切り取り"))
-            .item(MenuItem::new("コピー").disabled(true));
-        assert_eq!(menu.a11y_node().role, Role::Menu);
-        let item = menu.item_a11y_node(1).expect("item");
-        assert_eq!(item.role, Role::MenuItem);
-        assert_eq!(item.position, Some((2, 2)));
-        assert!(item.disabled);
-        assert!(menu.item_a11y_node(2).is_none());
-    }
-
-    #[test]
-    fn option_menus_report_selection() {
-        let menu = Menu::new("m", "色")
-            .kind(MenuKind::Options)
-            .selected(Some(0))
-            .item(MenuItem::new("赤"))
-            .item(MenuItem::new("青"));
-        assert_eq!(menu.a11y_node().role, Role::ListBox);
-        assert_eq!(menu.item_a11y_node(0).and_then(|n| n.selected), Some(true));
-        assert_eq!(menu.item_a11y_node(1).and_then(|n| n.selected), Some(false));
+                .into_any_element()
+        });
+        let scrollbar = (self.scrollbar && popup.is_floating()).then(|| popup.scroll.clone());
+        let width = popup.anchor_width;
+        let id = self.id;
+        popup.place(|container| {
+            let container = container
+                .debug_selector(|| selector)
+                .flex()
+                .flex_col()
+                .py(px(layout::MENU_VERTICAL_SPACE))
+                .min_w(px(layout::MENU_MIN_WIDTH))
+                .bg(theme.color(tokens::CONTAINER_COLOR))
+                .corner_radius(theme.corner(tokens::CONTAINER_SHAPE))
+                .shadow(theme.shadows(Elevation::from_dp(tokens::CONTAINER_ELEVATION)))
+                .when_some(scrollbar, |this, scroll| {
+                    this.child(crate::Scrollbar::new(
+                        ElementId::NamedChild(id.into(), "scrollbar".into()),
+                        scroll,
+                    ))
+                });
+            match width {
+                Some(width) => container.w(width),
+                None => container.max_w(px(layout::MENU_MAX_WIDTH)),
+            }
+        })
     }
 }

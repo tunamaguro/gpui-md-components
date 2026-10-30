@@ -1,21 +1,16 @@
 //! Select（テキストフィールドの見た目のドロップダウン。MD3 の exposed dropdown menu）。
 
-use gpui_headless::focus_handle;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use gpui::{
-    App, ElementId, IntoElement, RenderOnce, Role, SharedString, Window, div, prelude::*, px,
-};
+use gpui::{App, ElementId, IntoElement, RenderOnce, SharedString, Window, div, prelude::*, px};
 use md3_theme::Md3ThemeExt;
 use md3_theme::md3_tokens::component::filled_text_field as tokens;
 use md3_theme::md3_tokens::layout;
 
 use super::field::{FieldColors, FieldFrame, FieldState, TextFieldVariant, tint};
-use crate::control::control;
 use crate::overlays::{Menu, MenuItem, MenuKind};
 use crate::{Icon, IconName};
-use gpui_headless::{A11yExt, A11yNode};
 
 type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App)>;
 
@@ -106,38 +101,24 @@ impl Select {
         self.selected
             .and_then(|index| self.options.get(index).cloned())
     }
-
-    /// アクセシビリティツリーに出す情報（開閉の状態は描画時に付ける）。
-    pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::ComboBox)
-            .label(self.label.clone())
-            .disabled(self.disabled)
-            .invalid(self.error)
-    }
 }
 
 impl RenderOnce for Select {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
         let value = self.value();
         let parent = Arc::new(self.id.clone());
-        let open = window.use_keyed_state(
-            ElementId::NamedChild(parent.clone(), "open".into()),
-            cx,
-            |_, _| false,
-        );
-        let hovered = window.use_keyed_state(
-            ElementId::NamedChild(parent.clone(), "hovered".into()),
-            cx,
-            |_, _| false,
-        );
-        let is_open = *open.read(cx) && !self.disabled;
-        let (base, _) = control(&self.id, self.disabled, true, window, cx);
-        let focused = !self.disabled
-            && (is_open || focus_handle(self.id.clone(), window, cx).is_focused(window));
+        let (base, select_state) = gpui_headless::Select::new(self.id.clone(), self.label.clone())
+            .value(value.clone())
+            .disabled(self.disabled)
+            .error(self.error)
+            .reveal_margin(crate::focus::reveal_margin())
+            .group_prefix("md3")
+            .build(window, cx);
+        let is_open = select_state.open;
+        let focused = select_state.focused;
         let state = FieldState {
             focused,
-            hovered: !self.disabled && *hovered.read(cx),
+            hovered: select_state.hovered,
             error: self.error,
             disabled: self.disabled,
         };
@@ -173,7 +154,7 @@ impl RenderOnce for Select {
 
         if is_open {
             let on_change = self.on_change.clone();
-            let close = open.clone();
+            let close = select_state.dismiss_handler();
             let menu = Menu::new(
                 ElementId::NamedChild(parent.clone(), "menu".into()),
                 self.label.clone(),
@@ -190,53 +171,17 @@ impl RenderOnce for Select {
                     }
                 })
             }))
-            .on_dismiss(move |_, cx| {
-                close.update(cx, |open, cx| {
-                    *open = false;
-                    cx.notify();
-                })
-            });
+            .on_dismiss(move |window, cx| close(window, cx));
             container = container.child(menu);
         }
         // テキストフィールドと同じく、フォーカスはフォーカスリングではなく下線・枠線とラベルの色で示す。
         let _ = &theme;
 
-        let mut select = base
-            .a11y(node)
-            .aria_expanded(is_open)
-            .when_some(value, |this, value| this.aria_value(value))
-            .min_w(px(layout::TEXT_FIELD_MIN_WIDTH))
+        base.min_w(px(layout::TEXT_FIELD_MIN_WIDTH))
             .flex()
             .flex_col()
             .child(container)
-            .children(supporting);
-        if !self.disabled {
-            let toggle = open.clone();
-            let open_by_key = open.clone();
-            select = select
-                .on_hover(move |hover, _, cx| {
-                    hovered.update(cx, |value, cx| {
-                        *value = *hover;
-                        cx.notify();
-                    })
-                })
-                .on_click(move |_, _, cx| {
-                    toggle.update(cx, |open, cx| {
-                        *open = !*open;
-                        cx.notify();
-                    })
-                })
-                .on_key_down(move |event, _, cx| {
-                    if event.keystroke.key == "down" && !*open_by_key.read(cx) {
-                        open_by_key.update(cx, |open, cx| {
-                            *open = true;
-                            cx.notify();
-                        });
-                        cx.stop_propagation();
-                    }
-                });
-        }
-        select
+            .children(supporting)
     }
 }
 
@@ -245,12 +190,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn select_is_a_combobox_with_its_value() {
+    fn select_shows_the_selected_option() {
         let select = Select::new("s", "色", ["赤", "青"], Some(1));
-        assert_eq!(select.a11y_node().role, Role::ComboBox);
         assert_eq!(select.value().as_deref(), Some("青"));
         assert_eq!(Select::new("s", "色", ["赤"], Some(3)).value(), None);
-        assert!(!select.a11y_node().invalid);
-        assert!(select.error(true).a11y_node().invalid);
     }
 }

@@ -2,6 +2,7 @@
 
 use gpui::{App, Div, ElementId, Stateful, Window};
 
+#[cfg_attr(not(feature = "containment"), allow(dead_code))]
 pub(crate) fn control(
     id: &ElementId,
     disabled: bool,

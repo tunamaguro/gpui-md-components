@@ -8,7 +8,7 @@
 use std::rc::Rc;
 
 use gpui::{
-    AnyView, App, Context, ElementId, IntoElement, Render, Role, SharedString,
+    AnyView, App, Context, ElementId, IntoElement, Render, SharedString,
     StatefulInteractiveElement, Window, div, prelude::*, px,
 };
 use md3_theme::md3_tokens::component::{plain_tooltip, rich_tooltip};
@@ -17,6 +17,7 @@ use md3_theme::{Elevation, Md3ThemeExt};
 
 use crate::StyledExt;
 use crate::buttons::{Button, ButtonVariant};
+use gpui_headless::DescribedTooltip;
 use gpui_headless::overlay::DismissHandler;
 
 /// Plain ツールチップ（短い説明）。
@@ -42,10 +43,8 @@ impl PlainTooltip {
 impl Render for PlainTooltip {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.md3();
-        div()
-            .id("md3-plain-tooltip")
-            .role(Role::Tooltip)
-            .aria_label(self.text.clone())
+        gpui_headless::Tooltip::new("md3-plain-tooltip", self.text.clone())
+            .build()
             .min_h(px(layout::TOOLTIP_MIN_HEIGHT))
             .min_w(px(layout::TOOLTIP_MIN_WIDTH))
             .max_w(px(layout::PLAIN_TOOLTIP_MAX_WIDTH))
@@ -120,10 +119,8 @@ impl Render for RichTooltip {
             None => self.text.to_string(),
         };
         let has_actions = !self.actions.is_empty();
-        div()
-            .id("md3-rich-tooltip")
-            .role(Role::Tooltip)
-            .aria_label(label)
+        gpui_headless::Tooltip::new("md3-rich-tooltip", label)
+            .build()
             .max_w(px(layout::RICH_TOOLTIP_MAX_WIDTH))
             .min_w(px(layout::TOOLTIP_MIN_WIDTH))
             .px(px(layout::RICH_TOOLTIP_HORIZONTAL_SPACE))
@@ -186,8 +183,7 @@ pub trait TooltipExt: StatefulInteractiveElement + Sized {
     /// Plain ツールチップを付け、同じ文を要素の説明（読み上げ）にも入れる。
     fn md3_tooltip(self, text: impl Into<SharedString>) -> Self {
         let text = text.into();
-        self.aria_description(text.clone())
-            .tooltip(PlainTooltip::builder(text))
+        self.described_tooltip(text.clone(), PlainTooltip::builder(text))
     }
 }
 
