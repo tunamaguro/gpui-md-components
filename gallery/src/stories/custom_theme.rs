@@ -22,6 +22,7 @@ impl Look {
     const PAPER: u32 = 0xffffff;
     const ACCENT: u32 = 0x005a70;
     const HOVER: u32 = 0xd9eff2;
+    const SELECTION: u32 = 0xa7d6de;
     const DISABLED: u32 = 0x69777a;
     const SCRIM: u32 = 0x17212b;
     const HEIGHT: f32 = 44.0;
@@ -347,7 +348,7 @@ impl Render for Custom {
                 text: rgb(Look::INK).into(),
                 placeholder: rgb(Look::DISABLED).into(),
                 caret: rgb(Look::ACCENT).into(),
-                selection: rgb(Look::HOVER).into(),
+                selection: rgb(Look::SELECTION).into(),
                 caret_width: px(Look::BORDER),
             };
             page = page.child(
