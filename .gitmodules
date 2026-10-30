@@ -1,0 +1,4 @@
+[submodule "docs/references/androidx"]
+	path = docs/references/androidx
+	url = https://github.com/androidx/androidx.git
+	branch = androidx-main
