@@ -40,6 +40,13 @@ pub enum TextFieldEvent {
     Changed,
 }
 
+/// IME に伝える入力行の範囲と位置。
+#[derive(PartialEq)]
+struct ImeAnchor {
+    bounds: Bounds<Pixels>,
+    x: Pixels,
+}
+
 /// テキストフィールドの中身（文字列、選択範囲、IME の変換中の範囲）。
 ///
 /// `cx.new(TextFieldState::new)` で作り、[`TextField`] に渡す。内容が変わると
@@ -52,6 +59,7 @@ pub struct TextFieldState {
     marked_range: Option<Range<usize>>,
     last_layout: Option<ShapedLine>,
     last_bounds: Option<Bounds<Pixels>>,
+    last_ime_anchor: Option<ImeAnchor>,
     scroll_x: Pixels,
     is_selecting: bool,
 }
@@ -75,6 +83,7 @@ impl TextFieldState {
             marked_range: None,
             last_layout: None,
             last_bounds: None,
+            last_ime_anchor: None,
             scroll_x: px(0.0),
             is_selecting: false,
         }
@@ -102,6 +111,20 @@ impl TextFieldState {
         self.marked_range = None;
         cx.emit(TextFieldEvent::Changed);
         cx.notify();
+    }
+
+    fn ime_x_for_offset(&self, offset: usize, bounds: Bounds<Pixels>) -> Option<Pixels> {
+        if self.content.is_empty() {
+            return Some(bounds.left());
+        }
+        let line = self.last_layout.as_ref()?;
+        if line.text.as_ref() != self.content {
+            return None;
+        }
+        Some(
+            (bounds.left() - self.scroll_x + line.x_for_index(offset))
+                .clamp(bounds.left(), bounds.right()),
+        )
     }
 
     /// 選択範囲（UTF-8 のバイト位置）。
@@ -455,15 +478,10 @@ impl EntityInputHandler for TextFieldState {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<Bounds<Pixels>> {
-        let last_layout = self.last_layout.as_ref()?;
-        if last_layout.text.as_ref() != self.content {
-            return None;
-        }
         let range = self.range_from_utf16(&range_utf16);
-        let left = bounds.left() - self.scroll_x;
         Some(Bounds::from_corners(
-            point(left + last_layout.x_for_index(range.start), bounds.top()),
-            point(left + last_layout.x_for_index(range.end), bounds.bottom()),
+            point(self.ime_x_for_offset(range.start, bounds)?, bounds.top()),
+            point(self.ime_x_for_offset(range.end, bounds)?, bounds.bottom()),
         ))
     }
 
@@ -760,6 +778,21 @@ impl Element for TextLine {
         self.state.update(cx, |input, _| {
             input.last_layout = Some(line);
             input.last_bounds = Some(bounds);
+            if self.focused {
+                let offset = input
+                    .marked_range
+                    .as_ref()
+                    .map_or_else(|| input.cursor_offset(), |range| range.start);
+                let anchor = input
+                    .ime_x_for_offset(offset, bounds)
+                    .map(|x| ImeAnchor { bounds, x });
+                if anchor.is_some() && input.last_ime_anchor != anchor {
+                    input.last_ime_anchor = anchor;
+                    window.invalidate_character_coordinates();
+                }
+            } else {
+                input.last_ime_anchor = None;
+            }
         });
     }
 }

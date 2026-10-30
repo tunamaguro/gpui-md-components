@@ -61,6 +61,8 @@ API はいつも固定 rev のソース（`~/.cargo/git/checkouts/zed-*/37faef8/
 
 ## プラットフォーム
 
+- `invalidate_character_coordinates` の次フレームのコールバックは次の描画より先に走る。最新の入力位置を返せるよう、レイアウトを保存した描画後に呼ぶ。
+- gpui_web の `update_ime_position` は空実装（`crates/gpui_web/src/window.rs`）、IME 用の隠れた textarea は `top: 0; left: 0` に固定されている（`ime_mirror.rs`）。Web の候補ウィンドウは左上のままになる。
 - Linux の gallery は Wayland と X11 の両方で動く。xdotool で操作・撮影するときは `WAYLAND_DISPLAY` を外して X11 で起動する。
 - nix の外で起動すると「failed to resolve font」で panic することがある。`nix develop -c` の中で起動する。
 - Web はシステムフォントを読めない（`MD3_WEB_FONTS`、guide.md の「Web」）。wasm では AccessKit が無い。
