@@ -4,21 +4,19 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui::{
-    AnyElement, App, ElementId, IntoElement, ParentElement, RenderOnce, Role, SharedString, Window,
-    div, prelude::*, px,
+    AnyElement, App, ElementId, IntoElement, ParentElement, RenderOnce, SharedString, Window, div,
+    prelude::*, px,
 };
 use md3_theme::md3_tokens::component::{divider, sheet_bottom, side_sheet};
 use md3_theme::md3_tokens::layout;
 use md3_theme::{CornerRadius, Elevation, Md3ThemeExt};
 
-use super::layer::{
-    DismissHandler, InitialFocus, MODAL_PRIORITY, dismiss_and_restore, modal_container,
-    overlay_focus, scrim, window_layer,
-};
+use super::layer::scrim;
 use crate::buttons::IconButton;
-use crate::control::control;
 use crate::{FocusRing, IconName, StyledExt};
-use gpui_headless::{A11yExt, A11yNode};
+use gpui_headless::overlay::{
+    DismissHandler, MODAL_PRIORITY, dismiss_and_restore, modal_container, window_layer,
+};
 
 /// 角丸の半径（`Full` はこの部品では使わない）。
 fn radius(corner: CornerRadius) -> gpui::Pixels {
@@ -82,11 +80,8 @@ impl BottomSheet {
         self
     }
 
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::Dialog)
-            .label(self.label.clone())
-            .modal(!self.inline)
+    fn headless(&self) -> gpui_headless::Dialog {
+        gpui_headless::Dialog::new(self.id.clone(), self.label.clone()).modal(!self.inline)
     }
 }
 
@@ -98,9 +93,7 @@ impl ParentElement for BottomSheet {
 
 impl RenderOnce for BottomSheet {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
-        let focus =
-            (!self.inline).then(|| overlay_focus(&self.id, || InitialFocus::Within, window, cx));
+        let (base, focus) = self.headless().build(window, cx);
         let dismiss = focus
             .as_ref()
             .and_then(|focus| dismiss_and_restore(self.on_dismiss.clone(), focus));
@@ -117,23 +110,23 @@ impl RenderOnce for BottomSheet {
         let handle = match self.handle_label {
             Some(label) => {
                 let id = ElementId::NamedChild(parent.clone(), "handle".into());
-                let (base, control) = control(&id, false, true, window, cx);
+                let mut button = gpui_headless::Button::new(id.clone(), label)
+                    .group(format!("md3-{id}"))
+                    .reveal_margin(crate::focus::reveal_margin());
+                if let Some(dismiss) = dismiss.clone() {
+                    button = button.on_click(move |_, window, cx| dismiss(window, cx));
+                }
+                let (base, control) = button.build(window, cx);
                 let ring = theme.corner(md3_theme::Shape::ExtraSmall);
-                base.a11y(A11yNode::new(Role::Button).label(label))
-                    .py(handle_space)
+                base.py(handle_space)
                     .child(bar)
                     .child(FocusRing::new(ring).visible(control.focus_visible))
-                    .when_some(dismiss.clone(), |this, dismiss| {
-                        this.on_click(move |_, window, cx| dismiss(window, cx))
-                    })
                     .into_any_element()
             }
             None => div().py(handle_space).child(bar).into_any_element(),
         };
 
-        let sheet = div()
-            .id(self.id.clone())
-            .a11y(node)
+        let sheet = base
             .w_full()
             .max_w(px(layout::BOTTOM_SHEET_MAX_WIDTH))
             .max_h(window.viewport_size().height)
@@ -238,15 +231,12 @@ impl SideSheet {
         self
     }
 
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        let role = match self.kind {
-            SideSheetKind::Standard => Role::Complementary,
-            SideSheetKind::Modal => Role::Dialog,
-        };
-        A11yNode::new(role)
-            .label(self.headline.clone())
-            .modal(self.kind == SideSheetKind::Modal && !self.inline)
+    fn headless(&self) -> gpui_headless::Dialog {
+        let dialog = gpui_headless::Dialog::new(self.id.clone(), self.headline.clone());
+        match self.kind {
+            SideSheetKind::Standard => dialog.complementary(),
+            SideSheetKind::Modal => dialog.modal(!self.inline),
+        }
     }
 }
 
@@ -258,9 +248,7 @@ impl ParentElement for SideSheet {
 
 impl RenderOnce for SideSheet {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
-        let modal = self.kind == SideSheetKind::Modal && !self.inline;
-        let focus = modal.then(|| overlay_focus(&self.id, || InitialFocus::Within, window, cx));
+        let (base, focus) = self.headless().build(window, cx);
         let dismiss = match &focus {
             Some(focus) => dismiss_and_restore(self.on_dismiss.clone(), focus),
             None => self.on_dismiss.clone(),
@@ -297,9 +285,7 @@ impl RenderOnce for SideSheet {
                 )
             });
 
-        let mut sheet = div()
-            .id(self.id.clone())
-            .a11y(node)
+        let mut sheet = base
             .w(px(side_sheet::DOCKED_CONTAINER_WIDTH))
             .h_full()
             .max_h(window.viewport_size().height)
@@ -349,17 +335,27 @@ impl RenderOnce for SideSheet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gpui::Role;
 
     #[test]
     fn modal_sheets_are_dialogs() {
-        assert_eq!(BottomSheet::new("b", "共有").a11y_node().role, Role::Dialog);
+        assert_eq!(
+            BottomSheet::new("b", "共有").headless().a11y_node().role,
+            Role::Dialog
+        );
         let side = SideSheet::new("s", "フィルタ");
-        assert_eq!(side.a11y_node().role, Role::Complementary);
+        assert_eq!(side.headless().a11y_node().role, Role::Complementary);
         let modal = SideSheet::new("s", "フィルタ").kind(SideSheetKind::Modal);
-        assert_eq!(modal.a11y_node().role, Role::Dialog);
-        assert!(modal.a11y_node().modal);
-        assert!(!side.a11y_node().modal);
-        assert!(BottomSheet::new("b", "共有").a11y_node().modal);
-        assert!(!BottomSheet::new("b", "共有").inline().a11y_node().modal);
+        assert_eq!(modal.headless().a11y_node().role, Role::Dialog);
+        assert!(modal.headless().a11y_node().modal);
+        assert!(!side.headless().a11y_node().modal);
+        assert!(BottomSheet::new("b", "共有").headless().a11y_node().modal);
+        assert!(
+            !BottomSheet::new("b", "共有")
+                .inline()
+                .headless()
+                .a11y_node()
+                .modal
+        );
     }
 }

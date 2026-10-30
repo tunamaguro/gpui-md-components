@@ -4,20 +4,20 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui::{
-    AnyElement, App, ElementId, IntoElement, ParentElement, RenderOnce, Role, SharedString, Window,
-    div, prelude::*, px,
+    AnyElement, App, ElementId, IntoElement, ParentElement, RenderOnce, SharedString, Window, div,
+    prelude::*, px,
 };
 use md3_theme::md3_tokens::component::dialog as tokens;
 use md3_theme::md3_tokens::layout;
 use md3_theme::{Elevation, Md3ThemeExt};
 
-use super::layer::{
-    DismissHandler, InitialFocus, MODAL_PRIORITY, dismiss_and_restore, modal_container,
-    overlay_focus, restore_focus, scrim, window_layer,
-};
+use super::layer::scrim;
 use crate::buttons::{Button, ButtonVariant};
 use crate::{Icon, IconName, StyledExt};
-use gpui_headless::{A11yExt, A11yNode};
+use gpui_headless::overlay::{
+    DismissHandler, MODAL_PRIORITY, dismiss_and_restore, modal_container, restore_focus,
+    window_layer,
+};
 
 /// ダイアログの下に並ぶ操作（Text ボタン）。
 pub struct DialogAction {
@@ -124,18 +124,6 @@ impl Dialog {
         self.inline = true;
         self
     }
-
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        let role = if self.alert {
-            Role::AlertDialog
-        } else {
-            Role::Dialog
-        };
-        A11yNode::new(role)
-            .label(self.headline.clone())
-            .modal(!self.inline)
-    }
 }
 
 impl ParentElement for Dialog {
@@ -146,9 +134,10 @@ impl ParentElement for Dialog {
 
 impl RenderOnce for Dialog {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
-        let focus =
-            (!self.inline).then(|| overlay_focus(&self.id, || InitialFocus::Within, window, cx));
+        let (base, focus) = gpui_headless::Dialog::new(self.id.clone(), self.headline.clone())
+            .alert(self.alert)
+            .modal(!self.inline)
+            .build(window, cx);
         let theme = &cx.md3().clone();
         let centered = self.icon.is_some();
         let has_body = self.supporting_text.is_some() || !self.children.is_empty();
@@ -177,9 +166,7 @@ impl RenderOnce for Dialog {
                 }))
         });
 
-        let mut body = div()
-            .id(self.id.clone())
-            .a11y(node)
+        let mut body = base
             .flex()
             .flex_col()
             .min_w(px(layout::DIALOG_MIN_WIDTH))
@@ -254,27 +241,5 @@ impl RenderOnce for Dialog {
         .justify_center()
         .child(body);
         window_layer(layer, MODAL_PRIORITY, window).into_any_element()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn dialog_is_named_by_its_headline() {
-        let node = Dialog::new("d", "削除しますか？").a11y_node();
-        assert_eq!(node.role, Role::Dialog);
-        assert_eq!(node.label.as_deref(), Some("削除しますか？"));
-        assert_eq!(
-            Dialog::new("d", "x").alert(true).a11y_node().role,
-            Role::AlertDialog
-        );
-    }
-
-    #[test]
-    fn dialog_is_modal_unless_drawn_inline() {
-        assert!(Dialog::new("d", "x").a11y_node().modal);
-        assert!(!Dialog::new("d", "x").inline().a11y_node().modal);
     }
 }

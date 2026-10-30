@@ -3,23 +3,23 @@
 // Copyright 2020 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //! Snackbar と、順番に出して時間で消す SnackbarHost。
 
-use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
 use gpui::{
-    AnimationExt, App, Context, ElementId, IntoElement, Render, RenderOnce, Role, SharedString,
-    SpringAnimation, Task, Window, div, prelude::*, px,
+    AnimationExt, App, Context, ElementId, IntoElement, Render, RenderOnce, SharedString,
+    SpringAnimation, Window, div, prelude::*, px,
 };
 use md3_theme::md3_tokens::component::snackbar as tokens;
 use md3_theme::md3_tokens::layout;
 use md3_theme::{Elevation, Md3ThemeExt, MotionToken};
 
-use super::layer::{DismissHandler, SNACKBAR_PRIORITY, window_layer};
 use crate::buttons::{Button, ButtonVariant, IconButton};
 use crate::{IconName, StyledExt};
-use gpui_headless::{A11yExt, A11yNode};
+use gpui_headless::overlay::{DismissHandler, SNACKBAR_PRIORITY, window_layer};
+use gpui_headless::{SnackbarEntry, SnackbarOwner, SnackbarQueue};
+pub use gpui_headless::{SnackbarPolicy, SnackbarResult};
 
 /// スナックバー（1 件）。通常は [`SnackbarHost`] が描く。
 ///
@@ -65,17 +65,15 @@ impl Snackbar {
         self
     }
 
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::Status)
-            .label(self.message.clone())
-            .live(self.active)
+    /// 役割と読み上げを受け持つ部品。
+    fn headless(&self) -> gpui_headless::Snackbar {
+        gpui_headless::Snackbar::new(self.id.clone(), self.message.clone()).active(self.active)
     }
 }
 
 impl RenderOnce for Snackbar {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
+        let base = self.headless().build();
         let theme = cx.md3();
         let parent = Arc::new(self.id.clone());
         let has_dismiss = self.dismiss.is_some();
@@ -85,10 +83,7 @@ impl RenderOnce for Snackbar {
         } else {
             px(layout::SNACKBAR_BUTTON_SIDE_SPACE)
         };
-        div()
-            .id(self.id)
-            .a11y(node)
-            .w_full()
+        base.w_full()
             .max_w(px(layout::SNACKBAR_MAX_WIDTH))
             .min_h(px(tokens::SINGLE_LINE_CONTAINER_HEIGHT))
             .pl(px(layout::SNACKBAR_HORIZONTAL_SPACE))
@@ -220,25 +215,20 @@ impl SnackbarMessage {
             SnackbarDuration::Short
         })
     }
-}
 
-/// 新しい知らせを受け取ったときの方針。
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum SnackbarPolicy {
-    /// 現在の知らせを退場させ、最新の知らせに置き換える（既定）。
-    #[default]
-    Replace,
-    /// 現在の知らせが閉じるまで順番を待つ（Compose 相当）。
-    Queue,
-}
-
-/// 知らせが閉じられた理由。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SnackbarResult {
-    /// 操作ボタンが押された。
-    ActionPerformed,
-    /// 時間切れ、閉じる操作、または新しい知らせによる置換。
-    Dismissed,
+    fn into_entry(self) -> SnackbarEntry {
+        let duration = self.effective_duration().duration();
+        let mut entry = SnackbarEntry::new(self.message)
+            .duration(duration)
+            .dismissible(self.dismissible);
+        if let Some((label, handler)) = self.action {
+            entry = entry.action(label, handler);
+        }
+        if let Some(on_result) = self.on_result {
+            entry = entry.on_result(on_result);
+        }
+        entry
+    }
 }
 
 /// スナックバーを 1 件ずつ、ウィンドウの下端の中央に出す。
@@ -247,11 +237,13 @@ pub enum SnackbarResult {
 /// `host.update(cx, |host, cx| host.show(SnackbarMessage::new("保存しました"), cx))` で出す。
 pub struct SnackbarHost {
     dismiss_label: SharedString,
-    queue: VecDeque<(u64, SnackbarMessage)>,
-    next_id: u64,
-    policy: SnackbarPolicy,
-    exiting: bool,
-    timer: Option<Task<()>>,
+    queue: SnackbarQueue,
+}
+
+impl SnackbarOwner for SnackbarHost {
+    fn snackbar_queue(&mut self) -> &mut SnackbarQueue {
+        &mut self.queue
+    }
 }
 
 impl SnackbarHost {
@@ -259,149 +251,64 @@ impl SnackbarHost {
     pub fn new(dismiss_label: impl Into<SharedString>) -> Self {
         Self {
             dismiss_label: dismiss_label.into(),
-            queue: VecDeque::new(),
-            next_id: 0,
-            policy: SnackbarPolicy::Replace,
-            exiting: false,
-            timer: None,
+            queue: SnackbarQueue::new(),
         }
     }
 
     /// 追加時の方針を指定する。既定は Replace。
     pub fn policy(mut self, policy: SnackbarPolicy) -> Self {
-        self.policy = policy;
+        self.queue = self.queue.policy(policy);
         self
     }
 
     /// 現在の追加方針。
     pub fn current_policy(&self) -> SnackbarPolicy {
-        self.policy
+        self.queue.current_policy()
     }
 
     /// 以後の追加方針を変える。すでに待機している知らせの順番は変えない。
     pub fn set_policy(&mut self, policy: SnackbarPolicy, cx: &mut Context<Self>) {
-        self.policy = policy;
-        cx.notify();
+        self.queue.set_policy(policy, cx);
     }
 
     /// 方針に従って知らせを出す。返り値は知らせの番号。
     pub fn show(&mut self, message: SnackbarMessage, cx: &mut Context<Self>) -> u64 {
-        let id = self.next_id;
-        self.next_id += 1;
-        if self.policy == SnackbarPolicy::Replace {
-            while self.queue.len() > 1 {
-                if let Some((_, mut pending)) = self.queue.pop_back()
-                    && let Some(handler) = pending.on_result.take()
-                {
-                    cx.defer(move |cx| handler(SnackbarResult::Dismissed, cx));
-                }
-            }
-            self.dismiss_current(cx);
-        }
-        self.queue.push_back((id, message));
-        if self.queue.len() == 1 {
-            self.start_timer(cx);
-        }
-        cx.notify();
-        id
+        self.queue.show(message.into_entry(), cx)
     }
 
     /// 出ている知らせの文。
     pub fn current(&self) -> Option<&SharedString> {
-        self.queue.front().map(|(_, message)| &message.message)
+        self.queue.current()
     }
 
     /// 出ている知らせを閉じ、次があれば出す。
     pub fn dismiss_current(&mut self, cx: &mut Context<Self>) {
-        self.finish(SnackbarResult::Dismissed, cx);
-    }
-
-    fn finish(&mut self, result: SnackbarResult, cx: &mut Context<Self>) {
-        if self.exiting || self.queue.is_empty() {
-            return;
-        }
-        self.timer = None;
-        self.exiting = true;
-        if let Some((_, message)) = self.queue.front_mut()
-            && let Some(handler) = message.on_result.take()
-        {
-            cx.defer(move |cx| handler(result, cx));
-        }
-        if cx.reduce_motion() {
-            self.remove_exited(cx);
-        }
-        cx.notify();
-    }
-
-    fn remove_exited(&mut self, cx: &mut Context<Self>) {
-        if !self.exiting {
-            return;
-        }
-        self.queue.pop_front();
-        self.exiting = false;
-        self.start_timer(cx);
-        cx.notify();
-    }
-
-    fn dismiss(&mut self, id: u64, cx: &mut Context<Self>) {
-        if self.queue.front().is_some_and(|(front, _)| *front == id) {
-            self.dismiss_current(cx);
-        }
-    }
-
-    fn start_timer(&mut self, cx: &mut Context<Self>) {
-        self.timer = self.queue.front().and_then(|(id, message)| {
-            let id = *id;
-            let duration = message.effective_duration().duration()?;
-            Some(cx.spawn(async move |this, cx| {
-                cx.background_executor().timer(duration).await;
-                this.update(cx, |host, cx| host.dismiss(id, cx)).ok();
-            }))
-        });
+        self.queue.dismiss_current(cx);
     }
 }
 
 impl Render for SnackbarHost {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if self.exiting && cx.reduce_motion() {
-            self.remove_exited(cx);
-        }
-        let Some((id, message)) = self.queue.front() else {
+        self.queue.prepare(cx);
+        let this = cx.entity().downgrade();
+        let Some(front) = self.queue.front(this.clone()) else {
             return div().into_any_element();
         };
-        let id = *id;
-        let this = cx.entity().downgrade();
+        let id = front.id;
         let mut snackbar = Snackbar::new(
             ElementId::Name(format!("md3-snackbar-{id}").into()),
-            message.message.clone(),
+            front.message,
         );
-        if let Some((label, handler)) = message.action.clone() {
-            let this = this.clone();
-            snackbar = snackbar.action(label, move |window, cx| {
-                let accepted = this
-                    .update(cx, |host, cx| {
-                        if host.exiting
-                            || !host.queue.front().is_some_and(|(front, _)| *front == id)
-                        {
-                            return false;
-                        }
-                        host.finish(SnackbarResult::ActionPerformed, cx);
-                        true
-                    })
-                    .unwrap_or(false);
-                if accepted {
-                    handler(window, cx);
-                }
+        if let Some((label, handler)) = front.action {
+            snackbar = snackbar.action(label, move |window, cx| handler(window, cx));
+        }
+        if let Some(handler) = front.dismiss {
+            snackbar = snackbar.dismiss_action(self.dismiss_label.clone(), move |window, cx| {
+                handler(window, cx)
             });
         }
-        if message.dismissible {
-            snackbar = snackbar.dismiss_action(self.dismiss_label.clone(), move |_, cx| {
-                this.update(cx, |host, cx| host.dismiss(id, cx)).ok();
-            });
-        }
-        snackbar.active = !self.exiting;
-        let exiting = self.exiting;
-        let this = cx.entity().downgrade();
+        let exiting = front.exiting;
+        snackbar.active = !exiting;
         let effects = cx.md3().spring(MotionToken::FastEffects);
         let spatial = cx.md3().spring(MotionToken::FastSpatial);
         // gpui には要素全体の scale 変換がないため、コンテナの幅で拡大を表す。
@@ -432,16 +339,7 @@ impl Render for SnackbarHost {
                                 move |_, _, cx| {
                                     if exiting && opacity == 0.0 {
                                         cx.defer(move |cx| {
-                                            this.update(cx, |host, cx| {
-                                                if host
-                                                    .queue
-                                                    .front()
-                                                    .is_some_and(|(front, _)| *front == id)
-                                                {
-                                                    host.remove_exited(cx);
-                                                }
-                                            })
-                                            .ok();
+                                            SnackbarQueue::finish_exit(&this, id, cx)
                                         });
                                     }
                                 },
@@ -489,13 +387,5 @@ mod tests {
             SnackbarDuration::Long.duration(),
             Some(Duration::from_millis(10_000))
         );
-    }
-
-    #[test]
-    fn snackbar_is_a_status() {
-        let node = Snackbar::new("s", "保存しました").a11y_node();
-        assert_eq!(node.role, Role::Status);
-        assert_eq!(node.label.as_deref(), Some("保存しました"));
-        assert!(node.live, "表示されたら読み上げる");
     }
 }

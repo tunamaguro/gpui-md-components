@@ -12,7 +12,7 @@ mod tooltip;
 
 pub use dialog::{Dialog, DialogAction};
 #[cfg(feature = "inputs")]
-pub(crate) use menu::MenuKind;
+pub(crate) use gpui_headless::MenuKind;
 pub use menu::{Menu, MenuItem};
 pub use sheet::{BottomSheet, SideSheet, SideSheetKind};
 pub use snackbar::{
