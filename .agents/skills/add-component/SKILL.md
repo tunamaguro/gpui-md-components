@@ -24,6 +24,7 @@ description: md3-components に部品を 1 つ追加する（または既存の�
    - 描画経路に thread / Mutex / ブロッキングがない（wasm）
 1. gallery に全バリアントの操作できる見本と disabled、該当すれば selected / error の見本を並べる。状態を固定する見本や、そのための指定は作らない。
 1. テスト: `crates/md3-components/tests/a11y_<component>.rs`（役割・名前・状態・キー操作）と純関数の単体テスト。
+   既存の部品のアクセシビリティの問題を直すときは、先に問題を再現するテストを足し、失敗を確かめてから修正する。
 1. 画面で見本を操作し、hover / focused / pressed を確かめる（skill `gallery-check`）。
 1. README の部品表、`docs/guide.md`（使い方が増えたら）、`docs/agents/a11y.md` の表を更新する。
 1. skill `ship-pr` で出す。

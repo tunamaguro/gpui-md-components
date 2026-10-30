@@ -1,6 +1,6 @@
 //! 操作要素（ボタン、チェックボックスなど）の共通部分。
 
-use gpui::{App, Div, ElementId, SharedString, Stateful, Window, div, prelude::*};
+use gpui::{App, Div, ElementId, MouseButton, SharedString, Stateful, Window, div, prelude::*};
 
 use crate::{focus_handle, is_focus_visible};
 
@@ -59,9 +59,13 @@ pub(crate) fn control(
         let handle = focus_handle(id.clone(), window, cx).tab_stop(tab_stop);
         base = base
             .track_focus(&handle)
+            .on_mouse_down(MouseButton::Left, {
+                let handle = handle.clone();
+                move |_, window, cx| crate::focus::clear_focus_visible(&handle, window, cx)
+            })
             .cursor_pointer()
             .child(crate::reveal_on_focus(id, handle.clone(), window, cx));
-        is_focus_visible(&handle, window)
+        is_focus_visible(&handle, window, cx)
     };
     (
         base,
