@@ -3,8 +3,9 @@ Read AGENTS.md, docs/agents/architecture.md, docs/agents/a11y.md, docs/agents/co
 docs/agents/gpui-notes.md and docs/agents/resources.md first and follow every rule there (no new dependencies,
 no build.rs, forbid(unsafe_code), deny(missing_docs), no "Material" in type names, no std::thread/Mutex/blocking
 in render paths — must work on wasm32, ElementId + a11y role/name/state on interactive elements, token values only
-from primary sources with provenance appended to docs/TOKENS_SOURCE.md and Apache-2.0 attribution headers on
-ported code).
+from primary sources with provenance appended to docs/TOKENS_SOURCE.md and one-line attribution headers on
+ported code: `// Ported from <short upstream name>: <path> @ <commit>. See NOTICE.`; add upstream copyright and
+license information to the root NOTICE, updating it for every new upstream or copyright year).
 gpui is pinned at rev 37faef8; its source is in
 ~/.cargo/git/checkouts/zed-a70e2ad075855582/37faef8/crates/gpui/src — grep it to confirm APIs instead of guessing.
 Compose Material 3 reference sources (Apache-2.0), if checked out, are at: {{COMPOSE_DIR}}

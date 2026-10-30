@@ -1,6 +1,4 @@
-// The editing logic (TextFieldState, its EntityInputHandler impl and TextLine) is ported from
-// gpui's example: https://github.com/zed-industries/zed crates/gpui/examples/input.rs @ 37faef81
-// Copyright 2022 - 2025 Zed Industries, Inc. Licensed under the Apache License, Version 2.0.
+// Ported from gpui: crates/gpui/examples/input.rs (editing logic only: TextFieldState, its EntityInputHandler impl and TextLine) @ 37faef81. See NOTICE.
 
 //! TextField（Filled / Outlined）。1 行の入力で、IME の変換中の文字に下線を引く。
 

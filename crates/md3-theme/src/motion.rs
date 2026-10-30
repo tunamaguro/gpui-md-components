@@ -128,10 +128,7 @@ mod tests {
 
     // Compose の SpringSimulation.updateValues（減衰比 < 1 / = 1 の解析解）を、
     // gpui のバネとの突き合わせのために写したもの。
-    // Ported from Jetpack Compose (https://android.googlesource.com/platform/frameworks/support)
-    // Source: compose/animation/animation-core/src/commonMain/kotlin/androidx/compose/animation/core/SpringSimulation.kt
-    //         @ b8256a52
-    // Copyright 2019 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
+    // Ported from Jetpack Compose: compose/animation/animation-core/src/commonMain/kotlin/androidx/compose/animation/core/SpringSimulation.kt @ b8256a52. See NOTICE.
     fn compose_spring(spec: SpringSpec, displacement: f64, seconds: f64) -> f64 {
         let natural_freq = f64::from(spec.stiffness).sqrt();
         let damping_ratio = f64::from(spec.damping_ratio);

@@ -165,4 +165,5 @@ cargo xtask check-tokens
 ## ライセンス
 
 Apache License 2.0（[`LICENSE`](LICENSE)）。Material Design のトークン値・配色アルゴリズム・アイコンは
-Apache License 2.0 の一次資料から転記・移植しており、各ファイルの先頭に出典を記している。
+Apache License 2.0 の一次資料から転記・移植している。各ファイルの先頭には出典パス・コミットを 1 行で記し、
+移植元の著作権表示とライセンス情報は [`NOTICE`](NOTICE) にまとめている。

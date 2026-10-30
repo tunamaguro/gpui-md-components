@@ -1,7 +1,4 @@
-// Ported from material-color-utilities (https://github.com/material-foundation/material-color-utilities)
-// Source: swift/Tests/MaterialColorUtilitiesTests/SchemeTests/Scheme{Content,Expressive,Fidelity,
-//         Monochrome,Neutral,TonalSpot,Vibrant}Tests.swift @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3
-// Copyright 2021 Google LLC. Licensed under the Apache License, Version 2.0.
+// Ported from material-color-utilities: swift/Tests/MaterialColorUtilitiesTests/SchemeTests/Scheme{Content,Expressive,Fidelity,Monochrome,Neutral,TonalSpot,Vibrant}Tests.swift @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3. See NOTICE.
 
 //! 7 種の配色が移植元と同じ ARGB を返すことの確認。
 

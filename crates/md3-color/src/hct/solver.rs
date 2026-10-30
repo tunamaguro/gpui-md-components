@@ -1,6 +1,4 @@
-// Ported from material-color-utilities (https://github.com/material-foundation/material-color-utilities)
-// Source: typescript/hct/hct_solver.ts @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3
-// Copyright 2021 Google LLC. Licensed under the Apache License, Version 2.0.
+// Ported from material-color-utilities: typescript/hct/hct_solver.ts @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3. See NOTICE.
 
 //! 色相・彩度・トーンから sRGB の色を求めるソルバー。
 

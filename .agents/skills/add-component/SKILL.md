@@ -14,7 +14,8 @@ description: md3-components に部品を 1 つ追加する（または既存の�
    手元に無ければ scratchpad に sparse checkout する。値は推測しない。
 1. `docs/specs/<component>.md` を `_template.md` の形式で書く。
 1. トークンを `md3-tokens` に転記し、`docs/TOKENS_SOURCE.md` に出典（ファイル・行・androidx のコミット）を足す。
-   移植したコードにはファイル先頭に Apache-2.0 の出典コメント。
+   移植したコードにはファイル先頭に `// Ported from <移植元>: <パス> @ <コミット>. See NOTICE.` の 1 行を書く。
+   著作権表示とライセンス情報はルートの `NOTICE` に集約し、新しい移植元や著作権年を追加したら `NOTICE` も更新する。
 1. 実装（Codex に任せるなら skill `codex-delegate`）。確認すること:
    - `ElementId` 必須、a11y の役割・名前・状態、APG のキー操作、無効なら Tab で止まらない
    - 状態色は `StateLayer`、角が不揃いなら `.corners()`、フォーカスは `FocusRing`

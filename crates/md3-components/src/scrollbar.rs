@@ -1,7 +1,4 @@
-// Ported from AndroidX Compose (https://github.com/androidx/androidx)
-// Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/Scrollbar.kt
-// @ b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6
-// Copyright 2026 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
+// Ported from Jetpack Compose: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/Scrollbar.kt @ b8256a524b9fe4bb6cd0fc7c72aad9dd08877ca6. See NOTICE.
 //! スクロール領域の末尾の子として置く、装飾用スクロールバー。
 
 use gpui::{

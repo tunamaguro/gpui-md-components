@@ -1,6 +1,4 @@
-// Ported from material-color-utilities (https://github.com/material-foundation/material-color-utilities)
-// Source: typescript/dislike/dislike_analyzer.ts @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3
-// Copyright 2021 Google LLC. Licensed under the Apache License, Version 2.0.
+// Ported from material-color-utilities: typescript/dislike/dislike_analyzer.ts @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3. See NOTICE.
 
 //! 一般に好まれにくい色（暗い黄緑系）の判定と補正。
 

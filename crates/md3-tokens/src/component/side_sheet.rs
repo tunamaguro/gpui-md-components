@@ -1,6 +1,4 @@
-// Ported from material-web (https://github.com/material-components/material-web)
-// Source: tokens/versions/latest/sass/_md-comp-sheet-side.scss @ 86cb0d48 (Material 3 tokens 34.0.21)
-// Copyright 2026 Google LLC. Licensed under the Apache License, Version 2.0.
+// Ported from material-web: tokens/versions/latest/sass/_md-comp-sheet-side.scss @ 86cb0d48 (Material 3 tokens 34.0.21). See NOTICE.
 
 //! サイドシートのトークン。Compose に tokens がないため material-web から転記した。
 //! 値の出典は `docs/TOKENS_SOURCE.md`。
