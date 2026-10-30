@@ -11,7 +11,6 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-mod a11y;
 #[cfg(feature = "buttons")]
 pub mod buttons;
 #[cfg(feature = "containment")]
@@ -23,7 +22,6 @@ mod focus;
 mod icon;
 #[cfg(feature = "inputs")]
 pub mod inputs;
-pub mod keys;
 #[cfg(feature = "selection")]
 mod motion;
 #[cfg(feature = "navigation")]
@@ -40,21 +38,27 @@ mod surface;
 mod text;
 mod window_size;
 
-pub use a11y::{A11yNode, RangeValue, toggled};
-pub use focus::{FocusRing, focus_handle, is_focus_visible};
+pub use focus::FocusRing;
 /// この crate が依存する gpui（固定 rev）。利用者が版を揃えずに使えるよう再公開する。
 pub use gpui;
 /// この crate と同じ rev の gpui_platform。アプリの起動（`gpui_platform::application()`）に使う。
 #[cfg(feature = "platform")]
 pub use gpui_platform;
 pub use icon::Icon;
-pub use keys::init;
 pub use md3_icons::IconName;
 pub use md3_theme as theme;
-pub use scroll::{NestedScroll, ScrollScope, reveal_on_focus};
 pub use scrollbar::{Scrollbar, ScrollbarInteraction, ScrollbarSource};
 pub use state_layer::StateLayer;
 pub use style::StyledExt;
 pub use surface::Surface;
 pub use text::Text;
 pub use window_size::WindowSizeClass;
+
+/// テーマを初期化し、部品のキー操作を割り当てる。
+///
+/// コンテキストなしの同じ優先度の割り当ては後から追加したものが勝つため、
+/// アプリが Tab などを割り当てる場合はその後に呼ぶ。
+pub fn init(cx: &mut gpui::App) {
+    md3_theme::init(cx);
+    gpui_headless::init(cx);
+}

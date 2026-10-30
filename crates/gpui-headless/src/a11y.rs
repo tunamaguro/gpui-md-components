@@ -124,19 +124,8 @@ pub fn toggled(on: bool) -> Toggled {
 }
 
 /// [`A11yNode`] を要素に当てる拡張トレイト。部品を持つ feature がすべて無効だと使われない。
-#[cfg_attr(
-    not(any(
-        feature = "buttons",
-        feature = "selection",
-        feature = "inputs",
-        feature = "overlays",
-        feature = "navigation",
-        feature = "containment",
-        feature = "expressive"
-    )),
-    allow(dead_code)
-)]
-pub(crate) trait A11yExt: StatefulInteractiveElement + Sized {
+pub trait A11yExt: StatefulInteractiveElement + Sized {
+    /// アクセシビリティ情報を要素に付ける。
     fn a11y(self, node: A11yNode) -> Self {
         let mut this = self.role(node.role);
         if let Some(label) = node.label {

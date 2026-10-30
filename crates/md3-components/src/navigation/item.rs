@@ -1,12 +1,13 @@
 //! NavigationBar / Rail / Drawer が共有する項目と、項目の間のキー操作。
 
+use gpui_headless::focus_handle;
 use std::rc::Rc;
 
 use gpui::{App, ElementId, FocusHandle, KeyDownEvent, Role, SharedString, Window};
 
-use crate::a11y::A11yNode;
-use crate::control::step;
-use crate::{IconName, focus_handle};
+use crate::IconName;
+use gpui_headless::A11yNode;
+use gpui_headless::step;
 
 /// 行き先を選んだときの処理（選んだ項目の位置を受け取る）。
 pub(crate) type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App)>;

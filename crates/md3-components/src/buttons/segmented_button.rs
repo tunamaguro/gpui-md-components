@@ -1,5 +1,6 @@
 //! SegmentedButton（単一選択・複数選択）。
 
+use gpui_headless::focus_handle;
 use std::rc::Rc;
 
 use gpui::{
@@ -10,9 +11,10 @@ use md3_theme::md3_tokens::component::outlined_segmented_button as tokens;
 use md3_theme::md3_tokens::layout;
 use md3_theme::{CornerRadius, Md3ThemeExt};
 
-use crate::a11y::{A11yExt, A11yNode, toggled};
-use crate::control::{control, step};
-use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt, focus_handle};
+use crate::control::control;
+use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
+use gpui_headless::step;
+use gpui_headless::{A11yExt, A11yNode, toggled};
 
 /// SegmentedButton の 1 項目。
 #[derive(Clone, Debug)]

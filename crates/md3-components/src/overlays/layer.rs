@@ -10,7 +10,7 @@ use gpui::{
 use md3_theme::Md3ThemeExt;
 use md3_theme::md3_tokens::component::scrim;
 
-use crate::keys::{Dismiss, FocusNextWithin, FocusPrevWithin, MODAL_CONTEXT};
+use gpui_headless::keys::{Dismiss, FocusNextWithin, FocusPrevWithin, MODAL_CONTEXT};
 
 /// 閉じるときの処理。
 pub(crate) type DismissHandler = Rc<dyn Fn(&mut Window, &mut App)>;

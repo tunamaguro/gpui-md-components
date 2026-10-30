@@ -14,7 +14,7 @@ use md3_theme::md3_tokens::component::{
 };
 use md3_theme::md3_tokens::layout;
 
-use crate::a11y::{A11yExt, A11yNode, RangeValue};
+use gpui_headless::{A11yExt, A11yNode, RangeValue};
 
 /// 進み具合のアクセシビリティ情報。
 fn progress_node(label: &SharedString, value: Option<f32>) -> A11yNode {

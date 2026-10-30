@@ -9,9 +9,9 @@ use md3_theme::md3_tokens::component::checkbox as tokens;
 use md3_theme::md3_tokens::layout;
 use md3_theme::{CornerRadius, Md3ThemeExt};
 
-use crate::a11y::{A11yExt, A11yNode};
 use crate::control::control;
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
+use gpui_headless::{A11yExt, A11yNode};
 
 /// チェックの状態。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

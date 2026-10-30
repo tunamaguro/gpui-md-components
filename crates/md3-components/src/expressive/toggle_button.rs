@@ -15,9 +15,9 @@ use md3_theme::md3_tokens::shape::Shape;
 use md3_theme::{CornerRadius, Md3ThemeExt, MotionToken, Theme};
 
 use super::press::{Press, press_state, track_press};
-use crate::a11y::{A11yExt, A11yNode, toggled};
 use crate::control::control;
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
+use gpui_headless::{A11yExt, A11yNode, toggled};
 
 /// 押された項目が広がる割合（Compose の `ButtonGroupDefaults.ExpandedRatio`）。
 pub(crate) const EXPANDED_RATIO: f32 = 0.15;
@@ -240,7 +240,7 @@ impl RenderOnce for ToggleButton {
                 let press = press.clone();
                 button = button.on_click(move |event: &ClickEvent, window, cx| {
                     if matches!(event, ClickEvent::Keyboard(_)) {
-                        let hold = Press::hold(cx);
+                        let hold = super::press::hold(cx);
                         press.update(cx, |press, cx| press.pulse(hold, cx));
                     }
                     on_change(!checked, window, cx);

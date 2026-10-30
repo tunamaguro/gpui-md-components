@@ -6,7 +6,8 @@ use gpui::{
     FocusHandle, KeyBinding, Modifiers, TestAppContext, VisualTestContext, actions, div, point,
     prelude::*, px,
 };
-use md3_components::{buttons::Button, focus_handle, is_focus_visible};
+use gpui_headless::{focus_handle, is_focus_visible};
+use md3_components::buttons::Button;
 
 actions!(
     focus_test,

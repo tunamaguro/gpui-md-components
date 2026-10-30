@@ -9,8 +9,8 @@ use md3_theme::md3_tokens::layout;
 use md3_theme::{Md3ThemeExt, TypeScale};
 
 use crate::StyledExt;
-use crate::a11y::{A11yExt, A11yNode};
 use crate::buttons::IconButton;
+use gpui_headless::{A11yExt, A11yNode};
 
 /// トップアプリバーの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

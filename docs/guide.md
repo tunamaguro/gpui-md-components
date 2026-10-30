@@ -117,13 +117,13 @@ Dialog / BottomSheet / SideSheet の本文は、内側が動ける方向の
 
 ### キーボードフォーカスを見える位置へ移す
 
-アプリのスクロール領域を、同じ `ScrollHandle` を渡した `ScrollScope` で包みます。
+`gpui-headless` を依存に追加し、アプリのスクロール領域を、同じ `ScrollHandle` を渡した `ScrollScope` で包みます。
 Button・Checkbox などの操作部品、押せる Card、TextField / SearchBar は、Tab / Shift+Tab や矢印キーで
 フォーカスが移ると、自動的に見える位置までスクロールします（[WCAG 2.2 の 2.4.11](https://www.w3.org/WAI/WCAG22/Understanding/focus-not-obscured-minimum.html)）。
 
 ```rust,ignore
 let scroll = gpui::ScrollHandle::new(); // ビューまたは use_keyed_state で保持する
-let page = md3_components::ScrollScope::new(scroll.clone(),
+let page = gpui_headless::ScrollScope::new(scroll.clone(),
     gpui::div().id("page").h(gpui::px(240.0))
         .overflow_y_scroll().track_scroll(&scroll)
         .child(content)
@@ -134,8 +134,10 @@ let page = md3_components::ScrollScope::new(scroll.clone(),
 親を `.relative()` にします。役割・名前・状態とキー操作も要素側で用意します。
 
 ```rust,ignore
-let focus = md3_components::focus_handle(id.clone(), window, cx);
-let reveal = md3_components::reveal_on_focus(&id, focus.clone(), window, cx);
+let focus = gpui_headless::focus_handle(id.clone(), window, cx);
+let margin = gpui::px(md3_components::theme::md3_tokens::state::FOCUS_INDICATOR_THICKNESS
+    + md3_components::theme::md3_tokens::state::FOCUS_INDICATOR_OUTER_OFFSET);
+let reveal = gpui_headless::reveal_on_focus(&id, focus.clone(), window, cx, margin);
 let element = gpui::div().id(id).relative().track_focus(&focus)
     .role(gpui::Role::Button).aria_label("保存")
     .child(label).child(reveal).on_click(save);

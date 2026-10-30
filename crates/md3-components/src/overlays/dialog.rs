@@ -15,9 +15,9 @@ use super::layer::{
     DismissHandler, InitialFocus, MODAL_PRIORITY, dismiss_and_restore, modal_container,
     overlay_focus, restore_focus, scrim, window_layer,
 };
-use crate::a11y::{A11yExt, A11yNode};
 use crate::buttons::{Button, ButtonVariant};
 use crate::{Icon, IconName, StyledExt};
+use gpui_headless::{A11yExt, A11yNode};
 
 /// ダイアログの下に並ぶ操作（Text ボタン）。
 pub struct DialogAction {

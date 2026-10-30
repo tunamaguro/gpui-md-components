@@ -15,13 +15,13 @@ use super::bar::destination_builders;
 use super::item::{
     ChangeHandler, Destinations, NavigationItem, destination_a11y_node, navigation_a11y_node,
 };
-use crate::a11y::A11yExt;
 use crate::control::control;
 use crate::overlays::layer::{
     DismissHandler, InitialFocus, MODAL_PRIORITY, dismiss_and_restore, modal_container,
     overlay_focus, scrim, window_layer,
 };
 use crate::{FocusRing, Icon, StateLayer, StyledExt};
+use gpui_headless::A11yExt;
 
 /// ドロワーの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -96,10 +96,10 @@ impl NavigationDrawer {
     destination_builders!();
 
     /// アクセシビリティツリーに出す情報（Standard は Navigation、Modal は Dialog。項目は Tab）。
-    pub fn a11y_node(&self) -> crate::A11yNode {
+    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
         match self.kind {
             NavigationDrawerKind::Standard => navigation_a11y_node(&self.label),
-            NavigationDrawerKind::Modal => crate::A11yNode::new(gpui::Role::Dialog)
+            NavigationDrawerKind::Modal => gpui_headless::A11yNode::new(gpui::Role::Dialog)
                 .label(self.label.clone())
                 .modal(!self.inline),
         }
@@ -136,7 +136,7 @@ impl RenderOnce for NavigationDrawer {
         let count = self.items.len();
         let pill = theme.corner(tokens::ACTIVE_INDICATOR_SHAPE);
         // 項目が多ければスクロールする。矢印・Tab で移った項目を見える範囲に入れる。
-        let scroll = crate::scroll::scroll_handle(&self.id, window, cx);
+        let scroll = gpui_headless::scroll_handle(&self.id, window, cx);
         let items: Vec<AnyElement> = self
             .items
             .iter()
@@ -222,7 +222,7 @@ impl RenderOnce for NavigationDrawer {
             })
             .collect();
 
-        let wheel = crate::scroll::NestedScroll::new(&self.id, scroll.clone(), window, cx);
+        let wheel = gpui_headless::NestedScroll::new(&self.id, scroll.clone(), window, cx);
         let mut drawer = div()
             .id(self.id.clone())
             .a11y(node)
@@ -263,10 +263,12 @@ impl RenderOnce for NavigationDrawer {
         };
 
         let Some(focus) = focus else {
-            return crate::ScrollScope::new(scroll, drawer).into_any_element();
+            return gpui_headless::ScrollScope::new(scroll, drawer).into_any_element();
         };
-        let drawer =
-            crate::ScrollScope::new(scroll, modal_container(drawer, &focus, dismiss.clone(), cx));
+        let drawer = gpui_headless::ScrollScope::new(
+            scroll,
+            modal_container(drawer, &focus, dismiss.clone(), cx),
+        );
         let layer = scrim(
             ElementId::NamedChild(self.id.into(), "scrim".into()),
             dismiss,

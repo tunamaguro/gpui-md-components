@@ -14,11 +14,10 @@ use gpui::{
     AnyElement, App, IntoElement, ParentElement, RenderOnce, Role, SharedString, Window, div,
     prelude::*, px,
 };
+use gpui_headless::{focus_handle, is_focus_visible};
 use md3_components::theme::md3_color::ColorRole;
 use md3_components::theme::{Md3ThemeExt, Shape, TypeScale};
-use md3_components::{
-    FocusRing, Icon, IconName, StateLayer, StyledExt, Text, focus_handle, is_focus_visible,
-};
+use md3_components::{FocusRing, Icon, IconName, StateLayer, StyledExt, Text};
 
 /// 状態の見本の 1 行（行の名前と、Enabled / Disabled の列など）。
 pub fn state_row(label: impl Into<SharedString>, cells: Vec<AnyElement>) -> impl IntoElement {
@@ -134,8 +133,16 @@ impl Choice {
     ) -> gpui::AnyElement {
         let handle = focus_handle(self.id.clone(), window, cx);
         let focused = is_focus_visible(&handle, window, cx);
-        let reveal =
-            md3_components::reveal_on_focus(&self.id.clone().into(), handle.clone(), window, cx);
+        let reveal = gpui_headless::reveal_on_focus(
+            &self.id.clone().into(),
+            handle.clone(),
+            window,
+            cx,
+            px(
+                md3_components::theme::md3_tokens::state::FOCUS_INDICATOR_THICKNESS
+                    + md3_components::theme::md3_tokens::state::FOCUS_INDICATOR_OUTER_OFFSET,
+            ),
+        );
         let theme = cx.md3();
         let radius = theme.corner(Shape::Full);
         let (container, content) = if self.selected {

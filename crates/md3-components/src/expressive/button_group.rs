@@ -11,7 +11,7 @@ use md3_theme::md3_tokens::component::{
 
 use super::press::press_state;
 use super::toggle_button::{GroupSlot, ToggleButton};
-use crate::a11y::{A11yExt, A11yNode};
+use gpui_headless::{A11yExt, A11yNode};
 
 /// [`ToggleButton`] を横に並べたグループ（M3 Expressive）。
 ///

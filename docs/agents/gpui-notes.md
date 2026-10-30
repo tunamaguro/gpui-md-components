@@ -7,10 +7,10 @@ API はいつも固定 rev のソース（`~/.cargo/git/checkouts/zed-*/37faef8/
 
 - **div のホイールは伝播を止めない。** `elements/div.rs` の `paint_scroll_listener` は、マウスの下にある
   スクロール領域すべてに差分を適用する（端の判定もない）。入れ子にすると外側も一緒に動く。
-  → 内側のスクロール領域には `crates/md3-components/src/scroll.rs` の `NestedScroll` を付ける
+  → 内側のスクロール領域には `crates/gpui-headless/src/scroll.rs` の `NestedScroll` を付ける
   （`capture()` を子に、`on_scroll()` を領域に）。内側が動いたら `stop_propagation`、端なら外へ渡す。
   縦・横どちらの領域にも効く（横だけの領域では縦ホイールが x に振り替えられるので、両軸の差を見る）。
-  公開 API（`md3_components::NestedScroll`）なので、gallery や利用者の素の div にも付けられる。
+  公開 API（`gpui_headless::NestedScroll`）なので、gallery や利用者の素の div にも付けられる。
   精密スクロール（トラックパッド）は `TouchPhase::Started` から `Ended` まで内側が持つ。
 - **リスナーの順序。** gpui は「利用者のリスナー → 既定処理 → 子」の順に登録し、bubble は逆順に呼ぶ。
   そのため利用者の `on_scroll` が呼ばれる時点で、内側の既定処理（offset の更新）は終わっていて、祖先はまだ動いていない。
@@ -23,7 +23,7 @@ API はいつも固定 rev のソース（`~/.cargo/git/checkouts/zed-*/37faef8/
 - **`Window::focus` も Tab の移動もスクロールしない。** `ScrollScope::new(handle.clone(), div().overflow_y_scroll().track_scroll(&handle))` で領域を包む。操作部品は共通の `control()`、Card、
   TextField / SearchBar で `reveal_on_focus` を持ち、キーボードで移ったときだけ祖先の領域を内側から順に調整する
   （WCAG 2.2 の 2.4.11）。独自のフォーカス可能要素には `.relative()` と
-  `.child(reveal_on_focus(&id, focus.clone(), window, cx))` を付ける。マウスのクリックと、フォーカスが
+  `.child(reveal_on_focus(&id, focus.clone(), window, cx, margin))` を付ける。margin はリングの太さと外側の間隔の和を渡す。マウスのクリックと、フォーカスが
   変わらない再描画では動かさない。`uniform_list` は `UniformListScrollHandle::scroll_to_item` を使う（LazyList）。
 - **描画中の `Window::refresh()` は何もしない。** `window.rs` の `invalidator.not_drawing()` で弾かれる。
   prepaint でオフセットを変えたら `window.on_next_frame(|window, _| window.refresh())` で次のフレームを予約する。

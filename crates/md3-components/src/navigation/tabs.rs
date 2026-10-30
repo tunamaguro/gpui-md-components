@@ -1,5 +1,6 @@
 //! Tabs（Primary / Secondary、固定幅）。
 
+use gpui_headless::focus_handle;
 use std::rc::Rc;
 
 use gpui::{
@@ -14,9 +15,10 @@ use md3_theme::md3_tokens::{layout, state};
 use md3_theme::{CornerRadius, Md3ThemeExt, TypeScale};
 
 use super::item::ChangeHandler;
-use crate::a11y::{A11yExt, A11yNode};
-use crate::control::{control, step};
-use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt, focus_handle};
+use crate::control::control;
+use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
+use gpui_headless::step;
+use gpui_headless::{A11yExt, A11yNode};
 
 /// タブの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

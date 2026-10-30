@@ -12,14 +12,14 @@
 use gpui::{App, KeyBinding, actions};
 
 /// テキストフィールドのキーコンテキスト。
-pub const TEXT_FIELD_CONTEXT: &str = "Md3TextField";
+pub const TEXT_FIELD_CONTEXT: &str = "HeadlessTextField";
 /// Dialog とモーダルなシートのキーコンテキスト。
-pub const MODAL_CONTEXT: &str = "Md3Modal";
+pub const MODAL_CONTEXT: &str = "HeadlessModal";
 /// メニューのキーコンテキスト。
-pub const MENU_CONTEXT: &str = "Md3Menu";
+pub const MENU_CONTEXT: &str = "HeadlessMenu";
 
 actions!(
-    md3,
+    headless,
     [
         /// 開いているオーバーレイ（メニュー、ダイアログ、シート）を閉じる。
         Dismiss,
@@ -69,9 +69,8 @@ macro_rules! shortcut {
     };
 }
 
-/// テーマを初期化し、部品のキー操作を割り当てる。アプリの起動時に 1 回呼ぶ。
+/// 部品のキー操作を割り当てる。アプリの起動時に 1 回呼ぶ。
 pub fn init(cx: &mut App) {
-    md3_theme::init(cx);
     let text = Some(TEXT_FIELD_CONTEXT);
     let modal = Some(MODAL_CONTEXT);
     let menu = Some(MENU_CONTEXT);

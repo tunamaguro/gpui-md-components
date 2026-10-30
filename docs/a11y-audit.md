@@ -155,7 +155,7 @@ Tab でのフォーカス移動とフォーカスリングを確認した。
 ## キーボードフォーカスのスクロール追従（2026-10-30）
 
 - WCAG 2.2 の [2.4.11 Focus Not Obscured (Minimum)](https://www.w3.org/WAI/WCAG22/Understanding/focus-not-obscured-minimum.html) に対応するため、
-  `ScrollScope` と `reveal_on_focus` で、キーボードで移った要素を表示領域へ入れる。フォーカスリングの外周も計算に含める。
+  `gpui-headless` の `ScrollScope` と `reveal_on_focus` で、キーボードで移った要素を表示領域へ入れる。フォーカスリングの外周も計算に含める。
 - `tests/navigation.rs`: ページ内の Button の Tab / Shift+Tab / 循環、Card・TextField、ページと高さ制限付き List の入れ子、
   マウスクリック時の非スクロール、ホイールで離した後の非追従、Menu の矢印移動と背後のページの非スクロールを検証する。
   入力前にテスト用の次フレーム配信を予約し、入力後は `run_until_parked()` だけを使う（手動 refresh / draw は足さない）。
