@@ -1667,6 +1667,7 @@ name = "gallery"
 version = "0.1.0"
 dependencies = [
  "gpui",
+ "gpui-headless",
  "gpui_platform",
  "md3-components",
  "wasm-bindgen",
@@ -1856,6 +1857,13 @@ dependencies = [
  "web-time",
  "windows 0.62.2",
  "zed-scap",
+]
+
+[[package]]
+name = "gpui-headless"
+version = "0.1.0"
+dependencies = [
+ "gpui",
 ]
 
 [[package]]
@@ -2839,6 +2847,7 @@ name = "md3-components"
 version = "0.1.0"
 dependencies = [
  "gpui",
+ "gpui-headless",
  "gpui_platform",
  "md3-icons",
  "md3-theme",

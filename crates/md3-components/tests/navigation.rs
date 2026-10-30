@@ -264,7 +264,7 @@ fn nested_lazy_list_consumes_wheel_until_its_edge(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn nested_horizontal_scroll_consumes_wheel_until_its_edge(cx: &mut TestAppContext) {
-    use md3_components::NestedScroll;
+    use gpui_headless::NestedScroll;
     let outer = gpui::ScrollHandle::new();
     let inner = gpui::ScrollHandle::new();
     let cx = support::open(cx, {
@@ -457,7 +457,8 @@ fn assert_inside(
 #[cfg(debug_assertions)]
 #[gpui::test]
 fn page_reveals_tab_shift_tab_and_wrapping(cx: &mut TestAppContext) {
-    use md3_components::{ScrollScope, buttons::Button};
+    use gpui_headless::ScrollScope;
+    use md3_components::buttons::Button;
     let scroll = gpui::ScrollHandle::new();
     let cx = support::open(cx, {
         let scroll = scroll.clone();
@@ -518,8 +519,8 @@ fn page_reveals_tab_shift_tab_and_wrapping(cx: &mut TestAppContext) {
 #[cfg(debug_assertions)]
 #[gpui::test]
 fn page_reveals_card_and_text_field(cx: &mut TestAppContext) {
+    use gpui_headless::ScrollScope;
     use md3_components::{
-        ScrollScope,
         buttons::Button,
         containment::{Card, CardVariant},
         inputs::{TextField, TextFieldState},
@@ -575,7 +576,8 @@ fn page_reveals_card_and_text_field(cx: &mut TestAppContext) {
 #[cfg(debug_assertions)]
 #[gpui::test]
 fn nested_list_reveals_item_in_both_scopes(cx: &mut TestAppContext) {
-    use md3_components::{ScrollScope, buttons::Button};
+    use gpui_headless::ScrollScope;
+    use md3_components::buttons::Button;
     let scroll = gpui::ScrollHandle::new();
     let cx = support::open(cx, {
         let scroll = scroll.clone();
@@ -629,7 +631,8 @@ fn nested_list_reveals_item_in_both_scopes(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn pointer_focus_does_not_reveal_a_partly_hidden_button(cx: &mut TestAppContext) {
-    use md3_components::{ScrollScope, buttons::Button};
+    use gpui_headless::ScrollScope;
+    use md3_components::buttons::Button;
     let scroll = gpui::ScrollHandle::new();
     let clicked = Rc::new(Cell::new(false));
     let cx = support::open(cx, {
@@ -669,7 +672,8 @@ fn pointer_focus_does_not_reveal_a_partly_hidden_button(cx: &mut TestAppContext)
 
 #[gpui::test]
 fn wheel_does_not_pull_back_the_focused_element(cx: &mut TestAppContext) {
-    use md3_components::{ScrollScope, buttons::Button};
+    use gpui_headless::ScrollScope;
+    use md3_components::buttons::Button;
     let scroll = gpui::ScrollHandle::new();
     let cx = support::open(cx, {
         let scroll = scroll.clone();
@@ -714,8 +718,8 @@ fn wheel_does_not_pull_back_the_focused_element(cx: &mut TestAppContext) {
 #[cfg(debug_assertions)]
 #[gpui::test]
 fn deferred_menu_reveals_arrow_focus_without_scrolling_the_page(cx: &mut TestAppContext) {
+    use gpui_headless::ScrollScope;
     use md3_components::{
-        ScrollScope,
         buttons::Button,
         overlays::{Menu, MenuItem},
     };

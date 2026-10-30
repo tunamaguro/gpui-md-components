@@ -1,5 +1,7 @@
 //! Card（Elevated / Filled / Outlined）。
 
+use gpui_headless::focus_handle;
+use gpui_headless::is_focus_visible;
 use std::rc::Rc;
 
 use gpui::{
@@ -11,8 +13,8 @@ use md3_theme::md3_tokens::component::{elevated_card, filled_card, outlined_card
 use md3_theme::md3_tokens::state;
 use md3_theme::{Elevation, Md3ThemeExt, Shape};
 
-use crate::a11y::{A11yExt, A11yNode};
-use crate::{FocusRing, StateLayer, StyledExt, focus_handle, is_focus_visible};
+use crate::{FocusRing, StateLayer, StyledExt};
+use gpui_headless::{A11yExt, A11yNode};
 
 /// カードの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -207,9 +209,9 @@ impl RenderOnce for Card {
                 .track_focus(&handle)
                 .on_mouse_down(gpui::MouseButton::Left, {
                     let handle = handle.clone();
-                    move |_, window, cx| crate::focus::clear_focus_visible(&handle, window, cx)
+                    move |_, window, cx| gpui_headless::clear_focus_visible(&handle, window, cx)
                 })
-                .child(crate::reveal_on_focus(
+                .child(crate::scroll::reveal_on_focus(
                     &clickable.id,
                     handle.clone(),
                     window,

@@ -11,9 +11,9 @@ use md3_theme::md3_tokens::component::{
 use md3_theme::md3_tokens::layout;
 use md3_theme::{Elevation, Md3ThemeExt, Shape};
 
-use crate::a11y::{A11yExt, A11yNode};
 use crate::control::control;
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
+use gpui_headless::{A11yExt, A11yNode};
 
 /// FAB の大きさ。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

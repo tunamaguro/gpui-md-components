@@ -18,9 +18,9 @@ use md3_theme::{Md3ThemeExt, MotionToken, Theme};
 use super::item::{
     ChangeHandler, Destinations, NavigationItem, destination_a11y_node, navigation_a11y_node,
 };
-use crate::a11y::A11yExt;
 use crate::control::control;
 use crate::{FocusRing, Icon, StateLayer, StyledExt};
+use gpui_headless::A11yExt;
 
 /// 縦に積む項目の寸法と色。
 struct ItemStyle {
@@ -239,7 +239,7 @@ impl NavigationBar {
     destination_builders!();
 
     /// アクセシビリティツリーに出す情報（役割 Navigation。項目は Tab）。
-    pub fn a11y_node(&self) -> crate::A11yNode {
+    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
         navigation_a11y_node(&self.label)
     }
 }
@@ -319,7 +319,7 @@ impl NavigationRail {
     destination_builders!();
 
     /// アクセシビリティツリーに出す情報（役割 Navigation。項目は Tab）。
-    pub fn a11y_node(&self) -> crate::A11yNode {
+    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
         navigation_a11y_node(&self.label)
     }
 }

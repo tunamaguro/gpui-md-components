@@ -1,5 +1,6 @@
 //! Menu（ドロップダウンメニュー）。
 
+use gpui_headless::focus_handle;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -15,10 +16,11 @@ use md3_theme::{Elevation, Md3ThemeExt, TypeScale};
 use super::layer::{
     DismissHandler, InitialFocus, MENU_PRIORITY, dismiss_and_restore, overlay_focus,
 };
-use crate::a11y::{A11yExt, A11yNode};
-use crate::control::{control, step};
-use crate::keys::{Dismiss, MENU_CONTEXT};
-use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt, focus_handle};
+use crate::control::control;
+use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
+use gpui_headless::keys::{Dismiss, MENU_CONTEXT};
+use gpui_headless::step;
+use gpui_headless::{A11yExt, A11yNode};
 
 /// メニューの項目。
 pub struct MenuItem {
@@ -248,7 +250,7 @@ impl RenderOnce for Menu {
         let item_space = px(layout::MENU_ITEM_HORIZONTAL_SPACE);
 
         // 開いたメニューは画面に収まらなければスクロールする。矢印で移った項目を見える範囲に入れる。
-        let scroll = crate::scroll::scroll_handle(&self.id, window, cx);
+        let scroll = gpui_headless::scroll_handle(&self.id, window, cx);
         let mut rows = Vec::with_capacity(self.items.len());
         for (index, (item, id)) in self.items.into_iter().zip(item_ids).enumerate() {
             let (base, control) = control(&id, item.disabled, false, window, cx);
@@ -383,7 +385,7 @@ impl RenderOnce for Menu {
         let handle = focus.read(cx).handle.clone();
         let on_outside = self.on_dismiss.clone();
         let anchor_for_outside = anchor_bounds.clone();
-        let wheel = crate::scroll::NestedScroll::new(&self.id, scroll.clone(), window, cx);
+        let wheel = gpui_headless::NestedScroll::new(&self.id, scroll.clone(), window, cx);
         container = container
             .key_context(MENU_CONTEXT)
             .track_focus(&handle)
@@ -461,7 +463,7 @@ impl RenderOnce for Menu {
                         anchored()
                             .position_mode(AnchoredPositionMode::Window)
                             .snap_to_window_with_margin(edges)
-                            .child(crate::ScrollScope::new(scroll, container)),
+                            .child(gpui_headless::ScrollScope::new(scroll, container)),
                     )
                     .with_priority(MENU_PRIORITY),
                 ),

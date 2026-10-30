@@ -21,11 +21,11 @@ use md3_theme::md3_tokens::layout;
 
 use super::field::{FieldFrame, FieldState, TextFieldVariant, tint};
 use crate::IconName;
-use crate::a11y::{A11yExt, A11yNode};
-use crate::keys::{
+use gpui_headless::keys::{
     Backspace, Copy, Cut, Delete, End, Home, Left, Paste, Right, SelectAll, SelectEnd, SelectHome,
     SelectLeft, SelectRight, TEXT_FIELD_CONTEXT,
 };
+use gpui_headless::{A11yExt, A11yNode};
 
 /// カーソルの幅。
 const CARET_WIDTH: f32 = 2.0;
@@ -1005,7 +1005,12 @@ pub(crate) fn editable(
     let state = state.clone();
     field
         .relative()
-        .child(crate::reveal_on_focus(id, focus_handle.clone(), window, cx))
+        .child(crate::scroll::reveal_on_focus(
+            id,
+            focus_handle.clone(),
+            window,
+            cx,
+        ))
         .key_context(TEXT_FIELD_CONTEXT)
         .track_focus(&focus_handle)
         .cursor(CursorStyle::IBeam)

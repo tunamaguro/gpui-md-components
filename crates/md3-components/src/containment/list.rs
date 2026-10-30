@@ -1,5 +1,6 @@
 //! List（1〜3 行の項目、仮想化した LazyList）。
 
+use gpui_headless::focus_handle;
 use std::ops::Range;
 use std::rc::Rc;
 
@@ -13,9 +14,9 @@ use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::list as tokens;
 use md3_theme::md3_tokens::layout;
 
-use crate::a11y::{A11yExt, A11yNode};
 use crate::control::control;
-use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt, focus_handle};
+use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
+use gpui_headless::{A11yExt, A11yNode};
 
 type SelectHandler = Rc<dyn Fn(&mut Window, &mut App)>;
 
@@ -412,7 +413,7 @@ impl RenderOnce for List {
         // 高さを限ったリストはスクロールする。矢印・Tab で移った項目を見える範囲に入れる。
         let scroll = self
             .max_height
-            .map(|_| crate::scroll::scroll_handle(&self.id, window, cx));
+            .map(|_| gpui_headless::scroll_handle(&self.id, window, cx));
         let mut list = div()
             .id(self.id.clone())
             .debug_selector(|| format!("md3-list-{}", self.id))
@@ -444,7 +445,7 @@ impl RenderOnce for List {
             ));
         }
         if let (Some(height), Some(scroll)) = (self.max_height, scroll) {
-            let wheel = crate::scroll::NestedScroll::new(&self.id, scroll.clone(), window, cx);
+            let wheel = gpui_headless::NestedScroll::new(&self.id, scroll.clone(), window, cx);
             list = list
                 .max_h(height)
                 .overflow_y_scroll()
@@ -457,7 +458,7 @@ impl RenderOnce for List {
                         scroll.clone(),
                     ))
                 });
-            return crate::ScrollScope::new(scroll, list).into_any_element();
+            return gpui_headless::ScrollScope::new(scroll, list).into_any_element();
         }
         list.into_any_element()
     }
@@ -543,7 +544,7 @@ impl RenderOnce for LazyList {
         let count = self.count;
         let build = self.build.clone();
         let scroll = self.scroll.clone();
-        let wheel = crate::scroll::NestedScroll::new(
+        let wheel = gpui_headless::NestedScroll::new(
             &self.id,
             self.scroll.0.borrow().base_handle.clone(),
             window,

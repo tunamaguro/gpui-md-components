@@ -8,6 +8,7 @@ GPUI（Zed の UI フレームワーク）上に Material Design 3（ベース�
 
 ## 最初に読むもの
 
+1. `docs/agents/headless.md` — headless crate の分離計画と規約
 1. `docs/agents/backlog.md` — 未対応事項（未確認の範囲、人間の判断待ち、未実装の候補）
 1. `docs/agents/overview.md` — 目的、選定理由、スコープ（何をやらないか）
 1. `docs/agents/architecture.md` — crate 構成、依存ルール、Rust の設計規約、共有部品
@@ -28,7 +29,7 @@ GPUI（Zed の UI フレームワーク）上に Material Design 3（ベース�
 
 ## 絶対に守るルール
 
-- **依存の追加は禁止。** 使ってよい外部 crate は `gpui`（上流 Zed リポジトリの git rev 固定）と、`gallery` / `examples` のバイナリだけ `gpui_platform` と `wasm-bindgen`（wasm32 ターゲットのみ、エントリポイント用）。例外として `md3-components` は再公開のためだけに `gpui_platform` を optional（feature `platform`）で持つ。dev-dependencies も原則なし。どうしても必要だと判断したら実装を止めて人間に相談する。
+- **依存の追加は禁止。** `gpui-headless` が依存してよいのは `gpui` だけ。使ってよい外部 crate は `gpui`（上流 Zed リポジトリの git rev 固定）と、`gallery` / `examples` のバイナリだけ `gpui_platform` と `wasm-bindgen`（wasm32 ターゲットのみ、エントリポイント用）。例外として `md3-components` は再公開のためだけに `gpui_platform` を optional（feature `platform`）で持つ。dev-dependencies も原則なし。どうしても必要だと判断したら実装を止めて人間に相談する。
 - `build.rs` は作らない。コード生成が必要なら `xtask`（std のみ）で生成し、生成物をコミットする。
 - 全 crate に `#![forbid(unsafe_code)]`。`md3-color` では `unwrap` / `expect` / `panic!` 禁止（`clippy::unwrap_used`, `clippy::expect_used` を deny）。
 - 描画経路で `std::thread`、ブロッキング、`Mutex` を使わない（wasm32 で動かなくなる）。

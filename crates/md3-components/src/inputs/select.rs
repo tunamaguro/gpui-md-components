@@ -1,5 +1,6 @@
 //! Select（テキストフィールドの見た目のドロップダウン。MD3 の exposed dropdown menu）。
 
+use gpui_headless::focus_handle;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -11,10 +12,10 @@ use md3_theme::md3_tokens::component::filled_text_field as tokens;
 use md3_theme::md3_tokens::layout;
 
 use super::field::{FieldColors, FieldFrame, FieldState, TextFieldVariant, tint};
-use crate::a11y::{A11yExt, A11yNode};
 use crate::control::control;
 use crate::overlays::{Menu, MenuItem, MenuKind};
-use crate::{Icon, IconName, focus_handle};
+use crate::{Icon, IconName};
+use gpui_headless::{A11yExt, A11yNode};
 
 type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App)>;
 

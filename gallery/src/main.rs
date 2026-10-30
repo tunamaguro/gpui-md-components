@@ -312,7 +312,7 @@ impl Render for Gallery {
             .use_keyed_state("gallery-scroll", cx, |_, _| gpui::ScrollHandle::new())
             .read(cx)
             .clone();
-        md3_components::ScrollScope::new(
+        gpui_headless::ScrollScope::new(
             root_scroll.clone(),
             div()
                 .id("gallery")

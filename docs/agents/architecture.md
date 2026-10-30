@@ -10,6 +10,7 @@ md-components/
 ├── AGENTS.md               # エージェント向けの作業指示（入口）
 ├── .agents/skills/         # 繰り返す作業の手順（skill）
 ├── crates/
+│   ├── gpui-headless/     # 見た目を持たない a11y・操作基盤（gpui のみ依存）
 │   ├── md3-color/          # HCT / CAM16 / TonalPalette / DynamicScheme（純 Rust、依存ゼロ）
 │   ├── md3-tokens/         # タイプスケール・角丸・高さ・モーション・状態不透明度・密度（純 Rust）
 │   ├── md3-icons/          # 使うアイコンの SVG バイト列と IconName enum（純 Rust）
@@ -32,13 +33,14 @@ md-components/
 ```
 gallery / examples ──> md3-components ──> md3-theme ──> md3-tokens ──> md3-color
         │                   │   │              │
+        │                   ├──> gpui-headless ──> gpui
         │                   │   └──> md3-icons │
         ├─> gpui_platform   └────────────────> gpui (git rev 固定)
         └─> wasm-bindgen（wasm32 のみ）
 ```
 
 - `md3-color` / `md3-tokens` / `md3-icons` は **gpui に依存しない**。GPU なし・wasm でもテストが回る。
-- gpui に触れるのは `md3-theme` と `md3-components` だけ。GPUI の API 変更の影響はこの 2 crate に閉じる。
+- gpui に触れるのは `gpui-headless`、`md3-theme` と `md3-components` だけ。GPUI の API 変更の影響はこの 3 crate に閉じる。
 - ライブラリ crate は `gpui_platform` / `wasm-bindgen` に依存しない。例外として `md3-components` は feature `platform`
   （既定で無効）で `gpui_platform` を持ち、再公開だけする（コードからは使わない）。
 - `md3-components` は `gpui` を `md3_components::gpui` として再公開する。利用者が rev を揃えずに使えるようにするため。
@@ -84,19 +86,20 @@ wasm-bindgen = "<上流 zed と同じ要求版>"
 1. **feature で分割**
    - `md3-components` は `buttons`, `selection`, `inputs`, `overlays`, `navigation`, `containment`, `expressive` の feature を持つ。default は全部有効。
 
-## md3-components の共有部品
+## 共有部品
 
 部品を作るときはまずこれらを使う。
 
-| モジュール                    | 役割                                                                                                                                              |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `state_layer.rs` / `focus.rs` | 状態レイヤーとフォーカスリング。角が不揃いな部品は `.corners(Corners)` を渡す                                                                     |
-| `style.rs`                    | `StyledExt`（`corners` など）                                                                                                                     |
-| `motion.rs`                   | 色をテーマのバネで補間する `motion::color`（`Theme::spring` と組み合わせる）                                                                      |
-| `control.rs`                  | 操作部品の共通処理（フォーカス・hover・押下、矢印移動の `step`）                                                                                  |
-| `scroll.rs`                   | 入れ子スクロール（`NestedScroll`）、表示領域（`ScrollScope`）、キーボードで移った要素を見せる（`reveal_on_focus`）、オーバーレイ本文（`content`） |
-| `scrollbar.rs`                | `Scrollbar` と `ScrollbarSource`                                                                                                                  |
-| `expressive/press.rs`         | 押下の状態機械（押下・解除・キャンセル）                                                                                                          |
+| モジュール                                      | 役割                                                                                                               |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `state_layer.rs` / `focus.rs`                   | 状態レイヤーとフォーカスリング。角が不揃いな部品は `.corners(Corners)` を渡す                                      |
+| `style.rs`                                      | `StyledExt`（`corners` など）                                                                                      |
+| `motion.rs`                                     | 色をテーマのバネで補間する `motion::color`（`Theme::spring` と組み合わせる）                                       |
+| `gpui-headless` の `control` / `focus` / `a11y` | 操作部品の共通処理、フォーカス、アクセシビリティ情報、矢印移動の `step`                                            |
+| `gpui-headless` の `scroll`                     | 入れ子スクロール（`NestedScroll`）、表示領域（`ScrollScope`）、キーボードで移った要素を見せる（`reveal_on_focus`） |
+| `scroll.rs`                                     | オーバーレイ本文（`content`）                                                                                      |
+| `scrollbar.rs`                                  | `Scrollbar` と `ScrollbarSource`                                                                                   |
+| `gpui-headless` の `press`                      | 押下の状態機械（押下・解除）。最短時間は呼び出し側から渡す                                                         |
 
 `control()` は有効な要素に `reveal_on_focus` を付ける。control を使わない Card と TextField / SearchBar にも付ける。
 List（高さ制限あり）・Drawer・Menu・オーバーレイ本文は `ScrollScope` で領域を包む。アプリ側のスクロール領域も同じように包む。

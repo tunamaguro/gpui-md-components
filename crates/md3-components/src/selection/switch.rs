@@ -11,9 +11,9 @@ use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::switch as tokens;
 use md3_theme::{CornerRadius, Md3ThemeExt, MotionToken};
 
-use crate::a11y::{A11yExt, A11yNode, toggled};
 use crate::control::control;
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
+use gpui_headless::{A11yExt, A11yNode, toggled};
 
 /// 押下・ホバーと、要素の寿命に結び付いた押下キャンセル。
 struct SwitchInteraction {
@@ -111,7 +111,7 @@ impl RenderOnce for Switch {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let node = self.a11y_node();
         let (mut base, control) = control(&self.id, self.disabled, true, window, cx);
-        let focus_handle = crate::focus_handle(self.id.clone(), window, cx);
+        let focus_handle = gpui_headless::focus_handle(self.id.clone(), window, cx);
         let interaction = window.use_keyed_state(
             ElementId::NamedChild(std::sync::Arc::new(self.id.clone()), "interaction".into()),
             cx,

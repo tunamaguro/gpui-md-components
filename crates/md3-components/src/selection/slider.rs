@@ -15,8 +15,8 @@ use md3_theme::md3_tokens::layout;
 use md3_theme::{CornerRadius, Md3ThemeExt};
 
 use crate::FocusRing;
-use crate::a11y::{A11yExt, A11yNode, RangeValue};
 use crate::control::control;
+use gpui_headless::{A11yExt, A11yNode, RangeValue};
 
 /// ドラッグの状態。描画をまたいで保つ。
 #[derive(Default)]

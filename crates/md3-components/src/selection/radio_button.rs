@@ -3,6 +3,7 @@
 // Copyright 2020 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //! RadioButton（RadioGroup としてまとめて使う）。
 
+use gpui_headless::focus_handle;
 use std::rc::Rc;
 
 use gpui::{
@@ -14,9 +15,10 @@ use md3_theme::md3_tokens::component::radio_button as tokens;
 use md3_theme::md3_tokens::layout;
 use md3_theme::{CornerRadius, Md3ThemeExt, MotionToken, TypeScale};
 
-use crate::a11y::{A11yExt, A11yNode, toggled};
-use crate::control::{control, step};
-use crate::{FocusRing, StateLayer, Text, focus_handle};
+use crate::control::control;
+use crate::{FocusRing, StateLayer, Text};
+use gpui_headless::step;
+use gpui_headless::{A11yExt, A11yNode, toggled};
 
 /// ラジオボタンの選択肢。
 #[derive(Clone, Debug)]

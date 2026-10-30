@@ -10,9 +10,9 @@ use md3_theme::md3_tokens::component::{filled_text_field, search_bar as tokens};
 use md3_theme::md3_tokens::layout;
 
 use super::text_field::{TextFieldState, TextLine, editable};
-use crate::a11y::{A11yExt, A11yNode};
 use crate::buttons::IconButton;
 use crate::{Icon, IconName, StyledExt};
+use gpui_headless::{A11yExt, A11yNode};
 
 /// 検索バー（高さ 56dp、丸い `SurfaceContainerHigh` の入力欄）。
 ///

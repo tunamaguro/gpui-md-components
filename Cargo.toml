@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+  "crates/gpui-headless",
   "crates/md3-color",
   "crates/md3-tokens",
   "crates/md3-icons",
@@ -22,6 +23,7 @@ publish = false
 name = "md-components"
 
 [workspace.dependencies]
+gpui-headless = { path = "crates/gpui-headless" }
 md3-color = { path = "crates/md3-color" }
 md3-tokens = { path = "crates/md3-tokens" }
 md3-icons = { path = "crates/md3-icons" }

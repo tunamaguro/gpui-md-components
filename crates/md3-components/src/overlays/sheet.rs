@@ -15,10 +15,10 @@ use super::layer::{
     DismissHandler, InitialFocus, MODAL_PRIORITY, dismiss_and_restore, modal_container,
     overlay_focus, scrim, window_layer,
 };
-use crate::a11y::{A11yExt, A11yNode};
 use crate::buttons::IconButton;
 use crate::control::control;
 use crate::{FocusRing, IconName, StyledExt};
+use gpui_headless::{A11yExt, A11yNode};
 
 /// 角丸の半径（`Full` はこの部品では使わない）。
 fn radius(corner: CornerRadius) -> gpui::Pixels {

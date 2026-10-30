@@ -10,9 +10,9 @@ use md3_theme::md3_tokens::component::{
     standard_icon_button,
 };
 
-use crate::a11y::{A11yExt, A11yNode, toggled};
 use crate::control::control;
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
+use gpui_headless::{A11yExt, A11yNode, toggled};
 
 /// アイコンボタンの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
