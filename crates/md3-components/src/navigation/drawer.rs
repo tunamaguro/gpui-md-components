@@ -108,6 +108,7 @@ impl NavigationDrawer {
 impl RenderOnce for NavigationDrawer {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let modal = self.kind == NavigationDrawerKind::Modal && !self.inline;
+        let dialog = self.dialog_mode();
         let theme = cx.md3().clone();
         let pill = theme.corner(tokens::ACTIVE_INDICATOR_SHAPE);
         // 項目が多ければスクロールする。矢印・Tab で移った項目を見える範囲に入れる。
@@ -120,7 +121,7 @@ impl RenderOnce for NavigationDrawer {
             self.on_change,
             true,
         );
-        if let Some(modal) = self.dialog_mode() {
+        if let Some(modal) = dialog {
             nav = nav.dialog(modal);
         }
         let nav = nav.build(window, cx, |item, _, _| {
