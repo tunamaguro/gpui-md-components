@@ -53,6 +53,11 @@ base.size(px(40.)).bg(my_color).when(state.focus_visible, |this| this.border_2()
 `.group_hover(state.group, ..)` / `.group_active(state.group, ..)` で付ける。
 描画の計算に状態自体が必要な Switch などは、共通状態とともに部品固有の状態として返す。
 
+### 重ねて描く部品
+
+Menu は `build` で `MenuPopup` を返す。`place` に見た目を足す関数を渡すと、基準の要素の下に配置する。
+Snackbar のキューは持ち主のビューが `SnackbarOwner` を実装して持つ。表示時間は `SnackbarEntry` に渡す。
+
 ### 項目を持つ部品
 
 RadioGroup、Tabs などは項目ごとのクロージャを受け取る。Tab の止まり場所と矢印キーは crate 側が持つ。
@@ -80,7 +85,7 @@ gpui_headless::RadioGroup::new(id, label)
 | 2    | 単体の操作部品: Button 系（Button、IconButton、FAB、ToggleButton）、Checkbox、Switch、Chip、Card      |
 | 3    | 項目を持つ部品: RadioGroup、SegmentedButton、ButtonGroup、Tabs、NavigationBar / Rail / Drawer、Slider |
 | 4    | オーバーレイ: レイヤー、Dialog、Sheet、Menu、Select、Tooltip、Snackbar                                |
-| 5    | TextField、SearchBar、List / LazyList、Scrollbar                                                      |
+| 5    | TextField、SearchBar、List / LazyList、Scrollbar、AppBar の見出し、ProgressIndicator                  |
 | 6    | MD3 に依存しない独自テーマの見本を gallery に足して目的を検証する。利用者向けガイドを書く             |
 
 ## 規約
