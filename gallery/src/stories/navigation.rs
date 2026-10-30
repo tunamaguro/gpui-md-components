@@ -10,9 +10,9 @@ use md3_components::navigation::{
 };
 use md3_components::theme::md3_color::ColorRole;
 use md3_components::theme::{Md3ThemeExt, TypeScale};
-use md3_components::{ForcedState, IconName, Text, WindowSizeClass};
+use md3_components::{IconName, Text, WindowSizeClass};
 
-use super::{STATES, Section};
+use super::Section;
 use crate::{Demo, Gallery};
 
 /// 見本の小見出しと中身を縦に並べる。
@@ -184,22 +184,6 @@ pub fn page(
             .tab(icon(Tab::new("共有"), IconName::Share))
             .tab(icon(Tab::new("無効"), IconName::Delete).disabled(true))
     };
-    let tab_states = |variant: TabsVariant, name: &str| {
-        let cells = STATES
-            .iter()
-            .map(|(state, forced)| {
-                let mut tabs = tabs(&format!("tabs-{name}-{state}"), variant, false, 0);
-                if let Some(forced) = forced {
-                    tabs = tabs.forced(1, *forced);
-                }
-                sample(
-                    &format!("{name} {state}（2 番目のタブ）"),
-                    frame(560.0, 49.0, cx, tabs),
-                )
-            })
-            .collect::<Vec<_>>();
-        div().flex().flex_col().gap_3().children(cells)
-    };
     let on_tab = |view: &WeakEntity<Gallery>, secondary: bool| {
         let view = view.clone();
         move |index: usize, _: &mut Window, cx: &mut App| {
@@ -248,60 +232,47 @@ pub fn page(
                 .on_change(on_tab(&view, true)),
             ),
         ))
-        .child(tab_states(TabsVariant::Primary, "Primary"))
-        .child(tab_states(TabsVariant::Secondary, "Secondary"));
+        .child(sample(
+            "Secondary",
+            frame(
+                560.0,
+                49.0,
+                cx,
+                tabs(
+                    "tabs-Secondary-Enabled",
+                    TabsVariant::Secondary,
+                    false,
+                    demo.secondary_tab,
+                )
+                .on_change(on_tab(&view, true)),
+            ),
+        ));
 
     // ナビゲーションバー・レール・ドロワー
-    let bar_states: Vec<AnyElement> = STATES
-        .iter()
-        .map(|(state, forced)| {
-            let mut bar = NavigationBar::new(format!("nav-bar-{state}"), "メイン")
-                .items(destinations())
-                .selected(Some(0));
-            if let Some(forced) = forced {
-                bar = bar.forced(1, *forced);
-            }
-            sample(&format!("{state}（送信済み）"), frame(400.0, 80.0, cx, bar))
-        })
-        .collect();
-    let bars = Section::new("NavigationBar（←→ でフォーカス、Enter / Space で選ぶ）")
-        .child(frame(
-            400.0,
-            80.0,
-            cx,
-            NavigationBar::new("nav-bar", "メイン")
-                .items(destinations())
-                .selected(Some(demo.destination))
-                .on_change(select_nav(&view)),
-        ))
-        .child(div().flex().flex_wrap().gap_4().children(bar_states));
+    let bars = Section::new("NavigationBar（←→ でフォーカス、Enter / Space で選ぶ）").child(frame(
+        400.0,
+        80.0,
+        cx,
+        NavigationBar::new("nav-bar", "メイン")
+            .items(destinations())
+            .selected(Some(demo.destination))
+            .on_change(select_nav(&view)),
+    ));
 
     let rails = Section::new("NavigationRail（↑↓ でフォーカス）").child(
-        div()
-            .flex()
-            .gap_6()
-            .child(sample(
-                "操作できる",
-                frame(
-                    80.0,
-                    420.0,
-                    cx,
-                    NavigationRail::new("nav-rail", "メイン")
-                        .header(Fab::new("rail-fab", IconName::Edit, "作成"))
-                        .items(destinations())
-                        .selected(Some(demo.destination))
-                        .on_change(select_nav(&view)),
-                ),
-            ))
-            .children(STATES.iter().skip(1).map(|(state, forced)| {
-                let mut rail = NavigationRail::new(format!("nav-rail-{state}"), "メイン")
+        div().flex().gap_6().child(sample(
+            "操作できる",
+            frame(
+                80.0,
+                420.0,
+                cx,
+                NavigationRail::new("nav-rail", "メイン")
+                    .header(Fab::new("rail-fab", IconName::Edit, "作成"))
                     .items(destinations())
-                    .selected(Some(0));
-                if let Some(forced) = forced {
-                    rail = rail.forced(1, *forced);
-                }
-                sample(state, frame(80.0, 420.0, cx, rail))
-            })),
+                    .selected(Some(demo.destination))
+                    .on_change(select_nav(&view)),
+            ),
+        )),
     );
 
     let drawer_header = || {
@@ -352,27 +323,10 @@ pub fn page(
                             .inline()
                             .child(drawer_header())
                             .items(destinations())
-                            .selected(Some(0))
-                            .forced(1, ForcedState::Focused),
+                            .selected(Some(demo.destination))
+                            .on_change(select_nav(&view)),
                     ),
-                ))
-                .children(
-                    STATES
-                        .iter()
-                        .filter(|(_, forced)| {
-                            matches!(forced, Some(ForcedState::Hovered | ForcedState::Pressed))
-                        })
-                        .map(|(state, forced)| {
-                            let mut drawer =
-                                NavigationDrawer::new(format!("nav-drawer-{state}"), "メイン")
-                                    .items(destinations())
-                                    .selected(Some(0));
-                            if let Some(forced) = forced {
-                                drawer = drawer.forced(1, *forced);
-                            }
-                            sample(state, frame(360.0, 260.0, cx, drawer))
-                        }),
-                ),
+                )),
         )
         .when(demo.drawer_open, |this| {
             let view = view.clone();

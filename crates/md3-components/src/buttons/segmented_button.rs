@@ -12,7 +12,7 @@ use md3_theme::{CornerRadius, Md3ThemeExt};
 
 use crate::a11y::{A11yExt, A11yNode, toggled};
 use crate::control::{control, step};
-use crate::{FocusRing, ForcedState, Icon, IconName, StateLayer, StyledExt, focus_handle};
+use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt, focus_handle};
 
 /// SegmentedButton の 1 項目。
 #[derive(Clone, Debug)]
@@ -59,7 +59,6 @@ pub struct SegmentedButton {
     selected: Vec<usize>,
     multi: bool,
     on_change: Option<ChangeHandler>,
-    forced: Option<(usize, ForcedState)>,
 }
 
 impl SegmentedButton {
@@ -72,7 +71,6 @@ impl SegmentedButton {
             selected: Vec::new(),
             multi: false,
             on_change: None,
-            forced: None,
         }
     }
 
@@ -98,13 +96,6 @@ impl SegmentedButton {
     /// 単一選択ならその項目を選択に、複数選択ならその項目の選択を反転する。
     pub fn on_change(mut self, handler: impl Fn(usize, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(Rc::new(handler));
-        self
-    }
-
-    /// 見本用に 1 項目の状態を固定する。
-    #[doc(hidden)]
-    pub fn forced(mut self, index: usize, forced: ForcedState) -> Self {
-        self.forced = Some((index, forced));
         self
     }
 
@@ -166,15 +157,11 @@ impl RenderOnce for SegmentedButton {
         for (index, segment) in self.segments.iter().enumerate() {
             let node = self.segment_a11y_node(index);
             let selected = self.selected.contains(&index);
-            let forced = self
-                .forced
-                .and_then(|(i, state)| (i == index).then_some(state));
             let tab_stop = self.multi || tab_target == Some(index);
             let (base, control) = control(
                 &self.segment_id(index),
                 segment.disabled,
                 tab_stop,
-                forced,
                 window,
                 cx,
             );
@@ -252,8 +239,7 @@ impl RenderOnce for SegmentedButton {
                     )
                     .corners(corners)
                     .focused(control.focus_visible)
-                    .disabled(segment.disabled)
-                    .forced(forced),
+                    .disabled(segment.disabled),
                 )
                 .child(
                     FocusRing::new(CornerRadius::Fixed(px(0.0)))

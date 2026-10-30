@@ -93,7 +93,7 @@ wasm-bindgen = "<上流 zed と同じ要求版>"
 | `state_layer.rs` / `focus.rs` | 状態レイヤーとフォーカスリング。角が不揃いな部品は `.corners(Corners)` を渡す                                             |
 | `style.rs`                    | `StyledExt`（`corners` など）                                                                                             |
 | `motion.rs`                   | 色をテーマのバネで補間する `motion::color`（`Theme::spring` と組み合わせる）                                              |
-| `control.rs`                  | 操作部品の共通処理（フォーカス・hover・押下・強制状態 `ForcedState`、矢印移動の `step`）                                  |
+| `control.rs`                  | 操作部品の共通処理（フォーカス・hover・押下、矢印移動の `step`）                                                          |
 | `scroll.rs`                   | 入れ子スクロール（公開の `NestedScroll`）、オーバーレイ本文（`content`）、フォーカスした項目を見せる（`reveal_on_focus`） |
 | `scrollbar.rs`                | `Scrollbar` と `ScrollbarSource`                                                                                          |
 | `expressive/press.rs`         | 押下の状態機械（押下・解除・キャンセル）                                                                                  |

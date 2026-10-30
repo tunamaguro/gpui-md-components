@@ -11,7 +11,7 @@ use md3_theme::{Elevation, Md3ThemeExt};
 
 use crate::a11y::{A11yExt, A11yNode, toggled};
 use crate::control::control;
-use crate::{FocusRing, ForcedState, Icon, IconName, StateLayer, StyledExt};
+use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
 
 /// チップの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -172,7 +172,6 @@ pub struct Chip {
     disabled: bool,
     on_click: Option<ClickHandler>,
     on_remove: Option<RemoveHandler>,
-    forced: Option<ForcedState>,
 }
 
 impl Chip {
@@ -188,7 +187,6 @@ impl Chip {
             disabled: false,
             on_click: None,
             on_remove: None,
-            forced: None,
         }
     }
 
@@ -231,13 +229,6 @@ impl Chip {
         self
     }
 
-    /// 見本用に状態を固定する。
-    #[doc(hidden)]
-    pub fn forced(mut self, forced: ForcedState) -> Self {
-        self.forced = Some(forced);
-        self
-    }
-
     /// アクセシビリティツリーに出す情報。Filter はチェックボックス相当、他はボタン。
     pub fn a11y_node(&self) -> A11yNode {
         let node = match self.kind {
@@ -253,7 +244,7 @@ impl Chip {
 impl RenderOnce for Chip {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let node = self.a11y_node();
-        let (base, control) = control(&self.id, self.disabled, true, self.forced, window, cx);
+        let (base, control) = control(&self.id, self.disabled, true, window, cx);
         let theme = cx.md3();
         let style = ChipStyle::of(self.kind, self.selected, self.elevated);
         let radius = theme.corner(assist_chip::CONTAINER_SHAPE);
@@ -309,12 +300,9 @@ impl RenderOnce for Chip {
         }
         if !disabled && style.hovered_elevation > 0.0 {
             let hovered = theme.shadows(Elevation::from_dp(style.hovered_elevation));
-            chip = if self.forced == Some(ForcedState::Hovered) {
-                chip.shadow(hovered)
-            } else {
-                chip.shadow(theme.shadows(Elevation::from_dp(style.elevation)))
-                    .hover(move |s| s.shadow(hovered.clone()))
-            };
+            chip = chip
+                .shadow(theme.shadows(Elevation::from_dp(style.elevation)))
+                .hover(move |s| s.shadow(hovered.clone()));
         }
 
         let on_remove: Option<SharedRemoveHandler> =
@@ -343,8 +331,7 @@ impl RenderOnce for Chip {
             )
             .radius(radius)
             .focused(control.focus_visible)
-            .disabled(disabled)
-            .forced(self.forced),
+            .disabled(disabled),
         )
         .child(FocusRing::new(radius).visible(control.focus_visible))
         .when_some(self.on_click.filter(|_| !disabled), |this, handler| {

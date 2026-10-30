@@ -26,8 +26,8 @@
 
 ## 4. gallery に見本を追加する
 
-- `gallery/src/stories/<component>.rs` を追加し、全バリアント × 全状態（enabled / hover / focused / pressed / disabled、該当すれば selected / error）を並べる。
-- hover / pressed は静的に再現できるよう、内部向けの「強制状態」指定を用意してよい（公開 API にはしない、`#[doc(hidden)]`）。
+- `gallery/src/stories/<component>.rs` を追加し、全バリアントの操作できる見本と disabled、該当すれば selected / error の見本を並べる。
+- hover / focused / pressed は見本を実際に操作して確認する（skill `gallery-check`）。状態を固定する見本や、そのための指定は作らない。
 
 ## 5. テストを書く
 
@@ -36,14 +36,14 @@
 
 ## 6. 画面で確かめる
 
-- gallery を起動して、追加した見本を撮って確かめる（skill `gallery-check`）。
+- gallery を起動して、追加した見本を操作し、hover / focused / pressed を撮って確かめる（skill `gallery-check`）。
 
 ## 7. 完了チェック
 
 - [ ] AGENTS.md の「完了の定義」を全て満たす
 - [ ] `docs/specs/<component>.md` がある
 - [ ] `docs/TOKENS_SOURCE.md` に転記した全値がある
-- [ ] gallery に全状態の見本がある
+- [ ] gallery に全バリアントの操作できる見本と disabled、該当すれば selected / error の見本があり、hover / focused / pressed を実操作で確認した
 - [ ] a11y テストがある
 - [ ] PR 説明に、何をなぜ変えたかと、仕様から外れた点・未対応点を書く
 

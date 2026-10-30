@@ -15,7 +15,7 @@ use md3_theme::md3_tokens::layout;
 
 use crate::a11y::{A11yExt, A11yNode};
 use crate::control::control;
-use crate::{FocusRing, ForcedState, Icon, IconName, StateLayer, StyledExt, focus_handle};
+use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt, focus_handle};
 
 type SelectHandler = Rc<dyn Fn(&mut Window, &mut App)>;
 
@@ -51,7 +51,6 @@ pub struct ListItem {
     selected: bool,
     disabled: bool,
     on_select: Option<SelectHandler>,
-    forced: Option<ForcedState>,
 }
 
 impl ListItem {
@@ -66,7 +65,6 @@ impl ListItem {
             selected: false,
             disabled: false,
             on_select: None,
-            forced: None,
         }
     }
 
@@ -112,13 +110,6 @@ impl ListItem {
         self
     }
 
-    /// 見本用に状態を固定する。
-    #[doc(hidden)]
-    pub fn forced(mut self, forced: ForcedState) -> Self {
-        self.forced = Some(forced);
-        self
-    }
-
     /// 行数（1〜3）。
     pub fn line_count(&self) -> usize {
         match (self.overline.is_some(), self.supporting_text.is_some()) {
@@ -154,7 +145,7 @@ impl ListItem {
         let node = self.a11y_node(index, count);
         let lines = self.line_count();
         let focusable = self.focusable();
-        let (base, control) = control(&id, !focusable, tab_stop, self.forced, window, cx);
+        let (base, control) = control(&id, !focusable, tab_stop, window, cx);
         let theme = cx.md3().clone();
         let disabled = |role: ColorRole, opacity: f32| theme.color(role).opacity(opacity);
         let headline_color = if self.disabled {
@@ -315,8 +306,7 @@ impl ListItem {
                         ColorRole::OnSurface,
                     )
                     .radius(radius)
-                    .focused(control.focus_visible)
-                    .forced(self.forced),
+                    .focused(control.focus_visible),
                 )
                 .child(
                     FocusRing::new(radius)
@@ -325,12 +315,6 @@ impl ListItem {
                 )
                 .on_click(move |_, window, cx| on_select(window, cx))
                 .on_key_down(on_key);
-        } else if self.forced.is_some() {
-            item = item.child(
-                FocusRing::new(radius)
-                    .inward()
-                    .visible(control.focus_visible),
-            );
         }
         item
     }

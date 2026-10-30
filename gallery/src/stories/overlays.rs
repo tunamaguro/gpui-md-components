@@ -10,7 +10,7 @@ use md3_components::overlays::{
 };
 use md3_components::theme::TypeScale;
 use md3_components::theme::md3_color::ColorRole;
-use md3_components::{ForcedState, IconName, Text};
+use md3_components::{IconName, Text};
 
 use super::Section;
 use crate::{Demo, Gallery};
@@ -121,23 +121,13 @@ pub fn page(
                     }),
             )
         });
-    let menu_states = div().flex().flex_wrap().gap_6().children(
-        [
-            ("Hovered", Some((1, ForcedState::Hovered))),
-            ("Focused", Some((1, ForcedState::Focused))),
-            ("Pressed", Some((1, ForcedState::Pressed))),
-            ("Enabled / Disabled", None),
-        ]
-        .into_iter()
-        .map(|(name, forced)| {
-            let mut menu = Menu::new(format!("menu-sample-{name}"), "編集")
+    let menu_states = sample(
+        "Enabled / Disabled",
+        div().w(px(240.0)).child(
+            Menu::new("menu-sample-Enabled / Disabled", "編集")
                 .items(menu_items(&view))
-                .inline();
-            if let Some((index, forced)) = forced {
-                menu = menu.forced(index, forced);
-            }
-            sample(name, div().w(px(240.0)).child(menu))
-        }),
+                .inline(),
+        ),
     );
     let menus = Section::new("Menu（↑↓ で移動、Enter で選択、Esc / Tab で閉じる）")
         .child(

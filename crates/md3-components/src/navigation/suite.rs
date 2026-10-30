@@ -8,7 +8,7 @@ use gpui::{
 use super::bar::destination_builders;
 use super::item::{ChangeHandler, NavigationItem};
 use super::{NavigationBar, NavigationDrawer, NavigationRail};
-use crate::{ForcedState, WindowSizeClass};
+use crate::WindowSizeClass;
 
 /// ナビゲーションの形。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -45,7 +45,6 @@ pub struct NavigationSuite {
     items: Vec<NavigationItem>,
     selected: Option<usize>,
     on_change: Option<ChangeHandler>,
-    forced: Option<(usize, ForcedState)>,
     layout: Option<NavigationSuiteType>,
     header: Option<AnyElement>,
     content: Vec<AnyElement>,
@@ -60,7 +59,6 @@ impl NavigationSuite {
             items: Vec::new(),
             selected: None,
             on_change: None,
-            forced: None,
             layout: None,
             header: None,
             content: Vec::new(),
@@ -111,9 +109,6 @@ impl RenderOnce for NavigationSuite {
                 if let Some(on_change) = self.on_change {
                     bar = bar.on_change(move |index, window, cx| on_change(index, window, cx));
                 }
-                if let Some((index, state)) = self.forced {
-                    bar = bar.forced(index, state);
-                }
                 container.flex_col().child(content).child(bar)
             }
             NavigationSuiteType::Rail => {
@@ -122,9 +117,6 @@ impl RenderOnce for NavigationSuite {
                     .selected(self.selected);
                 if let Some(on_change) = self.on_change {
                     rail = rail.on_change(move |index, window, cx| on_change(index, window, cx));
-                }
-                if let Some((index, state)) = self.forced {
-                    rail = rail.forced(index, state);
                 }
                 if let Some(header) = self.header {
                     rail = rail.header(header);
@@ -138,9 +130,6 @@ impl RenderOnce for NavigationSuite {
                 if let Some(on_change) = self.on_change {
                     drawer =
                         drawer.on_change(move |index, window, cx| on_change(index, window, cx));
-                }
-                if let Some((index, state)) = self.forced {
-                    drawer = drawer.forced(index, state);
                 }
                 if let Some(header) = self.header {
                     drawer = drawer.child(header);

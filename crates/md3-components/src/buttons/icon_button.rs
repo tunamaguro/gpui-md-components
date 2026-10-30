@@ -12,7 +12,7 @@ use md3_theme::md3_tokens::component::{
 
 use crate::a11y::{A11yExt, A11yNode, toggled};
 use crate::control::control;
-use crate::{FocusRing, ForcedState, Icon, IconName, StateLayer, StyledExt};
+use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
 
 /// アイコンボタンの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -122,7 +122,6 @@ pub struct IconButton {
     selected: Option<bool>,
     disabled: bool,
     on_click: Option<ClickHandler>,
-    forced: Option<ForcedState>,
     content_role: Option<ColorRole>,
     #[cfg_attr(not(feature = "overlays"), allow(dead_code))]
     tooltip: Option<SharedString>,
@@ -139,7 +138,6 @@ impl IconButton {
             selected: None,
             disabled: false,
             on_click: None,
-            forced: None,
             content_role: None,
             tooltip: None,
         }
@@ -172,13 +170,6 @@ impl IconButton {
         self
     }
 
-    /// 見本用に状態を固定する。
-    #[doc(hidden)]
-    pub fn forced(mut self, forced: ForcedState) -> Self {
-        self.forced = Some(forced);
-        self
-    }
-
     /// ポインタを重ねたときに Plain ツールチップを出す。同じ文を読み上げ用の説明にも入れる。
     #[cfg(feature = "overlays")]
     pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
@@ -208,7 +199,7 @@ impl IconButton {
 impl RenderOnce for IconButton {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let node = self.a11y_node();
-        let (base, control) = control(&self.id, self.disabled, true, self.forced, window, cx);
+        let (base, control) = control(&self.id, self.disabled, true, window, cx);
         let theme = cx.md3();
         let colors = IconButtonColors::of(self.variant, self.selected);
         let radius = theme.corner(small_icon_button::CONTAINER_SHAPE_ROUND);
@@ -267,8 +258,7 @@ impl RenderOnce for IconButton {
                 )
                 .radius(radius)
                 .focused(control.focus_visible)
-                .disabled(self.disabled)
-                .forced(self.forced),
+                .disabled(self.disabled),
             )
             .child(FocusRing::new(radius).visible(control.focus_visible))
             .when_some(self.on_click.filter(|_| !self.disabled), |this, handler| {

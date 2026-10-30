@@ -21,7 +21,7 @@ use crate::overlays::layer::{
     DismissHandler, InitialFocus, MODAL_PRIORITY, dismiss_and_restore, modal_container,
     overlay_focus, scrim, window_layer,
 };
-use crate::{FocusRing, ForcedState, Icon, StateLayer, StyledExt};
+use crate::{FocusRing, Icon, StateLayer, StyledExt};
 
 /// ドロワーの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -47,7 +47,6 @@ pub struct NavigationDrawer {
     selected: Option<usize>,
     on_change: Option<ChangeHandler>,
     on_dismiss: Option<DismissHandler>,
-    forced: Option<(usize, ForcedState)>,
     header: Vec<AnyElement>,
     inline: bool,
 }
@@ -70,7 +69,6 @@ impl NavigationDrawer {
             selected: None,
             on_change: None,
             on_dismiss: None,
-            forced: None,
             header: Vec::new(),
             inline: false,
         }
@@ -146,14 +144,10 @@ impl RenderOnce for NavigationDrawer {
             .enumerate()
             .map(|(index, item)| {
                 let selected = self.selected == Some(index);
-                let forced = self
-                    .forced
-                    .and_then(|(i, state)| (i == index).then_some(state));
                 let (base, control) = control(
                     &destinations.ids[index],
                     item.disabled,
                     destinations.tab_target == Some(index),
-                    forced,
                     window,
                     cx,
                 );
@@ -215,8 +209,7 @@ impl RenderOnce for NavigationDrawer {
                         )
                         .radius(pill)
                         .focused(control.focus_visible)
-                        .disabled(item.disabled)
-                        .forced(forced),
+                        .disabled(item.disabled),
                     )
                     .child(FocusRing::new(pill).visible(control.focus_visible));
                 if !item.disabled {

@@ -16,7 +16,7 @@ use md3_theme::{CornerRadius, Md3ThemeExt, TypeScale};
 use super::item::ChangeHandler;
 use crate::a11y::{A11yExt, A11yNode};
 use crate::control::{control, step};
-use crate::{FocusRing, ForcedState, Icon, IconName, StateLayer, StyledExt, focus_handle};
+use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt, focus_handle};
 
 /// タブの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -107,7 +107,6 @@ pub struct Tabs {
     tabs: Vec<Tab>,
     selected: usize,
     on_change: Option<ChangeHandler>,
-    forced: Option<(usize, ForcedState)>,
 }
 
 impl Tabs {
@@ -120,7 +119,6 @@ impl Tabs {
             tabs: Vec::new(),
             selected,
             on_change: None,
-            forced: None,
         }
     }
 
@@ -145,13 +143,6 @@ impl Tabs {
     /// タブを選んだとき（クリック、矢印キー、Home / End）の処理。
     pub fn on_change(mut self, handler: impl Fn(usize, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(Rc::new(handler));
-        self
-    }
-
-    /// 見本用にタブ `index` の状態を固定する。
-    #[doc(hidden)]
-    pub fn forced(mut self, index: usize, state: ForcedState) -> Self {
-        self.forced = Some((index, state));
         self
     }
 
@@ -218,14 +209,10 @@ impl RenderOnce for Tabs {
             );
         for (index, tab) in self.tabs.iter().enumerate() {
             let selected = index == self.selected;
-            let forced = self
-                .forced
-                .and_then(|(i, state)| (i == index).then_some(state));
             let (base, control) = control(
                 &self.tab_id(index),
                 tab.disabled,
                 tab_target == Some(index),
-                forced,
                 window,
                 cx,
             );
@@ -336,8 +323,7 @@ impl RenderOnce for Tabs {
                         },
                     )
                     .focused(control.focus_visible)
-                    .disabled(tab.disabled)
-                    .forced(forced),
+                    .disabled(tab.disabled),
                 )
                 .child(
                     FocusRing::new(CornerRadius::Fixed(px(0.0)))

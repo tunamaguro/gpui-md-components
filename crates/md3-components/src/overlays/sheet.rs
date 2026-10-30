@@ -117,7 +117,7 @@ impl RenderOnce for BottomSheet {
         let handle = match self.handle_label {
             Some(label) => {
                 let id = ElementId::NamedChild(parent.clone(), "handle".into());
-                let (base, control) = control(&id, false, true, None, window, cx);
+                let (base, control) = control(&id, false, true, window, cx);
                 let ring = theme.corner(md3_theme::Shape::ExtraSmall);
                 base.a11y(A11yNode::new(Role::Button).label(label))
                     .py(handle_space)

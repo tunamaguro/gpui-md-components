@@ -6,7 +6,7 @@ use gpui::{AnyElement, App, Entity, IntoElement, WeakEntity, Window, div, prelud
 use md3_components::inputs::{Select, TextField, TextFieldState, TextFieldVariant};
 use md3_components::theme::TypeScale;
 use md3_components::theme::md3_color::ColorRole;
-use md3_components::{ForcedState, IconName, Text};
+use md3_components::{IconName, Text};
 
 use super::Section;
 use crate::{Demo, Gallery};
@@ -30,8 +30,8 @@ impl Fields {
     }
 }
 
-/// 状態の見本の列（テキストフィールドに押下の状態はないため、代わりにエラーを並べる）。
-const FIELD_STATES: [&str; 5] = ["Enabled", "Hovered", "Focused", "Error", "Disabled"];
+/// 入力できる見本、エラーの見本、無効な見本の列。
+const FIELD_STATES: [&str; 3] = ["Enabled", "Error", "Disabled"];
 
 /// 見出し付きの見本 1 つ。
 fn labeled(label: &str, element: impl IntoElement) -> AnyElement {
@@ -72,8 +72,6 @@ pub fn page(
                             "補助テキスト"
                         });
                     match state {
-                        "Hovered" => field.forced(ForcedState::Hovered),
-                        "Focused" => field.forced(ForcedState::Focused),
                         "Error" => field.error(true),
                         "Disabled" => field.disabled(true),
                         _ => field,
@@ -163,8 +161,6 @@ pub fn page(
                 let field = Select::new(format!("select-{name}-{state}"), "色", COLORS, Some(2))
                     .variant(variant);
                 let field = match state {
-                    "Hovered" => field.forced(ForcedState::Hovered),
-                    "Focused" => field.forced(ForcedState::Focused),
                     "Error" => field.error(true).supporting_text("選んでください"),
                     "Disabled" => field.disabled(true),
                     _ => field,

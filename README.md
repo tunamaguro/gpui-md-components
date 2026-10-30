@@ -24,7 +24,7 @@ Material Design 3（ベースライン）の UI 部品集。Windows / macOS / Li
 | `md3-icons`      | Material Symbols のアイコン（よく使う 30 個）                               |
 | `md3-theme`      | テーマ（gpui の `Global`）、gpui の型への変換、OS のライト / ダークへの追従 |
 | `md3-components` | 部品。feature で分割（下表）                                                |
-| `gallery`        | 全部品・全状態の見本アプリ                                                  |
+| `gallery`        | 全部品・全バリアントの操作できる見本アプリ                                  |
 | `xtask`          | 開発用コマンド（std のみ）                                                  |
 
 | feature       | 部品                                                                                                 |
@@ -109,6 +109,9 @@ impl Render for Root {
 詳しくは [利用ガイド](docs/guide.md)。
 
 ## 見本（gallery）
+
+各バリアントの操作できる見本と disabled、該当すれば selected / error の見本を並べる。
+hover / focused / pressed はマウスやキーボードで操作して確かめる。
 
 ```sh
 cargo run -p gallery                    # デスクトップ

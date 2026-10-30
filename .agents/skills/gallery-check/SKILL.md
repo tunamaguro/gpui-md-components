@@ -19,6 +19,7 @@ Codex の sandbox は Wayland に繋がらないので、画面の確認はこ�
 1. 目的の見本まで送る: `scripts/xdo.sh scroll 1100 600 <段数>`（ページ右側の空いた所で回すと、中のリストを回さない）。
    撮ってから位置を決める。ウィンドウは 1200×900、座標はスクリーンショットと同じ。
 1. 操作:
+   - 全バリアントの操作できる見本で hover / focused / pressed を確認する。disabled と、該当すれば selected / error の見本も確かめる。状態を固定する見本は作らない。
    - ホバー `scripts/xdo.sh move X Y` / クリック `click X Y` / ドラッグ `drag X1 Y1 X2 Y2`
    - キー `scripts/xdo.sh key Tab space Escape`（フォーカスリングや APG のキー操作の確認）
 1. 撮る: `scripts/shot.sh <出力.png> [WxH+X+Y]`。小さな差は切り出して拡大して見る

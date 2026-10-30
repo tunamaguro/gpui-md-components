@@ -14,7 +14,7 @@ use super::field::{FieldColors, FieldFrame, FieldState, TextFieldVariant, tint};
 use crate::a11y::{A11yExt, A11yNode};
 use crate::control::control;
 use crate::overlays::{Menu, MenuItem, MenuKind};
-use crate::{ForcedState, Icon, IconName, focus_handle};
+use crate::{Icon, IconName, focus_handle};
 
 type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App)>;
 
@@ -34,7 +34,6 @@ pub struct Select {
     leading_icon: Option<IconName>,
     disabled: bool,
     on_change: Option<ChangeHandler>,
-    forced: Option<ForcedState>,
 }
 
 impl Select {
@@ -63,7 +62,6 @@ impl Select {
             leading_icon: None,
             disabled: false,
             on_change: None,
-            forced: None,
         }
     }
 
@@ -103,13 +101,6 @@ impl Select {
         self
     }
 
-    /// 見本用に状態を固定する（`Hovered` と `Focused` だけを使う）。
-    #[doc(hidden)]
-    pub fn forced(mut self, forced: ForcedState) -> Self {
-        self.forced = Some(forced);
-        self
-    }
-
     fn value(&self) -> Option<SharedString> {
         self.selected
             .and_then(|index| self.options.get(index).cloned())
@@ -140,15 +131,12 @@ impl RenderOnce for Select {
             |_, _| false,
         );
         let is_open = *open.read(cx) && !self.disabled;
-        let (base, _) = control(&self.id, self.disabled, true, self.forced, window, cx);
+        let (base, _) = control(&self.id, self.disabled, true, window, cx);
         let focused = !self.disabled
-            && (is_open
-                || self.forced == Some(ForcedState::Focused)
-                || focus_handle(self.id.clone(), window, cx).is_focused(window));
+            && (is_open || focus_handle(self.id.clone(), window, cx).is_focused(window));
         let state = FieldState {
             focused,
-            hovered: !self.disabled
-                && (*hovered.read(cx) || self.forced == Some(ForcedState::Hovered)),
+            hovered: !self.disabled && *hovered.read(cx),
             error: self.error,
             disabled: self.disabled,
         };

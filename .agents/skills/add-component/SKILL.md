@@ -22,8 +22,8 @@ description: md3-components に部品を 1 つ追加する（または既存の�
    - Compose が既定で付けているモーションは `Theme::spring` で付け、`reduce_motion` で止まる
    - コールバックを Entity の update の中から呼ばない、押下はフォーカス喪失でも解除する
    - 描画経路に thread / Mutex / ブロッキングがない（wasm）
-1. gallery の見本（全バリアント × enabled / hover / focused / pressed / disabled、該当すれば selected / error）。
+1. gallery に全バリアントの操作できる見本と disabled、該当すれば selected / error の見本を並べる。状態を固定する見本や、そのための指定は作らない。
 1. テスト: `crates/md3-components/tests/a11y_<component>.rs`（役割・名前・状態・キー操作）と純関数の単体テスト。
-1. 画面で確かめる（skill `gallery-check`）。
+1. 画面で見本を操作し、hover / focused / pressed を確かめる（skill `gallery-check`）。
 1. README の部品表、`docs/guide.md`（使い方が増えたら）、`docs/agents/a11y.md` の表を更新する。
 1. skill `ship-pr` で出す。

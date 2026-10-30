@@ -13,7 +13,7 @@ use md3_theme::{Elevation, Md3ThemeExt, Shape};
 
 use crate::a11y::{A11yExt, A11yNode};
 use crate::control::control;
-use crate::{FocusRing, ForcedState, Icon, IconName, StateLayer, StyledExt};
+use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
 
 /// FAB の大きさ。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -92,7 +92,6 @@ struct FabParts {
     id: ElementId,
     color: FabColor,
     on_click: Option<ClickHandler>,
-    forced: Option<ForcedState>,
 }
 
 impl FabParts {
@@ -101,7 +100,6 @@ impl FabParts {
             id,
             color: FabColor::default(),
             on_click: None,
-            forced: None,
         }
     }
 
@@ -114,7 +112,7 @@ impl FabParts {
         cx: &mut App,
         content: impl FnOnce(gpui::Stateful<gpui::Div>, ColorRole) -> gpui::Stateful<gpui::Div>,
     ) -> gpui::Stateful<gpui::Div> {
-        let (base, control) = control(&self.id, false, true, self.forced, window, cx);
+        let (base, control) = control(&self.id, false, true, window, cx);
         let theme = cx.md3();
         let (container, content_role) = self.color.roles();
         let radius = theme.corner(shape);
@@ -132,12 +130,9 @@ impl FabParts {
             .bg(theme.color(container))
             .text_color(theme.color(content_role))
             .corner_radius(radius);
-        let fab = if self.forced == Some(ForcedState::Hovered) {
-            fab.shadow(hovered)
-        } else {
-            fab.shadow(resting)
-                .hover(move |s| s.shadow(hovered.clone()))
-        };
+        let fab = fab
+            .shadow(resting)
+            .hover(move |s| s.shadow(hovered.clone()));
         content(fab, content_role)
             .child(
                 StateLayer::new(
@@ -146,8 +141,7 @@ impl FabParts {
                     content_role,
                 )
                 .radius(radius)
-                .focused(control.focus_visible)
-                .forced(self.forced),
+                .focused(control.focus_visible),
             )
             .child(FocusRing::new(radius).visible(control.focus_visible))
             .when_some(self.on_click, |this, handler| this.on_click(handler))
@@ -194,13 +188,6 @@ impl Fab {
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.parts.on_click = Some(Box::new(handler));
-        self
-    }
-
-    /// 見本用に状態を固定する。
-    #[doc(hidden)]
-    pub fn forced(mut self, forced: ForcedState) -> Self {
-        self.parts.forced = Some(forced);
         self
     }
 
@@ -259,13 +246,6 @@ impl ExtendedFab {
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.parts.on_click = Some(Box::new(handler));
-        self
-    }
-
-    /// 見本用に状態を固定する。
-    #[doc(hidden)]
-    pub fn forced(mut self, forced: ForcedState) -> Self {
-        self.parts.forced = Some(forced);
         self
     }
 

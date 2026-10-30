@@ -6,7 +6,7 @@ use md3_components::theme::md3_color::ColorRole;
 use md3_components::theme::{Md3ThemeExt, MotionScheme, TypeScale};
 use md3_components::{IconName, Text};
 
-use super::{STATES, Section, state_header, state_row};
+use super::{Section, state_header, state_row};
 use crate::{Demo, Gallery};
 
 /// M3 Expressive のページ。
@@ -24,25 +24,17 @@ pub fn page(
 
     let toggle_rows = [false, true].map(|checked| {
         let name = if checked { "Checked" } else { "Unchecked" };
-        let mut cells: Vec<_> = STATES
-            .iter()
-            .map(|&(state, forced)| {
-                let button = ToggleButton::new(format!("toggle-{name}-{state}"), "Label")
-                    .icon(IconName::Favorite)
-                    .checked(checked);
-                match forced {
-                    Some(forced) => button.forced(forced).into_any_element(),
-                    None => button.into_any_element(),
-                }
-            })
-            .collect();
-        cells.push(
+        let cells = vec![
+            ToggleButton::new(format!("toggle-{name}-Enabled"), "Label")
+                .icon(IconName::Favorite)
+                .checked(checked)
+                .into_any_element(),
             ToggleButton::new(format!("toggle-{name}-disabled"), "Label")
                 .icon(IconName::Favorite)
                 .checked(checked)
                 .disabled(true)
                 .into_any_element(),
-        );
+        ];
         state_row(name, cells)
     });
 

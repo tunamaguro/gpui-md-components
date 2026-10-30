@@ -20,12 +20,12 @@ use md3_theme::md3_tokens::component::filled_text_field as tokens;
 use md3_theme::md3_tokens::layout;
 
 use super::field::{FieldFrame, FieldState, TextFieldVariant, tint};
+use crate::IconName;
 use crate::a11y::{A11yExt, A11yNode};
 use crate::keys::{
     Backspace, Copy, Cut, Delete, End, Home, Left, Paste, Right, SelectAll, SelectEnd, SelectHome,
     SelectLeft, SelectRight, TEXT_FIELD_CONTEXT,
 };
-use crate::{ForcedState, IconName};
 
 /// カーソルの幅。
 const CARET_WIDTH: f32 = 2.0;
@@ -786,7 +786,6 @@ pub struct TextField {
     prefix: Option<SharedString>,
     suffix: Option<SharedString>,
     disabled: bool,
-    forced: Option<ForcedState>,
 }
 
 impl TextField {
@@ -810,7 +809,6 @@ impl TextField {
             prefix: None,
             suffix: None,
             disabled: false,
-            forced: None,
         }
     }
 
@@ -874,13 +872,6 @@ impl TextField {
         self
     }
 
-    /// 見本用に状態を固定する（`Hovered` と `Focused` だけを使う）。
-    #[doc(hidden)]
-    pub fn forced(mut self, forced: ForcedState) -> Self {
-        self.forced = Some(forced);
-        self
-    }
-
     /// アクセシビリティツリーに出す情報。
     pub fn a11y_node(&self) -> A11yNode {
         A11yNode::new(Role::TextInput)
@@ -906,13 +897,10 @@ impl RenderOnce for TextField {
         let state = self.state.read(cx);
         let focus_handle = state.focus_handle.clone();
         let text = state.content.clone();
-        let really_focused = !self.disabled && focus_handle.is_focused(window);
-        let focused =
-            !self.disabled && (really_focused || self.forced == Some(ForcedState::Focused));
+        let focused = !self.disabled && focus_handle.is_focused(window);
         let field_state = FieldState {
             focused,
-            hovered: !self.disabled
-                && (*hovered.read(cx) || self.forced == Some(ForcedState::Hovered)),
+            hovered: !self.disabled && *hovered.read(cx),
             error: self.error,
             disabled: self.disabled,
         };
@@ -935,7 +923,7 @@ impl RenderOnce for TextField {
             selection: theme
                 .color(ColorRole::Primary)
                 .opacity(layout::TEXT_SELECTION_OPACITY),
-            focused: really_focused,
+            focused,
         };
         let affix_space = px(layout::TEXT_FIELD_PREFIX_SUFFIX_SPACE);
         let content = div()
