@@ -151,3 +151,19 @@ Tab でのフォーカス移動とフォーカスリングを確認した。
 - 実 OS の目視・読み上げ（Orca / VoiceOver / Narrator）と Web の実機操作は未確認。従来の Web AccessKit 非対応は解消していない。
 
 検証結果: `cargo fmt --all --check`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace`、`cargo build -p md3-components --target wasm32-unknown-unknown`、`cargo xtask check-tokens` は通過（1597 定数一致）。`cargo run -p gallery` はビルド後、sandbox から Wayland compositor への接続が Operation not permitted となり起動できなかったため、実画面の目視確認は未実施。
+
+## キーボードフォーカスのスクロール追従（2026-10-30）
+
+- WCAG 2.2 の [2.4.11 Focus Not Obscured (Minimum)](https://www.w3.org/WAI/WCAG22/Understanding/focus-not-obscured-minimum.html) に対応するため、
+  `ScrollScope` と `reveal_on_focus` で、キーボードで移った要素を表示領域へ入れる。フォーカスリングの外周も計算に含める。
+- `tests/navigation.rs`: ページ内の Button の Tab / Shift+Tab / 循環、Card・TextField、ページと高さ制限付き List の入れ子、
+  マウスクリック時の非スクロール、ホイールで離した後の非追従、Menu の矢印移動と背後のページの非スクロールを検証する。
+  入力前にテスト用の次フレーム配信を予約し、入力後は `run_until_parked()` だけを使う（手動 refresh / draw は足さない）。
+- `scroll.rs` の純関数テストで両軸の最小移動、最大オフセットでの制限、大きな項目の先頭合わせ、3dp + 2dp のリング余白を確認する。
+- gallery の根と独自の選択ボタンにも適用。Containment の見本には縦・横、Card、入力欄、高さ制限付き List と disabled を追加した。
+- Linux の gallery の Tab の追従は人間が実操作で確認した。実 OS の読み上げと Web の操作は未確認。
+- 回帰テストの有効性: 次フレームの予約を旧実装の `window.refresh()` に一時的に戻すと、
+  `page_reveals_tab_shift_tab_and_wrapping` が画面外の bounds を検出して失敗することも確認した（実装は復元済み）。
+- 完了チェック: `cargo fmt --all --check`、`cargo clippy --workspace --all-targets -- -D warnings`、
+  `cargo clippy -p md3-components --no-default-features -- -D warnings`、`cargo test --workspace`（379 件成功）、
+  `cargo build -p md3-components --target wasm32-unknown-unknown`、`cargo xtask check-tokens`（1597 定数一致）が通過。

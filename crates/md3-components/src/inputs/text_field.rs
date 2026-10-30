@@ -985,7 +985,7 @@ impl RenderOnce for TextField {
             .child(container)
             .children(supporting);
         if !self.disabled {
-            field = editable(field, &self.state, Some(hovered), cx);
+            field = editable(field, &self.id, &self.state, Some(hovered), window, cx);
         }
         field
     }
@@ -995,13 +995,17 @@ impl RenderOnce for TextField {
 /// `hovered` を渡すと、ポインタが乗っているかを書き込む。
 pub(crate) fn editable(
     field: Stateful<Div>,
+    id: &ElementId,
     state: &Entity<TextFieldState>,
     hovered: Option<Entity<bool>>,
-    cx: &App,
+    window: &mut Window,
+    cx: &mut App,
 ) -> Stateful<Div> {
     let focus_handle = state.read(cx).focus_handle.clone();
     let state = state.clone();
     field
+        .relative()
+        .child(crate::reveal_on_focus(id, focus_handle.clone(), window, cx))
         .key_context(TEXT_FIELD_CONTEXT)
         .track_focus(&focus_handle)
         .cursor(CursorStyle::IBeam)

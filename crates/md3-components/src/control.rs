@@ -57,7 +57,10 @@ pub(crate) fn control(
         false
     } else {
         let handle = focus_handle(id.clone(), window, cx).tab_stop(tab_stop);
-        base = base.track_focus(&handle).cursor_pointer();
+        base = base
+            .track_focus(&handle)
+            .cursor_pointer()
+            .child(crate::reveal_on_focus(id, handle.clone(), window, cx));
         is_focus_visible(&handle, window)
     };
     (

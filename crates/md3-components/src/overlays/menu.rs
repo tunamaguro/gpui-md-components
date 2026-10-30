@@ -249,9 +249,6 @@ impl RenderOnce for Menu {
 
         // 開いたメニューは画面に収まらなければスクロールする。矢印で移った項目を見える範囲に入れる。
         let scroll = crate::scroll::scroll_handle(&self.id, window, cx);
-        let reveal = focus
-            .is_some()
-            .then(|| crate::scroll::reveal_state(&self.id, window, cx));
         let mut rows = Vec::with_capacity(self.items.len());
         for (index, (item, id)) in self.items.into_iter().zip(item_ids).enumerate() {
             let (base, control) = control(&id, item.disabled, false, window, cx);
@@ -284,6 +281,7 @@ impl RenderOnce for Menu {
             };
             let has_trailing = item.trailing_icon.is_some() || item.trailing_text.is_some();
             let mut row = base
+                .debug_selector(|| format!("md3-menu-item-{id}"))
                 .when_some(item_nodes[index].clone(), |this, node| this.a11y(node))
                 .w_full()
                 .h(theme.dense(layout::MENU_ITEM_HEIGHT))
@@ -347,13 +345,6 @@ impl RenderOnce for Menu {
                         .inward()
                         .visible(control.focus_visible),
                 );
-            if let (Some(reveal), Some(handle)) = (&reveal, &handles[index]) {
-                row = row.child(crate::scroll::reveal_on_focus(
-                    scroll.clone(),
-                    handle.clone(),
-                    reveal.clone(),
-                ));
-            }
             if !item.disabled {
                 let on_select = item.on_select;
                 let close = close.clone();
@@ -371,6 +362,7 @@ impl RenderOnce for Menu {
 
         let mut container = div()
             .id(self.id.clone())
+            .debug_selector(|| format!("md3-menu-{}", self.id))
             .a11y(node)
             .flex()
             .flex_col()
@@ -469,7 +461,7 @@ impl RenderOnce for Menu {
                         anchored()
                             .position_mode(AnchoredPositionMode::Window)
                             .snap_to_window_with_margin(edges)
-                            .child(container),
+                            .child(crate::ScrollScope::new(scroll, container)),
                     )
                     .with_priority(MENU_PRIORITY),
                 ),

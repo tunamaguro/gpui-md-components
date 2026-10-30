@@ -50,6 +50,7 @@ Claude によるレビュー（Codex のレビューは利用上限で中断）�
 
 ### その他
 
+- フォーカス追従: `.hidden()` の下でフォーカスを持ったまま隠れた部品は prepaint されず、再表示と同時にフォーカスを戻すと `reveal_on_focus` が移動に気付かない（Codex レビューの P2。今の部品には該当する使い方がない）。
 - Scrollbar: RTL での左右反転、タッチでのドラッグ（`docs/specs/scrollbar.md` の「制限」）。
 - Snackbar: 入場の拡大は幅による近似（`docs/specs/snackbar.md`）。
 - M3 Expressive: 多角形の形のモーフ（`MaterialShapes`、LoadingIndicator）、FAB メニュー、ツールバーなどは未実装。

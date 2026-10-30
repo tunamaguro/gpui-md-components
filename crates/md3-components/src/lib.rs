@@ -51,7 +51,7 @@ pub use icon::Icon;
 pub use keys::init;
 pub use md3_icons::IconName;
 pub use md3_theme as theme;
-pub use scroll::NestedScroll;
+pub use scroll::{NestedScroll, ScrollScope, reveal_on_focus};
 pub use scrollbar::{Scrollbar, ScrollbarInteraction, ScrollbarSource};
 pub use state_layer::StateLayer;
 pub use style::StyledExt;

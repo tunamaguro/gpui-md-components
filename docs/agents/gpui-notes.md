@@ -20,9 +20,20 @@ API はいつも固定 rev のソース（`~/.cargo/git/checkouts/zed-*/37faef8/
 - 部品の中に新しいスクロール領域を作ったら `NestedScroll` と `Scrollbar`（`crates/md3-components/src/scrollbar.rs`）を付ける。
   オーバーレイの本文なら `scroll::content(..)` がまとめてやる（Dialog / Sheet が例）。
   バーは領域の最後の子に置く（`ScrollbarSource` を実装すれば独自の仮想リストにも付く）。
-- **`Window::focus` も Tab の移動もスクロールしない。** スクロール領域の中でフォーカスを動かす部品は、
-  各項目の子に `scroll::reveal_on_focus(..)` を置き、移った項目を見える範囲に入れる（WCAG 2.2 の 2.4.11。List / Menu / Drawer が例）。
-  `uniform_list` なら `UniformListScrollHandle::scroll_to_item` を使う（LazyList）。
+- **`Window::focus` も Tab の移動もスクロールしない。** `ScrollScope::new(handle.clone(), div().overflow_y_scroll().track_scroll(&handle))` で領域を包む。操作部品は共通の `control()`、Card、
+  TextField / SearchBar で `reveal_on_focus` を持ち、キーボードで移ったときだけ祖先の領域を内側から順に調整する
+  （WCAG 2.2 の 2.4.11）。独自のフォーカス可能要素には `.relative()` と
+  `.child(reveal_on_focus(&id, focus.clone(), window, cx))` を付ける。マウスのクリックと、フォーカスが
+  変わらない再描画では動かさない。`uniform_list` は `UniformListScrollHandle::scroll_to_item` を使う（LazyList）。
+- **描画中の `Window::refresh()` は何もしない。** `window.rs` の `invalidator.not_drawing()` で弾かれる。
+  prepaint でオフセットを変えたら `window.on_next_frame(|window, _| window.refresh())` で次のフレームを予約する。
+  その場の refresh だけでは、次の入力まで新しい位置が表示されない。
+- `ScrollScope` の Global のスタックは同期的な子の prepaint 中だけ push / pop する。遅延描画のオーバーレイは
+  pop 後に prepaint されるので、背後のページのスコープを引き継がない。箱を足さず子の LayoutId を返すため、
+  flex の寸法や a11y の親子関係も変えない。
+- テスト用プラットフォームは次フレームのコールバックを自動配信しない。`tests/navigation.rs` は入力前に
+  `simulate_next_frame` の配信だけをタスクに予約し、入力後は `run_until_parked()` だけで検証する。
+  手動の refresh / draw を足すと、描画中の refresh が無効になる不具合を隠してしまう。
 
 ## モーション
 

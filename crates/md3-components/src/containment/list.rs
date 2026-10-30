@@ -413,9 +413,6 @@ impl RenderOnce for List {
         let scroll = self
             .max_height
             .map(|_| crate::scroll::scroll_handle(&self.id, window, cx));
-        let reveal = scroll
-            .as_ref()
-            .map(|_| crate::scroll::reveal_state(&self.id, window, cx));
         let mut list = div()
             .id(self.id.clone())
             .debug_selector(|| format!("md3-list-{}", self.id))
@@ -423,10 +420,6 @@ impl RenderOnce for List {
             .flex()
             .flex_col();
         for (index, (key, item)) in self.items.into_iter().enumerate() {
-            let reveal = scroll.clone().zip(reveal.clone()).map(|(scroll, reveal)| {
-                crate::scroll::reveal_on_focus(scroll, handles[index].clone(), reveal)
-                    .into_any_element()
-            });
             let handles = handles.clone();
             let focusable = focusable.clone();
             let on_key = move |event: &KeyDownEvent, window: &mut Window, cx: &mut App| {
@@ -441,17 +434,14 @@ impl RenderOnce for List {
                     window.focus(handle, cx);
                 }
             };
-            list = list.child(
-                item.render(
-                    item_id(&self.id, &key),
-                    tab_target == Some(index),
-                    (index, count),
-                    on_key,
-                    window,
-                    cx,
-                )
-                .children(reveal),
-            );
+            list = list.child(item.render(
+                item_id(&self.id, &key),
+                tab_target == Some(index),
+                (index, count),
+                on_key,
+                window,
+                cx,
+            ));
         }
         if let (Some(height), Some(scroll)) = (self.max_height, scroll) {
             let wheel = crate::scroll::NestedScroll::new(&self.id, scroll.clone(), window, cx);
@@ -464,11 +454,12 @@ impl RenderOnce for List {
                 .when(self.scrollbar, |this| {
                     this.child(crate::Scrollbar::new(
                         ElementId::NamedChild(self.id.clone().into(), "scrollbar".into()),
-                        scroll,
+                        scroll.clone(),
                     ))
                 });
+            return crate::ScrollScope::new(scroll, list).into_any_element();
         }
-        list
+        list.into_any_element()
     }
 }
 
