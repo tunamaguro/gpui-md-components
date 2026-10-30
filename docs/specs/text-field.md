@@ -40,7 +40,7 @@
 
 ## 振る舞い
 
-- 中身は `Entity<TextFieldState>` が持ち、変更は `TextFieldEvent::Changed` で通知する。
+- 中身は `Entity<TextFieldState>` が持ち、変更は `gpui_headless::TextFieldEvent::Changed` で通知する。
 - 1 行入力。はみ出した分はキャレットが見えるように横にスクロールする。
 - 編集キー: ←→、Shift+←→、Home / End、Shift+Home / End、Backspace / Delete、Ctrl(⌘)+A / C / X / V。
 - IME の変換中の文字は下線付きで表示し、確定で置き換える（`EntityInputHandler`）。

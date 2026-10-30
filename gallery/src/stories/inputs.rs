@@ -1,9 +1,10 @@
 //! 入力の部品のページ。
 
+use gpui_headless::TextFieldState;
 use std::collections::HashMap;
 
 use gpui::{AnyElement, App, Entity, IntoElement, WeakEntity, Window, div, prelude::*, px};
-use md3_components::inputs::{Select, TextField, TextFieldState, TextFieldVariant};
+use md3_components::inputs::{Select, TextField, TextFieldVariant};
 use md3_components::theme::TypeScale;
 use md3_components::theme::md3_color::ColorRole;
 use md3_components::{IconName, Text};

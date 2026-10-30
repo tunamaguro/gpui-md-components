@@ -1,0 +1,167 @@
+//! 装飾スクロールバーのポインタ操作とフォーカス非介入。
+mod support;
+use gpui::{
+    Axis, InputEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ScrollHandle,
+    TestAppContext, VisualTestContext, div, point, prelude::*, px,
+};
+use gpui_headless::{Scrollbar, ScrollbarGeometry, ScrollbarInteraction, ScrollbarSource};
+
+fn send(cx: &mut VisualTestContext, event: impl InputEvent) {
+    cx.update(|window, cx| {
+        window.dispatch_event(event.to_platform_input(), cx);
+    });
+    support::draw(cx);
+}
+
+fn geometry() -> ScrollbarGeometry {
+    ScrollbarGeometry {
+        track_inset: px(2.0),
+        cross_inset: px(0.0),
+        thickness: px(4.0),
+        min_thumb_length: px(24.0),
+        max_thumb_fraction: 0.9,
+        hit_width: px(12.0),
+    }
+}
+#[gpui::test]
+fn drag_outside_thumb_and_release(cx: &mut TestAppContext) {
+    let scroll = ScrollHandle::new();
+    let cx = support::open(cx, {
+        let scroll = scroll.clone();
+        move |window, cx| {
+            div()
+                .id("scroll")
+                .w(px(200.0))
+                .h(px(200.0))
+                .overflow_y_scroll()
+                .track_scroll(&scroll)
+                .child(div().h(px(1000.0)))
+                .child(Scrollbar::new("bar", scroll.clone(), geometry()).build(
+                    window,
+                    cx,
+                    |_, _, _| {},
+                ))
+                .into_any_element()
+        }
+    });
+    let bounds = scroll.bounds();
+    let start = point(bounds.right() - px(2.0), bounds.top() + px(10.0));
+    send(
+        cx,
+        MouseMoveEvent {
+            position: start,
+            ..Default::default()
+        },
+    );
+    send(
+        cx,
+        MouseDownEvent {
+            position: start,
+            button: MouseButton::Left,
+            ..Default::default()
+        },
+    );
+    let end = point(bounds.right() + px(80.0), bounds.bottom() + px(80.0));
+    send(
+        cx,
+        MouseMoveEvent {
+            position: end,
+            pressed_button: Some(MouseButton::Left),
+            ..Default::default()
+        },
+    );
+    assert_eq!(scroll.offset().y, -scroll.max_offset().y);
+    send(
+        cx,
+        MouseUpEvent {
+            position: end,
+            button: MouseButton::Left,
+            ..Default::default()
+        },
+    );
+    send(
+        cx,
+        MouseMoveEvent {
+            position: start,
+            pressed_button: Some(MouseButton::Left),
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        scroll.offset().y,
+        -scroll.max_offset().y,
+        "離した後は動かない"
+    );
+    support::tab(cx);
+    cx.update(|window, cx| assert!(window.focused(cx).is_none(), "バーは Tab 順に入らない"));
+}
+
+#[gpui::test]
+fn horizontal_page_and_passive(cx: &mut TestAppContext) {
+    let scroll = ScrollHandle::new();
+    let passive = std::rc::Rc::new(std::cell::Cell::new(false));
+    let cx = support::open(cx, {
+        let scroll = scroll.clone();
+        let passive = passive.clone();
+        move |window, cx| {
+            div()
+                .id("scroll")
+                .w(px(200.0))
+                .h(px(100.0))
+                .overflow_x_scroll()
+                .track_scroll(&scroll)
+                .child(div().w(px(1000.0)).h(px(50.0)))
+                .child(
+                    Scrollbar::new("bar", scroll.clone(), geometry())
+                        .axis(Axis::Horizontal)
+                        .interaction(if passive.get() {
+                            ScrollbarInteraction::Passive
+                        } else {
+                            ScrollbarInteraction::Draggable
+                        })
+                        .build(window, cx, |_, _, _| {}),
+                )
+                .into_any_element()
+        }
+    });
+    let bounds = scroll.bounds();
+    let position = point(bounds.right() - px(10.0), bounds.bottom() - px(2.0));
+    send(
+        cx,
+        MouseMoveEvent {
+            position,
+            ..Default::default()
+        },
+    );
+    send(
+        cx,
+        MouseDownEvent {
+            position,
+            button: MouseButton::Left,
+            ..Default::default()
+        },
+    );
+    assert_eq!(scroll.offset().x, px(-200.0));
+    send(
+        cx,
+        MouseUpEvent {
+            position,
+            button: MouseButton::Left,
+            ..Default::default()
+        },
+    );
+    passive.set(true);
+    support::draw(cx);
+    send(
+        cx,
+        MouseDownEvent {
+            position,
+            button: MouseButton::Left,
+            ..Default::default()
+        },
+    );
+    assert_eq!(scroll.offset().x, px(-200.0));
+    ScrollbarSource::set_offset(&scroll, Axis::Horizontal, px(9000.0));
+    assert_eq!(scroll.offset().x, -scroll.max_offset().x);
+    assert_eq!(scroll.offset().y, px(0.0));
+}

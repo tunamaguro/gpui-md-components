@@ -3,13 +3,28 @@
 mod support;
 
 use gpui::{Entity, EntityInputHandler, TestAppContext, VisualTestContext, prelude::*};
-use md3_components::inputs::{TextField, TextFieldState};
+use gpui::{black, px};
+use gpui_headless::{SearchField, TextField, TextFieldState, TextPaint};
 
 fn open(cx: &mut TestAppContext) -> (Entity<TextFieldState>, &mut VisualTestContext) {
     let state = cx.new(TextFieldState::new);
     let cx = support::open(cx, {
         let state = state.clone();
-        move |_, _| TextField::new("name", &state, "名前").into_any_element()
+        move |window, cx| {
+            let (base, control) = TextField::new("name", &state, "名前").build(window, cx);
+            let color = black();
+            base.child(control.input(
+                TextPaint {
+                    text: color,
+                    placeholder: color,
+                    caret: color,
+                    selection: color,
+                    caret_width: px(2.0),
+                },
+                None,
+            ))
+            .into_any_element()
+        }
     });
     support::tab(cx);
     (state, cx)
@@ -88,4 +103,23 @@ fn emoji_and_combining_marks_are_deleted_whole(cx: &mut TestAppContext) {
     );
     support::press(cx, "backspace");
     assert_eq!(state.read_with(cx, |s, _| s.text().to_owned()), "");
+}
+
+#[gpui::test]
+fn fields_expose_names_roles_and_states(cx: &mut TestAppContext) {
+    let state = cx.new(TextFieldState::new);
+    let field = TextField::new("name", &state, "名前")
+        .disabled(true)
+        .error(true)
+        .placeholder("入力")
+        .a11y_node();
+    assert_eq!(field.role, gpui::Role::TextInput);
+    assert_eq!(field.label.as_deref(), Some("名前"));
+    assert!(field.disabled);
+    assert!(field.invalid);
+    let search = SearchField::new("search", &state, "メールを検索")
+        .placeholder("メールを検索")
+        .a11y_node();
+    assert_eq!(search.role, gpui::Role::SearchInput);
+    assert_eq!(search.label.as_deref(), Some("メールを検索"));
 }

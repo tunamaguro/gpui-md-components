@@ -25,7 +25,7 @@
 
 ## 振る舞い
 
-- `ScrollbarSource` は表示領域のウィンドウ座標、軸別の最大距離・現在位置・setter を提供する。
+- `gpui_headless::ScrollbarSource` は表示領域のウィンドウ座標、軸別の最大距離・現在位置・setter を提供する。
   内容の長さは表示領域の長さ + 最大距離。正の位置を GPUI の負の offset に変換する。
 - `ScrollHandle` と `UniformListScrollHandle` に実装。UniformList のドラッグは保留中の項目ジャンプを解除する。
 - つまみの長さは内容比率、位置は移動可能なトラック長に比例。両端にクランプする。
