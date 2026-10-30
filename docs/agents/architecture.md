@@ -88,15 +88,21 @@ wasm-bindgen = "<上流 zed と同じ要求版>"
 
 部品を作るときはまずこれらを使う。
 
-| モジュール                    | 役割                                                                                                                      |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `state_layer.rs` / `focus.rs` | 状態レイヤーとフォーカスリング。角が不揃いな部品は `.corners(Corners)` を渡す                                             |
-| `style.rs`                    | `StyledExt`（`corners` など）                                                                                             |
-| `motion.rs`                   | 色をテーマのバネで補間する `motion::color`（`Theme::spring` と組み合わせる）                                              |
-| `control.rs`                  | 操作部品の共通処理（フォーカス・hover・押下、矢印移動の `step`）                                                          |
-| `scroll.rs`                   | 入れ子スクロール（公開の `NestedScroll`）、オーバーレイ本文（`content`）、フォーカスした項目を見せる（`reveal_on_focus`） |
-| `scrollbar.rs`                | `Scrollbar` と `ScrollbarSource`                                                                                          |
-| `expressive/press.rs`         | 押下の状態機械（押下・解除・キャンセル）                                                                                  |
+| モジュール                    | 役割                                                                                                                                              |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `state_layer.rs` / `focus.rs` | 状態レイヤーとフォーカスリング。角が不揃いな部品は `.corners(Corners)` を渡す                                                                     |
+| `style.rs`                    | `StyledExt`（`corners` など）                                                                                                                     |
+| `motion.rs`                   | 色をテーマのバネで補間する `motion::color`（`Theme::spring` と組み合わせる）                                                                      |
+| `control.rs`                  | 操作部品の共通処理（フォーカス・hover・押下、矢印移動の `step`）                                                                                  |
+| `scroll.rs`                   | 入れ子スクロール（`NestedScroll`）、表示領域（`ScrollScope`）、キーボードで移った要素を見せる（`reveal_on_focus`）、オーバーレイ本文（`content`） |
+| `scrollbar.rs`                | `Scrollbar` と `ScrollbarSource`                                                                                                                  |
+| `expressive/press.rs`         | 押下の状態機械（押下・解除・キャンセル）                                                                                                          |
+
+`control()` は有効な要素に `reveal_on_focus` を付ける。control を使わない Card と TextField / SearchBar にも付ける。
+List（高さ制限あり）・Drawer・Menu・オーバーレイ本文は `ScrollScope` で領域を包む。アプリ側のスクロール領域も同じように包む。
+スコープはレイアウトを増やさず、同期的な prepaint の間だけ Global のスタックに存在する。内側から順に両軸を調整し、
+実際の移動量を外側へ反映する。フォーカスリングの外周を含め、最大オフセットまでに制限する。
+遅延描画するオーバーレイには背後の領域を渡さない。LazyList の仮想化領域は `scroll_to_item` を維持する。
 
 GPUI の挙動で注意する点は [`gpui-notes.md`](gpui-notes.md)。
 

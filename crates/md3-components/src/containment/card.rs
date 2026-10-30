@@ -205,6 +205,12 @@ impl RenderOnce for Card {
             let handler = clickable.handler;
             card = card
                 .track_focus(&handle)
+                .child(crate::reveal_on_focus(
+                    &clickable.id,
+                    handle.clone(),
+                    window,
+                    cx,
+                ))
                 .cursor_pointer()
                 .on_click(move |event, window, cx| handler(event, window, cx));
             is_focus_visible(&handle, window)

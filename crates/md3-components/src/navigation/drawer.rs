@@ -137,7 +137,6 @@ impl RenderOnce for NavigationDrawer {
         let pill = theme.corner(tokens::ACTIVE_INDICATOR_SHAPE);
         // 項目が多ければスクロールする。矢印・Tab で移った項目を見える範囲に入れる。
         let scroll = crate::scroll::scroll_handle(&self.id, window, cx);
-        let reveal = crate::scroll::reveal_state(&self.id, window, cx);
         let items: Vec<AnyElement> = self
             .items
             .iter()
@@ -213,13 +212,7 @@ impl RenderOnce for NavigationDrawer {
                     )
                     .child(FocusRing::new(pill).visible(control.focus_visible));
                 if !item.disabled {
-                    element = element
-                        .child(crate::scroll::reveal_on_focus(
-                            scroll.clone(),
-                            destinations.handles[index].clone(),
-                            reveal.clone(),
-                        ))
-                        .on_key_down(destinations.on_key(index, true));
+                    element = element.on_key_down(destinations.on_key(index, true));
                     if let Some(on_change) = self.on_change.clone() {
                         element =
                             element.on_click(move |_, window, cx| on_change(index, window, cx));
@@ -270,9 +263,10 @@ impl RenderOnce for NavigationDrawer {
         };
 
         let Some(focus) = focus else {
-            return drawer.into_any_element();
+            return crate::ScrollScope::new(scroll, drawer).into_any_element();
         };
-        let drawer = modal_container(drawer, &focus, dismiss.clone(), cx);
+        let drawer =
+            crate::ScrollScope::new(scroll, modal_container(drawer, &focus, dismiss.clone(), cx));
         let layer = scrim(
             ElementId::NamedChild(self.id.into(), "scrim".into()),
             dismiss,

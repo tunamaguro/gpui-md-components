@@ -115,6 +115,38 @@ Dialog / BottomSheet / SideSheet の本文は、内側が動ける方向の
 終了・キャンセルまで保持する。開始フェーズのない入力はイベントごとに端を判定する。
 利用側で追加する任意の GPUI スクロール領域には自動では適用されない（外側も一緒に動く）。
 
+### キーボードフォーカスを見える位置へ移す
+
+アプリのスクロール領域を、同じ `ScrollHandle` を渡した `ScrollScope` で包みます。
+Button・Checkbox などの操作部品、押せる Card、TextField / SearchBar は、Tab / Shift+Tab や矢印キーで
+フォーカスが移ると、自動的に見える位置までスクロールします（[WCAG 2.2 の 2.4.11](https://www.w3.org/WAI/WCAG22/Understanding/focus-not-obscured-minimum.html)）。
+
+```rust,ignore
+let scroll = gpui::ScrollHandle::new(); // ビューまたは use_keyed_state で保持する
+let page = md3_components::ScrollScope::new(scroll.clone(),
+    gpui::div().id("page").h(gpui::px(240.0))
+        .overflow_y_scroll().track_scroll(&scroll)
+        .child(content)
+        .child(md3_components::Scrollbar::new("page-scrollbar", scroll.clone())));
+```
+
+独自のフォーカス可能要素には `reveal_on_focus` を子として付けます。ID はその要素と同じものを使い、
+親を `.relative()` にします。役割・名前・状態とキー操作も要素側で用意します。
+
+```rust,ignore
+let focus = md3_components::focus_handle(id.clone(), window, cx);
+let reveal = md3_components::reveal_on_focus(&id, focus.clone(), window, cx);
+let element = gpui::div().id(id).relative().track_focus(&focus)
+    .role(gpui::Role::Button).aria_label("保存")
+    .child(label).child(reveal).on_click(save);
+```
+
+List の `max_height`、Drawer、Menu / Select、Dialog / Sheet の本文にはスコープが付いています。
+入れ子でも内側から順に両軸を調整します。外側のフォーカスリング（太さ 3dp + 間隔 2dp）も含めますが、
+スクロール限界までに制限します。要素が領域より大きければ先頭を合わせます。端にリングを置く場合は、本文に余白も確保してください。
+マウスクリックではスクロールせず、同じ要素にフォーカスしたままホイールで離しても引き戻しません。
+遅延描画するメニューは自身の領域だけを調整し、背後のページを動かしません。LazyList は従来どおり `scroll_to_item` を使います。
+
 ### スクロールバー
 
 スクロール領域を `ScrollHandle` で追跡し、最後の子に `Scrollbar` を足します。

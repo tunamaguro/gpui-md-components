@@ -134,6 +134,8 @@ impl Choice {
     ) -> gpui::AnyElement {
         let handle = focus_handle(self.id.clone(), window, cx);
         let focused = is_focus_visible(&handle, window);
+        let reveal =
+            md3_components::reveal_on_focus(&self.id.clone().into(), handle.clone(), window, cx);
         let theme = cx.md3();
         let radius = theme.corner(Shape::Full);
         let (container, content) = if self.selected {
@@ -150,6 +152,7 @@ impl Choice {
             .group(group.clone())
             .relative()
             .track_focus(&handle)
+            .child(reveal)
             .role(Role::Button)
             .aria_label(self.label.clone())
             .aria_selected(self.selected)

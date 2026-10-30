@@ -100,7 +100,7 @@ impl RenderOnce for SearchBar {
                 .into_any_element(),
         };
         let field = div()
-            .id(self.id)
+            .id(self.id.clone())
             .a11y(node)
             .aria_value(SharedString::from(text))
             .aria_placeholder(self.placeholder)
@@ -119,7 +119,7 @@ impl RenderOnce for SearchBar {
             .children(self.trailing.into_iter().map(|button| {
                 icon_slot().child(button.content_color(tokens::TRAILING_ICON_COLOR))
             }));
-        editable(field, &self.state, None, cx)
+        editable(field, &self.id, &self.state, None, window, cx)
     }
 }
 

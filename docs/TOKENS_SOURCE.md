@@ -1648,3 +1648,11 @@
 | Snackbar の透明度 / 幅の拡大             | 0↔1 FastEffects / 0.8→1 FastSpatial                                       | SnackbarHost.kt                                   | FadeInFadeOutWithScale / animatedOpacity / animatedScale      | androidx@b8256a52 |
 
 バネの剛性・減衰、Switch の 52×32dp、つまみ 16 / 24 / 押下 28dp、枠線 2dp、表示時間 4000 / 10000ms は既存トークンと出典を再利用した。新しい時間定数は追加していない。Snackbar の scale は固定 GPUI の制約により幅で近似する。M3 の各仕様ページは JavaScript 必須で本文を取得できず、振る舞いは上記 Compose の一次資料を採用した。
+
+## キーボードフォーカスのスクロール余白（2026-10-30）
+
+`scroll::reveal_offset` は既存の `state::FOCUS_INDICATOR_THICKNESS`（3.0dp）と
+`state::FOCUS_INDICATOR_OUTER_OFFSET`（2.0dp）を再利用し、外側へ 5.0dp 広げて表示位置を計算する。
+新しい寸法トークンは追加しない。`FocusRing` の外周と同じ計算で、出典は
+[material-web の `_md-sys-state-focus-indicator.scss`](https://github.com/material-components/material-web/blob/86cb0d484d0cda1193f09bb3ee70b8e2ed8e6a79/tokens/versions/latest/sass/_md-sys-state-focus-indicator.scss)
+L21（outer-offset）・L23（thickness）、material-web@86cb0d48（Google LLC、Apache-2.0）。

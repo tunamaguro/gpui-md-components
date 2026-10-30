@@ -1,11 +1,104 @@
-//! 入れ子のスクロール領域から祖先へのホイール伝播を制御する。
+//! 入れ子のスクロール領域のホイール伝播と、キーボードフォーカスの表示を制御する。
 
 use std::{cell::Cell, rc::Rc};
 
 use gpui::{
-    App, DispatchPhase, ElementId, IntoElement, Pixels, Point, ScrollEvent, ScrollHandle,
-    TouchPhase, Window, canvas, prelude::*, px,
+    AnyElement, App, Bounds, DispatchPhase, Element, ElementId, FocusHandle, Global,
+    GlobalElementId, InspectorElementId, IntoElement, LayoutId, Pixels, Point, ScrollEvent,
+    ScrollHandle, TouchPhase, Window, canvas, prelude::*, px,
 };
+use md3_theme::md3_tokens::state;
+
+#[derive(Default)]
+struct ScopeStack(Vec<ScrollHandle>);
+
+impl Global for ScopeStack {}
+
+/// キーボードでフォーカスした子要素を見せるためのスクロール領域。
+///
+/// `track_scroll` した div を同じハンドルで包む。レイアウト用の箱は増やさない。
+/// 入れ子なら内側から外側へ順に表示位置を調整する。遅延描画するオーバーレイは
+/// 背後の領域を引き継がず、オーバーレイ内に作った領域だけを使う。
+///
+/// ```ignore
+/// ScrollScope::new(handle.clone(), div().id("page")
+///     .overflow_y_scroll().track_scroll(&handle).child(content))
+/// ```
+pub struct ScrollScope {
+    handle: ScrollHandle,
+    child: AnyElement,
+}
+
+impl ScrollScope {
+    /// スクロール領域のハンドルと、その領域の要素から作る。
+    pub fn new(handle: ScrollHandle, child: impl IntoElement) -> Self {
+        Self {
+            handle,
+            child: child.into_any_element(),
+        }
+    }
+}
+
+impl IntoElement for ScrollScope {
+    type Element = Self;
+
+    fn into_element(self) -> Self {
+        self
+    }
+}
+
+impl Element for ScrollScope {
+    type RequestLayoutState = ();
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, ()) {
+        (self.child.request_layout(window, cx), ())
+    }
+
+    fn prepaint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut (),
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        // 同期的な prepaint の間だけ保持するため、別ウィンドウや遅延描画には漏れない。
+        cx.default_global::<ScopeStack>()
+            .0
+            .push(self.handle.clone());
+        self.child.prepaint(window, cx);
+        cx.global_mut::<ScopeStack>().0.pop();
+    }
+
+    fn paint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut (),
+        _: &mut (),
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.child.paint(window, cx);
+    }
+}
 
 /// 描画をまたいで保持するスクロール位置。
 #[cfg(any(feature = "containment", feature = "overlays", feature = "navigation"))]
@@ -135,34 +228,47 @@ fn gesture_step(
 
 /// フォーカスが移ってきた要素を、スクロール領域の見える範囲に入れる（WCAG 2.2 の 2.4.11）。
 ///
-/// gpui の `Window::focus` も Tab の移動もスクロールしないため、スクロール領域の中で
-/// フォーカスを動かす部品は、各項目の子にこれを置く。フォーカスが移ってきたときに一度だけ、
-/// 項目が収まる最小の量だけ動かす（ホイールで外へ動かしても、フォーカスが同じなら引き戻さない）。
-/// `last` は領域ごとに 1 つ（[`reveal_state`]）。
-#[cfg(any(feature = "containment", feature = "overlays", feature = "navigation"))]
-pub(crate) fn reveal_on_focus(
-    scroll: ScrollHandle,
-    focus: gpui::FocusHandle,
-    last: RevealState,
-) -> impl IntoElement {
+/// `.relative()` な操作要素の子に置く。祖先の [`ScrollScope`] を内側から順に調整し、
+/// 外側のフォーカスリングも収まる最小量だけ動かす。領域より大きい要素は先頭を合わせる。
+/// キーボード入力によってフォーカスが移ったときだけ動くため、マウスクリックでは動かさず、
+/// 同じ要素にフォーカスしたままホイールで外へ動かしても引き戻さない。
+/// 描画・ヒットテスト・レイアウト上の大きさには影響しない。
+pub fn reveal_on_focus(
+    id: &ElementId,
+    focus: FocusHandle,
+    window: &mut Window,
+    cx: &mut App,
+) -> impl IntoElement + use<> {
+    let was_focused = window
+        .use_keyed_state(
+            ElementId::NamedChild(id.clone().into(), "reveal-on-focus".into()),
+            cx,
+            |_, _| Rc::new(Cell::new(false)),
+        )
+        .read(cx)
+        .clone();
     canvas(
-        move |bounds, window, _| {
+        move |mut bounds, window, cx| {
             let focused = focus.is_focused(window);
-            let is_last = last.borrow().as_ref() == Some(&focus);
-            if !focused {
-                // 領域の外へ出たら忘れる（戻ってきたときにまた見せる）。
-                if is_last {
-                    *last.borrow_mut() = None;
+            let previous = was_focused.replace(focused);
+            if !focused || previous || !window.last_input_was_keyboard() {
+                return;
+            }
+            let mut changed = false;
+            for scroll in cx.default_global::<ScopeStack>().0.iter().rev() {
+                let before = scroll.offset();
+                if let Some(offset) =
+                    reveal_offset(scroll.bounds(), bounds, before, scroll.max_offset())
+                {
+                    scroll.set_offset(offset);
+                    // 内側で実際に動いた量を外側の判定へ反映する（端での制限も含む）。
+                    bounds.origin += scroll.offset() - before;
+                    changed = true;
                 }
-                return;
             }
-            if is_last {
-                return;
-            }
-            *last.borrow_mut() = Some(focus.clone());
-            if let Some(offset) = reveal_offset(scroll.bounds(), bounds, scroll.offset()) {
-                scroll.set_offset(offset);
-                window.refresh();
+            if changed {
+                // 描画中の refresh は無効。変更した位置は次のフレームで描く。
+                window.on_next_frame(|window, _| window.refresh());
             }
         },
         |_, _, _, _| {},
@@ -171,39 +277,51 @@ pub(crate) fn reveal_on_focus(
     .inset_0()
 }
 
-/// 最後に見せた項目のフォーカス。領域ごとに描画をまたいで保つ。
-#[cfg(any(feature = "containment", feature = "overlays", feature = "navigation"))]
-pub(crate) type RevealState = Rc<std::cell::RefCell<Option<gpui::FocusHandle>>>;
-
-/// [`reveal_on_focus`] の状態を取り出す。
-#[cfg(any(feature = "containment", feature = "overlays", feature = "navigation"))]
-pub(crate) fn reveal_state(id: &ElementId, window: &mut Window, cx: &mut App) -> RevealState {
-    window
-        .use_keyed_state(
-            ElementId::NamedChild(id.clone().into(), "reveal-on-focus".into()),
-            cx,
-            |_, _| Rc::new(std::cell::RefCell::new(None)),
-        )
-        .read(cx)
-        .clone()
-}
-
 /// `item` を `viewport` に収める新しいオフセット。動かす必要がなければ `None`。
-/// 項目が領域より高ければ上端を合わせる。
-#[cfg(any(feature = "containment", feature = "overlays", feature = "navigation"))]
+/// 外側のリング分だけ広げ、各軸をスクロール可能な範囲に制限する。
 fn reveal_offset(
-    viewport: gpui::Bounds<Pixels>,
-    item: gpui::Bounds<Pixels>,
+    viewport: Bounds<Pixels>,
+    item: Bounds<Pixels>,
     offset: Point<Pixels>,
+    max_offset: Point<Pixels>,
 ) -> Option<Point<Pixels>> {
-    let delta = if item.top() < viewport.top() || item.size.height > viewport.size.height {
-        viewport.top() - item.top()
-    } else if item.bottom() > viewport.bottom() {
-        viewport.bottom() - item.bottom()
-    } else {
-        return None;
+    let item = item.dilate(px(
+        state::FOCUS_INDICATOR_THICKNESS + state::FOCUS_INDICATOR_OUTER_OFFSET
+    ));
+    let axis = |start: Pixels,
+                end: Pixels,
+                item_start: Pixels,
+                item_end: Pixels,
+                offset: Pixels,
+                max: Pixels| {
+        let delta = if item_start < start || item_end - item_start > end - start {
+            start - item_start
+        } else if item_end > end {
+            end - item_end
+        } else {
+            px(0.0)
+        };
+        (offset + delta).clamp(-max.max(px(0.0)), px(0.0))
     };
-    (delta != px(0.0)).then(|| gpui::point(offset.x, offset.y + delta))
+    let next = gpui::point(
+        axis(
+            viewport.left(),
+            viewport.right(),
+            item.left(),
+            item.right(),
+            offset.x,
+            max_offset.x,
+        ),
+        axis(
+            viewport.top(),
+            viewport.bottom(),
+            item.top(),
+            item.bottom(),
+            offset.y,
+            max_offset.y,
+        ),
+    );
+    (next != offset).then_some(next)
 }
 
 /// オーバーレイの本文。ヘッダーと操作ボタンを残したまま縮小できる領域。
@@ -218,52 +336,108 @@ pub(crate) fn content(
     let id = ElementId::NamedChild(parent.clone().into(), "scroll-content".into());
     let scroll = scroll_handle(&id, window, cx);
     let wheel = NestedScroll::new(&id, scroll.clone(), window, cx);
-    gpui::div()
-        .id(id.clone())
-        .min_h_0()
-        .overflow_y_scroll()
-        .track_scroll(&scroll)
-        .on_scroll(wheel.on_scroll())
-        .child(gpui::div().flex().flex_col().children(children))
-        .child(wheel.capture())
-        .when(scrollbar, |this| {
-            this.child(crate::Scrollbar::new(
-                ElementId::NamedChild(id.into(), "scrollbar".into()),
-                scroll,
-            ))
-        })
+    ScrollScope::new(
+        scroll.clone(),
+        gpui::div()
+            .id(id.clone())
+            .min_h_0()
+            .overflow_y_scroll()
+            .track_scroll(&scroll)
+            .on_scroll(wheel.on_scroll())
+            .child(gpui::div().flex().flex_col().children(children))
+            .child(wheel.capture())
+            .when(scrollbar, |this| {
+                this.child(crate::Scrollbar::new(
+                    ElementId::NamedChild(id.into(), "scrollbar".into()),
+                    scroll,
+                ))
+            }),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    #[cfg(any(feature = "containment", feature = "overlays", feature = "navigation"))]
-    fn reveal_scrolls_the_minimum_amount() {
-        use gpui::{Bounds, point};
+    fn rect(left: f32, top: f32, width: f32, height: f32) -> Bounds<Pixels> {
+        Bounds::new(
+            gpui::point(px(left), px(top)),
+            gpui::size(px(width), px(height)),
+        )
+    }
 
-        let viewport = Bounds::new(point(px(0.0), px(100.0)), gpui::size(px(200.0), px(300.0)));
-        let offset = point(px(0.0), px(-50.0));
-        let item = |top: f32, height: f32| {
-            Bounds::new(point(px(0.0), px(top)), gpui::size(px(200.0), px(height)))
-        };
-        // 見えていれば動かさない。
-        assert_eq!(reveal_offset(viewport, item(150.0, 48.0), offset), None);
-        // 下にはみ出したら、下端を合わせる分だけ進める。
+    #[test]
+    fn reveal_scrolls_both_axes_by_the_minimum_amount() {
+        use gpui::point;
+        let viewport = rect(100.0, 100.0, 200.0, 300.0);
+        let offset = point(px(-50.0), px(-50.0));
+        let max = point(px(500.0), px(500.0));
         assert_eq!(
-            reveal_offset(viewport, item(380.0, 48.0), offset),
-            Some(point(px(0.0), px(-78.0)))
+            reveal_offset(viewport, rect(150.0, 150.0, 48.0, 48.0), offset, max),
+            None
         );
-        // 上にはみ出したら、上端を合わせる分だけ戻す。
         assert_eq!(
-            reveal_offset(viewport, item(80.0, 48.0), offset),
-            Some(point(px(0.0), px(-30.0)))
+            reveal_offset(viewport, rect(280.0, 380.0, 48.0, 48.0), offset, max),
+            Some(point(px(-83.0), px(-83.0)))
         );
-        // 領域より高い項目は上端を合わせる。
         assert_eq!(
-            reveal_offset(viewport, item(120.0, 400.0), offset),
-            Some(point(px(0.0), px(-70.0)))
+            reveal_offset(viewport, rect(80.0, 80.0, 48.0, 48.0), offset, max),
+            Some(point(px(-25.0), px(-25.0)))
+        );
+        // 領域より大きい項目は、リングを含めた先頭を合わせる。
+        assert_eq!(
+            reveal_offset(viewport, rect(120.0, 120.0, 400.0, 400.0), offset, max),
+            Some(point(px(-65.0), px(-65.0)))
+        );
+    }
+
+    #[test]
+    fn reveal_includes_the_outer_focus_ring() {
+        use gpui::point;
+        let viewport = rect(100.0, 100.0, 200.0, 300.0);
+        let offset = point(px(-50.0), px(-50.0));
+        let max = point(px(500.0), px(500.0));
+        // 本体が収まっていても、外側の 3dp + 2dp の分を空ける。
+        assert_eq!(
+            reveal_offset(viewport, rect(100.0, 100.0, 48.0, 48.0), offset, max),
+            Some(point(px(-45.0), px(-45.0)))
+        );
+        assert_eq!(
+            reveal_offset(viewport, rect(252.0, 352.0, 48.0, 48.0), offset, max),
+            Some(point(px(-55.0), px(-55.0)))
+        );
+        assert_eq!(
+            reveal_offset(viewport, rect(105.0, 105.0, 48.0, 48.0), offset, max),
+            None
+        );
+    }
+
+    #[test]
+    fn reveal_clamps_both_axes_to_the_scrollable_range() {
+        use gpui::point;
+        let viewport = rect(0.0, 0.0, 100.0, 100.0);
+        let offset = point(px(-20.0), px(-30.0));
+        let max = point(px(50.0), px(70.0));
+        assert_eq!(
+            reveal_offset(viewport, rect(-500.0, -500.0, 48.0, 48.0), offset, max),
+            Some(point(px(0.0), px(0.0)))
+        );
+        assert_eq!(
+            reveal_offset(viewport, rect(500.0, 500.0, 48.0, 48.0), offset, max),
+            Some(-max)
+        );
+        assert_eq!(
+            reveal_offset(viewport, rect(500.0, 500.0, 48.0, 48.0), -max, max),
+            None
+        );
+        assert_eq!(
+            reveal_offset(
+                viewport,
+                rect(500.0, 500.0, 48.0, 48.0),
+                point(px(0.0), px(0.0)),
+                point(px(0.0), px(0.0))
+            ),
+            None
         );
     }
 

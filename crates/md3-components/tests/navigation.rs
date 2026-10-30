@@ -375,13 +375,402 @@ fn focused_item_is_scrolled_into_view(cx: &mut TestAppContext) {
         item.top() >= list.top() && item.bottom() <= list.bottom()
     };
     assert!(!visible(cx, 19), "最初は最後の項目が見えていない");
-    support::tab(cx);
-    support::press(cx, "end");
+    reveal_key(cx, "tab");
+    reveal_key(cx, "end");
     assert!(visible(cx, 19), "End で移った最後の項目が見える");
-    support::press(cx, "home");
+    reveal_key(cx, "home");
     assert!(visible(cx, 0), "Home で先頭に戻ると先頭が見える");
     for _ in 0..5 {
-        support::press(cx, "down");
+        reveal_key(cx, "down");
     }
     assert!(visible(cx, 5), "下矢印で移った項目が見える");
+}
+
+/// テスト用プラットフォームにはフレーム源がないので、次フレームの配信だけを予約する。
+/// refresh / draw は呼ばない。入力後は run_until_parked だけで位置が反映されることを検証する。
+fn queue_reveal_frames(cx: &mut gpui::VisualTestContext) {
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    let mut frame_cx = cx.clone();
+    cx.foreground_executor()
+        .spawn(async move {
+            // 既存の Scrollbar はフェード待ちにも次フレームを予約する。
+            // 時計を進めずにそれを待ち切ろうとせず、フォーカスと位置の反映分を配信する。
+            for _ in 0..3 {
+                if frame_cx.update(|window, cx| window.simulate_next_frame(cx)) == 0 {
+                    return;
+                }
+            }
+        })
+        .detach();
+}
+
+/// gallery と同じく、実際のキー入力と focus_next / focus_prev を組み合わせる。
+fn reveal_key(cx: &mut gpui::VisualTestContext, key: &'static str) {
+    use gpui::{InputEvent, KeyDownEvent, KeyUpEvent, Keystroke};
+    queue_reveal_frames(cx);
+    let keystroke = Keystroke::parse(key).expect("キー");
+    cx.update(|window, cx| {
+        window.dispatch_event(
+            KeyDownEvent {
+                keystroke: keystroke.clone(),
+                is_held: false,
+                prefer_character_input: false,
+            }
+            .to_platform_input(),
+            cx,
+        );
+        match key {
+            "tab" => window.focus_next(cx),
+            "shift-tab" => window.focus_prev(cx),
+            _ => {}
+        }
+        window.dispatch_event(KeyUpEvent { keystroke }.to_platform_input(), cx);
+    });
+    cx.run_until_parked();
+}
+
+#[cfg(debug_assertions)]
+fn assert_inside(
+    cx: &mut gpui::VisualTestContext,
+    selector: &'static str,
+    viewport: gpui::Bounds<gpui::Pixels>,
+    ring: bool,
+) {
+    let bounds = cx.debug_bounds(selector).expect("項目の位置");
+    let bounds = if ring {
+        let state = md3_components::theme::md3_tokens::state::FOCUS_INDICATOR_THICKNESS
+            + md3_components::theme::md3_tokens::state::FOCUS_INDICATOR_OUTER_OFFSET;
+        bounds.dilate(px(state))
+    } else {
+        bounds
+    };
+    assert!(
+        bounds.top() >= viewport.top()
+            && bounds.bottom() <= viewport.bottom()
+            && bounds.left() >= viewport.left()
+            && bounds.right() <= viewport.right(),
+        "{selector}: {bounds:?} が {viewport:?} に収まる"
+    );
+}
+
+/// Tab・Shift+Tab・循環で、見えなくなったボタンを再描画も含めて追従する。
+#[cfg(debug_assertions)]
+#[gpui::test]
+fn page_reveals_tab_shift_tab_and_wrapping(cx: &mut TestAppContext) {
+    use md3_components::{ScrollScope, buttons::Button};
+    let scroll = gpui::ScrollHandle::new();
+    let cx = support::open(cx, {
+        let scroll = scroll.clone();
+        move |_, _| {
+            ScrollScope::new(
+                scroll.clone(),
+                div()
+                    .id("page")
+                    .w(px(240.0))
+                    .h(px(120.0))
+                    .overflow_y_scroll()
+                    .track_scroll(&scroll)
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .p(px(10.0))
+                            .gap(px(150.0))
+                            .child(
+                                div()
+                                    .debug_selector(|| "first".into())
+                                    .child(Button::new("first", "先頭")),
+                            )
+                            .child(
+                                div()
+                                    .debug_selector(|| "middle".into())
+                                    .child(Button::new("middle", "中央")),
+                            )
+                            .child(
+                                div()
+                                    .debug_selector(|| "last".into())
+                                    .child(Button::new("last", "末尾")),
+                            ),
+                    ),
+            )
+            .into_any_element()
+        }
+    });
+    assert!(cx.debug_bounds("last").expect("末尾").top() > scroll.bounds().bottom());
+    reveal_key(cx, "tab");
+    assert_inside(cx, "first", scroll.bounds(), true);
+    reveal_key(cx, "tab");
+    assert_inside(cx, "middle", scroll.bounds(), true);
+    reveal_key(cx, "tab");
+    assert_inside(cx, "last", scroll.bounds(), true);
+    assert!(scroll.offset().y < px(0.0));
+    reveal_key(cx, "shift-tab");
+    assert_inside(cx, "middle", scroll.bounds(), true);
+    reveal_key(cx, "tab");
+    reveal_key(cx, "tab");
+    assert_inside(cx, "first", scroll.bounds(), true);
+    assert!(scroll.offset().y >= px(-10.0), "先頭の余白まで戻る");
+    reveal_key(cx, "shift-tab");
+    assert_inside(cx, "last", scroll.bounds(), true);
+}
+
+/// control を使わない Card と入力欄も同じ領域へ追従する。
+#[cfg(debug_assertions)]
+#[gpui::test]
+fn page_reveals_card_and_text_field(cx: &mut TestAppContext) {
+    use md3_components::{
+        ScrollScope,
+        buttons::Button,
+        containment::{Card, CardVariant},
+        inputs::{TextField, TextFieldState},
+    };
+    let scroll = gpui::ScrollHandle::new();
+    let state = cx.new(TextFieldState::new);
+    let cx = support::open(cx, {
+        let scroll = scroll.clone();
+        move |_, _| {
+            ScrollScope::new(
+                scroll.clone(),
+                div()
+                    .id("page")
+                    .w(px(300.0))
+                    .h(px(160.0))
+                    .overflow_y_scroll()
+                    .track_scroll(&scroll)
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .p(px(10.0))
+                            .gap(px(200.0))
+                            .child(Button::new("start", "開始"))
+                            .child(
+                                div().debug_selector(|| "card".into()).child(
+                                    Card::new(CardVariant::Filled)
+                                        .on_click("card", "カード", |_, _, _| {})
+                                        .h(px(64.0))
+                                        .child("カード"),
+                                ),
+                            )
+                            .child(
+                                div()
+                                    .debug_selector(|| "field".into())
+                                    .child(TextField::new("field", &state, "名前")),
+                            ),
+                    ),
+            )
+            .into_any_element()
+        }
+    });
+    reveal_key(cx, "tab");
+    reveal_key(cx, "tab");
+    assert_inside(cx, "card", scroll.bounds(), true);
+    let card_offset = scroll.offset().y;
+    reveal_key(cx, "tab");
+    assert_inside(cx, "field", scroll.bounds(), true);
+    assert!(scroll.offset().y < card_offset);
+}
+
+/// 内側で制限された移動量を外側に反映し、両方の表示領域に項目を収める。
+#[cfg(debug_assertions)]
+#[gpui::test]
+fn nested_list_reveals_item_in_both_scopes(cx: &mut TestAppContext) {
+    use md3_components::{ScrollScope, buttons::Button};
+    let scroll = gpui::ScrollHandle::new();
+    let cx = support::open(cx, {
+        let scroll = scroll.clone();
+        move |_, _| {
+            ScrollScope::new(
+                scroll.clone(),
+                div()
+                    .id("page")
+                    .w(px(320.0))
+                    .h(px(200.0))
+                    .overflow_y_scroll()
+                    .track_scroll(&scroll)
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .p(px(10.0))
+                            .gap(px(300.0))
+                            .child(Button::new("start", "開始"))
+                            .child((0..20).fold(
+                                List::new("nested", "一覧").max_height(px(120.0)),
+                                |list, i| {
+                                    list.item(
+                                        format!("k{i}"),
+                                        ListItem::new(format!("項目 {i}")).on_select(|_, _| {}),
+                                    )
+                                },
+                            ))
+                            .child(div().h(px(200.0))),
+                    ),
+            )
+            .into_any_element()
+        }
+    });
+    reveal_key(cx, "tab");
+    reveal_key(cx, "tab");
+    reveal_key(cx, "end");
+    let id = gpui::ElementId::NamedChild(std::sync::Arc::new("nested".into()), "k19".into());
+    let selector = Box::leak(format!("md3-list-item-{id}").into_boxed_str());
+    let list = cx.debug_bounds("md3-list-nested").expect("リスト");
+    assert_inside(cx, selector, list, false);
+    assert_inside(cx, selector, scroll.bounds(), true);
+    assert!(scroll.offset().y < px(0.0));
+    reveal_key(cx, "home");
+    let id = gpui::ElementId::NamedChild(std::sync::Arc::new("nested".into()), "k0".into());
+    let selector = Box::leak(format!("md3-list-item-{id}").into_boxed_str());
+    let list = cx.debug_bounds("md3-list-nested").expect("リスト");
+    assert_inside(cx, selector, list, false);
+    assert_inside(cx, selector, scroll.bounds(), false);
+}
+
+#[gpui::test]
+fn pointer_focus_does_not_reveal_a_partly_hidden_button(cx: &mut TestAppContext) {
+    use md3_components::{ScrollScope, buttons::Button};
+    let scroll = gpui::ScrollHandle::new();
+    let clicked = Rc::new(Cell::new(false));
+    let cx = support::open(cx, {
+        let scroll = scroll.clone();
+        let clicked = clicked.clone();
+        move |_, _| {
+            let clicked = clicked.clone();
+            ScrollScope::new(
+                scroll.clone(),
+                div()
+                    .id("page")
+                    .w(px(240.0))
+                    .h(px(120.0))
+                    .overflow_y_scroll()
+                    .track_scroll(&scroll)
+                    .child(div().h(px(100.0)))
+                    .child(
+                        Button::new("partial", "一部が見える")
+                            .on_click(move |_, _, _| clicked.set(true)),
+                    )
+                    .child(div().h(px(200.0))),
+            )
+            .into_any_element()
+        }
+    });
+    queue_reveal_frames(cx);
+    let viewport = scroll.bounds();
+    cx.simulate_click(
+        gpui::point(viewport.left() + px(30.0), viewport.bottom() - px(10.0)),
+        gpui::Modifiers::none(),
+    );
+    cx.run_until_parked();
+    assert!(clicked.get(), "一部が見えるボタンをクリックした");
+    assert!(cx.update(|window, cx| { window.focused(cx).is_some() }));
+    assert_eq!(scroll.offset().y, px(0.0), "マウスではスクロールしない");
+}
+
+#[gpui::test]
+fn wheel_does_not_pull_back_the_focused_element(cx: &mut TestAppContext) {
+    use md3_components::{ScrollScope, buttons::Button};
+    let scroll = gpui::ScrollHandle::new();
+    let cx = support::open(cx, {
+        let scroll = scroll.clone();
+        move |_, _| {
+            ScrollScope::new(
+                scroll.clone(),
+                div()
+                    .id("page")
+                    .w(px(240.0))
+                    .h(px(120.0))
+                    .overflow_y_scroll()
+                    .track_scroll(&scroll)
+                    .child(div().h(px(300.0)))
+                    .child(Button::new("target", "対象"))
+                    .child(div().h(px(300.0))),
+            )
+            .into_any_element()
+        }
+    });
+    reveal_key(cx, "tab");
+    let revealed = scroll.offset().y;
+    assert!(revealed < px(0.0));
+    queue_reveal_frames(cx);
+    let viewport = scroll.bounds();
+    cx.simulate_event(gpui::ScrollEvent {
+        position: gpui::point(viewport.left() + px(30.0), viewport.top() + px(30.0)),
+        delta: gpui::ScrollDelta::Pixels(gpui::point(px(0.0), px(100.0))),
+        ..Default::default()
+    });
+    cx.run_until_parked();
+    let after_wheel = scroll.offset();
+    assert!(after_wheel.y > revealed, "ホイールで表示を離した");
+    reveal_key(cx, "shift");
+    assert_eq!(
+        scroll.offset(),
+        after_wheel,
+        "フォーカスが同じならキーを押しても引き戻さない"
+    );
+}
+
+/// メニューの項目は tab_stop=false でも矢印で見える。遅延描画時に背後の領域は使わない。
+#[cfg(debug_assertions)]
+#[gpui::test]
+fn deferred_menu_reveals_arrow_focus_without_scrolling_the_page(cx: &mut TestAppContext) {
+    use md3_components::{
+        ScrollScope,
+        buttons::Button,
+        overlays::{Menu, MenuItem},
+    };
+    let scroll = gpui::ScrollHandle::new();
+    let open = Rc::new(Cell::new(false));
+    let cx = support::open(cx, {
+        let scroll = scroll.clone();
+        let open = open.clone();
+        move |_, _| {
+            let toggle = open.clone();
+            ScrollScope::new(
+                scroll.clone(),
+                div()
+                    .id("page")
+                    .w(px(320.0))
+                    .h(px(160.0))
+                    .overflow_y_scroll()
+                    .track_scroll(&scroll)
+                    .child(
+                        div()
+                            .relative()
+                            .child(Button::new("open", "開く").on_click(move |_, window, _| {
+                                toggle.set(true);
+                                window.refresh();
+                            }))
+                            .when(open.get(), |this| {
+                                this.child(
+                                    (0..40).fold(Menu::new("long-menu", "操作"), |menu, i| {
+                                        menu.item(MenuItem::new(format!("操作 {i}")))
+                                    }),
+                                )
+                            }),
+                    )
+                    .child(div().h(px(1000.0))),
+            )
+            .into_any_element()
+        }
+    });
+    reveal_key(cx, "tab");
+    let before_menu = scroll.offset();
+    reveal_key(cx, "enter");
+    reveal_key(cx, "end");
+    let selector = |index| -> &'static str {
+        let id = gpui::ElementId::NamedChild(
+            std::sync::Arc::new("long-menu".into()),
+            format!("item-{index}").into(),
+        );
+        Box::leak(format!("md3-menu-item-{id}").into_boxed_str())
+    };
+    let viewport = cx.debug_bounds("md3-menu-long-menu").expect("メニュー");
+    assert_inside(cx, selector(39), viewport, false);
+    assert_eq!(scroll.offset(), before_menu, "背後のページは動かない");
+    reveal_key(cx, "home");
+    assert_inside(cx, selector(0), viewport, false);
+    reveal_key(cx, "up");
+    assert_inside(cx, selector(39), viewport, false);
+    assert_eq!(scroll.offset(), before_menu);
 }
