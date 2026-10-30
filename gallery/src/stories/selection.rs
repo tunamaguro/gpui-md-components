@@ -6,30 +6,22 @@ use md3_components::selection::{
     Slider, Switch,
 };
 use md3_components::theme::TypeScale;
-use md3_components::{ForcedState, Icon, IconName, Text};
+use md3_components::{Icon, IconName, Text};
 
-use super::{STATES, Section, state_header, state_row};
+use super::{Section, state_header, state_row};
 use crate::{Demo, Gallery};
 
-/// 状態の見本の 1 行を作る（`make` で部品を作り、強制状態と無効状態を当てる）。
+/// 有効な見本と無効な見本を 1 行に並べる。
 fn states<E: IntoElement>(
     id: String,
     label: &'static str,
     make: impl Fn(String) -> E,
-    force: impl Fn(E, ForcedState) -> E,
     disable: impl Fn(E) -> E,
 ) -> impl IntoElement {
-    let mut cells: Vec<_> = STATES
-        .iter()
-        .map(|&(name, forced)| {
-            let element = make(format!("{id}-{name}"));
-            match forced {
-                Some(forced) => force(element, forced).into_any_element(),
-                None => element.into_any_element(),
-            }
-        })
-        .collect();
-    cells.push(disable(make(format!("{id}-disabled"))).into_any_element());
+    let cells = vec![
+        make(format!("{id}-Enabled")).into_any_element(),
+        disable(make(format!("{id}-disabled"))).into_any_element(),
+    ];
     state_row(label, cells)
 }
 
@@ -51,7 +43,6 @@ pub fn page(
             format!("checkbox-{name}"),
             name,
             move |id| Checkbox::new(id, state, name).error(error),
-            Checkbox::forced,
             |c| c.disabled(true),
         )
     });
@@ -65,7 +56,6 @@ pub fn page(
             format!("switch-{name}"),
             name,
             move |id| Switch::new(id, on, name).icons(icons),
-            Switch::forced,
             |s| s.disabled(true),
         )
     });
@@ -91,7 +81,6 @@ pub fn page(
                     chip
                 }
             },
-            Chip::forced,
             |c| c.disabled(true),
         )
     });
@@ -139,30 +128,20 @@ pub fn page(
                 ),
         )
         .child(
-            Section::new("Radio button")
-                .child(
-                    RadioGroup::new("radio", "配送方法")
-                        .option("通常")
-                        .option("お急ぎ")
-                        .disabled_option("当日（選べません）")
-                        .option("店頭受け取り")
-                        .selected(demo.radio)
-                        .on_change({
-                            let view = view.clone();
-                            move |index, _, cx| {
-                                Gallery::update_demo(&view, cx, |demo| demo.radio = Some(index))
-                            }
-                        }),
-                )
-                .child(
-                    RadioGroup::new("radio-states", "状態")
-                        .horizontal(true)
-                        .option("Hovered")
-                        .option("Focused")
-                        .option("Pressed")
-                        .selected(Some(1))
-                        .forced(1, ForcedState::Focused),
-                ),
+            Section::new("Radio button").child(
+                RadioGroup::new("radio", "配送方法")
+                    .option("通常")
+                    .option("お急ぎ")
+                    .disabled_option("当日（選べません）")
+                    .option("店頭受け取り")
+                    .selected(demo.radio)
+                    .on_change({
+                        let view = view.clone();
+                        move |index, _, cx| {
+                            Gallery::update_demo(&view, cx, |demo| demo.radio = Some(index))
+                        }
+                    }),
+            ),
         )
         .child(
             Section::new("Switch")
@@ -232,11 +211,6 @@ pub fn page(
                             Gallery::update_demo(&view, cx, |demo| demo.rating = value)
                         }),
                     format!("{}", demo.rating),
-                ))
-                .child(slider_row(
-                    "Focused",
-                    Slider::new("slider-focused", 0.6, "見本").forced(ForcedState::Focused),
-                    String::new(),
                 ))
                 .child(slider_row(
                     "Disabled",

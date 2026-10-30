@@ -13,7 +13,7 @@ use md3_theme::{CornerRadius, Md3ThemeExt, MotionToken};
 
 use crate::a11y::{A11yExt, A11yNode, toggled};
 use crate::control::control;
-use crate::{FocusRing, ForcedState, Icon, IconName, StateLayer, StyledExt};
+use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
 
 /// 押下・ホバーと、要素の寿命に結び付いた押下キャンセル。
 struct SwitchInteraction {
@@ -65,7 +65,6 @@ pub struct Switch {
     icons: bool,
     disabled: bool,
     on_change: Option<ChangeHandler>,
-    forced: Option<ForcedState>,
 }
 
 impl Switch {
@@ -78,7 +77,6 @@ impl Switch {
             icons: false,
             disabled: false,
             on_change: None,
-            forced: None,
         }
     }
 
@@ -100,13 +98,6 @@ impl Switch {
         self
     }
 
-    /// 見本用に状態を固定する。
-    #[doc(hidden)]
-    pub fn forced(mut self, forced: ForcedState) -> Self {
-        self.forced = Some(forced);
-        self
-    }
-
     /// アクセシビリティツリーに出す情報。
     pub fn a11y_node(&self) -> A11yNode {
         A11yNode::new(Role::Switch)
@@ -119,7 +110,7 @@ impl Switch {
 impl RenderOnce for Switch {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let node = self.a11y_node();
-        let (mut base, control) = control(&self.id, self.disabled, true, self.forced, window, cx);
+        let (mut base, control) = control(&self.id, self.disabled, true, window, cx);
         let focus_handle = crate::focus_handle(self.id.clone(), window, cx);
         let interaction = window.use_keyed_state(
             ElementId::NamedChild(std::sync::Arc::new(self.id.clone()), "interaction".into()),
@@ -140,9 +131,8 @@ impl RenderOnce for Switch {
                 ),
             },
         );
-        let pressed = interaction.read(cx).pressed;
+        let pressed = !self.disabled && interaction.read(cx).pressed;
         let hovered = interaction.read(cx).hovered;
-        let pressed = !self.disabled && (pressed || self.forced == Some(ForcedState::Pressed));
         if !self.disabled {
             let down = interaction.clone();
             let up = interaction.clone();
@@ -225,7 +215,7 @@ impl RenderOnce for Switch {
         } else {
             handle_size
         };
-        if !disabled && (pressed || hovered || control.focus_visible || self.forced.is_some()) {
+        if !disabled && (pressed || hovered || control.focus_visible) {
             handle_color = theme.color(colors.hovered_handle);
         }
         let spatial = theme.spring(MotionToken::FastSpatial);
@@ -354,8 +344,7 @@ impl RenderOnce for Switch {
                 )
                 .radius(CornerRadius::Full)
                 .focused(control.focus_visible)
-                .disabled(disabled)
-                .forced(self.forced),
+                .disabled(disabled),
             )
             .with_spring(
                 "switch-layer-position",

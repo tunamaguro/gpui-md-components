@@ -12,7 +12,7 @@ use md3_components::theme::md3_color::ColorRole;
 use md3_components::theme::{Md3ThemeExt, TypeScale};
 use md3_components::{IconName, Text};
 
-use super::{STATES, Section, state_header, state_row};
+use super::{Section, state_header, state_row};
 use crate::{Demo, Gallery};
 
 /// 見本の小見出しと中身を縦に並べる。
@@ -75,28 +75,18 @@ pub fn page(
     let clickable_rows: Vec<AnyElement> = variants
         .iter()
         .map(|(name, variant)| {
-            let mut cells: Vec<AnyElement> = STATES
-                .iter()
-                .map(|(state, forced)| {
-                    let view = view.clone();
-                    let mut card = Card::new(*variant)
-                        .on_click(
-                            format!("card-{name}-{state}"),
-                            "旅行の計画",
-                            move |_, _, cx| {
-                                Gallery::update_demo(&view, cx, |demo| demo.clicks += 1)
-                            },
-                        )
-                        .w(px(140.0))
-                        .h(px(80.0))
-                        .child(div().p_3().child(Text::new(TypeScale::TitleSmall, "旅行")));
-                    if let Some(forced) = forced {
-                        card = card.forced(*forced);
-                    }
-                    card.into_any_element()
-                })
-                .collect();
-            cells.push(
+            let view = view.clone();
+            let cells = vec![
+                Card::new(*variant)
+                    .on_click(
+                        format!("card-{name}-Enabled"),
+                        "旅行の計画",
+                        move |_, _, cx| Gallery::update_demo(&view, cx, |demo| demo.clicks += 1),
+                    )
+                    .w(px(140.0))
+                    .h(px(80.0))
+                    .child(div().p_3().child(Text::new(TypeScale::TitleSmall, "旅行")))
+                    .into_any_element(),
                 Card::new(*variant)
                     .on_click(format!("card-{name}-disabled"), "旅行の計画", |_, _, _| {})
                     .disabled(true)
@@ -104,7 +94,7 @@ pub fn page(
                     .h(px(80.0))
                     .child(div().p_3().child(Text::new(TypeScale::TitleSmall, "旅行")))
                     .into_any_element(),
-            );
+            ];
             state_row(*name, cells).into_any_element()
         })
         .collect();
@@ -200,49 +190,43 @@ pub fn page(
                 .selected(selected(4))
                 .on_select(select(4)),
         );
-    let item_states: Vec<AnyElement> = STATES
-        .iter()
-        .map(|(state, forced)| {
-            let mut item = ListItem::new("受信トレイ")
-                .leading(ListLeading::Icon(IconName::Inbox))
-                .on_select(|_, _| {});
-            if let Some(forced) = forced {
-                item = item.forced(*forced);
-            }
-            sample(
-                state,
-                div()
-                    .w(px(220.0))
-                    .child(List::new(format!("list-state-{state}"), "見本").item("a", item)),
-            )
-        })
-        .chain([
-            sample(
-                "Selected",
-                div().w(px(220.0)).child(
-                    List::new("list-state-selected", "見本").item(
-                        "a",
-                        ListItem::new("受信トレイ")
-                            .leading(ListLeading::Icon(IconName::Inbox))
-                            .selected(true)
-                            .on_select(|_, _| {}),
-                    ),
+    let item_states = [
+        sample(
+            "Enabled",
+            div().w(px(220.0)).child(
+                List::new("list-state-Enabled", "見本").item(
+                    "a",
+                    ListItem::new("受信トレイ")
+                        .leading(ListLeading::Icon(IconName::Inbox))
+                        .on_select(|_, _| {}),
                 ),
             ),
-            sample(
-                "Disabled",
-                div().w(px(220.0)).child(
-                    List::new("list-state-disabled", "見本").item(
-                        "a",
-                        ListItem::new("受信トレイ")
-                            .leading(ListLeading::Icon(IconName::Inbox))
-                            .disabled(true)
-                            .on_select(|_, _| {}),
-                    ),
+        ),
+        sample(
+            "Selected",
+            div().w(px(220.0)).child(
+                List::new("list-state-selected", "見本").item(
+                    "a",
+                    ListItem::new("受信トレイ")
+                        .leading(ListLeading::Icon(IconName::Inbox))
+                        .selected(true)
+                        .on_select(|_, _| {}),
                 ),
             ),
-        ])
-        .collect();
+        ),
+        sample(
+            "Disabled",
+            div().w(px(220.0)).child(
+                List::new("list-state-disabled", "見本").item(
+                    "a",
+                    ListItem::new("受信トレイ")
+                        .leading(ListLeading::Icon(IconName::Inbox))
+                        .disabled(true)
+                        .on_select(|_, _| {}),
+                ),
+            ),
+        ),
+    ];
     let lists = Section::new("List（↑↓ / Home / End で移る、Enter / Space で選ぶ）")
         .child(
             div()

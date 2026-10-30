@@ -41,7 +41,6 @@ mod text;
 mod window_size;
 
 pub use a11y::{A11yNode, RangeValue, toggled};
-pub use control::ForcedState;
 pub use focus::{FocusRing, focus_handle, is_focus_visible};
 /// この crate が依存する gpui（固定 rev）。利用者が版を揃えずに使えるよう再公開する。
 pub use gpui;

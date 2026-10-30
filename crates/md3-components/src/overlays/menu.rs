@@ -18,7 +18,7 @@ use super::layer::{
 use crate::a11y::{A11yExt, A11yNode};
 use crate::control::{control, step};
 use crate::keys::{Dismiss, MENU_CONTEXT};
-use crate::{FocusRing, ForcedState, Icon, IconName, StateLayer, StyledExt, focus_handle};
+use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt, focus_handle};
 
 /// メニューの項目。
 pub struct MenuItem {
@@ -100,7 +100,6 @@ pub struct Menu {
     on_dismiss: Option<DismissHandler>,
     kind: MenuKind,
     match_anchor_width: bool,
-    forced: Option<(usize, ForcedState)>,
     inline: bool,
 }
 
@@ -122,7 +121,6 @@ impl Menu {
             on_dismiss: None,
             kind: MenuKind::Actions,
             match_anchor_width: false,
-            forced: None,
             inline: false,
         }
     }
@@ -170,13 +168,6 @@ impl Menu {
     #[doc(hidden)]
     pub fn inline(mut self) -> Self {
         self.inline = true;
-        self
-    }
-
-    /// 見本用に、項目の状態を固定する。
-    #[doc(hidden)]
-    pub fn forced(mut self, index: usize, forced: ForcedState) -> Self {
-        self.forced = Some((index, forced));
         self
     }
 
@@ -263,10 +254,7 @@ impl RenderOnce for Menu {
             .then(|| crate::scroll::reveal_state(&self.id, window, cx));
         let mut rows = Vec::with_capacity(self.items.len());
         for (index, (item, id)) in self.items.into_iter().zip(item_ids).enumerate() {
-            let forced = self
-                .forced
-                .and_then(|(at, forced)| (at == index).then_some(forced));
-            let (base, control) = control(&id, item.disabled, false, forced, window, cx);
+            let (base, control) = control(&id, item.disabled, false, window, cx);
             let selected = self.kind == MenuKind::Options && self.selected == Some(index);
             let (text, leading, trailing) = if item.disabled {
                 (
@@ -352,8 +340,7 @@ impl RenderOnce for Menu {
                         ColorRole::OnSurface,
                     )
                     .focused(control.focus_visible)
-                    .disabled(item.disabled)
-                    .forced(forced),
+                    .disabled(item.disabled),
                 )
                 .child(
                     FocusRing::new(md3_theme::CornerRadius::Fixed(px(0.0)))

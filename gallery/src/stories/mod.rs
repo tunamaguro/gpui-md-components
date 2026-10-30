@@ -17,19 +17,10 @@ use gpui::{
 use md3_components::theme::md3_color::ColorRole;
 use md3_components::theme::{Md3ThemeExt, Shape, TypeScale};
 use md3_components::{
-    FocusRing, ForcedState, Icon, IconName, StateLayer, StyledExt, Text, focus_handle,
-    is_focus_visible,
+    FocusRing, Icon, IconName, StateLayer, StyledExt, Text, focus_handle, is_focus_visible,
 };
 
-/// 状態の見本で並べる列（強制状態なしは enabled）。
-pub const STATES: [(&str, Option<ForcedState>); 4] = [
-    ("Enabled", None),
-    ("Hovered", Some(ForcedState::Hovered)),
-    ("Focused", Some(ForcedState::Focused)),
-    ("Pressed", Some(ForcedState::Pressed)),
-];
-
-/// 状態の見本の 1 行（行の名前と、Enabled / Hovered / Focused / Pressed / Disabled の 5 列）。
+/// 状態の見本の 1 行（行の名前と、Enabled / Disabled の列など）。
 pub fn state_row(label: impl Into<SharedString>, cells: Vec<AnyElement>) -> impl IntoElement {
     div()
         .flex()
@@ -49,7 +40,7 @@ pub fn state_row(label: impl Into<SharedString>, cells: Vec<AnyElement>) -> impl
 pub fn state_header() -> impl IntoElement {
     state_row(
         "",
-        ["Enabled", "Hovered", "Focused", "Pressed", "Disabled"]
+        ["Enabled", "Disabled"]
             .map(|name| {
                 Text::new(TypeScale::LabelMedium, name)
                     .color(ColorRole::OnSurfaceVariant)

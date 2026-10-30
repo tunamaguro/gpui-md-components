@@ -20,7 +20,7 @@ use super::item::{
 };
 use crate::a11y::A11yExt;
 use crate::control::control;
-use crate::{FocusRing, ForcedState, Icon, StateLayer, StyledExt};
+use crate::{FocusRing, Icon, StateLayer, StyledExt};
 
 /// 縦に積む項目の寸法と色。
 struct ItemStyle {
@@ -40,12 +40,11 @@ fn vertical_item(
     item: &NavigationItem,
     selected: bool,
     tab_stop: bool,
-    forced: Option<ForcedState>,
     style: &ItemStyle,
     window: &mut Window,
     cx: &mut App,
 ) -> (gpui::Stateful<gpui::Div>, bool) {
-    let (base, control) = control(id, item.disabled, tab_stop, forced, window, cx);
+    let (base, control) = control(id, item.disabled, tab_stop, window, cx);
     let (icon_role, label_role) = if selected {
         (
             navigation_rail_color::ITEM_ACTIVE_ICON,
@@ -118,8 +117,7 @@ fn vertical_item(
             )
             .radius(pill)
             .focused(control.focus_visible)
-            .disabled(item.disabled)
-            .forced(forced),
+            .disabled(item.disabled),
         )
         .child(FocusRing::new(pill).visible(control.focus_visible));
     let element = base
@@ -148,7 +146,6 @@ fn destinations(
     selected: Option<usize>,
     on_change: Option<ChangeHandler>,
     vertical: bool,
-    forced: Option<(usize, ForcedState)>,
     style: &ItemStyle,
     window: &mut Window,
     cx: &mut App,
@@ -161,14 +158,12 @@ fn destinations(
         .enumerate()
         .map(|(index, item)| {
             let is_selected = selected == Some(index);
-            let forced = forced.and_then(|(i, state)| (i == index).then_some(state));
             let (element, disabled) = vertical_item(
                 &theme,
                 &destinations.ids[index],
                 item,
                 is_selected,
                 destinations.tab_target == Some(index),
-                forced,
                 style,
                 window,
                 cx,
@@ -213,13 +208,6 @@ macro_rules! destination_builders {
             self.on_change = Some(std::rc::Rc::new(handler));
             self
         }
-
-        /// 見本用に項目 `index` の状態を固定する。
-        #[doc(hidden)]
-        pub fn forced(mut self, index: usize, state: ForcedState) -> Self {
-            self.forced = Some((index, state));
-            self
-        }
     };
 }
 pub(crate) use destination_builders;
@@ -234,7 +222,6 @@ pub struct NavigationBar {
     items: Vec<NavigationItem>,
     selected: Option<usize>,
     on_change: Option<ChangeHandler>,
-    forced: Option<(usize, ForcedState)>,
 }
 
 impl NavigationBar {
@@ -246,7 +233,6 @@ impl NavigationBar {
             items: Vec::new(),
             selected: None,
             on_change: None,
-            forced: None,
         }
     }
 
@@ -275,7 +261,6 @@ impl RenderOnce for NavigationBar {
             self.selected,
             self.on_change,
             false,
-            self.forced,
             &style,
             window,
             cx,
@@ -309,7 +294,6 @@ pub struct NavigationRail {
     items: Vec<NavigationItem>,
     selected: Option<usize>,
     on_change: Option<ChangeHandler>,
-    forced: Option<(usize, ForcedState)>,
     header: Option<AnyElement>,
 }
 
@@ -322,7 +306,6 @@ impl NavigationRail {
             items: Vec::new(),
             selected: None,
             on_change: None,
-            forced: None,
             header: None,
         }
     }
@@ -358,7 +341,6 @@ impl RenderOnce for NavigationRail {
             self.selected,
             self.on_change,
             true,
-            self.forced,
             &style,
             window,
             cx,

@@ -12,7 +12,7 @@ use md3_theme::md3_tokens::state;
 use md3_theme::{Elevation, Md3ThemeExt, Shape};
 
 use crate::a11y::{A11yExt, A11yNode};
-use crate::{FocusRing, ForcedState, StateLayer, StyledExt, focus_handle, is_focus_visible};
+use crate::{FocusRing, StateLayer, StyledExt, focus_handle, is_focus_visible};
 
 /// カードの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -96,7 +96,6 @@ pub struct Card {
     base: Div,
     clickable: Option<Clickable>,
     disabled: bool,
-    forced: Option<ForcedState>,
 }
 
 impl Card {
@@ -107,7 +106,6 @@ impl Card {
             base: div(),
             clickable: None,
             disabled: false,
-            forced: None,
         }
     }
 
@@ -129,13 +127,6 @@ impl Card {
     /// 無効にする（押せるカードだけに効く）。
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
-        self
-    }
-
-    /// 見本用に状態を固定する。
-    #[doc(hidden)]
-    pub fn forced(mut self, forced: ForcedState) -> Self {
-        self.forced = Some(forced);
         self
     }
 
@@ -203,25 +194,24 @@ impl RenderOnce for Card {
 
         // 利用者が付けた大きさをそのまま使えるよう、操作の土台（control）で包まずに直接付ける。
         let group: SharedString = format!("md3-{}", clickable.id).into();
-        let mut focus_visible = self.forced == Some(ForcedState::Focused);
         let mut card = card
             .id(clickable.id.clone())
             .group(group.clone())
             .a11y(node);
-        if !disabled {
+        let focus_visible = if disabled {
+            false
+        } else {
             let handle = focus_handle(clickable.id.clone(), window, cx);
-            focus_visible |= is_focus_visible(&handle, window);
             let handler = clickable.handler;
             card = card
                 .track_focus(&handle)
                 .cursor_pointer()
                 .on_click(move |event, window, cx| handler(event, window, cx));
-        }
+            is_focus_visible(&handle, window)
+        };
         let hovered = theme.shadows(Elevation::from_dp(style.hovered_elevation));
         let card = if disabled {
             card.shadow(resting)
-        } else if self.forced == Some(ForcedState::Hovered) {
-            card.shadow(hovered)
         } else {
             card.shadow(resting)
                 .hover(move |s| s.shadow(hovered.clone()))
@@ -234,8 +224,7 @@ impl RenderOnce for Card {
             )
             .radius(radius)
             .focused(focus_visible)
-            .disabled(disabled)
-            .forced(self.forced),
+            .disabled(disabled),
         )
         .child(FocusRing::new(radius).visible(focus_visible))
         .into_any_element()

@@ -43,7 +43,7 @@ GPUI（Zed の UI フレームワーク）上に Material Design 3（ベース�
 - `nix fmt` で整形し、`nix flake check`（整形・clippy・test・ビルド・audit / deny）が通る
 - `cargo build -p md3-components --target wasm32-unknown-unknown` と `cargo xtask check-tokens` が通る
   （手順は `docs/agents/dev-environment.md` の「完了チェック」。作業中は cargo を直接使ってよい）
-- 新規コンポーネントは gallery に全状態（enabled / hover / focused / pressed / disabled、該当すれば selected / error）の見本がある
+- 新規コンポーネントは gallery に全バリアントの操作できる見本と disabled、該当すれば selected / error の見本がある。hover / focused / pressed は見本を実際に操作して確認する（skill `gallery-check`）
 - 公開 API に doc コメントがある（`#![deny(missing_docs)]`）
 
 ## よく使うコマンド

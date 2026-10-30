@@ -11,7 +11,7 @@ use md3_theme::{CornerRadius, Md3ThemeExt};
 
 use crate::a11y::{A11yExt, A11yNode};
 use crate::control::control;
-use crate::{FocusRing, ForcedState, Icon, IconName, StateLayer, StyledExt};
+use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
 
 /// チェックの状態。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -95,7 +95,6 @@ pub struct Checkbox {
     error: bool,
     disabled: bool,
     on_change: Option<ChangeHandler>,
-    forced: Option<ForcedState>,
 }
 
 impl Checkbox {
@@ -112,7 +111,6 @@ impl Checkbox {
             error: false,
             disabled: false,
             on_change: None,
-            forced: None,
         }
     }
 
@@ -137,13 +135,6 @@ impl Checkbox {
         self
     }
 
-    /// 見本用に状態を固定する。
-    #[doc(hidden)]
-    pub fn forced(mut self, forced: ForcedState) -> Self {
-        self.forced = Some(forced);
-        self
-    }
-
     /// アクセシビリティツリーに出す情報。
     pub fn a11y_node(&self) -> A11yNode {
         let toggled = match self.state {
@@ -161,7 +152,7 @@ impl Checkbox {
 impl RenderOnce for Checkbox {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let node = self.a11y_node();
-        let (base, control) = control(&self.id, self.disabled, true, self.forced, window, cx);
+        let (base, control) = control(&self.id, self.disabled, true, window, cx);
         let theme = cx.md3();
         let colors = CheckboxColors::of(self.state, self.error);
         let radius = theme.corner(tokens::STATE_LAYER_SHAPE);
@@ -238,8 +229,7 @@ impl RenderOnce for Checkbox {
                 )
                 .radius(radius)
                 .focused(control.focus_visible)
-                .disabled(self.disabled)
-                .forced(self.forced),
+                .disabled(self.disabled),
             )
             .child(FocusRing::new(radius).visible(control.focus_visible))
             .when_some(

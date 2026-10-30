@@ -16,7 +16,7 @@ use md3_theme::{CornerRadius, Md3ThemeExt, MotionToken, TypeScale};
 
 use crate::a11y::{A11yExt, A11yNode, toggled};
 use crate::control::{control, step};
-use crate::{FocusRing, ForcedState, StateLayer, Text, focus_handle};
+use crate::{FocusRing, StateLayer, Text, focus_handle};
 
 /// ラジオボタンの選択肢。
 #[derive(Clone, Debug)]
@@ -39,7 +39,6 @@ pub struct RadioGroup {
     selected: Option<usize>,
     horizontal: bool,
     on_change: Option<ChangeHandler>,
-    forced: Option<(usize, ForcedState)>,
 }
 
 impl RadioGroup {
@@ -52,7 +51,6 @@ impl RadioGroup {
             selected: None,
             horizontal: false,
             on_change: None,
-            forced: None,
         }
     }
 
@@ -89,13 +87,6 @@ impl RadioGroup {
     /// 選択が変わったときの処理。引数は選ばれた項目の位置。
     pub fn on_change(mut self, handler: impl Fn(usize, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(Rc::new(handler));
-        self
-    }
-
-    /// 見本用に 1 項目の状態を固定する。
-    #[doc(hidden)]
-    pub fn forced(mut self, index: usize, forced: ForcedState) -> Self {
-        self.forced = Some((index, forced));
         self
     }
 
@@ -159,14 +150,10 @@ impl RenderOnce for RadioGroup {
         };
         for (index, option) in self.options.iter().enumerate() {
             let selected = self.selected == Some(index);
-            let forced = self
-                .forced
-                .and_then(|(i, state)| (i == index).then_some(state));
             let (base, control) = control(
                 &self.option_id(index),
                 option.disabled,
                 tab_target == Some(index),
-                forced,
                 window,
                 cx,
             );
@@ -228,8 +215,7 @@ impl RenderOnce for RadioGroup {
                     )
                     .radius(radius)
                     .focused(control.focus_visible)
-                    .disabled(option.disabled)
-                    .forced(forced),
+                    .disabled(option.disabled),
                 )
                 .child(FocusRing::new(radius).visible(control.focus_visible));
 

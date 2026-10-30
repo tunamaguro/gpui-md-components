@@ -14,9 +14,9 @@ use md3_theme::md3_tokens::component::slider as tokens;
 use md3_theme::md3_tokens::layout;
 use md3_theme::{CornerRadius, Md3ThemeExt};
 
+use crate::FocusRing;
 use crate::a11y::{A11yExt, A11yNode, RangeValue};
 use crate::control::control;
-use crate::{FocusRing, ForcedState};
 
 /// ドラッグの状態。描画をまたいで保つ。
 #[derive(Default)]
@@ -43,7 +43,6 @@ pub struct Slider {
     label: SharedString,
     disabled: bool,
     on_change: Option<ChangeHandler>,
-    forced: Option<ForcedState>,
 }
 
 impl Slider {
@@ -58,7 +57,6 @@ impl Slider {
             label: label.into(),
             disabled: false,
             on_change: None,
-            forced: None,
         }
     }
 
@@ -84,13 +82,6 @@ impl Slider {
     /// 値が変わったときの処理。
     pub fn on_change(mut self, handler: impl Fn(f32, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(Rc::new(handler));
-        self
-    }
-
-    /// 見本用に状態を固定する。
-    #[doc(hidden)]
-    pub fn forced(mut self, forced: ForcedState) -> Self {
-        self.forced = Some(forced);
         self
     }
 
@@ -235,9 +226,9 @@ impl RenderOnce for Slider {
             cx,
             |_, _| DragState::default(),
         );
-        let (base, control) = control(&self.id, self.disabled, true, self.forced, window, cx);
+        let (base, control) = control(&self.id, self.disabled, true, window, cx);
         let theme = cx.md3();
-        let pressed = self.forced == Some(ForcedState::Pressed) || drag.read(cx).dragging;
+        let pressed = drag.read(cx).dragging;
         let paint = if self.disabled {
             SliderPaint {
                 active: theme

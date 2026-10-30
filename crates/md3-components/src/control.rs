@@ -4,18 +4,6 @@ use gpui::{App, Div, ElementId, SharedString, Stateful, Window, div, prelude::*}
 
 use crate::{focus_handle, is_focus_visible};
 
-/// 見本で状態を固定するための指定。gallery 用で、公開 API ではない。
-#[doc(hidden)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum ForcedState {
-    /// ホバー。
-    Hovered,
-    /// キーボードフォーカス。
-    Focused,
-    /// 押下。
-    Pressed,
-}
-
 /// 操作要素の土台の状態。部品を持つ feature がすべて無効だと使われない。
 #[cfg_attr(
     not(any(
@@ -56,7 +44,6 @@ pub(crate) fn control(
     id: &ElementId,
     disabled: bool,
     tab_stop: bool,
-    forced: Option<ForcedState>,
     window: &mut Window,
     cx: &mut App,
 ) -> (Stateful<Div>, Control) {
@@ -66,12 +53,13 @@ pub(crate) fn control(
         .group(group.clone())
         .relative()
         .flex_none();
-    let mut focus_visible = forced == Some(ForcedState::Focused);
-    if !disabled {
+    let focus_visible = if disabled {
+        false
+    } else {
         let handle = focus_handle(id.clone(), window, cx).tab_stop(tab_stop);
-        focus_visible |= is_focus_visible(&handle, window);
         base = base.track_focus(&handle).cursor_pointer();
-    }
+        is_focus_visible(&handle, window)
+    };
     (
         base,
         Control {

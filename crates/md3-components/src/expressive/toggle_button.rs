@@ -17,7 +17,7 @@ use md3_theme::{CornerRadius, Md3ThemeExt, MotionToken, Theme};
 use super::press::{Press, press_state, track_press};
 use crate::a11y::{A11yExt, A11yNode, toggled};
 use crate::control::control;
-use crate::{FocusRing, ForcedState, Icon, IconName, StateLayer, StyledExt};
+use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
 
 /// 押された項目が広がる割合（Compose の `ButtonGroupDefaults.ExpandedRatio`）。
 pub(crate) const EXPANDED_RATIO: f32 = 0.15;
@@ -55,7 +55,6 @@ pub struct ToggleButton {
     checked: bool,
     disabled: bool,
     on_change: Option<ChangeHandler>,
-    forced: Option<ForcedState>,
     pub(crate) press: Option<Entity<Press>>,
     pub(crate) slot: Option<GroupSlot>,
 }
@@ -70,7 +69,6 @@ impl ToggleButton {
             checked: false,
             disabled: false,
             on_change: None,
-            forced: None,
             press: None,
             slot: None,
         }
@@ -97,13 +95,6 @@ impl ToggleButton {
     /// 押されたときの処理（クリック、Enter、Space）。引数は押された後の選択の状態。
     pub fn on_change(mut self, handler: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(Rc::new(handler));
-        self
-    }
-
-    /// 見本用に状態を固定する。
-    #[doc(hidden)]
-    pub fn forced(mut self, forced: ForcedState) -> Self {
-        self.forced = Some(forced);
         self
     }
 
@@ -188,13 +179,12 @@ fn corners_of(inner: Pixels, full: Pixels, connected: Option<(bool, bool)>) -> C
 impl RenderOnce for ToggleButton {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let node = self.a11y_node();
-        let (base, control) = control(&self.id, self.disabled, true, self.forced, window, cx);
+        let (base, control) = control(&self.id, self.disabled, true, window, cx);
         let press = self
             .press
             .clone()
             .unwrap_or_else(|| press_state(&self.id, window, cx));
-        let pressed = !self.disabled
-            && (self.forced == Some(ForcedState::Pressed) || press.read(cx).is_pressed());
+        let pressed = !self.disabled && press.read(cx).is_pressed();
         let theme = cx.md3();
         let height = theme.dense(tokens::CONTAINER_HEIGHT);
         let full = height / 2.0;
@@ -262,7 +252,6 @@ impl RenderOnce for ToggleButton {
         let group = control.group.clone();
         let focus_visible = control.focus_visible;
         let disabled = self.disabled;
-        let forced = self.forced;
         let shape_id = ElementId::NamedChild(std::sync::Arc::new(self.id.clone()), "shape".into());
         let shaped = button.with_spring(
             shape_id,
@@ -274,8 +263,7 @@ impl RenderOnce for ToggleButton {
                         StateLayer::new(layer_id, group, content_role)
                             .corners(corners)
                             .focused(focus_visible)
-                            .disabled(disabled)
-                            .forced(forced),
+                            .disabled(disabled),
                     )
                     .child(
                         FocusRing::new(CornerRadius::Full)

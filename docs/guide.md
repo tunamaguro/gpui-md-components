@@ -75,7 +75,8 @@ cx.set_reduce_motion(user_prefers_reduced_motion); // 起動時と、設定が�
 - 部品は値を持たない。選択・入力値・開閉は利用者が持ち、`selected(..)` などで渡して `on_change` などで受け取る。
   例外は TextField（`TextFieldState` を `Entity` で持つ）と、フォーカスや一時的な表示状態（部品が内部で保持）。
 - 無効な部品（`.disabled(true)`）は Tab で止まらず、操作できない。
-- 見本用の `forced(..)` / `inline()` は gallery 向けで、アプリでは使わない（`#[doc(hidden)]`）。
+- 見本用の `inline()` は gallery 向けで、アプリでは使わない（`#[doc(hidden)]`）。
+- gallery には各バリアントの操作できる見本と disabled、該当すれば selected / error の見本を並べる。hover / focused / pressed はマウスやキーボードで実際に操作して確かめる。
 
 ## 5. キーボード操作
 

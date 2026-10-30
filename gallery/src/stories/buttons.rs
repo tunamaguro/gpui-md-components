@@ -8,7 +8,7 @@ use md3_components::buttons::{
 use md3_components::theme::TypeScale;
 use md3_components::{IconName, Text};
 
-use super::{STATES, Section, state_header, state_row};
+use super::{Section, state_header, state_row};
 use crate::{Demo, Gallery};
 
 /// ボタン類のページ。
@@ -19,42 +19,26 @@ pub fn page(
     _cx: &mut App,
 ) -> impl IntoElement {
     let buttons = ButtonVariant::ALL.map(|variant| {
-        let mut cells: Vec<_> = STATES
-            .iter()
-            .map(|&(name, forced)| {
-                let button =
-                    Button::new(format!("button-{variant:?}-{name}"), "Label").variant(variant);
-                match forced {
-                    Some(forced) => button.forced(forced).into_any_element(),
-                    None => button.into_any_element(),
-                }
-            })
-            .collect();
-        cells.push(
+        let cells = vec![
+            Button::new(format!("button-{variant:?}-Enabled"), "Label")
+                .variant(variant)
+                .into_any_element(),
             Button::new(format!("button-{variant:?}-disabled"), "Label")
                 .variant(variant)
                 .disabled(true)
                 .into_any_element(),
-        );
+        ];
         state_row(format!("{variant:?}"), cells)
     });
     let icon_buttons = IconButtonVariant::ALL.map(|variant| {
-        let mut cells: Vec<_> = STATES
-            .iter()
-            .map(|&(name, forced)| {
-                let button = IconButton::new(
-                    format!("icon-button-{variant:?}-{name}"),
-                    IconName::Settings,
-                    "設定",
-                )
-                .variant(variant);
-                match forced {
-                    Some(forced) => button.forced(forced).into_any_element(),
-                    None => button.into_any_element(),
-                }
-            })
-            .collect();
-        cells.push(
+        let cells = vec![
+            IconButton::new(
+                format!("icon-button-{variant:?}-Enabled"),
+                IconName::Settings,
+                "設定",
+            )
+            .variant(variant)
+            .into_any_element(),
             IconButton::new(
                 format!("icon-button-{variant:?}-disabled"),
                 IconName::Settings,
@@ -63,7 +47,7 @@ pub fn page(
             .variant(variant)
             .disabled(true)
             .into_any_element(),
-        );
+        ];
         state_row(format!("{variant:?}"), cells)
     });
     let toggles = IconButtonVariant::ALL.map(|variant| {
@@ -116,12 +100,6 @@ pub fn page(
             ExtendedFab::new(format!("extended-{color:?}"), "作成")
                 .icon(IconName::Edit)
                 .color(color)
-                .into_any_element(),
-        );
-        cells.push(
-            Fab::new(format!("fab-{color:?}-hovered"), IconName::Edit, "作成")
-                .color(color)
-                .forced(md3_components::ForcedState::Hovered)
                 .into_any_element(),
         );
         state_row(format!("{color:?}"), cells)
@@ -208,13 +186,6 @@ pub fn page(
                                 }
                             })
                         }),
-                )
-                .child(
-                    SegmentedButton::new("segmented-forced", "状態")
-                        .segment(Segment::new("Hovered"))
-                        .segment(Segment::new("Focused"))
-                        .segment(Segment::new("Pressed"))
-                        .forced(1, md3_components::ForcedState::Focused),
                 ),
         )
 }

@@ -13,7 +13,7 @@ use md3_theme::{Elevation, Md3ThemeExt};
 
 use crate::a11y::{A11yExt, A11yNode};
 use crate::control::control;
-use crate::{FocusRing, ForcedState, Icon, IconName, StateLayer, StyledExt};
+use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
 
 /// ボタンの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -159,7 +159,6 @@ pub struct Button {
     icon: Option<IconName>,
     disabled: bool,
     on_click: Option<ClickHandler>,
-    forced: Option<ForcedState>,
     content_role: Option<ColorRole>,
 }
 
@@ -173,7 +172,6 @@ impl Button {
             icon: None,
             disabled: false,
             on_click: None,
-            forced: None,
             content_role: None,
         }
     }
@@ -205,13 +203,6 @@ impl Button {
         self
     }
 
-    /// 見本用に状態を固定する。
-    #[doc(hidden)]
-    pub fn forced(mut self, forced: ForcedState) -> Self {
-        self.forced = Some(forced);
-        self
-    }
-
     /// 内容（ラベル・アイコン・状態レイヤー）の色のロールを変える（Snackbar の操作など）。
     #[cfg_attr(not(feature = "overlays"), allow(dead_code))]
     pub(crate) fn content_color(mut self, role: ColorRole) -> Self {
@@ -230,7 +221,7 @@ impl Button {
 impl RenderOnce for Button {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let node = self.a11y_node();
-        let (base, control) = control(&self.id, self.disabled, true, self.forced, window, cx);
+        let (base, control) = control(&self.id, self.disabled, true, window, cx);
         let theme = cx.md3();
         let style = ButtonStyle::of(self.variant);
         let radius = theme.corner(baseline_button::CONTAINER_SHAPE_ROUND);
@@ -287,13 +278,9 @@ impl RenderOnce for Button {
         }
         if !self.disabled && style.hovered_elevation > 0.0 {
             let hovered = theme.shadows(Elevation::from_dp(style.hovered_elevation));
-            if self.forced == Some(ForcedState::Hovered) {
-                button = button.shadow(hovered);
-            } else {
-                button = button
-                    .shadow(theme.shadows(Elevation::from_dp(style.elevation)))
-                    .hover(move |s| s.shadow(hovered.clone()));
-            }
+            button = button
+                .shadow(theme.shadows(Elevation::from_dp(style.elevation)))
+                .hover(move |s| s.shadow(hovered.clone()));
         }
 
         let content_role = self.content_role.unwrap_or(style.content);
@@ -314,8 +301,7 @@ impl RenderOnce for Button {
                 )
                 .radius(radius)
                 .focused(control.focus_visible)
-                .disabled(self.disabled)
-                .forced(self.forced),
+                .disabled(self.disabled),
             )
             .child(FocusRing::new(radius).visible(control.focus_visible))
             .when_some(self.on_click.filter(|_| !self.disabled), |this, handler| {
