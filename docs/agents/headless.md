@@ -1,6 +1,6 @@
 # headless crate への分離
 
-`md3-components` から、見た目を持たない `gpui-headless` を切り出す計画と規約。
+`md3-components` から、見た目を持たない `gpui-headless` を切り出した構成と、今後も適用する規約。
 
 ## 目的
 
@@ -71,25 +71,15 @@ gpui_headless::RadioGroup::new(id, label)
     })
 ```
 
-## 進め方
+## 分離の完了と維持
 
-1 段階 1 PR。各段階の完了条件は共通で、次の 3 つ。
+段階 1〜6 は完了。基盤、操作部品、項目を持つ部品、オーバーレイ、入力・リストを分離し、独自テーマの見本と利用ガイドを追加した。
+`md3-components` の公開 API も分離に合わせて変更した。旧パスを維持する必要はない。
 
-1. テストを弱めない。a11y とキー操作のテストは、部品を移すときに `gpui-headless` へ移し、検証する内容は保つ。
-1. `tools/a11y-tree/run.sh` の出力が基準（分離前の main）と一致する。
-1. `gallery` の見た目と操作が変わらない。
-
-| 段階 | 内容                                                                                                  |
-| ---- | ----------------------------------------------------------------------------------------------------- |
-| 1    | crate を作る。`A11yNode`、`control`、フォーカス、`keys`、`NestedScroll` / `ScrollScope` を移す        |
-| 2    | 単体の操作部品: Button 系（Button、IconButton、FAB、ToggleButton）、Checkbox、Switch、Chip、Card      |
-| 3    | 項目を持つ部品: RadioGroup、SegmentedButton、ButtonGroup、Tabs、NavigationBar / Rail / Drawer、Slider |
-| 4    | オーバーレイ: レイヤー、Dialog、Sheet、Menu、Select、Tooltip、Snackbar                                |
-| 5    | TextField、SearchBar、List / LazyList、Scrollbar、AppBar の見出し、ProgressIndicator                  |
-| 6    | MD3 に依存しない独自テーマの見本を gallery に足して目的を検証する。利用者向けガイドを書く             |
+今後も役割・名前・状態・キー操作・フォーカスのテストを弱めない。見た目の変更を意図しない移動では gallery と a11y ツリーを分離前と比較する。
 
 ## 規約
 
 - `gpui-headless` の `Cargo.toml` の依存が `gpui` だけであることを、crate のテストで確かめる。
 - 公開 API には `MD3` の語も `Material` の語も使わない。
-- a11y のテストは、移した部品から順に `gpui-headless` 側にも足す。役割・名前・状態・キー操作を見た目なしで検証する。
+- a11y のテストは、振る舞いを持つ `gpui-headless` 側に置く。役割・名前・状態・キー操作を見た目なしで検証する。

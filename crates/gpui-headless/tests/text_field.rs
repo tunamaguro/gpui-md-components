@@ -123,3 +123,22 @@ fn fields_expose_names_roles_and_states(cx: &mut TestAppContext) {
     assert_eq!(search.role, gpui::Role::SearchInput);
     assert_eq!(search.label.as_deref(), Some("メールを検索"));
 }
+
+#[gpui::test]
+fn keyboard_focus_visibility_is_exposed(cx: &mut TestAppContext) {
+    use std::{cell::Cell, rc::Rc};
+    let state = cx.new(TextFieldState::new);
+    let visible = Rc::new(Cell::new(false));
+    let cx = support::open(cx, {
+        let visible = visible.clone();
+        move |window, cx| {
+            let (base, control) = TextField::new("focus-field", &state, "名前").build(window, cx);
+            visible.set(control.focus_visible);
+            base.into_any_element()
+        }
+    });
+    assert!(!visible.get());
+    support::tab(cx);
+    support::press(cx, "left");
+    assert!(visible.get(), "キー操作でフォーカス表示を得る");
+}

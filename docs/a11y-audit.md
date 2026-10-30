@@ -169,3 +169,5 @@ Tab でのフォーカス移動とフォーカスリングを確認した。
 - 完了チェック: `cargo fmt --all --check`、`cargo clippy --workspace --all-targets -- -D warnings`、
   `cargo clippy -p md3-components --no-default-features -- -D warnings`、`cargo test --workspace`（379 件成功）、
   `cargo build -p md3-components --target wasm32-unknown-unknown`、`cargo xtask check-tokens`（1597 定数一致）が通過。
+
+独自テーマの `custom` ページは今回追加したため、上の 8 ページの実測には含まれない。画面と AT-SPI ツリー、読み上げは未確認。
