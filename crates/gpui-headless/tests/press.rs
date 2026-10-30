@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use gpui::{AppContext, TestAppContext};
-use gpui_headless::Press;
+use gpui_headless::press::Press;
 
 #[gpui::test]
 fn short_press_waits_for_the_supplied_duration(cx: &mut TestAppContext) {

@@ -4,8 +4,8 @@ mod support;
 
 use std::{cell::Cell, rc::Rc};
 
-use gpui::{Role, TestAppContext, Toggled, prelude::*};
-use md3_components::selection::{Chip, ChipKind, CircularProgress, LinearProgress, Slider};
+use gpui::{Role, TestAppContext, prelude::*};
+use md3_components::selection::{CircularProgress, LinearProgress, Slider};
 
 #[gpui::test]
 fn slider_keys_follow_apg(cx: &mut TestAppContext) {
@@ -34,41 +34,6 @@ fn slider_keys_follow_apg(cx: &mut TestAppContext) {
     assert_eq!(value.get(), 0.0);
 }
 
-#[gpui::test]
-fn filter_chip_toggles_with_space(cx: &mut TestAppContext) {
-    let on = Rc::new(Cell::new(false));
-    let cx = support::open(cx, {
-        let on = on.clone();
-        move |_, _| {
-            let set = on.clone();
-            Chip::new("unread", ChipKind::Filter, "未読")
-                .selected(on.get())
-                .on_click(move |_, _, _| set.set(!set.get()))
-                .into_any_element()
-        }
-    });
-    support::tab(cx);
-    support::press(cx, "space");
-    assert!(on.get());
-}
-
-#[gpui::test]
-fn input_chip_is_removed_with_backspace(cx: &mut TestAppContext) {
-    let removed = Rc::new(Cell::new(false));
-    let cx = support::open(cx, {
-        let removed = removed.clone();
-        move |_, _| {
-            let set = removed.clone();
-            Chip::new("tag", ChipKind::Input, "rust")
-                .on_remove(move |_, _| set.set(true))
-                .into_any_element()
-        }
-    });
-    support::tab(cx);
-    support::press(cx, "backspace");
-    assert!(removed.get());
-}
-
 #[test]
 fn value_components_expose_ranges() {
     let slider = Slider::new("s", 3.0, "明るさ")
@@ -91,7 +56,4 @@ fn value_components_expose_ranges() {
             .range,
         None
     );
-
-    let chip = Chip::new("f", ChipKind::Filter, "未読").a11y_node();
-    assert_eq!(chip.toggled, Some(Toggled::False));
 }

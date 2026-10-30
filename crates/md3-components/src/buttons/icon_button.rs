@@ -1,7 +1,7 @@
 //! IconButton（Standard / Filled / Filled tonal / Outlined、トグル対応）。
 
 use gpui::{
-    App, ClickEvent, ElementId, IntoElement, RenderOnce, Role, SharedString, Window, prelude::*, px,
+    App, ClickEvent, ElementId, IntoElement, RenderOnce, SharedString, Window, prelude::*, px,
 };
 use md3_theme::Md3ThemeExt;
 use md3_theme::md3_color::ColorRole;
@@ -10,9 +10,7 @@ use md3_theme::md3_tokens::component::{
     standard_icon_button,
 };
 
-use crate::control::control;
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
-use gpui_headless::{A11yExt, A11yNode, toggled};
 
 /// アイコンボタンの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -183,23 +181,19 @@ impl IconButton {
         self.content_role = Some(role);
         self
     }
-
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        let node = A11yNode::new(Role::Button)
-            .label(self.label.clone())
-            .disabled(self.disabled);
-        match self.selected {
-            Some(selected) => node.toggled(toggled(selected)),
-            None => node,
-        }
-    }
 }
 
 impl RenderOnce for IconButton {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
-        let (base, control) = control(&self.id, self.disabled, true, window, cx);
+        let mut behaviour = gpui_headless::Button::new(self.id.clone(), self.label.clone())
+            .disabled(self.disabled)
+            .toggled(self.selected)
+            .group(format!("md3-{}", self.id))
+            .reveal_margin(crate::focus::reveal_margin());
+        if let Some(handler) = self.on_click {
+            behaviour = behaviour.on_click(handler);
+        }
+        let (base, control) = behaviour.build(window, cx);
         let theme = cx.md3();
         let colors = IconButtonColors::of(self.variant, self.selected);
         let radius = theme.corner(small_icon_button::CONTAINER_SHAPE_ROUND);
@@ -214,7 +208,6 @@ impl RenderOnce for IconButton {
         };
 
         let mut button = base
-            .a11y(node)
             .size(size)
             .flex()
             .items_center()
@@ -261,16 +254,12 @@ impl RenderOnce for IconButton {
                 .disabled(self.disabled),
             )
             .child(FocusRing::new(radius).visible(control.focus_visible))
-            .when_some(self.on_click.filter(|_| !self.disabled), |this, handler| {
-                this.on_click(handler)
-            })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::Toggled;
 
     #[test]
     fn toggle_changes_colors() {
@@ -278,16 +267,5 @@ mod tests {
         let off = IconButtonColors::of(IconButtonVariant::Filled, Some(false));
         assert_ne!(on, off);
         assert_eq!(on.container, Some(ColorRole::Primary));
-    }
-
-    #[test]
-    fn toggle_reports_toggled_state() {
-        let node = IconButton::new("i", IconName::Favorite, "お気に入り")
-            .selected(true)
-            .a11y_node();
-        assert_eq!(node.role, Role::Button);
-        assert_eq!(node.toggled, Some(Toggled::True));
-        let plain = IconButton::new("i", IconName::Favorite, "お気に入り").a11y_node();
-        assert_eq!(plain.toggled, None);
     }
 }

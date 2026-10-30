@@ -5,6 +5,19 @@ use gpui::{App, Corners, IntoElement, Pixels, RenderOnce, Window, div, prelude::
 use md3_theme::md3_tokens::state;
 use md3_theme::{CornerRadius, Md3ThemeExt};
 
+#[cfg(any(
+    feature = "buttons",
+    feature = "selection",
+    feature = "inputs",
+    feature = "overlays",
+    feature = "navigation",
+    feature = "containment",
+    feature = "expressive"
+))]
+pub(crate) fn reveal_margin() -> Pixels {
+    px(state::FOCUS_INDICATOR_THICKNESS + state::FOCUS_INDICATOR_OUTER_OFFSET)
+}
+
 /// フォーカスリング。MD3 の focus indicator（太さ 3dp、外側に 2dp 離す、`Secondary`）。
 ///
 /// 親要素に `.relative()` を付け、その子として置く。`visible` が `false` なら何も描かない。

@@ -48,3 +48,5 @@
 
 - 選択時の角丸の変化（Expressive）は実装していない。
 - 無効は AccessKit の disabled としてツリーに出し、Tab でも止まらない。ただし Linux（AT-SPI）では役割によって無効が伝わらない（[`docs/a11y-audit.md`](../a11y-audit.md)）。
+
+役割・名前・トグル状態と操作は `gpui_headless::Button` が担う。

@@ -1,9 +1,10 @@
 //! 選択・状態表示の部品のページ。
 
+use gpui_headless::CheckboxState;
+
 use gpui::{App, IntoElement, WeakEntity, Window, div, prelude::*, px};
 use md3_components::selection::{
-    Badge, Checkbox, CheckboxState, Chip, ChipKind, CircularProgress, LinearProgress, RadioGroup,
-    Slider, Switch,
+    Badge, Checkbox, Chip, ChipKind, CircularProgress, LinearProgress, RadioGroup, Slider, Switch,
 };
 use md3_components::theme::TypeScale;
 use md3_components::{Icon, IconName, Text};

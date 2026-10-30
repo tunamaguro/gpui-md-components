@@ -1,11 +1,9 @@
 //! Card（Elevated / Filled / Outlined）。
 
-use gpui_headless::focus_handle;
-use gpui_headless::is_focus_visible;
 use std::rc::Rc;
 
 use gpui::{
-    AnyElement, App, ClickEvent, Div, ElementId, IntoElement, ParentElement, RenderOnce, Role,
+    AnyElement, App, ClickEvent, Div, ElementId, IntoElement, ParentElement, RenderOnce,
     SharedString, StyleRefinement, Styled, Window, div, prelude::*, px,
 };
 use md3_theme::md3_color::ColorRole;
@@ -14,7 +12,6 @@ use md3_theme::md3_tokens::state;
 use md3_theme::{Elevation, Md3ThemeExt, Shape};
 
 use crate::{FocusRing, StateLayer, StyledExt};
-use gpui_headless::{A11yExt, A11yNode};
 
 /// カードの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -131,15 +128,6 @@ impl Card {
         self.disabled = disabled;
         self
     }
-
-    /// アクセシビリティツリーに出す情報。押せないカードは装飾なので出さない（`None`）。
-    pub fn a11y_node(&self) -> Option<A11yNode> {
-        self.clickable.as_ref().map(|clickable| {
-            A11yNode::new(Role::Button)
-                .label(clickable.label.clone())
-                .disabled(self.disabled)
-        })
-    }
 }
 
 impl ParentElement for Card {
@@ -156,7 +144,6 @@ impl Styled for Card {
 
 impl RenderOnce for Card {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
         let style = self.variant.style();
         let theme = cx.md3().clone();
         let radius = theme.corner(style.shape);
@@ -190,37 +177,22 @@ impl RenderOnce for Card {
         }
         let resting = theme.shadows(Elevation::from_dp(style.elevation));
 
-        let (Some(clickable), Some(node)) = (self.clickable, node) else {
-            return card.shadow(resting).into_any_element();
+        let mut behaviour = gpui_headless::Card::new()
+            .disabled(disabled)
+            .reveal_margin(crate::focus::reveal_margin());
+        if let Some(clickable) = self.clickable {
+            behaviour = behaviour.group(format!("md3-{}", clickable.id)).on_click(
+                clickable.id,
+                clickable.label,
+                move |event, window, cx| (clickable.handler)(event, window, cx),
+            );
+        }
+        let (card, control) = match behaviour.build(card, window, cx) {
+            gpui_headless::CardBase::Plain(card) => return card.shadow(resting).into_any_element(),
+            gpui_headless::CardBase::Clickable(card, control) => (card, control),
         };
-
-        // 利用者が付けた大きさをそのまま使えるよう、操作の土台（control）で包まずに直接付ける。
-        let group: SharedString = format!("md3-{}", clickable.id).into();
-        let mut card = card
-            .id(clickable.id.clone())
-            .group(group.clone())
-            .a11y(node);
-        let focus_visible = if disabled {
-            false
-        } else {
-            let handle = focus_handle(clickable.id.clone(), window, cx);
-            let handler = clickable.handler;
-            card = card
-                .track_focus(&handle)
-                .on_mouse_down(gpui::MouseButton::Left, {
-                    let handle = handle.clone();
-                    move |_, window, cx| gpui_headless::clear_focus_visible(&handle, window, cx)
-                })
-                .child(crate::scroll::reveal_on_focus(
-                    &clickable.id,
-                    handle.clone(),
-                    window,
-                    cx,
-                ))
-                .cursor_pointer()
-                .on_click(move |event, window, cx| handler(event, window, cx));
-            is_focus_visible(&handle, window, cx)
-        };
+        let group = control.group;
+        let focus_visible = control.focus_visible;
         let hovered = theme.shadows(Elevation::from_dp(style.hovered_elevation));
         let card = if disabled {
             card.shadow(resting)
@@ -246,15 +218,6 @@ impl RenderOnce for Card {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn clickable_cards_are_buttons() {
-        let card = Card::new(CardVariant::Filled).on_click("c", "旅行の計画", |_, _, _| {});
-        let node = card.a11y_node().expect("clickable");
-        assert_eq!(node.role, Role::Button);
-        assert_eq!(node.label.as_deref(), Some("旅行の計画"));
-        assert_eq!(Card::new(CardVariant::Outlined).a11y_node(), None);
-    }
 
     #[test]
     fn variants_use_their_tokens() {

@@ -61,3 +61,5 @@ Compose の `ToggleButtonDefaults.colors()` と同じく、ラベルには `Fill
 - 大きさの段階（XSmall / Medium / Large / XLarge）と、Elevated / Tonal / Outlined の配色は未実装。
 - 形の変化は角丸の半径の変化で表す（Compose の `RoundedCornerShape` の角の大きさのアニメーションと同じ）。
   多角形どうしのモーフ（`MaterialShapes`、`LoadingIndicator`）は未実装。
+
+役割・名前・トグル状態と操作は `gpui_headless::Button`、押下の追跡は `gpui_headless::press` が担う。

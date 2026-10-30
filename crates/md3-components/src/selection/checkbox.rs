@@ -1,43 +1,13 @@
 //! Checkbox。
 
-use gpui::{
-    App, ElementId, IntoElement, RenderOnce, Role, SharedString, Toggled, Window, div, prelude::*,
-    px,
-};
+use gpui::{App, ElementId, IntoElement, RenderOnce, SharedString, Window, div, prelude::*, px};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::checkbox as tokens;
 use md3_theme::md3_tokens::layout;
 use md3_theme::{CornerRadius, Md3ThemeExt};
 
-use crate::control::control;
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
-use gpui_headless::{A11yExt, A11yNode};
-
-/// チェックの状態。
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum CheckboxState {
-    /// 未チェック。
-    #[default]
-    Unchecked,
-    /// チェック済み。
-    Checked,
-    /// 一部だけ選ばれている（子の項目の一部がチェックされている親など）。
-    Indeterminate,
-}
-
-impl CheckboxState {
-    /// 押したときの次の状態。不定はチェック済みになる。
-    pub fn next(self) -> Self {
-        match self {
-            CheckboxState::Checked => CheckboxState::Unchecked,
-            CheckboxState::Unchecked | CheckboxState::Indeterminate => CheckboxState::Checked,
-        }
-    }
-
-    fn is_selected(self) -> bool {
-        self != CheckboxState::Unchecked
-    }
-}
+use gpui_headless::CheckboxState;
 
 /// 状態ごとの色（トークンの値）。
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -51,7 +21,7 @@ pub(crate) struct CheckboxColors {
 
 impl CheckboxColors {
     pub(crate) fn of(state: CheckboxState, error: bool) -> Self {
-        match (state.is_selected(), error) {
+        match (state != CheckboxState::Unchecked, error) {
             (true, false) => Self {
                 container: Some(tokens::SELECTED_CONTAINER_COLOR),
                 outline: None,
@@ -134,25 +104,18 @@ impl Checkbox {
         self.on_change = Some(Box::new(handler));
         self
     }
-
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        let toggled = match self.state {
-            CheckboxState::Unchecked => Toggled::False,
-            CheckboxState::Checked => Toggled::True,
-            CheckboxState::Indeterminate => Toggled::Mixed,
-        };
-        A11yNode::new(Role::CheckBox)
-            .label(self.label.clone())
-            .toggled(toggled)
-            .disabled(self.disabled)
-    }
 }
 
 impl RenderOnce for Checkbox {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
-        let (base, control) = control(&self.id, self.disabled, true, window, cx);
+        let mut headless = gpui_headless::Checkbox::new(self.id.clone(), self.state, self.label)
+            .disabled(self.disabled)
+            .group(format!("md3-{}", self.id))
+            .reveal_margin(crate::focus::reveal_margin());
+        if let Some(handler) = self.on_change {
+            headless = headless.on_change(handler);
+        }
+        let (base, control) = headless.build(window, cx);
         let theme = cx.md3();
         let colors = CheckboxColors::of(self.state, self.error);
         let radius = theme.corner(tokens::STATE_LAYER_SHAPE);
@@ -214,8 +177,7 @@ impl RenderOnce for Checkbox {
             CheckboxState::Unchecked => mark,
         };
 
-        base.a11y(node)
-            .size(theme.dense(tokens::STATE_LAYER_SIZE))
+        base.size(theme.dense(tokens::STATE_LAYER_SIZE))
             .flex()
             .items_center()
             .justify_center()
@@ -232,13 +194,6 @@ impl RenderOnce for Checkbox {
                 .disabled(self.disabled),
             )
             .child(FocusRing::new(radius).visible(control.focus_visible))
-            .when_some(
-                self.on_change.filter(|_| !self.disabled),
-                |this, handler| {
-                    let next = self.state.next();
-                    this.on_click(move |_, window, cx| handler(next, window, cx))
-                },
-            )
     }
 }
 
@@ -247,23 +202,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn next_state_cycles() {
-        assert_eq!(CheckboxState::Unchecked.next(), CheckboxState::Checked);
-        assert_eq!(CheckboxState::Checked.next(), CheckboxState::Unchecked);
-        assert_eq!(CheckboxState::Indeterminate.next(), CheckboxState::Checked);
-    }
-
-    #[test]
     fn error_uses_error_roles() {
         let colors = CheckboxColors::of(CheckboxState::Checked, true);
         assert_eq!(colors.container, Some(ColorRole::Error));
         assert_eq!(colors.icon, ColorRole::OnError);
-    }
-
-    #[test]
-    fn indeterminate_is_mixed() {
-        let node = Checkbox::new("c", CheckboxState::Indeterminate, "すべて").a11y_node();
-        assert_eq!(node.role, Role::CheckBox);
-        assert_eq!(node.toggled, Some(Toggled::Mixed));
     }
 }

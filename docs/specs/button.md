@@ -54,3 +54,5 @@
 - Outlined のラベル色・枠線色は Compose の現行トークン（OnSurfaceVariant / OutlineVariant）で、m3.material.io の旧ベースライン（Primary / Outline）とは違う。
 - 押下時の角丸の変形（`PressedContainerShape`、Expressive）は実装していない。
 - 無効は AccessKit の disabled としてツリーに出し、Tab でも止まらない。ただし Linux（AT-SPI）では役割によって無効が伝わらない（[`docs/a11y-audit.md`](../a11y-audit.md)）。
+
+Button 系の役割・名前・状態と操作は `gpui_headless::Button` が担う。

@@ -1,7 +1,7 @@
 //! Button（Elevated / Filled / Filled tonal / Outlined / Text）。
 
 use gpui::{
-    App, ClickEvent, ElementId, IntoElement, RenderOnce, Role, SharedString, Window, prelude::*, px,
+    App, ClickEvent, ElementId, IntoElement, RenderOnce, SharedString, Window, prelude::*, px,
 };
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::{
@@ -11,9 +11,7 @@ use md3_theme::md3_tokens::component::{
 use md3_theme::md3_tokens::layout;
 use md3_theme::{Elevation, Md3ThemeExt};
 
-use crate::control::control;
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
-use gpui_headless::{A11yExt, A11yNode};
 
 /// ボタンの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -209,19 +207,18 @@ impl Button {
         self.content_role = Some(role);
         self
     }
-
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::Button)
-            .label(self.label.clone())
-            .disabled(self.disabled)
-    }
 }
 
 impl RenderOnce for Button {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
-        let (base, control) = control(&self.id, self.disabled, true, window, cx);
+        let mut behaviour = gpui_headless::Button::new(self.id.clone(), self.label.clone())
+            .disabled(self.disabled)
+            .group(format!("md3-{}", self.id))
+            .reveal_margin(crate::focus::reveal_margin());
+        if let Some(handler) = self.on_click {
+            behaviour = behaviour.on_click(handler);
+        }
+        let (base, control) = behaviour.build(window, cx);
         let theme = cx.md3();
         let style = ButtonStyle::of(self.variant);
         let radius = theme.corner(baseline_button::CONTAINER_SHAPE_ROUND);
@@ -244,7 +241,6 @@ impl RenderOnce for Button {
         };
 
         let mut button = base
-            .a11y(node)
             .h(theme.dense(baseline_button::CONTAINER_HEIGHT))
             .min_w(px(layout::BUTTON_MIN_WIDTH))
             .pl(px(leading))
@@ -304,9 +300,6 @@ impl RenderOnce for Button {
                 .disabled(self.disabled),
             )
             .child(FocusRing::new(radius).visible(control.focus_visible))
-            .when_some(self.on_click.filter(|_| !self.disabled), |this, handler| {
-                this.on_click(handler)
-            })
     }
 }
 
@@ -328,13 +321,5 @@ mod tests {
             assert_eq!(ButtonStyle::of(variant).container, None);
         }
         assert!(ButtonStyle::of(ButtonVariant::Outlined).outline.is_some());
-    }
-
-    #[test]
-    fn button_is_a_button_with_its_label() {
-        let node = Button::new("b", "保存").disabled(true).a11y_node();
-        assert_eq!(node.role, Role::Button);
-        assert_eq!(node.label.as_deref(), Some("保存"));
-        assert!(node.disabled);
     }
 }

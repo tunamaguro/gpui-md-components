@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use gpui::{
     AnimationExt, App, ClickEvent, Corners, ElementId, Entity, IntoElement, Pixels, RenderOnce,
-    Role, SharedString, SpringAnimation, Window, prelude::*, px,
+    SharedString, SpringAnimation, Window, prelude::*, px,
 };
 use md3_theme::md3_tokens::component::{
     button_small as tokens, connected_button_group_small as connected, filled_button,
@@ -15,9 +15,7 @@ use md3_theme::md3_tokens::shape::Shape;
 use md3_theme::{CornerRadius, Md3ThemeExt, MotionToken, Theme};
 
 use super::press::{Press, press_state, track_press};
-use crate::control::control;
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
-use gpui_headless::{A11yExt, A11yNode, toggled};
 
 /// 押された項目が広がる割合（Compose の `ButtonGroupDefaults.ExpandedRatio`）。
 pub(crate) const EXPANDED_RATIO: f32 = 0.15;
@@ -98,14 +96,6 @@ impl ToggleButton {
         self
     }
 
-    /// アクセシビリティツリーに出す情報（押せるボタンで、選択の状態を pressed として出す）。
-    pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::Button)
-            .label(self.label.clone())
-            .toggled(toggled(self.checked))
-            .disabled(self.disabled)
-    }
-
     /// 押されていないときの内容の幅（左右の余白・アイコン・ラベル）。
     pub(crate) fn natural_width(&self, label_width: Pixels) -> Pixels {
         let icon = if self.icon.is_some() {
@@ -178,12 +168,27 @@ fn corners_of(inner: Pixels, full: Pixels, connected: Option<(bool, bool)>) -> C
 
 impl RenderOnce for ToggleButton {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
-        let (base, control) = control(&self.id, self.disabled, true, window, cx);
         let press = self
             .press
             .clone()
             .unwrap_or_else(|| press_state(&self.id, window, cx));
+        let mut behaviour = gpui_headless::Button::new(self.id.clone(), self.label.clone())
+            .toggled(Some(self.checked))
+            .disabled(self.disabled)
+            .group(format!("md3-{}", self.id))
+            .reveal_margin(crate::focus::reveal_margin());
+        if let Some(on_change) = self.on_change.clone() {
+            let checked = self.checked;
+            let press = press.clone();
+            behaviour = behaviour.on_click(move |event, window, cx| {
+                if matches!(event, ClickEvent::Keyboard(_)) {
+                    let hold = super::press::hold(cx);
+                    press.update(cx, |press, cx| press.pulse(hold, cx));
+                }
+                on_change(!checked, window, cx);
+            });
+        }
+        let (base, control) = behaviour.build(window, cx);
         let pressed = !self.disabled && press.read(cx).is_pressed();
         let theme = cx.md3();
         let height = theme.dense(tokens::CONTAINER_HEIGHT);
@@ -216,7 +221,6 @@ impl RenderOnce for ToggleButton {
             (theme.color(container), theme.color(content_role))
         };
         let mut button = base
-            .a11y(node)
             .h(height)
             .min_w(px(layout::BUTTON_MIN_WIDTH))
             .pl(px(tokens::LEADING_SPACE))
@@ -235,17 +239,6 @@ impl RenderOnce for ToggleButton {
             .child(self.label.clone());
         if !self.disabled {
             button = track_press(button, &press);
-            if let Some(on_change) = self.on_change.clone() {
-                let checked = self.checked;
-                let press = press.clone();
-                button = button.on_click(move |event: &ClickEvent, window, cx| {
-                    if matches!(event, ClickEvent::Keyboard(_)) {
-                        let hold = super::press::hold(cx);
-                        press.update(cx, |press, cx| press.pulse(hold, cx));
-                    }
-                    on_change(!checked, window, cx);
-                });
-            }
         }
 
         let layer_id = ElementId::from(SharedString::from(format!("{}-layer", control.group)));
@@ -303,14 +296,6 @@ impl RenderOnce for ToggleButton {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn toggle_button_is_a_toggle_with_its_label() {
-        let node = ToggleButton::new("b", "太字").checked(true).a11y_node();
-        assert_eq!(node.role, Role::Button);
-        assert_eq!(node.label.as_deref(), Some("太字"));
-        assert_eq!(node.toggled, Some(gpui::Toggled::True));
-    }
 
     #[test]
     fn shape_morphs_from_round_to_square_and_smaller_when_pressed() {

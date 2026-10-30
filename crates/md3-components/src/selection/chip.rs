@@ -1,17 +1,14 @@
 //! Chip（Assist / Filter / Input / Suggestion）。
 
 use gpui::{
-    App, ClickEvent, ElementId, IntoElement, KeyDownEvent, RenderOnce, Role, SharedString, Window,
-    div, prelude::*, px,
+    App, ClickEvent, ElementId, IntoElement, RenderOnce, SharedString, Window, div, prelude::*, px,
 };
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::{assist_chip, filter_chip, input_chip, suggestion_chip};
 use md3_theme::md3_tokens::layout;
 use md3_theme::{Elevation, Md3ThemeExt};
 
-use crate::control::control;
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
-use gpui_headless::{A11yExt, A11yNode, toggled};
 
 /// チップの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -228,23 +225,26 @@ impl Chip {
         self.on_remove = Some(Box::new(handler));
         self
     }
-
-    /// アクセシビリティツリーに出す情報。Filter はチェックボックス相当、他はボタン。
-    pub fn a11y_node(&self) -> A11yNode {
-        let node = match self.kind {
-            ChipKind::Filter => A11yNode::new(Role::CheckBox).toggled(toggled(self.selected)),
-            ChipKind::Assist | ChipKind::Input | ChipKind::Suggestion => {
-                A11yNode::new(Role::Button)
-            }
-        };
-        node.label(self.label.clone()).disabled(self.disabled)
-    }
 }
 
 impl RenderOnce for Chip {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
-        let (base, control) = control(&self.id, self.disabled, true, window, cx);
+        let on_remove: Option<SharedRemoveHandler> = self
+            .on_remove
+            .filter(|_| !self.disabled)
+            .map(std::rc::Rc::from);
+        let mut behaviour = gpui_headless::Chip::new(self.id.clone(), self.label.clone())
+            .selected((self.kind == ChipKind::Filter).then_some(self.selected))
+            .disabled(self.disabled)
+            .group(format!("md3-{}", self.id))
+            .reveal_margin(crate::focus::reveal_margin());
+        if let Some(handler) = self.on_click {
+            behaviour = behaviour.on_click(handler);
+        }
+        if let Some(handler) = on_remove.clone() {
+            behaviour = behaviour.on_remove(move |window, cx| handler(window, cx));
+        }
+        let (base, control) = behaviour.build(window, cx);
         let theme = cx.md3();
         let style = ChipStyle::of(self.kind, self.selected, self.elevated);
         let radius = theme.corner(assist_chip::CONTAINER_SHAPE);
@@ -270,7 +270,6 @@ impl RenderOnce for Chip {
         let icon_size = px(assist_chip::ICON_SIZE);
 
         let mut chip = base
-            .a11y(node)
             .h(theme.dense(assist_chip::CONTAINER_HEIGHT))
             .px(px(layout::CHIP_CONTENT_SPACE))
             .flex()
@@ -305,8 +304,6 @@ impl RenderOnce for Chip {
                 .hover(move |s| s.shadow(hovered.clone()));
         }
 
-        let on_remove: Option<SharedRemoveHandler> =
-            self.on_remove.filter(|_| !disabled).map(std::rc::Rc::from);
         chip.when_some(leading, |this, icon| {
             this.child(Icon::new(icon).size(icon_size).tint(leading_color))
         })
@@ -334,24 +331,12 @@ impl RenderOnce for Chip {
             .disabled(disabled),
         )
         .child(FocusRing::new(radius).visible(control.focus_visible))
-        .when_some(self.on_click.filter(|_| !disabled), |this, handler| {
-            this.on_click(handler)
-        })
-        .when_some(on_remove, |this, on_remove| {
-            this.on_key_down(move |event: &KeyDownEvent, window, cx| {
-                if matches!(event.keystroke.key.as_str(), "backspace" | "delete") {
-                    cx.stop_propagation();
-                    on_remove(window, cx);
-                }
-            })
-        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::Toggled;
 
     #[test]
     fn selected_filter_chip_is_secondary_container() {
@@ -361,16 +346,5 @@ mod tests {
         let unselected = ChipStyle::of(ChipKind::Filter, false, false);
         assert_eq!(unselected.container, None);
         assert!(unselected.outline.is_some());
-    }
-
-    #[test]
-    fn filter_chip_is_a_checkbox() {
-        let node = Chip::new("c", ChipKind::Filter, "未読")
-            .selected(true)
-            .a11y_node();
-        assert_eq!(node.role, Role::CheckBox);
-        assert_eq!(node.toggled, Some(Toggled::True));
-        let assist = Chip::new("a", ChipKind::Assist, "予定に追加").a11y_node();
-        assert_eq!(assist.role, Role::Button);
     }
 }

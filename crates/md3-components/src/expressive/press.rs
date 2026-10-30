@@ -3,7 +3,7 @@
 // Copyright 2024 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //! 押下の追跡に使うテーマの時間。
 use gpui::{App, Entity, prelude::*};
-pub(crate) use gpui_headless::{Press, press_state};
+pub(crate) use gpui_headless::press::{Press, press_state};
 use md3_theme::{Md3ThemeExt, MotionToken, time_to_reach};
 use std::time::Duration;
 
@@ -19,7 +19,7 @@ pub(crate) fn hold(cx: &App) -> Duration {
 }
 
 pub(crate) fn track_press<E: InteractiveElement>(element: E, press: &Entity<Press>) -> E {
-    gpui_headless::track_press(element, press, hold)
+    gpui_headless::press::track_press(element, press, hold)
 }
 
 #[cfg(test)]
