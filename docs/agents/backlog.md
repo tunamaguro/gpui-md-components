@@ -54,6 +54,7 @@ Claude によるレビュー（Codex のレビューは利用上限で中断）�
 
 ### その他
 
+- ButtonGroup: 子の ID が同じ 2 つのグループを同じ親に置くと、押下の状態（`press_state`）を共有し、片方を押すと両方が広がる（`md3-components/src/expressive/button_group.rs`。分離前からの不具合）。
 - フォーカス追従: `.hidden()` の下でフォーカスを持ったまま隠れた部品は prepaint されず、再表示と同時にフォーカスを戻すと `reveal_on_focus` が移動に気付かない（Codex レビューの P2。今の部品には該当する使い方がない）。
 - Scrollbar: RTL での左右反転、タッチでのドラッグ（`docs/specs/scrollbar.md` の「制限」）。
 - Snackbar: 入場の拡大は幅による近似（`docs/specs/snackbar.md`）。

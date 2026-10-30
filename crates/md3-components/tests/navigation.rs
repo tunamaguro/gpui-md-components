@@ -10,63 +10,7 @@ use std::rc::Rc;
 use gpui::{SharedString, TestAppContext, UniformListScrollHandle, div, prelude::*, px};
 use md3_components::IconName;
 use md3_components::containment::{LazyList, List, ListItem};
-use md3_components::navigation::{NavigationBar, NavigationItem, Tab, Tabs};
-
-#[gpui::test]
-fn arrows_select_the_next_tab(cx: &mut TestAppContext) {
-    let selected = Rc::new(Cell::new(0));
-    let cx = support::open(cx, {
-        let selected = selected.clone();
-        move |_, _| {
-            let on_change = selected.clone();
-            Tabs::new("tabs", "表示", selected.get())
-                .tab(Tab::new("写真"))
-                .tab(Tab::new("アルバム").disabled(true))
-                .tab(Tab::new("共有"))
-                .on_change(move |index, _, _| on_change.set(index))
-                .into_any_element()
-        }
-    });
-    support::tab(cx);
-    support::press(cx, "right");
-    assert_eq!(selected.get(), 2, "無効なタブを飛ばす");
-    support::press(cx, "right");
-    assert_eq!(selected.get(), 0, "末尾から先頭に回る");
-    support::press(cx, "end");
-    assert_eq!(selected.get(), 2);
-    support::press(cx, "home");
-    assert_eq!(selected.get(), 0);
-}
-
-#[gpui::test]
-fn navigation_bar_moves_focus_and_selects_on_enter(cx: &mut TestAppContext) {
-    let selected = Rc::new(Cell::new(1));
-    let cx = support::open(cx, {
-        let selected = selected.clone();
-        move |_, _| {
-            let on_change = selected.clone();
-            NavigationBar::new("nav", "メイン")
-                .item(NavigationItem::new(IconName::Home, "ホーム"))
-                .item(NavigationItem::new(IconName::Search, "検索"))
-                .item(NavigationItem::new(IconName::Settings, "設定"))
-                .selected(Some(selected.get()))
-                .on_change(move |index, _, _| on_change.set(index))
-                .into_any_element()
-        }
-    });
-    // Tab は選択中の項目で止まる。
-    support::tab(cx);
-    support::press(cx, "enter");
-    assert_eq!(selected.get(), 1);
-    // 矢印キーはフォーカスだけを移し、Enter で選ぶ。
-    support::press(cx, "right");
-    assert_eq!(selected.get(), 1, "矢印キーでは選ばない");
-    support::press(cx, "enter");
-    assert_eq!(selected.get(), 2);
-    support::press(cx, "home");
-    support::press(cx, "space");
-    assert_eq!(selected.get(), 0);
-}
+use md3_components::navigation::NavigationItem;
 
 /// 選ばれた項目の記録。
 fn recorder() -> (

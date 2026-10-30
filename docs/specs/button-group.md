@@ -56,3 +56,5 @@
 - 1 つを選ぶ用途でも、読み上げは「ボタン（押されている）」になる。RadioGroup として読ませたいときは
   [SegmentedButton](segmented-button.md) を使う（矢印キーでの移動もそちらが持つ）。
 - 縦の並び（Compose の `VerticalButtonGroupSample`）は未実装。
+
+操作とアクセシビリティ情報は `gpui-headless` が持ち、寸法と描画は `md3-components` が担う。

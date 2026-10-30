@@ -221,8 +221,11 @@ Checkbox の値には `gpui_headless::CheckboxState` を使います。
 
 ## 見た目を持たない操作部品
 
-独自の見た目を作る場合、`gpui-headless` の `Button`、`Checkbox`、`Switch`、`Chip`、`Card` を使えます。
+独自の見た目を作る場合、`gpui-headless` の `Button`、`Checkbox`、`Switch`、`Chip`、`Card`、`RadioGroup`、`SegmentedButton`、`ButtonGroup`、`Tabs`、`Navigation`、`Slider` を使えます。
 `build` が返す要素に見た目を付け、描画用の状態からフォーカスやホバーを参照します。
 フォーカスリングを外側に描く場合は、その外周までの余白を `reveal_margin` に渡します。
 Button の `toggled` は通常のボタンとトグルを区別し、Chip の `selected` は Filter 相当の状態を表します。
 Card は装飾用と押せるものを `CardBase` で区別し、渡した子要素と寸法を保ちます。
+項目のある部品は `build` のクロージャへ操作を付けた項目と描画用の状態を渡します。
+`Navigation` は項目の配列と初期フォーカス先も返すため、レールやモーダルのオーバーレイに組み込めます。
+Slider の描画は `fraction` と `dragging` を使います。

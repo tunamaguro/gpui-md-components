@@ -12,16 +12,12 @@ use md3_theme::md3_tokens::{layout, state};
 use md3_theme::{CornerRadius, Elevation, Md3ThemeExt};
 
 use super::bar::destination_builders;
-use super::item::{
-    ChangeHandler, Destinations, NavigationItem, destination_a11y_node, navigation_a11y_node,
-};
-use crate::control::control;
+use super::item::{ChangeHandler, NavigationItem, navigation};
 use crate::overlays::layer::{
     DismissHandler, InitialFocus, MODAL_PRIORITY, dismiss_and_restore, modal_container,
     overlay_focus, scrim, window_layer,
 };
 use crate::{FocusRing, Icon, StateLayer, StyledExt};
-use gpui_headless::A11yExt;
 
 /// ドロワーの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -94,16 +90,6 @@ impl NavigationDrawer {
     }
 
     destination_builders!();
-
-    /// アクセシビリティツリーに出す情報（Standard は Navigation、Modal は Dialog。項目は Tab）。
-    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
-        match self.kind {
-            NavigationDrawerKind::Standard => navigation_a11y_node(&self.label),
-            NavigationDrawerKind::Modal => gpui_headless::A11yNode::new(gpui::Role::Dialog)
-                .label(self.label.clone())
-                .modal(!self.inline),
-        }
-    }
 }
 
 impl ParentElement for NavigationDrawer {
@@ -112,15 +98,101 @@ impl ParentElement for NavigationDrawer {
     }
 }
 
+impl NavigationDrawer {
+    /// 支援技術にダイアログとして出すか。`Some(true)` ならモーダル。Standard は `None`。
+    fn dialog_mode(&self) -> Option<bool> {
+        (self.kind == NavigationDrawerKind::Modal).then_some(!self.inline)
+    }
+}
+
 impl RenderOnce for NavigationDrawer {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
         let modal = self.kind == NavigationDrawerKind::Modal && !self.inline;
-        let destinations = Destinations::new(&self.id, &self.items, self.selected, window, cx);
+        let dialog = self.dialog_mode();
+        let theme = cx.md3().clone();
+        let pill = theme.corner(tokens::ACTIVE_INDICATOR_SHAPE);
+        // 項目が多ければスクロールする。矢印・Tab で移った項目を見える範囲に入れる。
+        let scroll = gpui_headless::scroll_handle(&self.id, window, cx);
+        let mut nav = navigation(
+            self.id.clone(),
+            self.label,
+            &self.items,
+            self.selected,
+            self.on_change,
+            true,
+        );
+        if let Some(modal) = dialog {
+            nav = nav.dialog(modal);
+        }
+        let nav = nav.build(window, cx, |item, _, _| {
+            let source = &self.items[item.index];
+            let selected = item.selected;
+            let base = item.base;
+            let control = item.state;
+            let (icon_role, label_role) = if selected {
+                (tokens::ACTIVE_ICON_COLOR, tokens::ACTIVE_LABEL_TEXT_COLOR)
+            } else {
+                (
+                    tokens::INACTIVE_ICON_COLOR,
+                    tokens::INACTIVE_LABEL_TEXT_COLOR,
+                )
+            };
+            let color = |role: ColorRole| {
+                if source.disabled {
+                    theme
+                        .color(ColorRole::OnSurface)
+                        .opacity(state::DISABLED_CONTENT_OPACITY)
+                } else {
+                    theme.color(role)
+                }
+            };
+            let element = base
+                .h(px(tokens::ACTIVE_INDICATOR_HEIGHT))
+                .w_full()
+                .flex()
+                .items_center()
+                .gap(px(layout::NAVIGATION_DRAWER_ITEM_ICON_SPACE))
+                .pl(px(layout::NAVIGATION_DRAWER_ITEM_START_SPACE))
+                .pr(px(layout::NAVIGATION_DRAWER_ITEM_END_SPACE))
+                .corner_radius(pill)
+                .when(selected, |this| {
+                    this.bg(theme.color(tokens::ACTIVE_INDICATOR_COLOR))
+                })
+                .child(
+                    Icon::new(source.icon)
+                        .size(px(tokens::ICON_SIZE))
+                        .tint(color(icon_role)),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .type_style(&theme.text_style(tokens::LABEL_TEXT_FONT))
+                        .text_color(color(label_role))
+                        .whitespace_nowrap()
+                        .overflow_hidden()
+                        .text_ellipsis()
+                        .child(source.label.clone()),
+                )
+                .child(
+                    StateLayer::new(
+                        SharedString::from(format!("{}-layer", control.group)),
+                        control.group.clone(),
+                        if selected {
+                            tokens::ACTIVE_LABEL_TEXT_COLOR
+                        } else {
+                            tokens::INACTIVE_LABEL_TEXT_COLOR
+                        },
+                    )
+                    .radius(pill)
+                    .focused(control.focus_visible)
+                    .disabled(source.disabled),
+                )
+                .child(FocusRing::new(pill).visible(control.focus_visible));
+            element.into_any_element()
+        });
         let focus = modal.then(|| {
-            let target = destinations
-                .tab_target
-                .map(|index| destinations.handles[index].clone());
+            let target = nav.initial_focus.clone();
             overlay_focus(
                 &self.id,
                 move || target.map_or(InitialFocus::Within, InitialFocus::Handle),
@@ -132,100 +204,11 @@ impl RenderOnce for NavigationDrawer {
             Some(focus) => dismiss_and_restore(self.on_dismiss.clone(), focus),
             None => self.on_dismiss.clone(),
         };
-        let theme = cx.md3().clone();
-        let count = self.items.len();
-        let pill = theme.corner(tokens::ACTIVE_INDICATOR_SHAPE);
-        // 項目が多ければスクロールする。矢印・Tab で移った項目を見える範囲に入れる。
-        let scroll = gpui_headless::scroll_handle(&self.id, window, cx);
-        let items: Vec<AnyElement> = self
-            .items
-            .iter()
-            .enumerate()
-            .map(|(index, item)| {
-                let selected = self.selected == Some(index);
-                let (base, control) = control(
-                    &destinations.ids[index],
-                    item.disabled,
-                    destinations.tab_target == Some(index),
-                    window,
-                    cx,
-                );
-                let (icon_role, label_role) = if selected {
-                    (tokens::ACTIVE_ICON_COLOR, tokens::ACTIVE_LABEL_TEXT_COLOR)
-                } else {
-                    (
-                        tokens::INACTIVE_ICON_COLOR,
-                        tokens::INACTIVE_LABEL_TEXT_COLOR,
-                    )
-                };
-                let color = |role: ColorRole| {
-                    if item.disabled {
-                        theme
-                            .color(ColorRole::OnSurface)
-                            .opacity(state::DISABLED_CONTENT_OPACITY)
-                    } else {
-                        theme.color(role)
-                    }
-                };
-                let mut element = base
-                    .a11y(destination_a11y_node(item, index, count, selected))
-                    .h(px(tokens::ACTIVE_INDICATOR_HEIGHT))
-                    .w_full()
-                    .flex()
-                    .items_center()
-                    .gap(px(layout::NAVIGATION_DRAWER_ITEM_ICON_SPACE))
-                    .pl(px(layout::NAVIGATION_DRAWER_ITEM_START_SPACE))
-                    .pr(px(layout::NAVIGATION_DRAWER_ITEM_END_SPACE))
-                    .corner_radius(pill)
-                    .when(selected, |this| {
-                        this.bg(theme.color(tokens::ACTIVE_INDICATOR_COLOR))
-                    })
-                    .child(
-                        Icon::new(item.icon)
-                            .size(px(tokens::ICON_SIZE))
-                            .tint(color(icon_role)),
-                    )
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .type_style(&theme.text_style(tokens::LABEL_TEXT_FONT))
-                            .text_color(color(label_role))
-                            .whitespace_nowrap()
-                            .overflow_hidden()
-                            .text_ellipsis()
-                            .child(item.label.clone()),
-                    )
-                    .child(
-                        StateLayer::new(
-                            SharedString::from(format!("{}-layer", control.group)),
-                            control.group.clone(),
-                            if selected {
-                                tokens::ACTIVE_LABEL_TEXT_COLOR
-                            } else {
-                                tokens::INACTIVE_LABEL_TEXT_COLOR
-                            },
-                        )
-                        .radius(pill)
-                        .focused(control.focus_visible)
-                        .disabled(item.disabled),
-                    )
-                    .child(FocusRing::new(pill).visible(control.focus_visible));
-                if !item.disabled {
-                    element = element.on_key_down(destinations.on_key(index, true));
-                    if let Some(on_change) = self.on_change.clone() {
-                        element =
-                            element.on_click(move |_, window, cx| on_change(index, window, cx));
-                    }
-                }
-                element.into_any_element()
-            })
-            .collect();
+        let items = nav.items;
 
         let wheel = gpui_headless::NestedScroll::new(&self.id, scroll.clone(), window, cx);
-        let mut drawer = div()
-            .id(self.id.clone())
-            .a11y(node)
+        let mut drawer = nav
+            .base
             .w(px(tokens::CONTAINER_WIDTH))
             .min_w(px(layout::NAVIGATION_DRAWER_MIN_WIDTH))
             .h_full()
@@ -284,15 +267,12 @@ impl RenderOnce for NavigationDrawer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::Role;
 
     #[test]
     fn modal_drawers_are_dialogs() {
         let standard = NavigationDrawer::new("d", "メイン");
-        assert_eq!(standard.a11y_node().role, Role::Navigation);
+        assert_eq!(standard.dialog_mode(), None);
         let modal = NavigationDrawer::new("d", "メイン").kind(NavigationDrawerKind::Modal);
-        assert_eq!(modal.a11y_node().role, Role::Dialog);
-        assert!(modal.a11y_node().modal);
-        assert!(!standard.a11y_node().modal);
+        assert_eq!(modal.dialog_mode(), Some(true));
     }
 }

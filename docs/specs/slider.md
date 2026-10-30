@@ -56,3 +56,5 @@
 - 終端の点の色は、トークン（StopIndicatorColor = SecondaryContainer、非活性トラックと同色）ではなく活性トラックの色にした。
 - フォーカスリングはつまみではなくスライダー全体を囲む。
 - 無効は AccessKit の disabled としてツリーに出し、Tab でも止まらない。ただし Linux（AT-SPI）では役割によって無効が伝わらない（[`docs/a11y-audit.md`](../a11y-audit.md)）。
+
+操作とアクセシビリティ情報は `gpui-headless` が持ち、寸法と描画は `md3-components` が担う。

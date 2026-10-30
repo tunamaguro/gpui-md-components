@@ -61,3 +61,5 @@
 ## 既定モーション
 
 NavigationBar / NavigationRail の選択背景をアイコンと独立させ、幅を FastSpatial、透明度を DefaultEffects で補間する。アイコンやヒット領域の幅は変えない。reduce_motion は即時変更。参照: NavigationBar.kt / NavigationRail.kt L233–247、indicatorWidth の算出 @ b8256a52。
+
+操作とアクセシビリティ情報は `gpui-headless` が持ち、寸法と描画は `md3-components` が担う。

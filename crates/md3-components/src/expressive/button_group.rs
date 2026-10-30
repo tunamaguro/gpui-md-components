@@ -1,8 +1,8 @@
 //! ButtonGroup（押された項目が広がり、隣が縮むボタンの並び）。
 
 use gpui::{
-    App, ElementId, Entity, IntoElement, Pixels, RenderOnce, Role, SharedString, TextRun, Window,
-    div, prelude::*, px,
+    App, ElementId, Entity, IntoElement, Pixels, RenderOnce, SharedString, TextRun, Window,
+    prelude::*, px,
 };
 use md3_theme::Md3ThemeExt;
 use md3_theme::md3_tokens::component::{
@@ -11,7 +11,6 @@ use md3_theme::md3_tokens::component::{
 
 use super::press::press_state;
 use super::toggle_button::{GroupSlot, ToggleButton};
-use gpui_headless::{A11yExt, A11yNode};
 
 /// [`ToggleButton`] を横に並べたグループ（M3 Expressive）。
 ///
@@ -63,16 +62,10 @@ impl ButtonGroup {
         self.items.extend(items);
         self
     }
-
-    /// アクセシビリティツリーに出す情報。
-    pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::Group).label(self.label.clone())
-    }
 }
 
 impl RenderOnce for ButtonGroup {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let node = self.a11y_node();
         let count = self.items.len();
         let gap = px(if self.connected {
             connected_button_group_small::BETWEEN_SPACE
@@ -133,14 +126,8 @@ impl RenderOnce for ButtonGroup {
             .iter()
             .map(|&n| compressible_width(n, padding))
             .collect();
-        let mut row = div()
-            .id(self.id.clone())
-            .a11y(node)
-            .flex()
-            .flex_none()
-            .items_center()
-            .gap(gap)
-            .w(total);
+        let mut group = gpui_headless::ButtonGroup::new(self.id.clone(), self.label);
+        let mut items = Vec::with_capacity(count);
         for (index, ((mut item, natural), press)) in self
             .items
             .into_iter()
@@ -148,7 +135,7 @@ impl RenderOnce for ButtonGroup {
             .zip(presses)
             .enumerate()
         {
-            item.press = Some(press);
+            item.press = Some(press.clone());
             item.slot = Some(GroupSlot {
                 natural,
                 flexible: last.is_some_and(|last| last.abs_diff(index) == 1),
@@ -156,9 +143,20 @@ impl RenderOnce for ButtonGroup {
                 capacity: neighbor_capacity(&compressible, index),
                 connected: self.connected.then_some((index == 0, index + 1 == count)),
             });
-            row = row.child(item);
+            group = group.item(item.behaviour(&press));
+            items.push((item, press));
         }
-        row
+        let mut items = items.into_iter();
+        group
+            .build(window, cx, move |item, _, cx| {
+                let (button, press) = items.next().expect("項目の数は一致する");
+                button.paint(item.base, item.state, press, cx)
+            })
+            .flex()
+            .flex_none()
+            .items_center()
+            .gap(gap)
+            .w(total)
     }
 }
 
@@ -181,14 +179,6 @@ fn neighbor_capacity(compressible: &[Pixels], index: usize) -> Pixels {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn button_group_is_a_labelled_group() {
-        let group = ButtonGroup::new("g", "配置").child(ToggleButton::new("a", "左"));
-        let node = group.a11y_node();
-        assert_eq!(node.role, Role::Group);
-        assert_eq!(node.label.as_deref(), Some("配置"));
-    }
 
     #[test]
     fn capacity_counts_both_neighbors_and_none_for_a_single_item() {

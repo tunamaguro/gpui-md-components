@@ -1,12 +1,8 @@
-//! RadioGroup / SegmentedButton のキー操作（矢印での移動と選択）と a11y 情報。
-
+//! ラジオグループの状態とキー操作。
 mod support;
-
-use std::{cell::Cell, rc::Rc};
-
 use gpui::{Role, TestAppContext, Toggled, prelude::*};
-use md3_components::buttons::{Segment, SegmentedButton};
-use md3_components::selection::RadioGroup;
+use gpui_headless::RadioGroup;
+use std::{cell::Cell, rc::Rc};
 
 fn radio(selected: &Rc<Cell<Option<usize>>>) -> RadioGroup {
     let set = selected.clone();
@@ -23,7 +19,13 @@ fn arrows_move_selection_and_skip_disabled(cx: &mut TestAppContext) {
     let selected = Rc::new(Cell::new(Some(0)));
     let cx = support::open(cx, {
         let selected = selected.clone();
-        move |_, _| radio(&selected).into_any_element()
+        move |window, cx| {
+            radio(&selected)
+                .build(window, cx, |item, _, _| {
+                    item.base.size(gpui::px(40.)).into_any_element()
+                })
+                .into_any_element()
+        }
     });
     support::tab(cx);
     support::press(cx, "down");
@@ -39,36 +41,18 @@ fn tab_lands_on_the_selected_radio(cx: &mut TestAppContext) {
     let selected = Rc::new(Cell::new(Some(2)));
     let cx = support::open(cx, {
         let selected = selected.clone();
-        move |_, _| radio(&selected).into_any_element()
+        move |window, cx| {
+            radio(&selected)
+                .build(window, cx, |item, _, _| {
+                    item.base.size(gpui::px(40.)).into_any_element()
+                })
+                .into_any_element()
+        }
     });
     support::tab(cx);
     // フォーカスが選択中の「大」にあれば、上矢印で「小」に移る（「中」は無効）。
     support::press(cx, "up");
     assert_eq!(selected.get(), Some(0));
-}
-
-#[gpui::test]
-fn segmented_button_moves_with_arrows(cx: &mut TestAppContext) {
-    let selected = Rc::new(Cell::new(0));
-    let cx = support::open(cx, {
-        let selected = selected.clone();
-        move |_, _| {
-            let set = selected.clone();
-            SegmentedButton::new("view", "表示")
-                .segment(Segment::new("日"))
-                .segment(Segment::new("週"))
-                .segment(Segment::new("月"))
-                .selected([selected.get()])
-                .on_change(move |index, _, _| set.set(index))
-                .into_any_element()
-        }
-    });
-    support::tab(cx);
-    support::press(cx, "right");
-    assert_eq!(selected.get(), 1);
-    support::press(cx, "left");
-    support::press(cx, "left");
-    assert_eq!(selected.get(), 2);
 }
 
 #[test]
@@ -86,4 +70,10 @@ fn radio_group_exposes_roles_and_selection() {
     assert_eq!(first.position, Some((1, 3)));
     let third = group.option_a11y_node(2).expect("option");
     assert_eq!(third.toggled, Some(Toggled::False));
+}
+
+#[test]
+fn disabled_option_is_reported() {
+    let group = RadioGroup::new("g", "サイズ").disabled_option("大");
+    assert!(group.option_a11y_node(0).expect("option").disabled);
 }

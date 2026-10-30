@@ -166,12 +166,8 @@ fn corners_of(inner: Pixels, full: Pixels, connected: Option<(bool, bool)>) -> C
     }
 }
 
-impl RenderOnce for ToggleButton {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let press = self
-            .press
-            .clone()
-            .unwrap_or_else(|| press_state(&self.id, window, cx));
+impl ToggleButton {
+    pub(crate) fn behaviour(&self, press: &Entity<Press>) -> gpui_headless::Button {
         let mut behaviour = gpui_headless::Button::new(self.id.clone(), self.label.clone())
             .toggled(Some(self.checked))
             .disabled(self.disabled)
@@ -188,7 +184,16 @@ impl RenderOnce for ToggleButton {
                 on_change(!checked, window, cx);
             });
         }
-        let (base, control) = behaviour.build(window, cx);
+        behaviour
+    }
+
+    pub(crate) fn paint(
+        self,
+        base: gpui::Stateful<gpui::Div>,
+        control: gpui_headless::ControlState,
+        press: Entity<Press>,
+        cx: &mut App,
+    ) -> gpui::AnyElement {
         let pressed = !self.disabled && press.read(cx).is_pressed();
         let theme = cx.md3();
         let height = theme.dense(tokens::CONTAINER_HEIGHT);
@@ -290,6 +295,17 @@ impl RenderOnce for ToggleButton {
                 },
             )
             .into_any_element()
+    }
+}
+
+impl RenderOnce for ToggleButton {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let press = self
+            .press
+            .clone()
+            .unwrap_or_else(|| press_state(&self.id, window, cx));
+        let (base, state) = self.behaviour(&press).build(window, cx);
+        self.paint(base, state, press, cx)
     }
 }
 
