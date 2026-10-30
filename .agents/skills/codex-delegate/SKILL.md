@@ -25,7 +25,7 @@ scratchpad に `prompt.md` を作る:
 作業ブランチで（main で走らせない）、バックグラウンドで:
 
 ```sh
-nix develop -c bash -c "timeout 7200 codex exec -m gpt-6.1-sol -c model_reasoning_effort='\"xhigh\"' -s workspace-write -C . - < $SCRATCH/prompt.md" > $SCRATCH/codex.log 2>&1
+nix develop -c bash -c "timeout 7200 codex exec -m gpt-6.1-terra -c model_reasoning_effort='\"xhigh\"' -s workspace-write -C . - < $SCRATCH/prompt.md" > $SCRATCH/codex.log 2>&1
 ```
 
 - 完了したら `awk '/^codex$/{p=1;buf=""} p{buf=buf"\n"$0} END{print buf}' codex.log | tail -40` で最後の報告を読み、`git status` を見る。
