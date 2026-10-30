@@ -17,15 +17,16 @@ Material Design 3（ベースライン）の UI 部品集。Windows / macOS / Li
 
 ## crate
 
-| crate            | 内容                                                                        |
-| ---------------- | --------------------------------------------------------------------------- |
-| `md3-color`      | HCT 色空間・配色アルゴリズム（material-color-utilities の移植。GPU 不要）   |
-| `md3-tokens`     | デザイントークンの定数                                                      |
-| `md3-icons`      | Material Symbols のアイコン（よく使う 30 個）                               |
-| `md3-theme`      | テーマ（gpui の `Global`）、gpui の型への変換、OS のライト / ダークへの追従 |
-| `md3-components` | 部品。feature で分割（下表）                                                |
-| `gallery`        | 全部品・全バリアントの操作できる見本アプリ                                  |
-| `xtask`          | 開発用コマンド（std のみ）                                                  |
+| crate            | 内容                                                                                     |
+| ---------------- | ---------------------------------------------------------------------------------------- |
+| `gpui-headless`  | 見た目を持たない操作・アクセシビリティ基盤（[独自テーマガイド](docs/headless-guide.md)） |
+| `md3-color`      | HCT 色空間・配色アルゴリズム（material-color-utilities の移植。GPU 不要）                |
+| `md3-tokens`     | デザイントークンの定数                                                                   |
+| `md3-icons`      | Material Symbols のアイコン（よく使う 30 個）                                            |
+| `md3-theme`      | テーマ（gpui の `Global`）、gpui の型への変換、OS のライト / ダークへの追従              |
+| `md3-components` | 部品。feature で分割（下表）                                                             |
+| `gallery`        | 全部品・全バリアントの操作できる見本アプリ                                               |
+| `xtask`          | 開発用コマンド（std のみ）                                                               |
 
 | feature       | 部品                                                                                                 |
 | ------------- | ---------------------------------------------------------------------------------------------------- |

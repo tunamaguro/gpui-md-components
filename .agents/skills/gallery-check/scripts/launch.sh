@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # gallery をビルドして X11 で起動する（xdotool で操作・撮影するため Wayland を外す）。
-#   launch.sh [ページ] [ログ]   ページ: foundations buttons selection inputs overlays navigation containment expressive
+#   launch.sh [ページ] [ログ]   ページ: foundations buttons selection inputs overlays navigation containment expressive custom
 # 既に起動している gallery は止める。起動後、ウィンドウが出るまで待ってから戻る。
 set -euo pipefail
 root=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)

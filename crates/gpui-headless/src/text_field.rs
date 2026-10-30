@@ -842,7 +842,9 @@ impl TextField {
         );
         let state = self.state.read(cx);
         let text = state.text().to_owned();
-        let focused = !self.disabled && state.focus_handle.is_focused(window);
+        let handle = state.focus_handle.clone();
+        let focused = !self.disabled && handle.is_focused(window);
+        let focus_visible = !self.disabled && crate::is_focus_visible(&handle, window, cx);
         let mut base = div()
             .id(self.id.clone())
             .a11y(self.a11y_node())
@@ -866,6 +868,7 @@ impl TextField {
             max_length: self.max_length,
             text,
             focused,
+            focus_visible,
             hovered: !self.disabled && *hovered.read(cx),
         };
         (base, control)
@@ -881,6 +884,8 @@ pub struct TextFieldControl {
     pub text: String,
     /// フォーカスされているか。
     pub focused: bool,
+    /// キーボードフォーカスを表示するか。
+    pub focus_visible: bool,
     /// ポインタが乗っているか。
     pub hovered: bool,
 }

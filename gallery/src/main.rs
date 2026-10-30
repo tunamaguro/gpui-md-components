@@ -56,10 +56,12 @@ enum Page {
     Containment,
     /// M3 Expressive の部品。
     Expressive,
+    /// 独自テーマ。
+    Custom,
 }
 
 impl Page {
-    const ALL: [Page; 8] = [
+    const ALL: [Page; 9] = [
         Page::Foundations,
         Page::Buttons,
         Page::Selection,
@@ -68,6 +70,7 @@ impl Page {
         Page::Navigation,
         Page::Containment,
         Page::Expressive,
+        Page::Custom,
     ];
 }
 
@@ -186,6 +189,7 @@ pub struct Gallery {
     fields: stories::inputs::Fields,
     snackbar: Entity<SnackbarHost>,
     contacts: UniformListScrollHandle,
+    custom: Entity<stories::custom_theme::Custom>,
 }
 
 impl Gallery {
@@ -200,6 +204,7 @@ impl Gallery {
             Ok("navigation") => Page::Navigation,
             Ok("containment") => Page::Containment,
             Ok("expressive") => Page::Expressive,
+            Ok("custom") => Page::Custom,
             _ => Page::Foundations,
         };
         Self {
@@ -209,6 +214,7 @@ impl Gallery {
             fields: stories::inputs::Fields::default(),
             snackbar: cx.new(|_| SnackbarHost::new("閉じる")),
             contacts: UniformListScrollHandle::new(),
+            custom: cx.new(stories::custom_theme::Custom::new),
         }
     }
 
@@ -240,6 +246,7 @@ fn page_selector(page: Page, view: gpui::WeakEntity<Gallery>) -> SegmentedButton
         .segment(Segment::new("Navigation").icon(IconName::Home))
         .segment(Segment::new("Containment").icon(IconName::Inbox))
         .segment(Segment::new("Expressive").icon(IconName::Favorite))
+        .segment(Segment::new("Custom").icon(IconName::Palette))
         // ページ移動でありラジオグループではないため、全項目を Tab で選べるようにする。
         .multi_select(true)
         .selected([page as usize])
@@ -306,6 +313,7 @@ impl Render for Gallery {
             Page::Expressive => {
                 stories::expressive::page(&self.demo, view, window, cx).into_any_element()
             }
+            Page::Custom => self.custom.clone().into_any_element(),
         };
 
         let root_scroll = window
@@ -479,6 +487,39 @@ pub fn start(fonts: Vec<u8>, lengths: Vec<u32>, webgl: bool, reduce_motion: bool
 mod tests {
     use super::*;
     use gpui::TestAppContext;
+
+    #[test]
+    fn custom_theme_does_not_import_theme_crates() {
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/stories/custom_theme.rs");
+        let source = std::fs::read_to_string(path).expect("独自テーマのソースを読む");
+        let mut in_use = false;
+        for line in source.lines() {
+            let line = line.trim();
+            if line.starts_with("use ") || line.starts_with("pub use ") {
+                in_use = true;
+            }
+            if in_use {
+                assert!(
+                    !line.to_ascii_lowercase().contains("md3"),
+                    "独自テーマの use: {line}"
+                );
+                if line.contains(';') {
+                    in_use = false;
+                }
+            }
+        }
+    }
+
+    #[gpui::test]
+    fn custom_theme_renders(cx: &mut TestAppContext) {
+        cx.update(gpui_headless::init);
+        let (_, cx) = cx.add_window_view(|_, cx| stories::custom_theme::Custom::new(cx));
+        cx.update(|window, cx| {
+            window.refresh();
+            window.draw(cx).clear(cx);
+        });
+    }
 
     struct SelectorTest {
         root: FocusHandle,
