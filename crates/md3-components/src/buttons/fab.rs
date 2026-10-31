@@ -83,45 +83,31 @@ impl FabColor {
     }
 }
 
-type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
-
 /// FAB の共通部分。
 struct FabParts {
-    id: ElementId,
+    inner: gpui_headless::Button,
     color: FabColor,
-    on_click: Option<ClickHandler>,
-    aria_label: Option<Option<SharedString>>,
 }
 
 impl FabParts {
-    fn new(id: ElementId) -> Self {
+    fn new(id: ElementId, label: SharedString) -> Self {
         Self {
-            id,
+            inner: gpui_headless::Button::new(id.clone(), label)
+                .group(format!("md3-{id}"))
+                .reveal_margin(crate::focus::reveal_margin()),
             color: FabColor::default(),
-            on_click: None,
-            aria_label: None,
         }
     }
 
     /// 背景・影・状態レイヤーを付けた土台と前景色のロールを返す。
     fn render(
         self,
-        label: SharedString,
         shape: Shape,
         window: &mut Window,
         cx: &mut App,
         content: impl FnOnce(gpui::Stateful<gpui::Div>, ColorRole) -> gpui::Stateful<gpui::Div>,
     ) -> gpui::Stateful<gpui::Div> {
-        let mut behaviour = gpui_headless::Button::new(self.id.clone(), label)
-            .group(format!("md3-{}", self.id))
-            .reveal_margin(crate::focus::reveal_margin());
-        if let Some(label) = self.aria_label {
-            behaviour = behaviour.aria_label(label.unwrap_or_default());
-        }
-        if let Some(handler) = self.on_click {
-            behaviour = behaviour.on_click(handler);
-        }
-        let (base, control) = behaviour.build(window, cx);
+        let (base, control) = self.inner.build(window, cx);
         let theme = cx.md3();
         let (container, content_role) = self.color.roles();
         let radius = theme.corner(shape);
@@ -162,7 +148,6 @@ impl FabParts {
 pub struct Fab {
     parts: FabParts,
     icon: IconName,
-    label: Option<SharedString>,
     size: FabSize,
 }
 
@@ -170,17 +155,15 @@ impl Fab {
     /// ID とアイコンから作る。
     pub fn new(id: impl Into<ElementId>, icon: IconName) -> Self {
         Self {
-            parts: FabParts::new(id.into()),
+            parts: FabParts::new(id.into(), SharedString::default()),
             icon,
-            label: None,
             size: FabSize::default(),
         }
     }
 
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.parts.aria_label = Some((!label.is_empty()).then_some(label));
+        self.parts.inner = self.parts.inner.aria_label(label);
         self
     }
 
@@ -201,7 +184,7 @@ impl Fab {
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.parts.on_click = Some(Box::new(handler));
+        self.parts.inner = self.parts.inner.on_click(handler);
         self
     }
 }
@@ -210,16 +193,10 @@ impl RenderOnce for Fab {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let size = self.size;
         let icon = self.icon;
-        self.parts.render(
-            self.label.unwrap_or_default(),
-            size.shape(),
-            window,
-            cx,
-            |fab, content| {
-                fab.size(px(size.container()))
-                    .child(Icon::new(icon).size(px(size.icon())).color(content))
-            },
-        )
+        self.parts.render(size.shape(), window, cx, |fab, content| {
+            fab.size(px(size.container()))
+                .child(Icon::new(icon).size(px(size.icon())).color(content))
+        })
     }
 }
 
@@ -234,17 +211,17 @@ pub struct ExtendedFab {
 impl ExtendedFab {
     /// ID とラベルから作る。
     pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
         Self {
-            parts: FabParts::new(id.into()),
+            parts: FabParts::new(id.into(), label.clone()),
             icon: None,
-            label: label.into(),
+            label,
         }
     }
 
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.parts.aria_label = Some((!label.is_empty()).then_some(label));
+        self.parts.inner = self.parts.inner.aria_label(label);
         self
     }
 
@@ -265,7 +242,7 @@ impl ExtendedFab {
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.parts.on_click = Some(Box::new(handler));
+        self.parts.inner = self.parts.inner.on_click(handler);
         self
     }
 }
@@ -276,7 +253,6 @@ impl RenderOnce for ExtendedFab {
         let icon = self.icon;
         let label = self.label;
         self.parts.render(
-            label.clone(),
             extended_fab_primary::CONTAINER_SHAPE,
             window,
             cx,

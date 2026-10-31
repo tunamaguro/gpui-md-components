@@ -153,8 +153,9 @@ impl RenderOnce for ButtonGroup {
                 capacity: neighbor_capacity(&compressible, index),
                 connected: self.connected.then_some((index == 0, index + 1 == count)),
             });
-            group = group.item(item.behaviour(&press));
-            items.push((item, press));
+            let (inner, paint) = item.prepare(&press);
+            group = group.item(inner);
+            items.push((paint, press));
         }
         let mut items = items.into_iter();
         group

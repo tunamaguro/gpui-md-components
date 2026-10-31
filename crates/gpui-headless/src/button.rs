@@ -8,6 +8,7 @@ use gpui::{
 use std::rc::Rc;
 
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+type ToggleHandler = Box<dyn Fn(bool, &mut Window, &mut App) + 'static>;
 
 /// 見た目を持たないボタン。
 pub struct Button {
@@ -19,6 +20,8 @@ pub struct Button {
     menu_expanded: Option<bool>,
     disabled: bool,
     on_click: Option<ClickHandler>,
+    on_toggle: Option<ToggleHandler>,
+    before_click: Option<ClickHandler>,
     reveal_margin: Pixels,
     group: SharedString,
 }
@@ -37,6 +40,8 @@ impl Button {
             menu_expanded: None,
             disabled: false,
             on_click: None,
+            on_toggle: None,
+            before_click: None,
             reveal_margin: px(0.0),
         }
     }
@@ -74,6 +79,25 @@ impl Button {
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_click = Some(Box::new(handler));
+        self.on_toggle = None;
+        self
+    }
+    /// トグルの次の状態を受け取る処理を設定する。
+    pub fn on_toggle(mut self, handler: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+        self.on_toggle = Some(Box::new(handler));
+        self.on_click = None;
+        self
+    }
+    /// トグルの状態を返す。
+    pub fn toggled_state(&self) -> Option<bool> {
+        self.toggled
+    }
+    /// 押下時の処理に前処理を付ける。処理がない場合は何もしない。
+    pub fn before_click(
+        mut self,
+        before: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.before_click = Some(Box::new(before));
         self
     }
     /// フォーカス位置を表示する際の余白を指定する。
@@ -121,8 +145,22 @@ impl Button {
             self.group,
         );
         let mut base = base.a11y(node);
-        if let Some(handler) = self.on_click.filter(|_| !self.disabled) {
-            let handler: Rc<ClickHandler> = Rc::new(handler);
+        let on_click = self.on_click.or_else(|| {
+            self.on_toggle.map(|handler| {
+                let next = !self.toggled.unwrap_or(false);
+                Box::new(move |_: &ClickEvent, window: &mut Window, cx: &mut App| {
+                    handler(next, window, cx)
+                }) as ClickHandler
+            })
+        });
+        if let Some(handler) = on_click.filter(|_| !self.disabled) {
+            let before = self.before_click;
+            let handler: Rc<ClickHandler> = Rc::new(Box::new(move |event, window, cx| {
+                if let Some(before) = &before {
+                    before(event, window, cx);
+                }
+                handler(event, window, cx);
+            }));
             if let Some(expanded) = self.menu_expanded {
                 for action in [accesskit::Action::Expand, accesskit::Action::Collapse] {
                     let handler = handler.clone();

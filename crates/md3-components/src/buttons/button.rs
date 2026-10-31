@@ -142,8 +142,6 @@ impl ButtonStyle {
     };
 }
 
-type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
-
 /// ボタン。
 ///
 /// ```ignore
@@ -151,54 +149,37 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 /// ```
 #[derive(IntoElement)]
 pub struct Button {
-    id: ElementId,
     label: SharedString,
-    aria_label: Option<Option<SharedString>>,
+    inner: gpui_headless::Button,
     variant: ButtonVariant,
     icon: Option<IconName>,
-    disabled: bool,
-    menu_expanded: Option<bool>,
-    on_click: Option<ClickHandler>,
     content_role: Option<ColorRole>,
 }
 
 impl Button {
     /// アクセシビリティ情報。
     pub fn a11y_node(&self) -> gpui_headless::A11yNode {
-        self.behaviour().a11y_node()
-    }
-
-    fn behaviour(&self) -> gpui_headless::Button {
-        let mut button =
-            gpui_headless::Button::new(self.id.clone(), self.label.clone()).disabled(self.disabled);
-        if let Some(label) = self.aria_label.clone() {
-            button = button.aria_label(label.unwrap_or_default());
-        }
-        if let Some(expanded) = self.menu_expanded {
-            button = button.menu_expanded(expanded);
-        }
-        button
+        self.inner.a11y_node()
     }
 
     /// ID とラベルから作る。
     pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+        let id = id.into();
+        let label = label.into();
         Self {
-            id: id.into(),
-            label: label.into(),
-            aria_label: None,
+            inner: gpui_headless::Button::new(id.clone(), label.clone())
+                .group(format!("md3-{id}"))
+                .reveal_margin(crate::focus::reveal_margin()),
+            label,
             variant: ButtonVariant::default(),
             icon: None,
-            disabled: false,
-            menu_expanded: None,
-            on_click: None,
             content_role: None,
         }
     }
 
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self.inner = self.inner.aria_label(label);
         self
     }
 
@@ -216,13 +197,13 @@ impl Button {
 
     /// メニューの開閉状態を指定する。
     pub fn menu_expanded(mut self, expanded: bool) -> Self {
-        self.menu_expanded = Some(expanded);
+        self.inner = self.inner.menu_expanded(expanded);
         self
     }
 
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
-        self.disabled = disabled;
+        self.inner = self.inner.disabled(disabled);
         self
     }
 
@@ -231,7 +212,7 @@ impl Button {
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.on_click = Some(Box::new(handler));
+        self.inner = self.inner.on_click(handler);
         self
     }
 
@@ -245,18 +226,11 @@ impl Button {
 
 impl RenderOnce for Button {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut behaviour = self
-            .behaviour()
-            .group(format!("md3-{}", self.id))
-            .reveal_margin(crate::focus::reveal_margin());
-        if let Some(handler) = self.on_click {
-            behaviour = behaviour.on_click(handler);
-        }
-        let (base, control) = behaviour.build(window, cx);
+        let (base, control) = self.inner.build(window, cx);
         let theme = cx.md3();
         let style = ButtonStyle::of(self.variant);
         let radius = theme.corner(baseline_button::CONTAINER_SHAPE_ROUND);
-        let content = if self.disabled {
+        let content = if control.disabled {
             theme
                 .color(style.disabled_content)
                 .opacity(style.disabled_content_opacity)
@@ -288,7 +262,7 @@ impl RenderOnce for Button {
             .type_style(&theme.text_style(filled_tonal_button::LABEL_TEXT_FONT));
 
         if let Some(container) = style.container {
-            button = if self.disabled {
+            button = if control.disabled {
                 button.bg(theme
                     .color(filled_button::DISABLED_CONTAINER_COLOR)
                     .opacity(style.disabled_container_opacity))
@@ -297,7 +271,7 @@ impl RenderOnce for Button {
             };
         }
         if let Some(outline) = style.outline {
-            let color = if self.disabled {
+            let color = if control.disabled {
                 theme
                     .color(outline)
                     .opacity(style.disabled_container_opacity)
@@ -306,7 +280,7 @@ impl RenderOnce for Button {
             };
             button = button.border_1().border_color(color);
         }
-        if !self.disabled && style.hovered_elevation > 0.0 {
+        if !control.disabled && style.hovered_elevation > 0.0 {
             let hovered = theme.shadows(Elevation::from_dp(style.hovered_elevation));
             button = button
                 .shadow(theme.shadows(Elevation::from_dp(style.elevation)))
@@ -331,7 +305,7 @@ impl RenderOnce for Button {
                 )
                 .radius(radius)
                 .focused(control.focus_visible)
-                .disabled(self.disabled),
+                .disabled(control.disabled),
             )
             .child(FocusRing::new(radius).visible(control.focus_visible))
     }

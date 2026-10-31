@@ -45,36 +45,30 @@ impl SwitchColors {
     }
 }
 
-type ChangeHandler = Box<dyn Fn(bool, &mut Window, &mut App) + 'static>;
-
 /// スイッチ。
 #[derive(IntoElement)]
 pub struct Switch {
     id: ElementId,
-    selected: bool,
-    label: Option<SharedString>,
+    inner: gpui_headless::Switch,
     icons: bool,
-    disabled: bool,
-    on_change: Option<ChangeHandler>,
 }
 
 impl Switch {
     /// ID と状態から作る。
     pub fn new(id: impl Into<ElementId>, selected: bool) -> Self {
+        let id = id.into();
         Self {
-            id: id.into(),
-            selected,
-            label: None,
+            inner: gpui_headless::Switch::new(id.clone(), selected)
+                .group(format!("md3-{id}"))
+                .reveal_margin(crate::focus::reveal_margin()),
+            id,
             icons: false,
-            disabled: false,
-            on_change: None,
         }
     }
 
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
+        self.inner = self.inner.aria_label(label);
         self
     }
 
@@ -86,40 +80,31 @@ impl Switch {
 
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
-        self.disabled = disabled;
+        self.inner = self.inner.disabled(disabled);
         self
     }
 
     /// 切り替えたときの処理。引数は次の状態。
     pub fn on_change(mut self, handler: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
-        self.on_change = Some(Box::new(handler));
+        self.inner = self.inner.on_change(handler);
         self
     }
 }
 
 impl RenderOnce for Switch {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut headless = gpui_headless::Switch::new(self.id.clone(), self.selected)
-            .disabled(self.disabled)
-            .group(format!("md3-{}", self.id))
-            .reveal_margin(crate::focus::reveal_margin());
-        if let Some(label) = self.label {
-            headless = headless.aria_label(label);
-        }
-        if let Some(handler) = self.on_change {
-            headless = headless.on_change(handler);
-        }
-        let (base, state) = headless.build(window, cx);
+        let selected = self.inner.is_selected();
+        let (base, state) = self.inner.build(window, cx);
         let pressed = state.pressed;
         let hovered = state.hovered;
         let control = state.control;
         let theme = cx.md3();
-        let colors = SwitchColors::of(self.selected);
+        let colors = SwitchColors::of(selected);
         let track_radius = theme.corner(tokens::TRACK_SHAPE);
-        let disabled = self.disabled;
+        let disabled = control.disabled;
 
         let track_color = if disabled {
-            let role = if self.selected {
+            let role = if selected {
                 tokens::DISABLED_SELECTED_TRACK_COLOR
             } else {
                 tokens::DISABLED_UNSELECTED_TRACK_COLOR
@@ -128,7 +113,7 @@ impl RenderOnce for Switch {
         } else {
             theme.color(colors.track)
         };
-        let mut handle_color = match (disabled, self.selected) {
+        let mut handle_color = match (disabled, selected) {
             (true, true) => theme
                 .color(tokens::DISABLED_SELECTED_HANDLE_COLOR)
                 .opacity(tokens::DISABLED_SELECTED_HANDLE_OPACITY),
@@ -137,7 +122,7 @@ impl RenderOnce for Switch {
                 .opacity(tokens::DISABLED_UNSELECTED_HANDLE_OPACITY),
             (false, _) => theme.color(colors.handle),
         };
-        let handle_size = if self.selected || self.icons {
+        let handle_size = if selected || self.icons {
             tokens::SELECTED_HANDLE_WIDTH
         } else {
             tokens::UNSELECTED_HANDLE_WIDTH
@@ -165,18 +150,18 @@ impl RenderOnce for Switch {
             .items_center()
             .justify_center();
         if self.icons {
-            let (icon, size) = if self.selected {
+            let (icon, size) = if selected {
                 (IconName::Check, tokens::SELECTED_ICON_SIZE)
             } else {
                 (IconName::Close, tokens::UNSELECTED_ICON_SIZE)
             };
             let color = if disabled {
-                let role = if self.selected {
+                let role = if selected {
                     tokens::DISABLED_SELECTED_ICON_COLOR
                 } else {
                     tokens::DISABLED_UNSELECTED_ICON_COLOR
                 };
-                let opacity = if self.selected {
+                let opacity = if selected {
                     tokens::DISABLED_SELECTED_ICON_OPACITY
                 } else {
                     tokens::DISABLED_UNSELECTED_ICON_OPACITY
@@ -196,12 +181,12 @@ impl RenderOnce for Switch {
 
         // Compose の押下時は位置と寸法を snap、離した後は同じバネの状態から戻す。
         let offset = if pressed {
-            if self.selected {
+            if selected {
                 tokens::TRACK_WIDTH - tokens::PRESSED_HANDLE_WIDTH - tokens::TRACK_OUTLINE_WIDTH
             } else {
                 tokens::TRACK_OUTLINE_WIDTH
             }
-        } else if self.selected {
+        } else if selected {
             tokens::TRACK_WIDTH
                 - tokens::SELECTED_HANDLE_WIDTH
                 - (tokens::TRACK_HEIGHT - tokens::SELECTED_HANDLE_WIDTH) / 2.0
@@ -281,7 +266,7 @@ impl RenderOnce for Switch {
             .with_spring(
                 "switch-layer-position",
                 SpringAnimation::new(spatial)
-                    .to(if self.selected {
+                    .to(if selected {
                         tokens::TRACK_WIDTH - tokens::TRACK_HEIGHT
                     } else {
                         0.0

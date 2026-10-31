@@ -108,19 +108,13 @@ impl IconButtonColors {
     }
 }
 
-type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
-
 /// アイコンだけのボタン。
 #[derive(IntoElement)]
 pub struct IconButton {
     id: ElementId,
     icon: IconName,
-    label: Option<SharedString>,
+    inner: gpui_headless::Button,
     variant: IconButtonVariant,
-    selected: Option<bool>,
-    disabled: bool,
-    menu_expanded: Option<bool>,
-    on_click: Option<ClickHandler>,
     content_role: Option<ColorRole>,
     #[cfg_attr(not(feature = "overlays"), allow(dead_code))]
     tooltip: Option<SharedString>,
@@ -129,34 +123,19 @@ pub struct IconButton {
 impl IconButton {
     /// アクセシビリティ情報。
     pub fn a11y_node(&self) -> gpui_headless::A11yNode {
-        self.behaviour().a11y_node()
-    }
-
-    fn behaviour(&self) -> gpui_headless::Button {
-        let mut button =
-            gpui_headless::Button::new(self.id.clone(), self.label.clone().unwrap_or_default())
-                .disabled(self.disabled)
-                .toggled(self.selected);
-        if let Some(text) = &self.tooltip {
-            button = button.description(text.clone());
-        }
-        if let Some(expanded) = self.menu_expanded {
-            button = button.menu_expanded(expanded);
-        }
-        button
+        self.inner.a11y_node()
     }
 
     /// ID とアイコンから作る。
     pub fn new(id: impl Into<ElementId>, icon: IconName) -> Self {
+        let id = id.into();
         Self {
-            id: id.into(),
+            inner: gpui_headless::Button::new(id.clone(), "")
+                .group(format!("md3-{id}"))
+                .reveal_margin(crate::focus::reveal_margin()),
+            id,
             icon,
-            label: None,
             variant: IconButtonVariant::default(),
-            selected: None,
-            disabled: false,
-            menu_expanded: None,
-            on_click: None,
             content_role: None,
             tooltip: None,
         }
@@ -164,8 +143,7 @@ impl IconButton {
 
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
+        self.inner = self.inner.aria_label(label);
         self
     }
 
@@ -177,19 +155,19 @@ impl IconButton {
 
     /// トグルボタンにして、選択状態を指定する。
     pub fn selected(mut self, selected: bool) -> Self {
-        self.selected = Some(selected);
+        self.inner = self.inner.toggled(Some(selected));
         self
     }
 
     /// メニューの開閉状態を指定する。
     pub fn menu_expanded(mut self, expanded: bool) -> Self {
-        self.menu_expanded = Some(expanded);
+        self.inner = self.inner.menu_expanded(expanded);
         self
     }
 
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
-        self.disabled = disabled;
+        self.inner = self.inner.disabled(disabled);
         self
     }
 
@@ -198,7 +176,7 @@ impl IconButton {
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.on_click = Some(Box::new(handler));
+        self.inner = self.inner.on_click(handler);
         self
     }
 
@@ -206,7 +184,9 @@ impl IconButton {
     /// 同じ文を読み上げ用の説明にも入れる。
     #[cfg(feature = "overlays")]
     pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
-        self.tooltip = Some(text.into());
+        let text = text.into();
+        self.inner = self.inner.description(text.clone());
+        self.tooltip = Some(text);
         self
     }
 
@@ -220,14 +200,8 @@ impl IconButton {
 
 impl RenderOnce for IconButton {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut behaviour = self
-            .behaviour()
-            .group(format!("md3-{}", self.id))
-            .reveal_margin(crate::focus::reveal_margin());
-        if let Some(handler) = self.on_click {
-            behaviour = behaviour.on_click(handler);
-        }
-        let (base, control) = behaviour.build(window, cx);
+        let selected = self.inner.toggled_state();
+        let (base, control) = self.inner.build(window, cx);
         #[cfg(feature = "overlays")]
         let base = match self.tooltip.clone() {
             Some(text) => crate::overlays::TooltipExt::md3_focus_tooltip(
@@ -241,11 +215,11 @@ impl RenderOnce for IconButton {
             None => base,
         };
         let theme = cx.md3();
-        let colors = IconButtonColors::of(self.variant, self.selected);
+        let colors = IconButtonColors::of(self.variant, selected);
         let radius = theme.corner(small_icon_button::CONTAINER_SHAPE_ROUND);
         let size = theme.dense(small_icon_button::CONTAINER_HEIGHT);
         let disabled_opacity = standard_icon_button::DISABLED_OPACITY;
-        let content = if self.disabled {
+        let content = if control.disabled {
             theme
                 .color(standard_icon_button::DISABLED_COLOR)
                 .opacity(disabled_opacity)
@@ -264,7 +238,7 @@ impl RenderOnce for IconButton {
             .justify_center()
             .corner_radius(radius);
         if let Some(container) = colors.container {
-            button = if self.disabled {
+            button = if control.disabled {
                 button.bg(theme
                     .color(filled_icon_button::DISABLED_CONTAINER_COLOR)
                     .opacity(filled_icon_button::DISABLED_CONTAINER_OPACITY))
@@ -273,7 +247,7 @@ impl RenderOnce for IconButton {
             };
         }
         if let Some(outline) = colors.outline {
-            let color = if self.disabled {
+            let color = if control.disabled {
                 theme.color(outlined_icon_button::DISABLED_OUTLINE_COLOR)
             } else {
                 theme.color(outline)
@@ -297,7 +271,7 @@ impl RenderOnce for IconButton {
                 )
                 .radius(radius)
                 .focused(control.focus_visible)
-                .disabled(self.disabled),
+                .disabled(control.disabled),
             )
             .child(FocusRing::new(radius).visible(control.focus_visible))
     }

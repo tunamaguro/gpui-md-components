@@ -17,7 +17,6 @@ use crate::FocusRing;
 #[derive(IntoElement)]
 pub struct Slider {
     inner: gpui_headless::Slider,
-    disabled: bool,
 }
 
 impl Slider {
@@ -29,7 +28,6 @@ impl Slider {
                 .reveal_margin(crate::focus::reveal_margin())
                 .minimum_drag_width(px(1.0))
                 .group(format!("md3-{id}")),
-            disabled: false,
         }
     }
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
@@ -50,7 +48,6 @@ impl Slider {
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.inner = self.inner.disabled(disabled);
-        self.disabled = disabled;
         self
     }
     /// 値が変わったときの処理。
@@ -77,7 +74,7 @@ impl RenderOnce for Slider {
         let fraction = state.fraction;
         let pressed = state.dragging;
         let theme = cx.md3();
-        let paint = if self.disabled {
+        let paint = if control.disabled {
             SliderPaint {
                 active: theme
                     .color(tokens::DISABLED_ACTIVE_TRACK_COLOR)

@@ -172,3 +172,42 @@ fn button_name_override() {
     );
     assert_eq!(Button::new("b", "").a11y_node().label, None);
 }
+
+#[test]
+fn toggle_state_reflects_the_latest_setting() {
+    assert_eq!(Button::new("b", "").toggled_state(), None);
+    assert_eq!(
+        Button::new("b", "")
+            .toggled(Some(true))
+            .toggled(Some(false))
+            .toggled_state(),
+        Some(false)
+    );
+}
+
+#[gpui::test]
+fn toggle_handler_and_preprocessing_use_final_configuration(cx: &mut TestAppContext) {
+    let events = Rc::new(std::cell::RefCell::new(Vec::new()));
+    let cx = support::open(cx, {
+        let events = events.clone();
+        move |window, cx| {
+            let before = events.clone();
+            let changed = events.clone();
+            Button::new("toggle", "切替")
+                .before_click(move |_, _, _| before.borrow_mut().push("before"))
+                .on_toggle(move |next, _, _| {
+                    changed.borrow_mut().push(if next { "on" } else { "off" });
+                })
+                .toggled(Some(true))
+                .disabled(true)
+                .disabled(false)
+                .build(window, cx)
+                .0
+                .size(gpui::px(40.))
+                .into_any_element()
+        }
+    });
+    support::tab(cx);
+    support::press(cx, "space");
+    assert_eq!(*events.borrow(), ["before", "off"]);
+}
