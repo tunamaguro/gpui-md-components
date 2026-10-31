@@ -17,7 +17,7 @@ use gpui_headless::overlay::DismissHandler;
 /// メニューの項目。
 pub struct MenuItem {
     label: SharedString,
-    aria_label: Option<Option<SharedString>>,
+    name: gpui_headless::AccessibleName,
     leading_icon: Option<IconName>,
     trailing_icon: Option<IconName>,
     trailing_text: Option<SharedString>,
@@ -28,9 +28,10 @@ pub struct MenuItem {
 impl MenuItem {
     /// ラベルから作る。
     pub fn new(label: impl Into<SharedString>) -> Self {
+        let label = label.into();
         Self {
-            label: label.into(),
-            aria_label: None,
+            name: gpui_headless::AccessibleName::new(label.clone()),
+            label,
             leading_icon: None,
             trailing_icon: None,
             trailing_text: None,
@@ -39,12 +40,7 @@ impl MenuItem {
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.aria_label = Some((!label.is_empty()).then_some(label));
-        self
-    }
+    accessible_name!();
 
     /// 先頭のアイコン。
     pub fn leading_icon(mut self, icon: IconName) -> Self {
@@ -88,7 +84,7 @@ impl MenuItem {
 pub struct Menu {
     scrollbar: bool,
     id: ElementId,
-    label: Option<SharedString>,
+    name: gpui_headless::AccessibleName,
     items: Vec<MenuItem>,
     selected: Option<usize>,
     on_dismiss: Option<DismissHandler>,
@@ -127,14 +123,12 @@ impl Menu {
         if let Some(on_dismiss) = self.on_dismiss.clone() {
             menu = menu.on_dismiss(move |window, cx| on_dismiss(window, cx));
         }
-        if let Some(label) = self.label.clone() {
+        if let Some(label) = self.name.resolve() {
             menu = menu.aria_label(label);
         }
         for item in &self.items {
             let mut row = gpui_headless::MenuItem::new(item.label.clone()).disabled(item.disabled);
-            if let Some(label) = item.aria_label.clone() {
-                row = row.aria_label(label.unwrap_or_default());
-            }
+            row = row.name(item.name.clone());
             if let Some(text) = &item.trailing_text {
                 row = row.description(text.clone());
             }
@@ -158,7 +152,7 @@ impl Menu {
         Self {
             scrollbar: true,
             id: id.into(),
-            label: None,
+            name: gpui_headless::AccessibleName::default(),
             items: Vec::new(),
             selected: None,
             on_dismiss: None,
@@ -168,12 +162,7 @@ impl Menu {
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// 項目を足す。
     pub fn item(mut self, item: MenuItem) -> Self {

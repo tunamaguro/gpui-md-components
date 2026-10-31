@@ -25,6 +25,8 @@
 
 名前は API 上任意とし、表示文字を既定として `.aria_label()` で指定・上書きする。空文字は名前なしとして扱う。
 
+名前を持つ headless 部品は `name: AccessibleName` を持ち、impl 内で `accessible_name!()` を使って setter と、名前をまとめて受け取る `name()` を定義する。表示文字が変わる setter は `set_visible` を呼び、ノードには `.with_name(&self.name)` で付ける。ラッパーは `delegate_accessible_name!(0)` のように委譲する。項目を MD3 から渡すときは `name()` で上書きの有無も渡す。
+
 ## API の形
 
 - 単体の部品は `build(window, cx)` で、振る舞いを付けた要素と描画用の状態を返す。見た目は返された要素に足す。

@@ -13,9 +13,8 @@ type ToggleHandler = Box<dyn Fn(bool, &mut Window, &mut App) + 'static>;
 /// 見た目を持たないボタン。
 pub struct Button {
     id: ElementId,
-    label: SharedString,
+    name: crate::AccessibleName,
     description: Option<SharedString>,
-    aria_label: Option<Option<SharedString>>,
     toggled: Option<bool>,
     menu_expanded: Option<bool>,
     disabled: bool,
@@ -33,9 +32,8 @@ impl Button {
         Self {
             group: format!("control-{id}").into(),
             id,
-            label: label.into(),
+            name: crate::AccessibleName::new(label),
             description: None,
-            aria_label: None,
             toggled: None,
             menu_expanded: None,
             disabled: false,
@@ -51,12 +49,7 @@ impl Button {
         self
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.aria_label = Some((!label.is_empty()).then_some(label));
-        self
-    }
+    accessible_name!();
     /// トグルの状態を設定する。
     pub fn toggled(mut self, value: Option<bool>) -> Self {
         self.toggled = value;
@@ -113,13 +106,10 @@ impl Button {
     /// アクセシビリティツリーに出す情報。
     pub fn a11y_node(&self) -> A11yNode {
         let mut node = A11yNode::new(Role::Button)
-            .label(self.label.clone())
+            .with_name(&self.name)
             .disabled(self.disabled);
         if let Some(description) = &self.description {
             node = node.description(description.clone());
-        }
-        if let Some(label) = &self.aria_label {
-            node.label = label.clone();
         }
         if let Some(expanded) = self.menu_expanded {
             node = node.expanded(expanded).has_popup(accesskit::HasPopup::Menu);

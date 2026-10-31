@@ -2,6 +2,41 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+/// 部品用の名前 setter を定義する。
+#[doc(hidden)]
+#[macro_export]
+macro_rules! accessible_name_setter {
+    ($this:ident, $label:ident, $body:block $(; #[$extra:meta])*) => {
+        /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+        $(#[$extra])*
+        pub fn aria_label(mut $this, $label: impl Into<gpui::SharedString>) -> Self $body
+    };
+}
+
+macro_rules! accessible_name {
+    ($(#[$extra:meta])*) => {
+        crate::accessible_name_setter!(self, label, {
+            self.name.set_aria_label(label);
+            self
+        } $(; #[$extra])*);
+
+        /// 読み上げる名前をまとめて指定する。
+        pub fn name(mut self, name: crate::AccessibleName) -> Self {
+            self.name = name;
+            self
+        }
+    };
+}
+
+macro_rules! delegate_accessible_name {
+    ($($field:tt).+) => {
+        crate::accessible_name_setter!(self, label, {
+            self.$($field).+ = self.$($field).+.aria_label(label);
+            self
+        });
+    };
+}
+
 mod a11y;
 mod app_bar;
 mod button;
@@ -34,7 +69,7 @@ mod tabs;
 mod text_field;
 mod tooltip;
 
-pub use a11y::{A11yExt, A11yNode, RangeValue, supporting_status, toggled};
+pub use a11y::{A11yExt, A11yNode, AccessibleName, RangeValue, supporting_status, toggled};
 pub use app_bar::AppBar;
 pub use button::Button;
 pub use button_group::{ButtonGroup, ButtonItem};

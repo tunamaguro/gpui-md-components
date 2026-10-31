@@ -9,25 +9,18 @@ use std::rc::Rc;
 type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App)>;
 /// 表示文字と操作状態を持つ選択肢。
 pub struct TabOption {
-    label: SharedString,
-    aria_label: Option<Option<SharedString>>,
+    name: crate::AccessibleName,
     disabled: bool,
 }
 impl TabOption {
     /// 表示文字と無効状態から作る。
     pub fn new(label: impl Into<SharedString>, disabled: bool) -> Self {
         Self {
-            label: label.into(),
-            aria_label: None,
+            name: crate::AccessibleName::new(label),
             disabled,
         }
     }
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.aria_label = Some((!label.is_empty()).then_some(label));
-        self
-    }
+    accessible_name!();
 }
 
 /// タブの並び（全タブが同じ幅で、並び全体の幅を分け合う）。
@@ -36,7 +29,7 @@ impl TabOption {
 /// Home / End は端のタブ。タブの中身（パネル）は呼び出し側が選択に合わせて描く。
 pub struct Tabs {
     id: ElementId,
-    label: Option<SharedString>,
+    name: crate::AccessibleName,
     reveal_margin: Pixels,
     group_prefix: SharedString,
     before: Vec<AnyElement>,
@@ -50,7 +43,7 @@ impl Tabs {
     pub fn new(id: impl Into<ElementId>, selected: usize) -> Self {
         Self {
             id: id.into(),
-            label: None,
+            name: crate::AccessibleName::default(),
             reveal_margin: px(0.0),
             group_prefix: "control".into(),
             before: Vec::new(),
@@ -60,18 +53,12 @@ impl Tabs {
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// タブを足す。
     pub fn tab(mut self, label: impl Into<SharedString>, disabled: bool) -> Self {
         self.tabs.push(TabOption {
-            label: label.into(),
-            aria_label: None,
+            name: crate::AccessibleName::new(label),
             disabled,
         });
         self
@@ -85,8 +72,7 @@ impl Tabs {
     /// 項目の読み上げ名を指定する。表示文字を優先し、表示ラベルを名前に含める（WCAG 2.5.3）。
     pub fn tab_aria_label(mut self, index: usize, label: impl Into<SharedString>) -> Self {
         if let Some(item) = self.tabs.get_mut(index) {
-            let label = label.into();
-            item.aria_label = Some((!label.is_empty()).then_some(label));
+            item.name.set_aria_label(label);
         }
         self
     }
@@ -116,18 +102,14 @@ impl Tabs {
 
     /// アクセシビリティツリーに出す情報（役割 TabList）。
     pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::TabList).with_label(self.label.clone())
+        A11yNode::new(Role::TabList).with_name(&self.name)
     }
 
     /// タブ `index` のアクセシビリティ情報（役割 Tab）。
     pub fn tab_a11y_node(&self, index: usize) -> Option<A11yNode> {
         self.tabs.get(index).map(|tab| {
             A11yNode::new(Role::Tab)
-                .with_label(
-                    tab.aria_label
-                        .clone()
-                        .unwrap_or_else(|| Some(tab.label.clone())),
-                )
+                .with_name(&tab.name)
                 .selected(index == self.selected)
                 .position(index, self.tabs.len())
                 .disabled(tab.disabled)

@@ -100,11 +100,7 @@ impl Dialog {
         self
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        self.inner = self.inner.aria_label(label);
-        self
-    }
+    delegate_accessible_name!(inner);
 
     /// 見出しの上にアイコンを出す（見出しは中央揃えになる）。
     pub fn icon(mut self, icon: IconName) -> Self {

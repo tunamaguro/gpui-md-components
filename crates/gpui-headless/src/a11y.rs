@@ -11,6 +11,42 @@ use gpui::{
     accesskit,
 };
 
+/// 読み上げる名前。表示文字を既定とし、`aria_label` で上書きする。
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct AccessibleName {
+    visible: Option<SharedString>,
+    aria_label: Option<Option<SharedString>>,
+}
+
+impl AccessibleName {
+    /// 表示文字を既定の名前にする。
+    pub fn new(visible: impl Into<SharedString>) -> Self {
+        Self {
+            visible: Some(visible.into()),
+            aria_label: None,
+        }
+    }
+
+    /// 既定の表示文字を変更する。
+    pub fn set_visible(&mut self, visible: impl Into<SharedString>) {
+        self.visible = Some(visible.into());
+    }
+
+    /// 名前を上書きする。空文字は名前なしにする。
+    pub fn set_aria_label(&mut self, label: impl Into<SharedString>) {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+    }
+
+    /// 上書きまたは表示文字から名前を返す。
+    pub fn resolve(&self) -> Option<SharedString> {
+        self.aria_label
+            .clone()
+            .unwrap_or_else(|| self.visible.clone())
+            .filter(|name| !name.is_empty())
+    }
+}
+
 /// 補助テキストの状態ノードを作る。エラー時は live region にする。
 pub fn supporting_status(
     parent: &ElementId,
@@ -108,6 +144,12 @@ impl A11yNode {
     /// 任意の名前を付ける。
     pub fn with_label(mut self, label: Option<SharedString>) -> Self {
         self.label = label.filter(|label| !label.is_empty());
+        self
+    }
+
+    /// 読み上げる名前を付ける。
+    pub fn with_name(mut self, name: &AccessibleName) -> Self {
+        self.label = name.resolve();
         self
     }
 

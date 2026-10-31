@@ -1,8 +1,7 @@
 //! ButtonGroup（押された項目が広がり、隣が縮むボタンの並び）。
 
 use gpui::{
-    App, ElementId, Entity, IntoElement, Pixels, RenderOnce, SharedString, TextRun, Window,
-    prelude::*, px,
+    App, ElementId, Entity, IntoElement, Pixels, RenderOnce, TextRun, Window, prelude::*, px,
 };
 use md3_theme::Md3ThemeExt;
 use md3_theme::md3_tokens::component::{
@@ -29,7 +28,7 @@ use super::toggle_button::{GroupSlot, ToggleButton};
 #[derive(IntoElement)]
 pub struct ButtonGroup {
     id: ElementId,
-    label: Option<SharedString>,
+    name: gpui_headless::AccessibleName,
     connected: bool,
     items: Vec<ToggleButton>,
 }
@@ -39,18 +38,13 @@ impl ButtonGroup {
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: None,
+            name: gpui_headless::AccessibleName::default(),
             connected: false,
             items: Vec::new(),
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// 項目の間を詰めてつなげる（connected button group）。
     pub fn connected(mut self, connected: bool) -> Self {
@@ -134,7 +128,7 @@ impl RenderOnce for ButtonGroup {
             .map(|&n| compressible_width(n, padding))
             .collect();
         let mut group = gpui_headless::ButtonGroup::new(self.id.clone());
-        if let Some(label) = self.label {
+        if let Some(label) = self.name.resolve() {
             group = group.aria_label(label);
         }
         let mut items = Vec::with_capacity(count);

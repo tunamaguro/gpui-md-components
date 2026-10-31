@@ -12,27 +12,23 @@ pub(crate) type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App)>;
 pub struct NavigationItem {
     pub(crate) icon: IconName,
     pub(crate) label: SharedString,
-    aria_label: Option<Option<SharedString>>,
+    name: gpui_headless::AccessibleName,
     pub(crate) disabled: bool,
 }
 
 impl NavigationItem {
     /// アイコンとラベルから作る。
     pub fn new(icon: IconName, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
         Self {
             icon,
-            label: label.into(),
-            aria_label: None,
+            name: gpui_headless::AccessibleName::new(label.clone()),
+            label,
             disabled: false,
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.aria_label = Some((!label.is_empty()).then_some(label));
-        self
-    }
+    accessible_name!();
 
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
@@ -57,11 +53,11 @@ pub(crate) fn navigation(
     if let Some(label) = label {
         nav = nav.aria_label(label);
     }
-    for (index, item) in items.iter().enumerate() {
-        nav = nav.item(item.label.clone(), item.disabled);
-        if let Some(label) = item.aria_label.clone() {
-            nav = nav.item_aria_label(index, label.unwrap_or_default());
-        }
+    for item in items {
+        nav = nav.destination(
+            gpui_headless::NavigationOption::new(item.label.clone(), item.disabled)
+                .name(item.name.clone()),
+        );
     }
     if let Some(on_change) = on_change {
         nav = nav.on_change(move |i, w, cx| on_change(i, w, cx));

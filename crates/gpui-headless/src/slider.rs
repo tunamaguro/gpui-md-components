@@ -32,7 +32,7 @@ pub struct Slider {
     min: f32,
     max: f32,
     step: Option<f32>,
-    label: Option<SharedString>,
+    name: crate::AccessibleName,
     disabled: bool,
     on_change: Option<ChangeHandler>,
     reveal_margin: Pixels,
@@ -51,7 +51,7 @@ impl Slider {
             min: 0.0,
             max: 1.0,
             step: None,
-            label: None,
+            name: crate::AccessibleName::default(),
             disabled: false,
             on_change: None,
             reveal_margin: px(0.0),
@@ -59,12 +59,7 @@ impl Slider {
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// 範囲を変える。
     pub fn range(mut self, min: f32, max: f32) -> Self {
@@ -120,7 +115,7 @@ impl Slider {
                 step: Some(f64::from(self.key_step())),
             })
             .disabled(self.disabled);
-        node.label = self.label.clone();
+        node = node.with_name(&self.name);
         node
     }
 

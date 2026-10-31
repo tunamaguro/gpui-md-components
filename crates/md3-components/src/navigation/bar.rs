@@ -167,7 +167,7 @@ pub(crate) use destination_builders;
 #[derive(IntoElement)]
 pub struct NavigationBar {
     id: ElementId,
-    label: Option<SharedString>,
+    name: gpui_headless::AccessibleName,
     items: Vec<NavigationItem>,
     selected: Option<usize>,
     on_change: Option<ChangeHandler>,
@@ -178,19 +178,14 @@ impl NavigationBar {
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: None,
+            name: gpui_headless::AccessibleName::default(),
             items: Vec::new(),
             selected: None,
             on_change: None,
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     destination_builders!();
 }
@@ -207,7 +202,7 @@ impl RenderOnce for NavigationBar {
         };
         let nav = navigation(
             self.id,
-            self.label,
+            self.name.resolve(),
             &self.items,
             self.selected,
             self.on_change,
@@ -243,7 +238,7 @@ impl RenderOnce for NavigationBar {
 #[derive(IntoElement)]
 pub struct NavigationRail {
     id: ElementId,
-    label: Option<SharedString>,
+    name: gpui_headless::AccessibleName,
     items: Vec<NavigationItem>,
     selected: Option<usize>,
     on_change: Option<ChangeHandler>,
@@ -255,7 +250,7 @@ impl NavigationRail {
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: None,
+            name: gpui_headless::AccessibleName::default(),
             items: Vec::new(),
             selected: None,
             on_change: None,
@@ -263,12 +258,7 @@ impl NavigationRail {
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// 項目の上に置く要素（FAB、メニューボタンなど）。
     pub fn header(mut self, header: impl IntoElement) -> Self {
@@ -291,7 +281,7 @@ impl RenderOnce for NavigationRail {
         };
         let nav = navigation(
             self.id,
-            self.label,
+            self.name.resolve(),
             &self.items,
             self.selected,
             self.on_change,

@@ -8,9 +8,8 @@ use crate::{A11yExt, A11yNode};
 /// 見た目を持たないダイアログ。
 pub struct Dialog {
     id: ElementId,
-    label: Option<SharedString>,
+    name: crate::AccessibleName,
     description: Option<SharedString>,
-    aria_label: Option<SharedString>,
     alert: bool,
     modal: bool,
     complementary: bool,
@@ -21,9 +20,8 @@ impl Dialog {
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: None,
+            name: crate::AccessibleName::default(),
             description: None,
-            aria_label: None,
             alert: false,
             modal: true,
             complementary: false,
@@ -32,7 +30,7 @@ impl Dialog {
 
     /// 表示する見出しを既定の名前にする。
     pub fn headline(mut self, label: impl Into<SharedString>) -> Self {
-        self.label = Some(label.into());
+        self.name.set_visible(label);
         self
     }
 
@@ -42,11 +40,7 @@ impl Dialog {
         self
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        self.aria_label = Some(label.into());
-        self
-    }
+    accessible_name!();
 
     /// 緊急の確認にする（支援技術に `AlertDialog` と伝える）。
     pub fn alert(mut self, alert: bool) -> Self {
@@ -76,9 +70,7 @@ impl Dialog {
         } else {
             Role::Dialog
         };
-        let mut node = A11yNode::new(role)
-            .with_label(self.aria_label.clone().or_else(|| self.label.clone()))
-            .modal(self.modal);
+        let mut node = A11yNode::new(role).with_name(&self.name).modal(self.modal);
         if let Some(description) = &self.description {
             node = node.description(description.clone());
         }

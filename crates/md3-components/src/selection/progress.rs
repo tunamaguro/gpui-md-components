@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use gpui::{
     Animation, AnimationExt, App, Bounds, ElementId, Hsla, IntoElement, PathBuilder, Pixels, Point,
-    RenderOnce, SharedString, Window, canvas, fill, point, prelude::*, px, size,
+    RenderOnce, Window, canvas, fill, point, prelude::*, px, size,
 };
 use md3_theme::Md3ThemeExt;
 use md3_theme::md3_tokens::component::{
@@ -37,7 +37,7 @@ fn progress_paint(cx: &App) -> ProgressPaint {
 pub struct LinearProgress {
     id: ElementId,
     value: Option<f32>,
-    label: Option<SharedString>,
+    name: gpui_headless::AccessibleName,
 }
 
 impl LinearProgress {
@@ -46,23 +46,18 @@ impl LinearProgress {
         Self {
             id: id.into(),
             value,
-            label: None,
+            name: gpui_headless::AccessibleName::default(),
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 }
 
 impl RenderOnce for LinearProgress {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let paint = progress_paint(cx);
         let mut progress = Progress::new(self.id, self.value);
-        if let Some(label) = self.label {
+        if let Some(label) = self.name.resolve() {
             progress = progress.aria_label(label);
         }
         let base = progress
@@ -168,7 +163,7 @@ fn paint_linear(
 pub struct CircularProgress {
     id: ElementId,
     value: Option<f32>,
-    label: Option<SharedString>,
+    name: gpui_headless::AccessibleName,
 }
 
 impl CircularProgress {
@@ -177,23 +172,18 @@ impl CircularProgress {
         Self {
             id: id.into(),
             value,
-            label: None,
+            name: gpui_headless::AccessibleName::default(),
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 }
 
 impl RenderOnce for CircularProgress {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let paint = progress_paint(cx);
         let mut progress = Progress::new(self.id, self.value);
-        if let Some(label) = self.label {
+        if let Some(label) = self.name.resolve() {
             progress = progress.aria_label(label);
         }
         let base = progress.build().size(px(circular::SIZE));

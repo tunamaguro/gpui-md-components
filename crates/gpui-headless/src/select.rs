@@ -11,8 +11,7 @@ use std::sync::Arc;
 /// 押すか、Enter / Space / ↓ で開く入力。選択肢は [`crate::Menu`] で描く。
 pub struct Select {
     id: ElementId,
-    label: Option<SharedString>,
-    aria_label: Option<SharedString>,
+    name: crate::AccessibleName,
     value: Option<SharedString>,
     disabled: bool,
     error: bool,
@@ -71,8 +70,7 @@ impl Select {
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: None,
-            aria_label: None,
+            name: crate::AccessibleName::default(),
             value: None,
             disabled: false,
             error: false,
@@ -85,15 +83,11 @@ impl Select {
 
     /// 表示するラベルを既定の名前にする。
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
-        self.label = Some(label.into());
+        self.name.set_visible(label);
         self
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        self.aria_label = Some(label.into());
-        self
-    }
+    accessible_name!();
 
     /// 選ばれている値の文。
     pub fn value(mut self, value: Option<SharedString>) -> Self {
@@ -128,7 +122,7 @@ impl Select {
     /// アクセシビリティツリーに出す情報（開閉の状態は `build` が付ける）。
     pub fn a11y_node(&self) -> A11yNode {
         let mut node = A11yNode::new(Role::ComboBox)
-            .with_label(self.aria_label.clone().or_else(|| self.label.clone()))
+            .with_name(&self.name)
             .disabled(self.disabled)
             .invalid(self.error)
             .required(self.required)

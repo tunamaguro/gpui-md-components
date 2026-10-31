@@ -38,7 +38,7 @@ pub enum NavigationDrawerKind {
 pub struct NavigationDrawer {
     scrollbar: bool,
     id: ElementId,
-    label: Option<SharedString>,
+    name: gpui_headless::AccessibleName,
     kind: NavigationDrawerKind,
     items: Vec<NavigationItem>,
     selected: Option<usize>,
@@ -60,7 +60,7 @@ impl NavigationDrawer {
         Self {
             scrollbar: true,
             id: id.into(),
-            label: None,
+            name: gpui_headless::AccessibleName::default(),
             kind: NavigationDrawerKind::default(),
             items: Vec::new(),
             selected: None,
@@ -71,12 +71,7 @@ impl NavigationDrawer {
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// 種類を変える。
     pub fn kind(mut self, kind: NavigationDrawerKind) -> Self {
@@ -123,7 +118,7 @@ impl RenderOnce for NavigationDrawer {
         let scroll = gpui_headless::scroll_handle(&self.id, window, cx);
         let mut nav = navigation(
             self.id.clone(),
-            self.label,
+            self.name.resolve(),
             &self.items,
             self.selected,
             self.on_change,
