@@ -105,6 +105,8 @@ pub struct Demo {
     pub last_action: Option<&'static str>,
     /// メニューを開いているか。
     pub menu_open: bool,
+    /// アイコンボタンのメニューを開いているか。
+    pub icon_menu_open: bool,
     /// ダイアログを開いているか。
     pub dialog_open: bool,
     /// ボトムシートを開いているか。
@@ -152,6 +154,7 @@ impl Default for Demo {
             color: None,
             last_action: None,
             menu_open: false,
+            icon_menu_open: false,
             dialog_open: false,
             bottom_sheet_open: false,
             side_sheet_open: false,
@@ -341,9 +344,13 @@ impl Render for Gallery {
                         .flex_col()
                         .gap_6()
                         .p_6()
-                        .child(Text::new(TypeScale::HeadlineMedium, "md3 gallery"))
+                        .child(
+                            Text::new(TypeScale::HeadlineMedium, "md3 gallery")
+                                .id("gallery-heading"),
+                        )
                         .child(
                             Text::new(TypeScale::BodySmall, gpu_description(window))
+                                .id("gallery-gpu-description")
                                 .color(ColorRole::OnSurfaceVariant),
                         )
                         .child(stories::theme::controls(window, cx))

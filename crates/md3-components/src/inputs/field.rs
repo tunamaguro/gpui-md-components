@@ -224,6 +224,7 @@ pub(crate) struct FieldFrame {
     /// 入力行（接頭辞・入力・接尾辞）。ラベルが上に出ていないときは描かない。
     pub content: AnyElement,
     pub supporting_text: Option<SharedString>,
+    pub supporting_a11y: Option<(gpui::ElementId, gpui_headless::A11yNode)>,
     pub counter: Option<SharedString>,
 }
 
@@ -433,7 +434,20 @@ impl FieldFrame {
             }
         }
 
-        let supporting = (self.supporting_text.is_some() || self.counter.is_some()).then(|| {
+        use gpui_headless::A11yExt;
+        let has_supporting_text = self.supporting_text.is_some();
+        let supporting_text = div().flex_1();
+        let supporting_text = match self.supporting_a11y {
+            Some((id, node)) => supporting_text
+                .id(id)
+                .a11y(node)
+                .children(self.supporting_text)
+                .into_any_element(),
+            None => supporting_text
+                .children(self.supporting_text)
+                .into_any_element(),
+        };
+        let supporting = (has_supporting_text || self.counter.is_some()).then(|| {
             div()
                 .w_full()
                 .flex()
@@ -442,7 +456,7 @@ impl FieldFrame {
                 .px(space)
                 .type_style(&theme.text_style(TypeScale::BodySmall))
                 .text_color(tint(theme, colors.supporting))
-                .child(div().flex_1().children(self.supporting_text))
+                .child(supporting_text)
                 .children(self.counter.map(|counter| div().flex_none().child(counter)))
         });
         (container, supporting)

@@ -16,6 +16,8 @@ pub struct Select {
     value: Option<SharedString>,
     disabled: bool,
     error: bool,
+    required: bool,
+    description: Option<SharedString>,
     reveal_margin: Pixels,
     group_prefix: SharedString,
 }
@@ -53,6 +55,18 @@ fn set_open(open: &Entity<bool>, value: bool, cx: &mut App) {
 }
 
 impl Select {
+    /// 必須の入力か指定する。
+    pub fn required(mut self, required: bool) -> Self {
+        self.required = required;
+        self
+    }
+
+    /// 入力の補足説明を指定する。
+    pub fn description(mut self, description: impl Into<SharedString>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
     /// ID から作る。
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
@@ -62,6 +76,8 @@ impl Select {
             value: None,
             disabled: false,
             error: false,
+            required: false,
+            description: None,
             reveal_margin: px(0.0),
             group_prefix: "control".into(),
         }
@@ -111,10 +127,16 @@ impl Select {
 
     /// アクセシビリティツリーに出す情報（開閉の状態は `build` が付ける）。
     pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::ComboBox)
+        let mut node = A11yNode::new(Role::ComboBox)
             .with_label(self.aria_label.clone().or_else(|| self.label.clone()))
             .disabled(self.disabled)
             .invalid(self.error)
+            .required(self.required)
+            .has_popup(gpui::accesskit::HasPopup::Listbox);
+        if let Some(description) = &self.description {
+            node = node.description(description.clone());
+        }
+        node
     }
 
     /// 操作を付けた土台と描画用の状態を返す。

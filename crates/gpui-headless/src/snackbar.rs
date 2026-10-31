@@ -50,6 +50,8 @@ impl Snackbar {
                     .clone()
                     .unwrap_or_else(|| Some(self.message.clone())),
             )
+            // macOS の AccessKit は live の読み上げに value を使う。
+            .value(self.message.clone())
             .live(self.active)
     }
 

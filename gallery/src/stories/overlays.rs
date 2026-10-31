@@ -111,6 +111,7 @@ pub fn page(
             Button::new("menu-open", "メニューを開く")
                 .variant(ButtonVariant::Outlined)
                 .icon(IconName::MoreVert)
+                .menu_expanded(demo.menu_open)
                 .on_click(set(|demo| demo.menu_open = !demo.menu_open)),
         )
         .when(demo.menu_open, |this| {
@@ -124,6 +125,25 @@ pub fn page(
                     }),
             )
         });
+    let icon_menu_anchor = div()
+        .relative()
+        .child(
+            IconButton::new("icon-menu-open", IconName::MoreVert)
+                .aria_label("編集メニュー")
+                .menu_expanded(demo.icon_menu_open)
+                .on_click(set(|demo| demo.icon_menu_open = !demo.icon_menu_open)),
+        )
+        .when(demo.icon_menu_open, |this| {
+            let view = view.clone();
+            this.child(
+                Menu::new("icon-menu")
+                    .aria_label("編集")
+                    .items(menu_items(&view))
+                    .on_dismiss(move |_, cx| {
+                        Gallery::update_demo(&view, cx, |demo| demo.icon_menu_open = false)
+                    }),
+            )
+        });
     let menu_states = sample(
         "Enabled / Disabled",
         div().w(px(240.0)).child(
@@ -134,12 +154,14 @@ pub fn page(
         ),
     );
     let menus = Section::new("Menu（↑↓ で移動、Enter で選択、Esc / Tab で閉じる）")
+        .heading_id("overlays-menu-heading")
         .child(
             div()
                 .flex()
                 .items_center()
                 .gap_4()
                 .child(menu_anchor)
+                .child(icon_menu_anchor)
                 .child(last),
         )
         .child(menu_states);

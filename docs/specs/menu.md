@@ -42,6 +42,8 @@
 
 ## アクセシビリティ
 
+- メニューの Button / IconButton トリガーに `.menu_expanded(open)` を渡し、has-popup と expanded を伝える（APG Menu Button）。項目の末尾の文字は description として伝える。
+
 - 役割: Menu / MenuItem
 
 - 名前: メニューは任意の `.aria_label()`、項目は表示ラベルが既定で `.aria_label()` で上書き可能

@@ -39,9 +39,14 @@
 
 ## アクセシビリティ
 
+- メニューのトリガーには `.menu_expanded(open)` を指定し、has-popup（Menu）と expanded を伝える（APG Menu Button）。支援技術の Expand / Collapse は状態が変わる場合だけクリックを実行する。
+
 - 役割: Button
+
 - 名前: 表示ラベルが既定。`.aria_label()` で上書き可能
+
 - 状態: 無効は Tab で止まらない
+
 - キー操作: Enter / Space
 
 ## デスクトップ向け調整（密度など）

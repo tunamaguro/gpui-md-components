@@ -119,6 +119,7 @@ pub struct IconButton {
     variant: IconButtonVariant,
     selected: Option<bool>,
     disabled: bool,
+    menu_expanded: Option<bool>,
     on_click: Option<ClickHandler>,
     content_role: Option<ColorRole>,
     #[cfg_attr(not(feature = "overlays"), allow(dead_code))]
@@ -126,6 +127,26 @@ pub struct IconButton {
 }
 
 impl IconButton {
+    /// アクセシビリティ情報。
+    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
+        let mut node = self.behaviour().a11y_node();
+        if let Some(text) = &self.tooltip {
+            node = node.description(text.clone());
+        }
+        node
+    }
+
+    fn behaviour(&self) -> gpui_headless::Button {
+        let mut button =
+            gpui_headless::Button::new(self.id.clone(), self.label.clone().unwrap_or_default())
+                .disabled(self.disabled)
+                .toggled(self.selected);
+        if let Some(expanded) = self.menu_expanded {
+            button = button.menu_expanded(expanded);
+        }
+        button
+    }
+
     /// ID とアイコンから作る。
     pub fn new(id: impl Into<ElementId>, icon: IconName) -> Self {
         Self {
@@ -135,6 +156,7 @@ impl IconButton {
             variant: IconButtonVariant::default(),
             selected: None,
             disabled: false,
+            menu_expanded: None,
             on_click: None,
             content_role: None,
             tooltip: None,
@@ -157,6 +179,12 @@ impl IconButton {
     /// トグルボタンにして、選択状態を指定する。
     pub fn selected(mut self, selected: bool) -> Self {
         self.selected = Some(selected);
+        self
+    }
+
+    /// メニューの開閉状態を指定する。
+    pub fn menu_expanded(mut self, expanded: bool) -> Self {
+        self.menu_expanded = Some(expanded);
         self
     }
 
@@ -192,12 +220,10 @@ impl IconButton {
 
 impl RenderOnce for IconButton {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut behaviour =
-            gpui_headless::Button::new(self.id.clone(), self.label.clone().unwrap_or_default())
-                .disabled(self.disabled)
-                .toggled(self.selected)
-                .group(format!("md3-{}", self.id))
-                .reveal_margin(crate::focus::reveal_margin());
+        let mut behaviour = self
+            .behaviour()
+            .group(format!("md3-{}", self.id))
+            .reveal_margin(crate::focus::reveal_margin());
         if let Some(handler) = self.on_click {
             behaviour = behaviour.on_click(handler);
         }

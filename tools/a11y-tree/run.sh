@@ -3,7 +3,7 @@
 #
 #   nix develop -c tools/a11y-tree/run.sh [出力先] [ページ...]
 #
-# 専用の D-Bus セッションと AT-SPI のバスを立て、gallery（target/debug/gallery、先に `cargo build -p gallery`）を
+# 専用の D-Bus セッションと AT-SPI のバスを立て、gallery（target/debug/gallery）を
 # ページごとに起動して、スクロールしながら見えている部品のツリーを `<出力先>/<ページ>.txt` に書く
 # （ログは `<ページ>.log`）。
 # 道具（at-spi2-core、pyatspi、xdotool、dbus）は nixpkgs から取得する。プロジェクトの依存ではない。
@@ -18,6 +18,9 @@ if [ ${#pages[@]} -eq 0 ]; then
   pages=(foundations buttons selection inputs overlays navigation containment expressive custom)
 fi
 mkdir -p "$out"
+if [ "${A11Y_TREE_PAGE:-}" = "" ]; then
+  (cd "$root" && cargo build -p gallery)
+fi
 
 build() { nix build --no-link --print-out-paths "$@"; }
 atspi=$(build nixpkgs#at-spi2-core^out)

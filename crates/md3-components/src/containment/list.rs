@@ -52,6 +52,19 @@ pub struct ListItem {
 }
 
 impl ListItem {
+    /// アクセシビリティ情報。
+    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
+        let mut node = self.headless().a11y_node(0, 1);
+        let description = [self.overline.as_deref(), self.supporting_text.as_deref()]
+            .into_iter()
+            .flatten()
+            .filter(|text| !text.is_empty())
+            .collect::<Vec<_>>()
+            .join("、");
+        node = node.description(description);
+        node
+    }
+
     /// 見出しから作る。
     pub fn new(headline: impl Into<SharedString>) -> Self {
         Self {
@@ -139,6 +152,7 @@ impl ListItem {
     }
 
     fn render(self, row: ListRow, cx: &mut App) -> Stateful<Div> {
+        let description = self.a11y_node().description;
         let ListRow {
             base,
             state: control,
@@ -279,6 +293,9 @@ impl ListItem {
             });
 
         let mut item = base
+            .when_some(description, |base, description| {
+                base.aria_description(description)
+            })
             .debug_selector(|| format!("md3-list-item-{id}"))
             .w_full()
             .min_h(px(height))

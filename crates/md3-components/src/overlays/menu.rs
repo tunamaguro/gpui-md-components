@@ -26,6 +26,21 @@ pub struct MenuItem {
 }
 
 impl MenuItem {
+    /// アクセシビリティ情報。
+    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
+        let mut node = gpui_headless::A11yNode::new(gpui::Role::MenuItem)
+            .with_label(
+                self.aria_label
+                    .clone()
+                    .unwrap_or_else(|| Some(self.label.clone())),
+            )
+            .disabled(self.disabled);
+        if let Some(text) = &self.trailing_text {
+            node = node.description(text.clone());
+        }
+        node
+    }
+
     /// ラベルから作る。
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
@@ -220,7 +235,11 @@ impl RenderOnce for Menu {
             let Some(item) = looks.next() else {
                 return row.base.into_any_element();
             };
+            let description = item.a11y_node().description;
             let (base, control, id, selected) = (row.base, row.state, row.id, row.selected);
+            let base = base.when_some(description, |base, description| {
+                base.aria_description(description)
+            });
             let (text, leading, trailing) = if item.disabled {
                 (
                     theme

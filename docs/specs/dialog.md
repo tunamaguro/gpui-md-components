@@ -35,8 +35,12 @@
 
 ## アクセシビリティ
 
+- 補助テキストを description として伝える（WCAG 1.3.1）。
+
 - 役割: Dialog（`.alert()` で AlertDialog）
+
 - 名前: 任意の `.headline()` が既定。`.aria_label()` で上書きできる
+
 - キー操作: Tab がダイアログの中で回る、Esc で閉じる
 
 ## 既知の制限・仕様からの逸脱

@@ -54,6 +54,7 @@ pub fn state_header() -> impl IntoElement {
 #[derive(IntoElement)]
 pub struct Section {
     title: SharedString,
+    heading_id: Option<gpui::ElementId>,
     body: gpui::Div,
 }
 
@@ -61,8 +62,13 @@ impl Section {
     pub fn new(title: impl Into<SharedString>) -> Self {
         Self {
             title: title.into(),
+            heading_id: None,
             body: div().flex().flex_col().gap_3(),
         }
+    }
+    pub fn heading_id(mut self, id: impl Into<gpui::ElementId>) -> Self {
+        self.heading_id = Some(id.into());
+        self
     }
 }
 
@@ -74,11 +80,15 @@ impl ParentElement for Section {
 
 impl RenderOnce for Section {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+        let mut heading = Text::new(TypeScale::TitleLarge, self.title);
+        if let Some(id) = self.heading_id {
+            heading = heading.id(id);
+        }
         div()
             .flex()
             .flex_col()
             .gap_3()
-            .child(Text::new(TypeScale::TitleLarge, self.title))
+            .child(heading)
             .child(self.body)
     }
 }

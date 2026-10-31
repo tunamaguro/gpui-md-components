@@ -38,6 +38,8 @@ Material Design 3（ベースライン）の UI 部品集。Windows / macOS / Li
 | `containment` | Card（3 種）、List / LazyList、Divider                                                               |
 | `expressive`  | M3 Expressive の ToggleButton、ButtonGroup（Standard / Connected）。押下・選択で形と幅がバネで変わる |
 
+TextField / Select の必須状態は `.required(true)`、メニューボタンの開閉状態は `.menu_expanded(open)` で伝える。静的な `Text` を読み上げ可能にするには一意な `.id()` を指定する。
+
 Checkbox の状態は `gpui_headless::CheckboxState`、テキスト編集の状態は `gpui_headless::TextFieldState` を使う。Button 系、Checkbox、Switch、Chip、Card、RadioGroup、SegmentedButton、ButtonGroup、Tabs、Navigation、Slider、List / LazyList の見た目を持たない操作と a11y は `gpui-headless` が担う。
 
 feature に関係なく使える共通部品: `md3-components` の Scrollbar と、`gpui-headless` の NestedScroll、ScrollScope、reveal_on_focus。

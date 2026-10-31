@@ -157,11 +157,29 @@ pub struct Button {
     variant: ButtonVariant,
     icon: Option<IconName>,
     disabled: bool,
+    menu_expanded: Option<bool>,
     on_click: Option<ClickHandler>,
     content_role: Option<ColorRole>,
 }
 
 impl Button {
+    /// アクセシビリティ情報。
+    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
+        self.behaviour().a11y_node()
+    }
+
+    fn behaviour(&self) -> gpui_headless::Button {
+        let mut button =
+            gpui_headless::Button::new(self.id.clone(), self.label.clone()).disabled(self.disabled);
+        if let Some(label) = self.aria_label.clone() {
+            button = button.aria_label(label.unwrap_or_default());
+        }
+        if let Some(expanded) = self.menu_expanded {
+            button = button.menu_expanded(expanded);
+        }
+        button
+    }
+
     /// ID とラベルから作る。
     pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
         Self {
@@ -171,6 +189,7 @@ impl Button {
             variant: ButtonVariant::default(),
             icon: None,
             disabled: false,
+            menu_expanded: None,
             on_click: None,
             content_role: None,
         }
@@ -192,6 +211,12 @@ impl Button {
     /// ラベルの前にアイコンを置く。
     pub fn icon(mut self, icon: IconName) -> Self {
         self.icon = Some(icon);
+        self
+    }
+
+    /// メニューの開閉状態を指定する。
+    pub fn menu_expanded(mut self, expanded: bool) -> Self {
+        self.menu_expanded = Some(expanded);
         self
     }
 
@@ -220,13 +245,10 @@ impl Button {
 
 impl RenderOnce for Button {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut behaviour = gpui_headless::Button::new(self.id.clone(), self.label.clone())
-            .disabled(self.disabled)
+        let mut behaviour = self
+            .behaviour()
             .group(format!("md3-{}", self.id))
             .reveal_margin(crate::focus::reveal_margin());
-        if let Some(label) = self.aria_label {
-            behaviour = behaviour.aria_label(label.unwrap_or_default());
-        }
         if let Some(handler) = self.on_click {
             behaviour = behaviour.on_click(handler);
         }

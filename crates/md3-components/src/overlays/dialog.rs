@@ -67,6 +67,25 @@ pub struct Dialog {
 }
 
 impl Dialog {
+    /// アクセシビリティ情報。
+    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
+        let mut node = self.headless().a11y_node();
+        if let Some(text) = &self.supporting_text {
+            node = node.description(text.clone());
+        }
+        node
+    }
+
+    fn headless(&self) -> gpui_headless::Dialog {
+        let mut dialog = gpui_headless::Dialog::new(self.id.clone())
+            .alert(self.alert)
+            .modal(!self.inline);
+        if let Some(label) = self.aria_label.clone().or_else(|| self.headline.clone()) {
+            dialog = dialog.aria_label(label);
+        }
+        dialog
+    }
+
     /// スクロールバーの表示を切り替える（既定は表示）。
     pub fn scrollbar(mut self, visible: bool) -> Self {
         self.scrollbar = visible;
@@ -148,14 +167,11 @@ impl ParentElement for Dialog {
 
 impl RenderOnce for Dialog {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut headless = gpui_headless::Dialog::new(self.id.clone());
-        if let Some(label) = self.aria_label.clone().or_else(|| self.headline.clone()) {
-            headless = headless.aria_label(label);
-        }
-        let (base, focus) = headless
-            .alert(self.alert)
-            .modal(!self.inline)
-            .build(window, cx);
+        let description = self.a11y_node().description;
+        let (base, focus) = self.headless().build(window, cx);
+        let base = base.when_some(description, |base, description| {
+            base.aria_description(description)
+        });
         let theme = &cx.md3().clone();
         let centered = self.icon.is_some();
         let has_body = self.supporting_text.is_some() || !self.children.is_empty();
