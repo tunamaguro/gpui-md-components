@@ -122,6 +122,7 @@ hover / focused / pressed はマウスやキーボードで操作して確かめ
 ```sh
 cargo run -p gallery                    # デスクトップ
 MD3_GALLERY_PAGE=inputs cargo run -p gallery   # ページを指定して起動
+MD3_GALLERY_LIST_PAGES=1 target/debug/gallery   # ビルド後、ページキーの一覧を表示
 MD3_REDUCE_MOTION=1 cargo run -p gallery       # 「視差効果を減らす」を有効にして起動（画面でも切り替えられる）
 cargo xtask web                         # wasm 版を target/web/ にビルド（`nix develop` の環境で）
 python3 -m http.server -d target/web    # 静的ファイルとして配信して http://localhost:8000/ を開く

@@ -13,13 +13,14 @@ here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
 out=$(realpath -m "${1:-$root/target/a11y-tree}")
 shift || true
-pages=("$@")
-if [ ${#pages[@]} -eq 0 ]; then
-  pages=(foundations buttons selection inputs overlays navigation containment expressive custom)
-fi
 mkdir -p "$out"
 if [ "${A11Y_TREE_PAGE:-}" = "" ]; then
   (cd "$root" && cargo build -p gallery)
+  pages=("$@")
+  if [ ${#pages[@]} -eq 0 ]; then
+    page_list=$(cd "$root" && MD3_GALLERY_LIST_PAGES=1 ./target/debug/gallery)
+    mapfile -t pages <<< "$page_list"
+  fi
 fi
 
 build() { nix build --no-link --print-out-paths "$@"; }

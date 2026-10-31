@@ -60,19 +60,25 @@ enum Page {
     Custom,
 }
 
-impl Page {
-    const ALL: [Page; 9] = [
-        Page::Foundations,
-        Page::Buttons,
-        Page::Selection,
-        Page::Inputs,
-        Page::Overlays,
-        Page::Navigation,
-        Page::Containment,
-        Page::Expressive,
-        Page::Custom,
-    ];
+struct PageInfo {
+    page: Page,
+    key: &'static str,
+    title: &'static str,
+    icon: IconName,
 }
+
+#[rustfmt::skip]
+const PAGES: [PageInfo; 9] = [
+    PageInfo { page: Page::Foundations, key: "foundations", title: "Foundations", icon: IconName::Palette },
+    PageInfo { page: Page::Buttons, key: "buttons", title: "Buttons", icon: IconName::Add },
+    PageInfo { page: Page::Selection, key: "selection", title: "Selection", icon: IconName::Star },
+    PageInfo { page: Page::Inputs, key: "inputs", title: "Inputs", icon: IconName::Edit },
+    PageInfo { page: Page::Overlays, key: "overlays", title: "Overlays", icon: IconName::Menu },
+    PageInfo { page: Page::Navigation, key: "navigation", title: "Navigation", icon: IconName::Home },
+    PageInfo { page: Page::Containment, key: "containment", title: "Containment", icon: IconName::Inbox },
+    PageInfo { page: Page::Expressive, key: "expressive", title: "Expressive", icon: IconName::Favorite },
+    PageInfo { page: Page::Custom, key: "custom", title: "Custom", icon: IconName::Palette },
+];
 
 /// 操作できる見本の状態。
 #[derive(Clone, Debug)]
@@ -199,17 +205,15 @@ impl Gallery {
     fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let focus_handle = cx.focus_handle();
         window.focus(&focus_handle, cx);
-        let page = match std::env::var("MD3_GALLERY_PAGE").as_deref() {
-            Ok("buttons") => Page::Buttons,
-            Ok("selection") => Page::Selection,
-            Ok("inputs") => Page::Inputs,
-            Ok("overlays") => Page::Overlays,
-            Ok("navigation") => Page::Navigation,
-            Ok("containment") => Page::Containment,
-            Ok("expressive") => Page::Expressive,
-            Ok("custom") => Page::Custom,
-            _ => Page::Foundations,
-        };
+        let page = std::env::var("MD3_GALLERY_PAGE")
+            .ok()
+            .and_then(|key| {
+                PAGES
+                    .iter()
+                    .find(|info| info.key == key)
+                    .map(|info| info.page)
+            })
+            .unwrap_or_default();
         Self {
             focus_handle,
             page,
@@ -240,24 +244,21 @@ impl Gallery {
 }
 
 fn page_selector(page: Page, view: gpui::WeakEntity<Gallery>) -> SegmentedButton {
-    SegmentedButton::new("pages")
-        .aria_label("ページ")
-        .segment(Segment::new("Foundations").icon(IconName::Palette))
-        .segment(Segment::new("Buttons").icon(IconName::Add))
-        .segment(Segment::new("Selection").icon(IconName::Star))
-        .segment(Segment::new("Inputs").icon(IconName::Edit))
-        .segment(Segment::new("Overlays").icon(IconName::Menu))
-        .segment(Segment::new("Navigation").icon(IconName::Home))
-        .segment(Segment::new("Containment").icon(IconName::Inbox))
-        .segment(Segment::new("Expressive").icon(IconName::Favorite))
-        .segment(Segment::new("Custom").icon(IconName::Palette))
+    let selector = PAGES.iter().fold(
+        SegmentedButton::new("pages").aria_label("ページ"),
+        |selector, info| selector.segment(Segment::new(info.title).icon(info.icon)),
+    );
+    selector
         // ページ移動でありラジオグループではないため、全項目を Tab で選べるようにする。
         .multi_select(true)
-        .selected([page as usize])
+        .selected([PAGES
+            .iter()
+            .position(|info| info.page == page)
+            .unwrap_or_default()])
         .on_change({
             let view = view.clone();
             move |index, _, cx| {
-                let page = Page::ALL.get(index).copied().unwrap_or_default();
+                let page = PAGES.get(index).map(|info| info.page).unwrap_or_default();
                 view.update(cx, |this, cx| {
                     this.page = page;
                     cx.notify();
@@ -450,6 +451,12 @@ fn exit_with_failure(cx: &mut App) {
 
 #[cfg(not(target_family = "wasm"))]
 fn main() {
+    if std::env::var("MD3_GALLERY_LIST_PAGES").is_ok_and(|value| value == "1") {
+        for info in PAGES {
+            println!("{}", info.key);
+        }
+        return;
+    }
     let probe = std::env::args().skip(1).any(|arg| arg == "--probe");
     // デスクトップでは OS の設定を読む手段が gpui に無いため、環境変数で指定する（gallery の画面でも切り替えられる）。
     let reduce_motion = std::env::var("MD3_REDUCE_MOTION").is_ok_and(|value| value == "1");
@@ -495,6 +502,28 @@ pub fn start(fonts: Vec<u8>, lengths: Vec<u32>, webgl: bool, reduce_motion: bool
 mod tests {
     use super::*;
     use gpui::TestAppContext;
+
+    #[test]
+    fn page_table_has_unique_keys_and_all_variants() {
+        let mut variants = [false; PAGES.len()];
+        for (index, info) in PAGES.iter().enumerate() {
+            assert!(PAGES[..index].iter().all(|other| other.key != info.key));
+            let variant = match info.page {
+                Page::Foundations => 0,
+                Page::Buttons => 1,
+                Page::Selection => 2,
+                Page::Inputs => 3,
+                Page::Overlays => 4,
+                Page::Navigation => 5,
+                Page::Containment => 6,
+                Page::Expressive => 7,
+                Page::Custom => 8,
+            };
+            assert!(!variants[variant], "ページが重複している: {:?}", info.page);
+            variants[variant] = true;
+        }
+        assert!(variants.into_iter().all(|present| present));
+    }
 
     #[test]
     fn custom_theme_does_not_import_theme_crates() {
@@ -562,7 +591,7 @@ mod tests {
         });
         let root = cx.update(|window, cx| window.focused(cx).expect("ルートにフォーカス"));
         let mut focused = Vec::new();
-        for _ in 0..Page::ALL.len() {
+        for _ in 0..PAGES.len() {
             cx.simulate_keystrokes("tab");
             cx.update(|window, cx| {
                 window.refresh();
@@ -574,10 +603,6 @@ mod tests {
                 }
             });
         }
-        assert_eq!(
-            focused.len(),
-            Page::ALL.len(),
-            "Tab で全ページの項目に移動する"
-        );
+        assert_eq!(focused.len(), PAGES.len(), "Tab で全ページの項目に移動する");
     }
 }
