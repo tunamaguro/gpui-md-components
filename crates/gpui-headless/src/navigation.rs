@@ -1,5 +1,6 @@
 //! 行き先のグループの状態と操作。
-use crate::{A11yExt, A11yNode, ControlState, control, focus_handle, step};
+use crate::control::Roving;
+use crate::{A11yExt, A11yNode, ControlState, control};
 use gpui::{
     AnyElement, App, Div, ElementId, FocusHandle, KeyDownEvent, Pixels, Role, SharedString,
     Stateful, Window, div, prelude::*, px,
@@ -176,22 +177,21 @@ impl Navigation {
             let ids: Vec<_> = (0..self.items.len())
                 .map(|i| ElementId::NamedChild(self.id.clone().into(), format!("{i}").into()))
                 .collect();
-            let handles: Rc<[FocusHandle]> = ids
-                .iter()
-                .map(|id| focus_handle(id.clone(), window, cx))
-                .collect();
-            let enabled: Rc<[bool]> = self.items.iter().map(|item| !item.disabled).collect();
-            let target = self
-                .selected
-                .filter(|&i| enabled.get(i).copied().unwrap_or(false))
-                .or_else(|| enabled.iter().position(|&e| e));
+            let roving = Roving::new(
+                ids.iter()
+                    .cloned()
+                    .zip(self.items.iter().map(|item| item.disabled)),
+                self.selected,
+                window,
+                cx,
+            );
             let mut items = Vec::with_capacity(self.items.len());
             for (index, item) in self.items.iter().enumerate() {
                 let id = &ids[index];
                 let (mut base, state) = control(
                     id,
                     item.disabled,
-                    target == Some(index),
+                    roving.is_tab_stop(index),
                     window,
                     cx,
                     self.reveal_margin,
@@ -201,20 +201,19 @@ impl Navigation {
                     base = base.a11y(node);
                 }
                 if !item.disabled {
-                    let handles = handles.clone();
-                    let enabled = enabled.clone();
+                    let roving = roving.clone();
                     let vertical = self.vertical;
                     base = base.on_key_down(move |event: &KeyDownEvent, window, cx| {
                         let next = match (event.keystroke.key.as_str(), vertical) {
-                            ("down", true) | ("right", false) => step(&enabled, index, true),
-                            ("up", true) | ("left", false) => step(&enabled, index, false),
-                            ("home", _) => enabled.iter().position(|&e| e),
-                            ("end", _) => enabled.iter().rposition(|&e| e),
+                            ("down", true) | ("right", false) => roving.next(index, true),
+                            ("up", true) | ("left", false) => roving.next(index, false),
+                            ("home", _) => roving.first(),
+                            ("end", _) => roving.last(),
                             _ => return,
                         };
-                        if let Some(handle) = next.and_then(|next| handles.get(next)) {
+                        if let Some(next) = next {
                             cx.stop_propagation();
-                            window.focus(handle, cx);
+                            roving.focus(next, window, cx);
                         }
                     });
                     if let Some(on_change) = self.on_change.clone() {
@@ -238,7 +237,7 @@ impl Navigation {
             NavigationBase {
                 base: div().id(self.id).a11y(node),
                 items,
-                initial_focus: target.and_then(|index| handles.get(index).cloned()),
+                initial_focus: roving.initial_focus(),
             }
         })
     }

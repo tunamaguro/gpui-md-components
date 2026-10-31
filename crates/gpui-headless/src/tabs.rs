@@ -1,8 +1,9 @@
 //! タブの状態と操作。
-use crate::{A11yExt, A11yNode, ControlState, control, focus_handle, step};
+use crate::control::Roving;
+use crate::{A11yExt, A11yNode, ControlState, control};
 use gpui::{
-    AnyElement, App, Div, ElementId, FocusHandle, KeyDownEvent, Pixels, Role, SharedString,
-    Stateful, Window, div, prelude::*, px,
+    AnyElement, App, Div, ElementId, KeyDownEvent, Pixels, Role, SharedString, Stateful, Window,
+    div, prelude::*, px,
 };
 use std::rc::Rc;
 type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App)>;
@@ -158,14 +159,15 @@ impl Tabs {
         mut render: impl FnMut(TabItem, &mut Window, &mut App) -> AnyElement,
     ) -> Stateful<Div> {
         window.with_element_namespace(self.id.clone(), |window| {
-            let count = self.tabs.len();
-            let enabled: Rc<[bool]> = self.tabs.iter().map(|tab| !tab.disabled).collect();
-            let target = Some(self.selected)
-                .filter(|&i| enabled.get(i).copied().unwrap_or(false))
-                .or_else(|| enabled.iter().position(|&e| e));
-            let handles: Rc<[FocusHandle]> = (0..count)
-                .map(|index| focus_handle(self.tab_id(index), window, cx))
-                .collect();
+            let roving = Roving::new(
+                self.tabs
+                    .iter()
+                    .enumerate()
+                    .map(|(index, item)| (self.tab_id(index), item.disabled)),
+                Some(self.selected),
+                window,
+                cx,
+            );
             let mut row = div()
                 .id(self.id.clone())
                 .a11y(self.a11y_node())
@@ -175,7 +177,7 @@ impl Tabs {
                 let (mut base, state) = control(
                     &id,
                     tab.disabled,
-                    target == Some(index),
+                    roving.is_tab_stop(index),
                     window,
                     cx,
                     self.reveal_margin,
@@ -189,23 +191,20 @@ impl Tabs {
                 {
                     let on_click = on_change.clone();
                     base = base.on_click(move |_, window, cx| on_click(index, window, cx));
-                    let handles = handles.clone();
-                    let enabled = enabled.clone();
+                    let roving = roving.clone();
                     base = base.on_key_down(move |event: &KeyDownEvent, window, cx| {
                         let next = match event.keystroke.key.as_str() {
-                            "right" => step(&enabled, index, true),
-                            "left" => step(&enabled, index, false),
-                            "home" => enabled.iter().position(|&e| e),
-                            "end" => enabled.iter().rposition(|&e| e),
+                            "right" => roving.next(index, true),
+                            "left" => roving.next(index, false),
+                            "home" => roving.first(),
+                            "end" => roving.last(),
                             _ => return,
                         };
                         let Some(next) = next else {
                             return;
                         };
                         cx.stop_propagation();
-                        if let Some(handle) = handles.get(next) {
-                            window.focus(handle, cx);
-                        }
+                        roving.focus(next, window, cx);
                         on_change(next, window, cx);
                     });
                 }
