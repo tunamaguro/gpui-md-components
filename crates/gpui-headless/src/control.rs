@@ -31,11 +31,30 @@ pub fn control(
     reveal_margin: gpui::Pixels,
     group: SharedString,
 ) -> (Stateful<Div>, ControlState) {
-    let mut base = div()
-        .id(id.clone())
-        .group(group.clone())
-        .relative()
-        .flex_none();
+    control_on(
+        div().relative().flex_none(),
+        id,
+        disabled,
+        tab_stop,
+        window,
+        cx,
+        reveal_margin,
+        group,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn control_on(
+    base: Div,
+    id: &ElementId,
+    disabled: bool,
+    tab_stop: bool,
+    window: &mut Window,
+    cx: &mut App,
+    reveal_margin: gpui::Pixels,
+    group: SharedString,
+) -> (Stateful<Div>, ControlState) {
+    let mut base = base.id(id.clone()).group(group.clone());
     let focus_visible = if disabled {
         false
     } else {

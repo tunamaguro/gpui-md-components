@@ -1,12 +1,8 @@
 //! カードの操作。
 
-use crate::{
-    A11yExt, A11yNode, ControlState, clear_focus_visible, focus_handle, is_focus_visible,
-    reveal_on_focus,
-};
+use crate::{A11yExt, A11yNode, ControlState, control::control_on};
 use gpui::{
-    App, ClickEvent, Div, ElementId, MouseButton, Pixels, Role, SharedString, Stateful, Window,
-    prelude::*,
+    App, ClickEvent, Div, ElementId, Pixels, Role, SharedString, Stateful, Window, prelude::*,
 };
 
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
@@ -79,39 +75,22 @@ impl Card {
             return CardBase::Plain(base);
         };
         let group = self.group.unwrap_or_else(|| format!("control-{id}").into());
-        let mut base = base
-            .relative()
-            .id(id.clone())
-            .group(group.clone())
-            .a11y(node);
-        let focus_visible = if self.disabled {
-            false
+        let (base, state) = control_on(
+            base.relative(),
+            &id,
+            self.disabled,
+            true,
+            window,
+            cx,
+            self.reveal_margin,
+            group,
+        );
+        let base = base.a11y(node);
+        let base = if self.disabled {
+            base
         } else {
-            let handle = focus_handle(id.clone(), window, cx);
-            base = base
-                .track_focus(&handle)
-                .on_mouse_down(MouseButton::Left, {
-                    let handle = handle.clone();
-                    move |_, window, cx| clear_focus_visible(&handle, window, cx)
-                })
-                .child(reveal_on_focus(
-                    &id,
-                    handle.clone(),
-                    window,
-                    cx,
-                    self.reveal_margin,
-                ))
-                .cursor_pointer()
-                .on_click(handler);
-            is_focus_visible(&handle, window, cx)
+            base.on_click(handler)
         };
-        CardBase::Clickable(
-            base,
-            ControlState {
-                group,
-                focus_visible,
-                disabled: self.disabled,
-            },
-        )
+        CardBase::Clickable(base, state)
     }
 }
