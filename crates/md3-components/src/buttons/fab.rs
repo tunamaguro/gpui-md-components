@@ -117,7 +117,9 @@ impl FabParts {
         let hovered = theme.shadows(Elevation::from_dp(
             fab_primary_container::HOVERED_CONTAINER_ELEVATION,
         ));
+        // 内容の上に浮くので、下の要素にクリックを渡さない。ホイールは下のスクロール領域へ通す。
         let fab = base
+            .block_mouse_except_scroll()
             .flex()
             .items_center()
             .justify_center()

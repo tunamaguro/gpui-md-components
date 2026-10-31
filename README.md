@@ -26,6 +26,7 @@ Material Design 3（ベースライン）の UI 部品集。Windows / macOS / Li
 | `md3-theme`      | テーマ（gpui の `Global`）、gpui の型への変換、OS のライト / ダークへの追従              |
 | `md3-components` | 部品。feature で分割（下表）                                                             |
 | `gallery`        | 全部品・全バリアントの操作できる見本アプリ                                               |
+| `mail-sample`    | 部品を組み合わせたメールアプリの見本                                                     |
 | `xtask`          | 開発用コマンド（std のみ）                                                               |
 
 | feature       | 部品                                                                                                 |
@@ -40,9 +41,9 @@ Material Design 3（ベースライン）の UI 部品集。Windows / macOS / Li
 
 TextField / Select の必須状態は `.required(true)`、メニューボタンの開閉状態は `.menu_expanded(open)` で伝える。静的な `Text` を読み上げ可能にするには一意な `.id()` を指定する。
 
-Checkbox の状態は `gpui_headless::CheckboxState`、テキスト編集の状態は `gpui_headless::TextFieldState` を使う。Button 系、Checkbox、Switch、Chip、Card、RadioGroup、SegmentedButton、ButtonGroup、Tabs、Navigation、Slider、List / LazyList の見た目を持たない操作と a11y は `gpui-headless` が担う。
+Checkbox の状態は `md3_components::selection::CheckboxState`、テキスト編集の状態は `md3_components::inputs::TextFieldState` を使う。Button 系、Checkbox、Switch、Chip、Card、RadioGroup、SegmentedButton、ButtonGroup、Tabs、Navigation、Slider、List / LazyList の見た目を持たない操作と a11y は `gpui-headless` が担う。
 
-feature に関係なく使える共通部品: `md3-components` の Scrollbar と、`gpui-headless` の NestedScroll、ScrollScope、reveal_on_focus。
+feature に関係なく使える共通部品: `md3-components` の Scrollbar、ScrollScope と、`gpui-headless` の NestedScroll、reveal_on_focus。
 アプリのスクロール領域を ScrollScope で包むと、Tab などで移った操作部品を見える位置へスクロールする（[利用ガイド](docs/guide.md#%E3%82%AD%E3%83%BC%E3%83%9C%E3%83%BC%E3%83%89%E3%83%95%E3%82%A9%E3%83%BC%E3%82%AB%E3%82%B9%E3%82%92%E8%A6%8B%E3%81%88%E3%82%8B%E4%BD%8D%E7%BD%AE%E3%81%B8%E7%A7%BB%E3%81%99)）。
 既定ではすべて有効。各部品の仕様とキー操作は [`docs/specs/`](docs/specs/) にある。
 
@@ -121,6 +122,7 @@ hover / focused / pressed はマウスやキーボードで操作して確かめ
 
 ```sh
 cargo run -p gallery                    # デスクトップ
+cargo run -p mail-sample                # メールアプリの見本
 MD3_GALLERY_PAGE=inputs cargo run -p gallery   # ページを指定して起動
 MD3_GALLERY_LIST_PAGES=1 target/debug/gallery   # ビルド後、ページキーの一覧を表示
 MD3_REDUCE_MOTION=1 cargo run -p gallery       # 「視差効果を減らす」を有効にして起動（画面でも切り替えられる）

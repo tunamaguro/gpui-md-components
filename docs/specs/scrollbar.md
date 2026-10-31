@@ -41,6 +41,7 @@
   供給元の表示領域に描画する。UniformList ではリストの後ろの兄弟として置く。
 - gallery の根、LazyList、`List::max_height`、Dialog 本文、Menu / Select、Sheet 本文、Drawer に適用。
   各部品の `.scrollbar(false)` はバーだけを隠し、スクロールは維持する。
+- アプリ側のスクロール領域では `md3_components::scrollbar::ScrollScope` を使える。メール見本の詳細本文にも適用する。
 
 ## アクセシビリティ
 

@@ -8,7 +8,8 @@
 //!
 //! gpui はコンテキストのない割り当てを「最も深いコンテキスト」と同じ優先度として扱い、同じ優先度では
 //! 後から足した割り当てが勝つ。アプリが Tab などをコンテキストなしで割り当てる場合は、その後で
-//! [`init`] を呼ぶこと。
+//! [`init`] を呼ぶこと。モーダルの中にさらに内側のコンテキストがあると、モーダルだけの割り当ては
+//! 浅くなってアプリの割り当てに負けるので、モーダルの Esc と Tab は最も内側のコンテキストでも効かせる。
 
 use gpui::{App, KeyBinding, actions};
 
@@ -79,6 +80,8 @@ pub fn init(cx: &mut App) {
     let text = Some(TEXT_FIELD_CONTEXT);
     let modal = Some(MODAL_CONTEXT);
     let menu = Some(MENU_CONTEXT);
+    let inside_modal = format!("{MODAL_CONTEXT} > !{MENU_CONTEXT}");
+    let inside_modal = Some(inside_modal.as_str());
     cx.bind_keys([
         KeyBinding::new("backspace", Backspace, text),
         KeyBinding::new("delete", Delete, text),
@@ -97,11 +100,15 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("escape", Dismiss, modal),
         KeyBinding::new("tab", FocusNextWithin, modal),
         KeyBinding::new("shift-tab", FocusPrevWithin, modal),
+        // 内側のコンテキストがあっても、アプリの割り当てに負けて外へ漏らさない。
+        KeyBinding::new("escape", Dismiss, inside_modal),
+        KeyBinding::new("tab", FocusNextWithin, inside_modal),
+        KeyBinding::new("shift-tab", FocusPrevWithin, inside_modal),
         // メニューは Tab でも閉じる（WAI-ARIA の menu パターン）。モーダルより内側なのでこちらが優先される。
         KeyBinding::new("escape", Dismiss, menu),
         KeyBinding::new("tab", Dismiss, menu),
         KeyBinding::new("shift-tab", Dismiss, menu),
-        // 基準の要素が最も内側なので、Esc はダイアログより先にツールチップを閉じる。
+        // `inside_modal` と同じ深さになるので、後に足して Esc でダイアログより先にツールチップを閉じる。
         KeyBinding::new("escape", DismissTooltip, Some(FOCUS_TOOLTIP_CONTEXT)),
     ]);
 }

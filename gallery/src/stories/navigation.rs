@@ -1,10 +1,10 @@
 //! ナビゲーションの部品のページ。
 
 use gpui::{AnyElement, App, Entity, IntoElement, WeakEntity, Window, div, prelude::*, px};
-use gpui_headless::TextFieldState;
 use md3_components::buttons::{Fab, IconButton};
 use md3_components::containment::{List, ListItem, ListLeading};
 use md3_components::inputs::SearchBar;
+use md3_components::inputs::TextFieldState;
 use md3_components::navigation::{
     NavigationBar, NavigationDrawer, NavigationDrawerKind, NavigationItem, NavigationRail,
     NavigationSuite, NavigationSuiteType, Tab, Tabs, TabsVariant, TopAppBar, TopAppBarVariant,

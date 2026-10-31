@@ -8,7 +8,9 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use gpui::{TestAppContext, div, prelude::*};
-use md3_components::buttons::Button;
+use md3_components::IconName;
+use md3_components::buttons::{Button, IconButton};
+use md3_components::inputs::{TextField, TextFieldState};
 use md3_components::overlays::{Dialog, DialogAction, Menu, MenuItem};
 
 /// 押されたボタンの記録と、オーバーレイの開閉の状態。
@@ -182,4 +184,144 @@ fn escape_and_tab_close_the_menu(cx: &mut TestAppContext) {
     assert!(log.open.get(), "Esc の後は開いたボタンにフォーカスが戻る");
     support::press(cx, "tab");
     assert!(!log.open.get(), "Tab でも閉じる");
+}
+
+gpui::actions!(
+    overlays_test,
+    [
+        /// アプリの Tab。
+        AppTab,
+        /// アプリの Shift-Tab。
+        AppShiftTab,
+        /// アプリの Esc。
+        AppEscape
+    ]
+);
+
+/// アプリと同じく Tab をコンテキストなしで割り当て、ルートで受ける。
+fn dialog_with_inner<'a>(
+    cx: &'a mut TestAppContext,
+    log: &Log,
+    action: bool,
+    inner: impl Fn() -> gpui::AnyElement + 'static,
+) -> &'a mut gpui::VisualTestContext {
+    cx.update(|cx| {
+        cx.bind_keys([
+            gpui::KeyBinding::new("tab", AppTab, None),
+            gpui::KeyBinding::new("shift-tab", AppShiftTab, None),
+            gpui::KeyBinding::new("escape", AppEscape, None),
+        ]);
+    });
+    let log = log.clone();
+    support::open(cx, move |window, cx| {
+        let focus = window.use_keyed_state("root", cx, |_, cx| cx.focus_handle());
+        let cancel = log.record("cancel");
+        div()
+            .track_focus(focus.read(cx))
+            .on_action(|_: &AppTab, window, cx| window.focus_next(cx))
+            .on_action(|_: &AppShiftTab, window, cx| window.focus_prev(cx))
+            .on_action(|_: &AppEscape, _, _| {})
+            .child(opener(&log))
+            .when(log.open.get(), |this| {
+                let close = log.close();
+                let dialog = Dialog::new("form")
+                    .headline("入力")
+                    .child(inner())
+                    .on_dismiss(close);
+                this.child(if action {
+                    dialog.action(DialogAction::new("キャンセル", move |window, cx| {
+                        cancel(window, cx)
+                    }))
+                } else {
+                    dialog
+                })
+            })
+            .into_any_element()
+    })
+}
+
+fn assert_keys_stay_in_the_dialog(cx: &mut gpui::VisualTestContext, log: &Log, escapes: usize) {
+    support::tab(cx);
+    support::press(cx, "enter");
+    assert_eq!(log.take(), ["opener"]);
+    support::draw(cx);
+
+    // 最初の要素から Shift-Tab で末尾の操作へ回り、後ろの「開く」には行かない。
+    support::press(cx, "shift-tab");
+    support::press(cx, "enter");
+    assert_eq!(log.take(), ["cancel"]);
+    assert!(log.open.get());
+
+    // 操作のあとはフォーカスが後ろへ戻るので、Tab で開き直さずに中の要素へ進めることを確かめる。
+    support::press(cx, "tab");
+    support::press(cx, "tab");
+    support::press(cx, "enter");
+    assert_eq!(log.take(), ["cancel"]);
+
+    // 内側の要素からでも Esc で閉じる。
+    support::press(cx, "tab");
+    for _ in 0..escapes {
+        assert!(log.open.get());
+        support::press(cx, "escape");
+    }
+    assert!(!log.open.get());
+}
+
+#[gpui::test]
+fn shift_tab_from_a_text_field_stays_in_the_dialog(cx: &mut TestAppContext) {
+    let log = Log::default();
+    let state = cx.new(TextFieldState::new);
+    let cx = dialog_with_inner(cx, &log, true, move || {
+        TextField::new("to", &state)
+            .label("宛先")
+            .into_any_element()
+    });
+    assert_keys_stay_in_the_dialog(cx, &log, 1);
+}
+
+#[gpui::test]
+fn shift_tab_from_a_tooltip_button_stays_in_the_dialog(cx: &mut TestAppContext) {
+    let log = Log::default();
+    let cx = dialog_with_inner(cx, &log, true, || {
+        IconButton::new("share", IconName::Share)
+            .aria_label("共有")
+            .tooltip("共有")
+            .into_any_element()
+    });
+    // 1 回目の Esc はツールチップを閉じる。
+    assert_keys_stay_in_the_dialog(cx, &log, 2);
+}
+
+#[gpui::test]
+fn keys_from_an_app_context_stay_in_the_dialog(cx: &mut TestAppContext) {
+    let log = Log::default();
+    let inner = log.clone();
+    let cx = dialog_with_inner(cx, &log, true, move || {
+        let record = inner.record("inner");
+        div()
+            .key_context("AppEditor")
+            .child(Button::new("inner", "中").on_click(move |_, window, cx| record(window, cx)))
+            .into_any_element()
+    });
+    assert_keys_stay_in_the_dialog(cx, &log, 1);
+}
+
+#[gpui::test]
+fn tab_from_the_last_text_field_stays_in_the_dialog(cx: &mut TestAppContext) {
+    let log = Log::default();
+    let state = cx.new(TextFieldState::new);
+    let cx = dialog_with_inner(cx, &log, false, move || {
+        TextField::new("to", &state)
+            .label("宛先")
+            .into_any_element()
+    });
+    support::tab(cx);
+    support::press(cx, "enter");
+    assert_eq!(log.take(), ["opener"]);
+    support::draw(cx);
+
+    support::press(cx, "tab");
+    support::press(cx, "enter");
+    assert_eq!(log.take(), Vec::<&str>::new(), "後ろのボタンに行かない");
+    assert!(log.open.get());
 }

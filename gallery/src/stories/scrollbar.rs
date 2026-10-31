@@ -2,15 +2,15 @@
 //! 隣り合う見本は設定を 1 つだけ変える。
 use super::Section;
 use gpui::{App, Axis, ElementId, IntoElement, ScrollHandle, Window, div, prelude::*, px};
-use gpui_headless::ScrollbarInteraction;
-use gpui_headless::{NestedScroll, ScrollScope};
+use gpui_headless::NestedScroll;
 use md3_components::buttons::Button;
 use md3_components::containment::{Card, CardVariant, List, ListItem};
 use md3_components::inputs::TextField;
+use md3_components::scrollbar::{ScrollScope, ScrollbarInteraction};
 use md3_components::theme::TypeScale;
 use md3_components::{Scrollbar, Text};
 
-use gpui_headless::TextFieldState;
+use md3_components::inputs::TextFieldState;
 pub fn page(window: &mut Window, cx: &mut App) -> impl IntoElement {
     let mut samples = div().flex().flex_wrap().gap_4();
     for (id, label, axis, interaction, fade, count) in [

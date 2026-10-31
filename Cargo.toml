@@ -8,6 +8,7 @@ members = [
   "crates/md3-theme",
   "crates/md3-components",
   "gallery",
+  "examples/mail",
   "xtask",
 ]
 

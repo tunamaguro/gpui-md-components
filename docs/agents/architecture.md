@@ -16,6 +16,7 @@ md-components/
 │   ├── md3-icons/          # 使うアイコンの SVG バイト列と IconName enum（純 Rust）
 │   ├── md3-theme/          # Theme（gpui Global）、gpui 型への変換、OS 外観追従
 │   └── md3-components/     # StateLayer / FocusRing / 各コンポーネント
+├── examples/mail/          # ライブラリ利用者向けメールアプリ（デスクトップ）
 ├── gallery/                # 全部品の見本アプリ（gpui_platform を起動に使い、wasm-bindgen を使うのはここだけ）
 ├── xtask/                  # 開発用コマンド（std のみ）: check-tokens、web
 ├── tools/a11y-tree/        # Linux の AT-SPI ツリーを書き出すスクリプト（nixpkgs の道具を使う。依存ではない）
@@ -33,6 +34,7 @@ md-components/
 ## 依存の向き
 
 ```
+mail-sample ──────────> md3-components（platform feature）
 gallery ─────────────> md3-components ──> md3-theme ──> md3-tokens ──> md3-color
         │                   │   │              │
         │                   ├──> gpui-headless ──> gpui
@@ -42,7 +44,7 @@ gallery ─────────────> md3-components ──> md3-them
 ```
 
 - `md3-color` / `md3-tokens` / `md3-icons` は **gpui に依存しない**。GPU なし・wasm でもテストが回る。
-- gpui に触れるのは `gpui-headless`、`md3-theme` と `md3-components` だけ。GPUI の API 変更の影響はこの 3 crate に閉じる。
+- ライブラリで gpui に触れるのは `gpui-headless`、`md3-theme` と `md3-components`。サンプルアプリは `md3-components` の再公開を使う。
 - ライブラリ crate は `gpui_platform` / `wasm-bindgen` に依存しない。例外として `md3-components` は feature `platform`
   （既定で無効）で `gpui_platform` を持ち、再公開だけする（コードからは使わない）。
 - `md3-components` は `gpui` を `md3_components::gpui` として再公開する。利用者が rev を揃えずに使えるようにするため。
