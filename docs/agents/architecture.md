@@ -88,6 +88,7 @@ gallery ─────────────> md3-components ──> md3-them
 | `style.rs`                                      | `StyledExt`（`corners` など）                                                                                      |
 | `motion.rs`                                     | 色をテーマのバネで補間する `motion::color`（`Theme::spring` と組み合わせる）                                       |
 | `gpui-headless` の `control` / `focus` / `a11y` | 操作部品の共通処理、フォーカス、アクセシビリティ情報、矢印移動の `step`                                            |
+| `gpui-headless` の `control::Roving`            | 複合部品の Tab 停止位置とフォーカス移動を共有する内部型。キーの意味は各部品が決める                                |
 | `gpui-headless` の `scroll`                     | 入れ子スクロール（`NestedScroll`）、表示領域（`ScrollScope`）、キーボードで移った要素を見せる（`reveal_on_focus`） |
 | `scroll.rs`                                     | オーバーレイ本文（`content`）                                                                                      |
 | `gpui-headless` の `scrollbar`                  | スクロール位置の供給元、つまみの幾何とポインタ操作                                                                 |

@@ -1,8 +1,9 @@
 //! 項目を並べた選択ボタンの状態と操作。
-use crate::{A11yExt, A11yNode, ControlState, control, focus_handle, step, toggled};
+use crate::control::Roving;
+use crate::{A11yExt, A11yNode, ControlState, control, toggled};
 use gpui::{
-    AnyElement, App, Div, ElementId, FocusHandle, KeyDownEvent, Pixels, Role, SharedString,
-    Stateful, Window, div, prelude::*, px,
+    AnyElement, App, Div, ElementId, KeyDownEvent, Pixels, Role, SharedString, Stateful, Window,
+    div, prelude::*, px,
 };
 use std::rc::Rc;
 
@@ -182,24 +183,22 @@ impl SegmentedButton {
         mut render: impl FnMut(SegmentItem, &mut Window, &mut App) -> AnyElement,
     ) -> Stateful<Div> {
         window.with_element_namespace(self.id.clone(), |window| {
-            let count = self.segments.len();
-            let enabled: Rc<[bool]> = self.segments.iter().map(|s| !s.disabled).collect();
-            let tab_target = self
-                .selected
-                .iter()
-                .copied()
-                .find(|&i| enabled.get(i).copied().unwrap_or(false))
-                .or_else(|| enabled.iter().position(|&e| e));
-            let handles: Rc<[FocusHandle]> = (0..count)
-                .map(|index| focus_handle(self.segment_id(index), window, cx))
-                .collect();
+            let roving = Roving::new(
+                self.segments
+                    .iter()
+                    .enumerate()
+                    .map(|(index, item)| (self.segment_id(index), item.disabled)),
+                self.selected.iter().copied(),
+                window,
+                cx,
+            );
             let mut row = div().id(self.id.clone()).a11y(self.a11y_node());
             for (index, segment) in self.segments.iter().enumerate() {
                 let id = self.segment_id(index);
                 let (mut base, state) = control(
                     &id,
                     segment.disabled,
-                    self.multi || tab_target == Some(index),
+                    self.multi || roving.is_tab_stop(index),
                     window,
                     cx,
                     self.reveal_margin,
@@ -213,8 +212,7 @@ impl SegmentedButton {
                 {
                     let on_click = on_change.clone();
                     base = base.on_click(move |_, window, cx| on_click(index, window, cx));
-                    let handles = handles.clone();
-                    let enabled = enabled.clone();
+                    let roving = roving.clone();
                     let multi = self.multi;
                     base = base.on_key_down(move |event: &KeyDownEvent, window, cx| {
                         let forward = match event.keystroke.key.as_str() {
@@ -222,13 +220,11 @@ impl SegmentedButton {
                             "left" | "up" => false,
                             _ => return,
                         };
-                        let Some(next) = step(&enabled, index, forward) else {
+                        let Some(next) = roving.next(index, forward) else {
                             return;
                         };
                         cx.stop_propagation();
-                        if let Some(handle) = handles.get(next) {
-                            window.focus(handle, cx);
-                        }
+                        roving.focus(next, window, cx);
                         if !multi {
                             on_change(next, window, cx);
                         }
