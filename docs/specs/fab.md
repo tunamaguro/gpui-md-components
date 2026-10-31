@@ -21,7 +21,7 @@
 | --------------- | ----------------------------------------- | ----------------------------------------------------------- |
 | 大きさ          | 40 / 56 / 96dp                            | `fab_small` / `fab_baseline` / `fab_large::CONTAINER_WIDTH` |
 | 角丸            | Medium / Large / ExtraLarge               | `*::CONTAINER_SHAPE`                                        |
-| Extended の高さ | 56dp                                      | `extended_fab_primary::CONTAINER_HEIGHT`                    |
+| Extended の高さ | 最小 56dp                                 | `extended_fab_primary::CONTAINER_HEIGHT`                    |
 | Extended の余白 | アイコン左 16dp、ラベル左右 20dp、間 12dp | `layout::EXTENDED_FAB_*`                                    |
 
 ## 色（状態別）

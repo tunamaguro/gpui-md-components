@@ -2,3 +2,7 @@
 	path = docs/references/androidx
 	url = https://github.com/androidx/androidx.git
 	branch = androidx-main
+[submodule "docs/references/aria-practices"]
+	path = docs/references/aria-practices
+	url = https://github.com/w3c/aria-practices.git
+	branch = main

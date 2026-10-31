@@ -35,6 +35,13 @@ API はいつも固定 rev のソース（`~/.cargo/git/checkouts/zed-*/37faef8/
   `simulate_next_frame` の配信だけをタスクに予約し、入力後は `run_until_parked()` だけで検証する。
   手動の refresh / draw を足すと、描画中の refresh が無効になる不具合を隠してしまう。
 
+## レイアウト
+
+- `.h()` の要素は親の高さが足りないと縮む。`.min_h()` に変えると縮まなくなり、100% の寸法が変わることがある（Medium の TopAppBar の上の行）。変えたら部品全体の高さをテストで固定する。
+- `.flex()` の中の文字は親の `max_w` で折り返さないことがある（ツールチップの根の要素で確認）。折り返す文字は flex にせず Block のままにする（Plain Tooltip）。
+- 定まった幅のない親の中で折り返す文字は、幅が中身に合わせて広がるだけで折り返さない。折り返すなら親の幅を `.w()` で決める（NavigationRail）。
+- `uniform_list` は 1 項目の高さを全行に使う。項目が折り返すと重なるので、LazyList の項目は 1 行に省略する。
+
 ## モーション
 
 - バネは gpui の `SpringConfig::new(stiffness, damping, mass)`、`SpringAnimation::new(config).to(target)`、
@@ -49,6 +56,12 @@ API はいつも固定 rev のソース（`~/.cargo/git/checkouts/zed-*/37faef8/
 ## 状態とイベント
 
 - **マウス移動で入力方法が Mouse に変わる。** `Window::dispatch_event` は座標が変わらない `MouseMove` でも切り替え、Windows は移動がなくても WM_MOUSEMOVE を送る。`is_focus_visible` はキーボードフォーカスの表示を保持し、フォーカス喪失で解除する。共通の操作要素と Card はクリックでも解除する。gpui は `FocusHandle` の ID を公開しないため、寿命を延ばさない `WeakFocusHandle` を識別に使う。
+- **キーの解決の前に描き直される。** `dispatch_event` は KeyDown で入力方法を Keyboard にして refresh し、`dispatch_key_event` はキーを解決する前に描く。そのため `focus_visible` で付けた key context が、その前のフレームで見えていなかったのに同じキーを受ける。ポインタで得たフォーカスは離れるまで状態で覚える（`FocusTooltip`）。
+- **キーの割り当ては `on_key_down` より先に動く。** 親のコンテキストの割り当てに勝つには、より深い要素に `key_context` を付ける（ツールチップの Esc と Dialog）。
+- テストで `window.focus_next` だけを呼んでも入力方法は Keyboard にならない。`support::press` で実際のキーを送る。
+- `defer_draw(.., None)` はクリップされない。基準の要素がスクロールで隠れても描かれるので、prepaint で `window.content_mask().bounds` との交差を確かめる。
+- `a11y_synthetic_children` は 1 要素に 1 つのクロージャしか持てない。状態と子を両方書くときは `A11yExt::a11y_with_children` を使う。
+- `debug_selector` / `debug_bounds` はデバッグビルドで、gpui の `test-support` を有効にしたときだけ記録される。テストに `#![cfg(debug_assertions)]` を付ける。結合テストはライブラリを `cfg(test)` なしでコンパイルするので、`cfg(test)` の分岐は効かない。
 - **Entity の更新中に同じ Entity を更新すると panic する**（`cannot update ... while it is already being updated`）。
   利用者のコールバック（例: Snackbar の `on_result`）を Entity の update の中から呼ばない。`cx.defer` で後に回す。
 - **フォーカスが移ると key-up が届かない。** Space / Enter の押下で状態を持つ部品は、フォーカスを失ったときにも

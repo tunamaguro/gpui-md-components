@@ -14,14 +14,14 @@ use gpui_headless::AppBar;
 /// トップアプリバーの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TopAppBarVariant {
-    /// 高さ 64dp、タイトルを左に置く。
+    /// 最小の高さ 64dp、タイトルを左に置く。
     #[default]
     Small,
-    /// 高さ 64dp、タイトルを中央に置く。
+    /// 最小の高さ 64dp、タイトルを中央に置く。
     CenterAligned,
-    /// 高さ 112dp、タイトルを下の行に置く（Headline Small）。
+    /// 最小の高さ 112dp、タイトルを下の行に置く（Headline Small）。
     Medium,
-    /// 高さ 152dp、タイトルを下の行に置く（Headline Medium）。
+    /// 最小の高さ 152dp、タイトルを下の行に置く（Headline Medium）。
     Large,
 }
 

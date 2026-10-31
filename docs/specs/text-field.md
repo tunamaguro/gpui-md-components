@@ -18,15 +18,15 @@
 
 ## 寸法
 
-| 項目                   | 値                                        | トークン                                                   |
-| ---------------------- | ----------------------------------------- | ---------------------------------------------------------- |
-| 高さ                   | 56dp（最小値）                            | `outlined_text_field::CONTAINER_HEIGHT`                    |
-| 最小幅                 | 280dp                                     | `layout::TEXT_FIELD_MIN_WIDTH`                             |
-| 左右の余白             | 16dp（アイコンがあれば 12dp + 48dp の枠） | `layout::TEXT_FIELD_HORIZONTAL_SPACE`                      |
-| 下線                   | 1dp、フォーカスで 2dp                     | `ACTIVE_INDICATOR_HEIGHT`, `FOCUS_ACTIVE_INDICATOR_HEIGHT` |
-| 枠線                   | 1dp、フォーカスで 2dp                     | `OUTLINE_WIDTH`, `FOCUS_OUTLINE_WIDTH`                     |
-| ラベルの切り欠きの余白 | 4dp                                       | `layout::OUTLINED_TEXT_FIELD_LABEL_GAP`                    |
-| 補助テキストの上       | 4dp                                       | `layout::TEXT_FIELD_SUPPORTING_TOP_SPACE`                  |
+| 項目                   | 値                                                                  | トークン                                                   |
+| ---------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------- |
+| 高さ                   | 56dp（最小値。Outlined はラベルがあると上に行の高さの半分を空ける） | `outlined_text_field::CONTAINER_HEIGHT`                    |
+| 最小幅                 | 280dp                                                               | `layout::TEXT_FIELD_MIN_WIDTH`                             |
+| 左右の余白             | 16dp（アイコンがあれば 12dp + 48dp の枠）                           | `layout::TEXT_FIELD_HORIZONTAL_SPACE`                      |
+| 下線                   | 1dp、フォーカスで 2dp                                               | `ACTIVE_INDICATOR_HEIGHT`, `FOCUS_ACTIVE_INDICATOR_HEIGHT` |
+| 枠線                   | 1dp、フォーカスで 2dp                                               | `OUTLINE_WIDTH`, `FOCUS_OUTLINE_WIDTH`                     |
+| ラベルの切り欠きの余白 | 4dp                                                                 | `layout::OUTLINED_TEXT_FIELD_LABEL_GAP`                    |
+| 補助テキストの上       | 4dp                                                                 | `layout::TEXT_FIELD_SUPPORTING_TOP_SPACE`                  |
 
 ## 色（状態別）
 

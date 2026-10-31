@@ -14,7 +14,7 @@
 
 | 項目     | 値                                  | トークン                                                         |
 | -------- | ----------------------------------- | ---------------------------------------------------------------- |
-| 高さ     | 56dp                                | `search_bar::CONTAINER_HEIGHT`                                   |
+| 高さ     | 最小 56dp                           | `search_bar::CONTAINER_HEIGHT`                                   |
 | 幅       | 360〜720dp                          | `layout::SEARCH_BAR_MIN_WIDTH`, `SEARCH_BAR_MAX_WIDTH`           |
 | アイコン | 48dp の領域の中央、領域を端から 4dp | `layout::MIN_INTERACTIVE_SIZE`, `layout::SEARCH_BAR_ICON_OFFSET` |
 

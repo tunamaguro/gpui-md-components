@@ -229,7 +229,7 @@ pub(crate) struct FieldFrame {
 }
 
 impl FieldFrame {
-    /// コンテナ（56dp の行）と補助テキストの行を返す。コンテナは呼び出し側で操作要素にする。
+    /// コンテナ（最小 56dp の行）と補助テキストの行を返す。コンテナは呼び出し側で操作要素にする。
     pub(crate) fn render(self, cx: &App) -> (gpui::Div, Option<gpui::Div>) {
         let theme = cx.md3();
         let colors = FieldColors::of(self.variant, self.state);

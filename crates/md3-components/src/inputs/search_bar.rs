@@ -12,7 +12,7 @@ use crate::buttons::IconButton;
 use crate::{Icon, IconName, StyledExt};
 use gpui_headless::{SearchField, TextFieldState, TextPaint};
 
-/// 検索バー（高さ 56dp、丸い `SurfaceContainerHigh` の入力欄）。
+/// 検索バー（最小の高さ 56dp、丸い `SurfaceContainerHigh` の入力欄）。
 ///
 /// 中身は [`TextFieldState`] に持ち、[`TextFieldEvent`](gpui_headless::TextFieldEvent) で変更を受け取る。
 /// 先頭は検索のアイコン（[`SearchBar::leading`] で戻るボタンなどに置き換えられる）。

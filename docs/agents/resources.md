@@ -1,6 +1,7 @@
 # 資料の場所（何を「正」とするか）
 
 **仕様は m3.material.io、数値は Compose のトークン生成ファイル、配色は material-color-utilities のテストを正とする。**
+m3.material.io はツールから本文を読めないことがある。そのときは Compose の実装で代え、読めなかったと書く。
 食い違ったら 数値: Compose > material-web、振る舞い: m3.material.io > 各実装 の順で優先し、判断を `docs/TOKENS_SOURCE.md` に残す。
 
 | 用途                 | 資料                                          | 場所                                                                                                                                                                            | ライセンス             | 使い方                                                                                                                              |
