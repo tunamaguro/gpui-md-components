@@ -55,7 +55,8 @@ pub struct ListItem {
 
 impl ListItem {
     /// アクセシビリティ情報。`index` は 0 始まり、`count` はリスト内の項目数。
-    pub fn a11y_node(&self, index: usize, count: usize) -> gpui_headless::A11yNode {
+    #[cfg(test)]
+    pub(crate) fn a11y_node(&self, index: usize, count: usize) -> gpui_headless::A11yNode {
         self.headless().a11y_node(index, count)
     }
 

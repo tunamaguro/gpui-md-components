@@ -1,6 +1,6 @@
 //! ナビゲーションの部品のページ。
 
-use gpui::{AnyElement, App, Entity, IntoElement, WeakEntity, Window, div, prelude::*, px};
+use gpui::{AnyElement, App, IntoElement, WeakEntity, Window, div, prelude::*, px};
 use md3_components::buttons::{Fab, IconButton};
 use md3_components::containment::{List, ListItem, ListLeading};
 use md3_components::inputs::SearchBar;
@@ -69,7 +69,7 @@ const PEOPLE: [&str; 8] = [
 /// ナビゲーションの部品のページ。
 pub fn page(
     demo: &Demo,
-    search: &Entity<TextFieldState>,
+    search: &TextFieldState,
     view: WeakEntity<Gallery>,
     window: &mut Window,
     cx: &mut App,
@@ -406,7 +406,7 @@ pub fn page(
         );
 
     // 検索
-    let query = search.read(cx).text().to_lowercase();
+    let query = search.text(cx).to_lowercase();
     let results = PEOPLE
         .iter()
         .filter(|name| !query.is_empty() && name.to_lowercase().contains(&query))
@@ -432,7 +432,7 @@ pub fn page(
                         .aria_label("検索の文字を消す")
                         .on_click({
                             let search = search.clone();
-                            move |_, _, cx| search.update(cx, |state, cx| state.set_text("", cx))
+                            move |_, _, cx| search.set_text("", cx)
                         }),
                 ),
             )

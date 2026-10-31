@@ -66,7 +66,8 @@ pub struct Dialog {
 
 impl Dialog {
     /// アクセシビリティ情報。
-    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
+    #[cfg(test)]
+    pub(crate) fn a11y_node(&self) -> gpui_headless::A11yNode {
         self.inner.a11y_node()
     }
 
@@ -229,8 +230,6 @@ impl RenderOnce for Dialog {
                     .chain(self.children)
                     .collect(),
                 self.scrollbar,
-                window,
-                cx,
             ))
             .when_some(actions, |this, actions| {
                 this.child(

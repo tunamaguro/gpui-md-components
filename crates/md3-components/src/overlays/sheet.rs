@@ -139,8 +139,6 @@ impl RenderOnce for BottomSheet {
                 &self.id,
                 self.children,
                 self.scrollbar,
-                window,
-                cx,
             ));
 
         let Some(focus) = focus else {
@@ -310,8 +308,6 @@ impl RenderOnce for SideSheet {
                 &self.id,
                 self.children,
                 self.scrollbar,
-                window,
-                cx,
             ));
         sheet = match self.kind {
             SideSheetKind::Standard => sheet

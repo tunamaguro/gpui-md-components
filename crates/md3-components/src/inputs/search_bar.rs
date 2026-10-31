@@ -1,20 +1,19 @@
 //! SearchBar（検索の入力欄。結果の一覧は呼び出し側が描く）。
 
-use gpui::{
-    App, ElementId, Entity, IntoElement, RenderOnce, SharedString, Window, div, prelude::*, px,
-};
+use gpui::{App, ElementId, IntoElement, RenderOnce, SharedString, Window, div, prelude::*, px};
 use md3_theme::Md3ThemeExt;
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::{filled_text_field, search_bar as tokens};
 use md3_theme::md3_tokens::layout;
 
+use super::TextFieldState;
 use crate::buttons::IconButton;
 use crate::{Icon, IconName, StyledExt};
-use gpui_headless::{SearchField, TextFieldState, TextPaint};
+use gpui_headless::{SearchField, TextPaint};
 
 /// 検索バー（最小の高さ 56dp、丸い `SurfaceContainerHigh` の入力欄）。
 ///
-/// 中身は [`TextFieldState`] に持ち、[`TextFieldEvent`](gpui_headless::TextFieldEvent) で変更を受け取る。
+/// 中身は [`TextFieldState`] に持ち、[`TextFieldState::on_change`] で変更を受け取る。
 /// 先頭は検索のアイコン（[`SearchBar::leading`] で戻るボタンなどに置き換えられる）。
 #[derive(IntoElement)]
 pub struct SearchBar {
@@ -28,12 +27,12 @@ impl SearchBar {
     /// ID、中身、placeholder（読み上げられる名前を兼ねる）から作る。
     pub fn new(
         id: impl Into<ElementId>,
-        state: &Entity<TextFieldState>,
+        state: &TextFieldState,
         placeholder: impl Into<SharedString>,
     ) -> Self {
         let placeholder = placeholder.into();
         Self {
-            inner: SearchField::new(id, state)
+            inner: SearchField::new(id, state.entity())
                 .aria_label(placeholder.clone())
                 .placeholder(placeholder.clone()),
             placeholder,

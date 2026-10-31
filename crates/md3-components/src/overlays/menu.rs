@@ -95,12 +95,14 @@ pub struct Menu {
 
 impl Menu {
     /// メニューのアクセシビリティ情報。
-    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
+    #[cfg(test)]
+    pub(crate) fn a11y_node(&self) -> gpui_headless::A11yNode {
         self.headless().a11y_node()
     }
 
     /// 指定した項目のアクセシビリティ情報。`index` は 0 始まり。
-    pub fn item_a11y_node(&self, index: usize) -> Option<gpui_headless::A11yNode> {
+    #[cfg(test)]
+    pub(crate) fn item_a11y_node(&self, index: usize) -> Option<gpui_headless::A11yNode> {
         self.headless().item_a11y_node(index)
     }
 

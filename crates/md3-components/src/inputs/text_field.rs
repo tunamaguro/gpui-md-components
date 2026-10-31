@@ -1,11 +1,10 @@
 //! TextField（Filled / Outlined）。1 行の入力欄。
 
+use super::TextFieldState;
 use super::field::{FieldFrame, FieldState, TextFieldVariant, tint};
 use crate::IconName;
-use gpui::{
-    App, ElementId, Entity, IntoElement, RenderOnce, SharedString, Window, div, prelude::*, px,
-};
-use gpui_headless::{TextFieldState, TextPaint, grapheme_count};
+use gpui::{App, ElementId, IntoElement, RenderOnce, SharedString, Window, div, prelude::*, px};
+use gpui_headless::{TextPaint, grapheme_count};
 use md3_theme::Md3ThemeExt;
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::filled_text_field as tokens;
@@ -17,7 +16,7 @@ pub(crate) const CARET_WIDTH: f32 = 2.0;
 /// テキストフィールド。ラベルは読み上げ用の名前も兼ねる。
 ///
 /// ```ignore
-/// let state = cx.new(TextFieldState::new);
+/// let state = TextFieldState::new(cx);
 /// TextField::new("name", &state).label("名前").supporting_text("必須")
 /// ```
 ///
@@ -38,12 +37,15 @@ pub struct TextField {
 
 impl TextField {
     /// アクセシビリティ情報。
-    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
+    #[cfg(test)]
+    pub(crate) fn a11y_node(&self) -> gpui_headless::A11yNode {
         self.inner.a11y_node()
     }
 
     /// 補助テキストのアクセシビリティ情報。
-    pub fn supporting_a11y_node(&self) -> Option<(gpui::ElementId, gpui_headless::A11yNode)> {
+    pub(crate) fn supporting_a11y_node(
+        &self,
+    ) -> Option<(gpui::ElementId, gpui_headless::A11yNode)> {
         self.supporting_text.as_ref().map(|text| {
             gpui_headless::supporting_status(&self.id, text.clone(), self.inner.a11y_node().invalid)
         })
@@ -56,10 +58,10 @@ impl TextField {
     }
 
     /// ID と中身から作る。
-    pub fn new(id: impl Into<ElementId>, state: &Entity<TextFieldState>) -> Self {
+    pub fn new(id: impl Into<ElementId>, state: &TextFieldState) -> Self {
         let id = id.into();
         Self {
-            inner: gpui_headless::TextField::new(id.clone(), state),
+            inner: gpui_headless::TextField::new(id.clone(), state.entity()),
             id,
             label: None,
             variant: TextFieldVariant::default(),

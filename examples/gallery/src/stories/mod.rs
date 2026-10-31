@@ -15,10 +15,9 @@ use gpui::{
     AnyElement, App, IntoElement, ParentElement, RenderOnce, Role, SharedString, Window, div,
     prelude::*, px,
 };
-use gpui_headless::{focus_handle, is_focus_visible};
 use md3_components::theme::md3_color::ColorRole;
 use md3_components::theme::{Md3ThemeExt, Shape, TypeScale};
-use md3_components::{FocusRing, Icon, IconName, StateLayer, StyledExt, Text};
+use md3_components::{FocusRing, Icon, IconName, StateLayer, StyledExt, Text, control};
 
 /// 状態の見本の 1 行（行の名前と、Enabled / Disabled の列など）。
 pub fn state_row(label: impl Into<SharedString>, cells: Vec<AnyElement>) -> impl IntoElement {
@@ -142,18 +141,7 @@ impl Choice {
         cx: &mut App,
         on_select: impl Fn(&mut App) + 'static,
     ) -> gpui::AnyElement {
-        let handle = focus_handle(self.id.clone(), window, cx);
-        let focused = is_focus_visible(&handle, window, cx);
-        let reveal = gpui_headless::reveal_on_focus(
-            &self.id.clone().into(),
-            handle.clone(),
-            window,
-            cx,
-            px(
-                md3_components::theme::md3_tokens::state::FOCUS_INDICATOR_THICKNESS
-                    + md3_components::theme::md3_tokens::state::FOCUS_INDICATOR_OUTER_OFFSET,
-            ),
-        );
+        let (base, control) = control(self.id.clone(), false, window, cx);
         let theme = cx.md3();
         let radius = theme.corner(Shape::Full);
         let (container, content) = if self.selected {
@@ -164,14 +152,7 @@ impl Choice {
         } else {
             (ColorRole::SurfaceContainerLow, ColorRole::OnSurface)
         };
-        let group = self.id.clone();
-        div()
-            .id(self.id.clone())
-            .group(group.clone())
-            .relative()
-            .track_focus(&handle)
-            .child(reveal)
-            .role(Role::Button)
+        base.role(Role::Button)
             .aria_label(self.label.clone())
             .aria_selected(self.selected)
             .h(theme.dense(40.0))
@@ -188,7 +169,6 @@ impl Choice {
                 ColorRole::OutlineVariant
             }))
             .corner_radius(radius)
-            .cursor_pointer()
             .when_some(self.icon, |this, icon| {
                 this.child(Icon::new(icon).size(px(18.0)).color(content))
             })
@@ -197,11 +177,11 @@ impl Choice {
             })
             .child(Text::new(TypeScale::LabelLarge, self.label))
             .child(
-                StateLayer::new(format!("{group}-layer"), group, content)
+                StateLayer::new(format!("{}-layer", control.group), control.group, content)
                     .radius(radius)
-                    .focused(focused),
+                    .focused(control.focus_visible),
             )
-            .child(FocusRing::new(radius).visible(focused))
+            .child(FocusRing::new(radius).visible(control.focus_visible))
             .on_click(move |_, _, cx| on_select(cx))
             .into_any_element()
     }

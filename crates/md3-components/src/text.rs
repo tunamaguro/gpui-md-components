@@ -23,7 +23,7 @@ impl Text {
     }
 
     /// アクセシビリティ情報。
-    pub fn a11y_node(&self) -> Option<gpui_headless::A11yNode> {
+    pub(crate) fn a11y_node(&self) -> Option<gpui_headless::A11yNode> {
         self.id.as_ref().map(|_| {
             gpui_headless::A11yNode::new(gpui::Role::Label)
                 .label(self.text.clone())

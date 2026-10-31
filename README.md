@@ -43,8 +43,8 @@ TextField / Select の必須状態は `.required(true)`、メニューボタン�
 
 Checkbox の状態は `md3_components::selection::CheckboxState`、テキスト編集の状態は `md3_components::inputs::TextFieldState` を使う。Button 系、Checkbox、Switch、Chip、Card、RadioGroup、SegmentedButton、ButtonGroup、Tabs、Navigation、Slider、List / LazyList の見た目を持たない操作と a11y は `gpui-headless` が担う。
 
-feature に関係なく使える共通部品: `md3-components` の Scrollbar、ScrollScope と、`gpui-headless` の NestedScroll、reveal_on_focus。
-アプリのスクロール領域を ScrollScope で包むと、Tab などで移った操作部品を見える位置へスクロールする（[利用ガイド](docs/guide.md#%E3%82%AD%E3%83%BC%E3%83%9C%E3%83%BC%E3%83%89%E3%83%95%E3%82%A9%E3%83%BC%E3%82%AB%E3%82%B9%E3%82%92%E8%A6%8B%E3%81%88%E3%82%8B%E4%BD%8D%E7%BD%AE%E3%81%B8%E7%A7%BB%E3%81%99)）。
+feature に関係なく使える共通部品: Scrollbar、ScrollArea、`control`。
+アプリのスクロール領域に ScrollArea を使うと、Tab などで移った操作部品を見える位置へスクロールする（[利用ガイド](docs/guide.md#%E3%82%AD%E3%83%BC%E3%83%9C%E3%83%BC%E3%83%89%E3%83%95%E3%82%A9%E3%83%BC%E3%82%AB%E3%82%B9%E3%82%92%E8%A6%8B%E3%81%88%E3%82%8B%E4%BD%8D%E7%BD%AE%E3%81%B8%E7%A7%BB%E3%81%99)）。
 既定ではすべて有効。各部品の仕様とキー操作は [`docs/specs/`](docs/specs/) にある。
 
 ## 使い方

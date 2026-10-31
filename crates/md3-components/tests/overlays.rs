@@ -270,7 +270,7 @@ fn assert_keys_stay_in_the_dialog(cx: &mut gpui::VisualTestContext, log: &Log, e
 #[gpui::test]
 fn shift_tab_from_a_text_field_stays_in_the_dialog(cx: &mut TestAppContext) {
     let log = Log::default();
-    let state = cx.new(TextFieldState::new);
+    let state = cx.update(TextFieldState::new);
     let cx = dialog_with_inner(cx, &log, true, move || {
         TextField::new("to", &state)
             .label("宛先")
@@ -309,7 +309,7 @@ fn keys_from_an_app_context_stay_in_the_dialog(cx: &mut TestAppContext) {
 #[gpui::test]
 fn tab_from_the_last_text_field_stays_in_the_dialog(cx: &mut TestAppContext) {
     let log = Log::default();
-    let state = cx.new(TextFieldState::new);
+    let state = cx.update(TextFieldState::new);
     let cx = dialog_with_inner(cx, &log, false, move || {
         TextField::new("to", &state)
             .label("宛先")

@@ -158,7 +158,8 @@ pub struct Button {
 
 impl Button {
     /// アクセシビリティ情報。
-    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
+    #[cfg(test)]
+    pub(crate) fn a11y_node(&self) -> gpui_headless::A11yNode {
         self.inner.a11y_node()
     }
 

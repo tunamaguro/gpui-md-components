@@ -60,7 +60,7 @@ fn menu_items(view: &WeakEntity<Gallery>) -> Vec<MenuItem> {
 
 /// ダイアログの見本（実物と、その場に描く見本で共有）。
 /// 見本とモーダルで ID と入力欄の状態を分ける（同じだとフォーカスハンドルを 2 つの要素が共有する）。
-fn dialog(id: &str, view: &WeakEntity<Gallery>, note: &Entity<TextFieldState>) -> Dialog {
+fn dialog(id: &str, view: &WeakEntity<Gallery>, note: &TextFieldState) -> Dialog {
     let close = |action: &'static str| {
         let view = view.clone();
         move |_: &mut Window, cx: &mut App| {
@@ -87,8 +87,8 @@ fn dialog(id: &str, view: &WeakEntity<Gallery>, note: &Entity<TextFieldState>) -
 /// オーバーレイの部品のページ。
 pub fn page(
     demo: &Demo,
-    note: &Entity<TextFieldState>,
-    sample_note: &Entity<TextFieldState>,
+    note: &TextFieldState,
+    sample_note: &TextFieldState,
     snackbar: &Entity<SnackbarHost>,
     view: WeakEntity<Gallery>,
     _window: &mut Window,

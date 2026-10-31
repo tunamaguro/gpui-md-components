@@ -48,12 +48,21 @@ macro_rules! delegate_accessible_name {
     };
 }
 
+// a11y_node は公開しないので、値のテストは crate の中に置く。
+#[cfg(all(
+    test,
+    feature = "containment",
+    feature = "inputs",
+    feature = "selection"
+))]
+mod a11y_tests;
 #[cfg(feature = "buttons")]
 mod anchor_tooltip;
 #[cfg(feature = "buttons")]
 pub mod buttons;
 #[cfg(feature = "containment")]
 pub mod containment;
+mod control;
 #[cfg(feature = "expressive")]
 pub mod expressive;
 mod focus;
@@ -76,6 +85,7 @@ mod surface;
 mod text;
 mod window_size;
 
+pub use control::{ControlState, control};
 pub use focus::FocusRing;
 /// この crate が依存する gpui（固定 rev）。利用者が版を揃えずに使えるよう再公開する。
 pub use gpui;
@@ -85,7 +95,7 @@ pub use gpui_platform;
 pub use icon::Icon;
 pub use md3_icons::IconName;
 pub use md3_theme as theme;
-pub use scrollbar::Scrollbar;
+pub use scrollbar::{ScrollArea, Scrollbar};
 pub use state_layer::StateLayer;
 pub use style::StyledExt;
 pub use surface::Surface;

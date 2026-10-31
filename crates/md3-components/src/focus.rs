@@ -5,15 +5,6 @@ use gpui::{App, Corners, IntoElement, Pixels, RenderOnce, Window, div, prelude::
 use md3_theme::md3_tokens::state;
 use md3_theme::{CornerRadius, Md3ThemeExt};
 
-#[cfg(any(
-    feature = "buttons",
-    feature = "selection",
-    feature = "inputs",
-    feature = "overlays",
-    feature = "navigation",
-    feature = "containment",
-    feature = "expressive"
-))]
 pub(crate) fn reveal_margin() -> Pixels {
     px(state::FOCUS_INDICATOR_THICKNESS + state::FOCUS_INDICATOR_OUTER_OFFSET)
 }
@@ -52,7 +43,7 @@ impl FocusRing {
         self
     }
 
-    /// 表示するか。通常は [`gpui_headless::is_focus_visible`] の結果を渡す。
+    /// 表示するか。通常は [`ControlState::focus_visible`](crate::ControlState::focus_visible) を渡す。
     pub fn visible(mut self, visible: bool) -> Self {
         self.visible = visible;
         self
