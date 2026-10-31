@@ -11,7 +11,18 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-#[allow(unused_macros)]
+#[cfg_attr(
+    not(any(
+        feature = "buttons",
+        feature = "containment",
+        feature = "expressive",
+        feature = "selection"
+    )),
+    expect(
+        unused_macros,
+        reason = "使う部品の feature がすべて無効だと展開されない"
+    )
+)]
 macro_rules! accessible_name {
     ($(#[$extra:meta])*) => {
         gpui_headless::accessible_name_setter!(self, label, {
@@ -21,7 +32,13 @@ macro_rules! accessible_name {
     };
 }
 
-#[allow(unused_macros)]
+#[cfg_attr(
+    not(any(feature = "buttons", feature = "expressive", feature = "selection")),
+    expect(
+        unused_macros,
+        reason = "使う部品の feature がすべて無効だと展開されない"
+    )
+)]
 macro_rules! delegate_accessible_name {
     ($($field:tt).+ $(; #[$extra:meta])*) => {
         gpui_headless::accessible_name_setter!(self, label, {

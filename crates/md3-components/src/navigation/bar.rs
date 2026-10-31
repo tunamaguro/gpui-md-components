@@ -29,7 +29,6 @@ struct ItemStyle {
 }
 
 /// 項目 1 つ（選択の印、アイコン、ラベル）。
-#[allow(clippy::too_many_arguments)]
 fn vertical_item(
     theme: &Theme,
     base: gpui::Stateful<gpui::Div>,

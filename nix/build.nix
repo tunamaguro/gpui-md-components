@@ -43,6 +43,7 @@ let
       root = ../.;
       fileset = lib.fileset.unions [
         (craneLib.fileset.commonCargoSources ../.)
+        ../clippy.toml
         ../crates/md3-icons/assets
         ../xtask/web
       ];

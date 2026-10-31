@@ -1,6 +1,9 @@
 //! UI テスト用の補助。
 
-#![allow(dead_code)]
+#![expect(
+    dead_code,
+    reason = "テストバイナリごとに使う補助が違い、どのバイナリにも未使用の項目が残る"
+)]
 
 use gpui::{
     AnyElement, Context, InputEvent, IntoElement, KeyDownEvent, KeyUpEvent, Keystroke, Render,

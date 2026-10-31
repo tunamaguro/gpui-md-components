@@ -4,7 +4,10 @@ use gpui::{App, Div, ElementId, SharedString, Stateful, Window};
 
 #[derive(Default)]
 pub(crate) struct AnchorTooltip {
-    #[cfg_attr(not(feature = "overlays"), allow(dead_code))]
+    #[cfg_attr(
+        not(feature = "overlays"),
+        expect(dead_code, reason = "`overlays` が無効だと読むコードがない")
+    )]
     text: Option<SharedString>,
 }
 

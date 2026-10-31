@@ -186,7 +186,13 @@ impl IconButton {
     }
 
     /// 内容（ラベル・アイコン・状態レイヤー）の色のロールを変える（Snackbar の操作など）。
-    #[cfg_attr(not(feature = "overlays"), allow(dead_code))]
+    #[cfg_attr(
+        not(feature = "overlays"),
+        expect(
+            dead_code,
+            reason = "Snackbar が使うので、`overlays` が無効だと呼ばれない"
+        )
+    )]
     pub(crate) fn content_color(mut self, role: ColorRole) -> Self {
         self.content_role = Some(role);
         self
