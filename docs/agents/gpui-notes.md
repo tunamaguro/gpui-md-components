@@ -61,6 +61,11 @@ API はいつも固定 rev のソース（`~/.cargo/git/checkouts/zed-*/37faef8/
 
 ## プラットフォーム
 
+- Windows でアプリから IME の変換を終了するには、入力ハンドラーを残し、フレーム終了時の `accepts_text_input` を false にする。gpui が描画後に `CPS_COMPLETE` を送り、確定文字をハンドラーに返す。`on_next_frame` はそのフレームの描画より先に走るため、false の解除は paint から予約する。
+- gpui の `on_blur` はウィンドウの非アクティブ化でも発火する。要素自体のフォーカス移動と区別するには `FocusHandle::is_focused` を確認する。
+- `on_blur` は `Window::draw` の最後で走る。フォーカスの移動先はその時点で描画済みなので、移動先に描画で処理させたいときは `window.refresh()` で描き直す（`.cached()` のビューは `cx.notify()` では描かれない）。
+- `invalidate_character_coordinates` の次フレームのコールバックは次の描画より先に走る。最新の入力位置を返せるよう、レイアウトを保存した描画後に呼ぶ。
+- gpui_web の `update_ime_position` は空実装（`crates/gpui_web/src/window.rs`）、IME 用の隠れた textarea は `top: 0; left: 0` に固定されている（`ime_mirror.rs`）。Web の候補ウィンドウは左上のままになる。
 - Linux の gallery は Wayland と X11 の両方で動く。xdotool で操作・撮影するときは `WAYLAND_DISPLAY` を外して X11 で起動する。
 - nix の外で起動すると「failed to resolve font」で panic することがある。`nix develop -c` の中で起動する。
 - Web はシステムフォントを読めない（`MD3_WEB_FONTS`、guide.md の「Web」）。wasm では AccessKit が無い。

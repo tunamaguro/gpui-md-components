@@ -11,13 +11,52 @@ use crate::keys::{
 use crate::{A11yExt, A11yNode};
 use gpui::{
     App, Bounds, ClipboardItem, ContentMask, Context, CursorStyle, Div, Element, ElementId,
-    ElementInputHandler, Entity, EntityInputHandler, EventEmitter, FocusHandle, Focusable,
+    ElementInputHandler, Entity, EntityInputHandler, EventEmitter, FocusHandle, Focusable, Global,
     GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, MouseButton, MouseDownEvent,
     MouseMoveEvent, PaintQuad, Pixels, Point, Role, ShapedLine, SharedString, Stateful, Style,
-    TextAlign, TextRun, UTF16Selection, UnderlineStyle, Window, div, fill, point, prelude::*, px,
-    relative, size,
+    Subscription, TextAlign, TextRun, UTF16Selection, UnderlineStyle, Window, WindowId, div, fill,
+    point, prelude::*, px, relative, size,
 };
 use std::ops::Range;
+
+// IME の変換は OS 側にあり、`marked_range` を消しただけでは終わらない。Windows では変換が
+// 続き、次の更新が別の場所へ入ってしまう（フォーカスを移した先の欄など）。
+//
+// gpui に変換を終わらせる公開 API はない。ただし Windows 実装（`update_ime_enabled`）は、
+// フレームの最後に `accepts_text_input` が false に変わると `CPS_COMPLETE` を送り、確定文字を
+// 入力ハンドラーへ返す。そこで 1 フレームだけ false を返して変換を終わらせる。
+//
+// 他の環境では使わない。X11 / Wayland はクリックで gpui が変換を終え、Web で false を返すと
+// IME の textarea が読み取り専用になる。macOS は未確認。テストは Linux で動くので同じ経路を使う。
+const ENDS_IME_WITH_HANDLER: bool = cfg!(any(target_os = "windows", test));
+
+/// 変換を終わらせるための、入力を受け付けないフレームの進み具合。
+///
+/// `on_next_frame` は次の描画より先に走るので、依頼の時点で解除を予約すると false のまま
+/// フレームを終えられない。`Requested` のまま描画まで待ち、paint で解除を予約する。
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ImeFinish {
+    /// 通常の状態。
+    Idle,
+    /// 次の描画で変換を終える。
+    Requested,
+    /// このフレームの最後に gpui が `CPS_COMPLETE` を送る。次のフレームで `Idle` に戻す。
+    Scheduled,
+}
+
+/// 変換中にフォーカスが移ったことを、移動先の欄へ伝える。
+///
+/// `CPS_COMPLETE` はそのとき登録されている入力ハンドラー、つまり移動先へ届く。移動元は
+/// もうハンドラーではないので、移動先が 1 フレーム入力を止める必要がある。移動先の欄を
+/// 直接は知らないのでグローバルに置く。フォーカスされた欄は他のウィンドウにもあるので、
+/// どのウィンドウの話かも持つ。
+#[derive(Default)]
+struct PendingImeFinish {
+    generation: u64,
+    window: Option<WindowId>,
+}
+
+impl Global for PendingImeFinish {}
 
 /// 入力行の色とキャレットの幅。
 pub struct TextPaint {
@@ -40,6 +79,13 @@ pub enum TextFieldEvent {
     Changed,
 }
 
+/// IME に伝える入力行の範囲と位置。
+#[derive(PartialEq)]
+struct ImeAnchor {
+    bounds: Bounds<Pixels>,
+    x: Pixels,
+}
+
 /// テキストフィールドの中身（文字列、選択範囲、IME の変換中の範囲）。
 ///
 /// `cx.new(TextFieldState::new)` で作り、[`TextField`] に渡す。内容が変わると
@@ -50,8 +96,12 @@ pub struct TextFieldState {
     selected_range: Range<usize>,
     selection_reversed: bool,
     marked_range: Option<Range<usize>>,
+    ime_finish: ImeFinish,
+    finish_after_click_out: bool,
+    blur_subscription: Option<Subscription>,
     last_layout: Option<ShapedLine>,
     last_bounds: Option<Bounds<Pixels>>,
+    last_ime_anchor: Option<ImeAnchor>,
     scroll_x: Pixels,
     is_selecting: bool,
 }
@@ -73,8 +123,12 @@ impl TextFieldState {
             selected_range: 0..0,
             selection_reversed: false,
             marked_range: None,
+            ime_finish: ImeFinish::Idle,
+            finish_after_click_out: false,
+            blur_subscription: None,
             last_layout: None,
             last_bounds: None,
+            last_ime_anchor: None,
             scroll_x: px(0.0),
             is_selecting: false,
         }
@@ -104,6 +158,20 @@ impl TextFieldState {
         cx.notify();
     }
 
+    fn ime_x_for_offset(&self, offset: usize, bounds: Bounds<Pixels>) -> Option<Pixels> {
+        if self.content.is_empty() {
+            return Some(bounds.left());
+        }
+        let line = self.last_layout.as_ref()?;
+        if line.text.as_ref() != self.content {
+            return None;
+        }
+        Some(
+            (bounds.left() - self.scroll_x + line.x_for_index(offset))
+                .clamp(bounds.left(), bounds.right()),
+        )
+    }
+
     /// 選択範囲（UTF-8 のバイト位置）。
     pub fn selected_range(&self) -> Range<usize> {
         self.selected_range.clone()
@@ -112,6 +180,50 @@ impl TextFieldState {
     /// IME の変換中の範囲（UTF-8 のバイト位置）。
     pub fn marked_range(&self) -> Option<Range<usize>> {
         self.marked_range.clone()
+    }
+
+    fn observe_blur(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.blur_subscription.is_some() {
+            return;
+        }
+        self.blur_subscription =
+            Some(cx.on_blur(&self.focus_handle, window, |state, window, cx| {
+                state.finish_after_click_out = false;
+                // gpui はウィンドウの非アクティブ化でも blur を通知する。別のウィンドウへ移った
+                // だけなら変換を続ける（Compose の TextFieldDecoratorModifier と同じ）。
+                if state.focus_handle.is_focused(window) {
+                    return;
+                }
+                // 文字は残して未確定だけ解除する。`Requested` は、クリックのあと描画より先に
+                // フォーカスが移った場合。この欄はもう描画で処理できないので移動先へ渡す。
+                let marked = state.marked_range.take().is_some();
+                let requested = state.ime_finish == ImeFinish::Requested;
+                if marked || requested {
+                    if requested {
+                        state.ime_finish = ImeFinish::Idle;
+                    }
+                    cx.notify();
+                    if ENDS_IME_WITH_HANDLER {
+                        // blur は移動先を描いた後で届く。移動先が `.cached()` のビューでも
+                        // もう一度描かれるよう、ウィンドウ全体を描き直す。
+                        window.refresh();
+                        // 移動先の描画が済んだ次のフレームで取り下げる。入力欄以外へ移ったときに
+                        // 依頼が残り、次にフォーカスした欄で入力を止めないようにする。
+                        let pending = cx.default_global::<PendingImeFinish>();
+                        pending.generation = pending.generation.wrapping_add(1);
+                        pending.window = Some(window.window_handle().window_id());
+                        let generation = pending.generation;
+                        window.on_next_frame(move |window, _| {
+                            window.on_next_frame(move |_, cx| {
+                                let pending = cx.default_global::<PendingImeFinish>();
+                                if pending.generation == generation {
+                                    pending.window = None;
+                                }
+                            });
+                        });
+                    }
+                }
+            }));
     }
 
     fn left(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -224,6 +336,11 @@ impl TextFieldState {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // キャレットをクリックした位置に置くため、IME の確定文字を待たずにここで確定する。
+        // 変換はそのままだと続き、次の更新でキャレットが変換範囲へ戻ってしまう。
+        if ENDS_IME_WITH_HANDLER && self.marked_range.take().is_some() {
+            self.ime_finish = ImeFinish::Requested;
+        }
         self.is_selecting = true;
         window.request_virtual_keyboard();
         let index = self.index_for_mouse_position(event.position);
@@ -333,6 +450,11 @@ impl TextFieldState {
 }
 
 impl EntityInputHandler for TextFieldState {
+    fn accepts_text_input(&self, _window: &mut Window, _cx: &mut Context<Self>) -> bool {
+        // false にすると Windows の gpui が変換を終える（`ENDS_IME_WITH_HANDLER`）。
+        self.ime_finish == ImeFinish::Idle
+    }
+
     fn text_for_range(
         &mut self,
         range_utf16: Range<usize>,
@@ -400,6 +522,11 @@ impl EntityInputHandler for TextFieldState {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // `CPS_COMPLETE` の確定文字。この文字列は確定済みなので、入れると二重になる。
+        // 同じフレームのキー入力も範囲なしで届くが、1 フレームだけなので区別しない。
+        if self.ime_finish != ImeFinish::Idle && range_utf16.is_none() {
+            return;
+        }
         let range = range_utf16
             .as_ref()
             .map(|range_utf16| self.range_from_utf16(range_utf16))
@@ -423,6 +550,11 @@ impl EntityInputHandler for TextFieldState {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // `CPS_COMPLETE` の確定文字。この文字列は確定済みなので、入れると二重になる。
+        // 同じフレームのキー入力も範囲なしで届くが、1 フレームだけなので区別しない。
+        if self.ime_finish != ImeFinish::Idle && range_utf16.is_none() {
+            return;
+        }
         let range = range_utf16
             .as_ref()
             .map(|range_utf16| self.range_from_utf16(range_utf16))
@@ -455,15 +587,10 @@ impl EntityInputHandler for TextFieldState {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<Bounds<Pixels>> {
-        let last_layout = self.last_layout.as_ref()?;
-        if last_layout.text.as_ref() != self.content {
-            return None;
-        }
         let range = self.range_from_utf16(&range_utf16);
-        let left = bounds.left() - self.scroll_x;
         Some(Bounds::from_corners(
-            point(left + last_layout.x_for_index(range.start), bounds.top()),
-            point(left + last_layout.x_for_index(range.end), bounds.bottom()),
+            point(self.ime_x_for_offset(range.start, bounds)?, bounds.top()),
+            point(self.ime_x_for_offset(range.end, bounds)?, bounds.bottom()),
         ))
     }
 
@@ -757,9 +884,55 @@ impl Element for TextLine {
                 window.paint_quad(caret);
             }
         });
-        self.state.update(cx, |input, _| {
+        self.state.update(cx, |input, cx| {
             input.last_layout = Some(line);
             input.last_bounds = Some(bounds);
+            if self.focused {
+                if ENDS_IME_WITH_HANDLER {
+                    // 欄の外のクリックでフォーカスが残ったときだけここへ来る。移ったときは blur が
+                    // 印を消して移動先へ引き継ぐ。
+                    if input.finish_after_click_out {
+                        input.finish_after_click_out = false;
+                        if input.marked_range.take().is_some() {
+                            if input.ime_finish == ImeFinish::Idle {
+                                input.ime_finish = ImeFinish::Requested;
+                            }
+                            cx.notify();
+                        }
+                    }
+                    let pending = cx.default_global::<PendingImeFinish>();
+                    if pending.window == Some(window.window_handle().window_id()) {
+                        pending.window = None;
+                        if input.ime_finish == ImeFinish::Idle {
+                            input.ime_finish = ImeFinish::Requested;
+                        }
+                    }
+                    // このフレームの最後に gpui が false を読むので、解除は次のフレームまで待つ。
+                    if input.ime_finish == ImeFinish::Requested {
+                        input.ime_finish = ImeFinish::Scheduled;
+                        let state = cx.weak_entity();
+                        window.on_next_frame(move |_, cx| {
+                            let _ = state.update(cx, |state, cx| {
+                                state.ime_finish = ImeFinish::Idle;
+                                cx.notify();
+                            });
+                        });
+                    }
+                }
+                let offset = input
+                    .marked_range
+                    .as_ref()
+                    .map_or_else(|| input.cursor_offset(), |range| range.start);
+                let anchor = input
+                    .ime_x_for_offset(offset, bounds)
+                    .map(|x| ImeAnchor { bounds, x });
+                if anchor.is_some() && input.last_ime_anchor != anchor {
+                    input.last_ime_anchor = anchor;
+                    window.invalidate_character_coordinates();
+                }
+            } else {
+                input.last_ime_anchor = None;
+            }
         });
     }
 }
@@ -835,6 +1008,8 @@ impl TextField {
     }
     /// 入力欄の土台と、描画用の状態を作る。
     pub fn build(self, window: &mut Window, cx: &mut App) -> (Stateful<Div>, TextFieldControl) {
+        self.state
+            .update(cx, |state, cx| state.observe_blur(window, cx));
         let hovered = window.use_keyed_state(
             ElementId::NamedChild(self.id.clone().into(), "hovered".into()),
             cx,
@@ -989,6 +1164,20 @@ fn editable(
         .on_action(action(&state, |s, w, cx| s.paste(w, cx), Paste))
         .on_action(action(&state, |s, w, cx| s.cut(w, cx), Cut))
         .on_action(action(&state, |s, _, cx| s.copy(cx), Copy))
+        .on_mouse_down_out({
+            let state = state.clone();
+            move |_, _, cx| {
+                // 空白のクリックではフォーカスが動かず blur が来ない。ここはフォーカスの移動より
+                // 先に走るので `marked_range` には触らない。消すと、blur が変換中だったことを
+                // 知れず移動先へ引き継げない。印だけ付け、次の描画で判断する。
+                state.update(cx, |state, cx| {
+                    if ENDS_IME_WITH_HANDLER && state.marked_range.is_some() {
+                        state.finish_after_click_out = true;
+                        cx.notify();
+                    }
+                });
+            }
+        })
         .on_mouse_down(MouseButton::Left, {
             let state = state.clone();
             let focus_handle = focus_handle.clone();
@@ -1047,5 +1236,328 @@ mod tests {
         assert_eq!(previous_boundary("abc", 0), 0);
         assert_eq!(next_boundary("abc", 3), 3);
         assert_eq!(grapheme_count(""), 0);
+    }
+}
+
+#[cfg(test)]
+mod ime_focus_tests {
+    use super::*;
+    use gpui::{
+        AppContext, InputEvent, Modifiers, Render, TestAppContext, VisualTestContext, black,
+    };
+
+    struct Harness {
+        a: Entity<TextFieldState>,
+        b: Entity<TextFieldState>,
+        other: FocusHandle,
+    }
+
+    impl Render for Harness {
+        fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            let color = black();
+            let field = |id,
+                         state: &Entity<TextFieldState>,
+                         window: &mut Window,
+                         cx: &mut Context<Self>| {
+                let (base, control) = TextField::new(id, state, "入力").build(window, cx);
+                base.w(px(300.0)).h(px(40.0)).child(control.input(
+                    TextPaint {
+                        text: color,
+                        placeholder: color,
+                        caret: color,
+                        selection: color,
+                        caret_width: px(2.0),
+                    },
+                    None,
+                ))
+            };
+            div()
+                .size_full()
+                .flex()
+                .flex_col()
+                .child(field("a", &self.a, window, cx))
+                .child(field("b", &self.b, window, cx))
+                .child(div().id("other").h(px(40.0)).track_focus(&self.other))
+        }
+    }
+
+    fn open(
+        cx: &mut TestAppContext,
+    ) -> (
+        Entity<TextFieldState>,
+        Entity<TextFieldState>,
+        FocusHandle,
+        &mut VisualTestContext,
+    ) {
+        let a = cx.new(TextFieldState::new);
+        let b = cx.new(TextFieldState::new);
+        let other = cx.update(|cx| cx.focus_handle());
+        let (_, cx) = cx.add_window_view({
+            let a = a.clone();
+            let b = b.clone();
+            let other = other.clone();
+            move |_, _| Harness { a, b, other }
+        });
+        cx.simulate_resize(size(px(400.0), px(300.0)));
+        cx.update(|window, _| window.activate_window());
+        cx.run_until_parked();
+        draw(cx);
+        next_frame(cx);
+        focus(cx, &a);
+        draw(cx);
+        next_frame(cx);
+        (a, b, other, cx)
+    }
+
+    fn draw(cx: &mut VisualTestContext) {
+        cx.update(|window, cx| {
+            window.refresh();
+            window.draw(cx).clear(cx);
+        });
+    }
+
+    fn next_frame(cx: &mut VisualTestContext) {
+        cx.update(|window, cx| {
+            window.simulate_next_frame(cx);
+        });
+    }
+
+    fn focus(cx: &mut VisualTestContext, state: &Entity<TextFieldState>) {
+        cx.update(|window, cx| {
+            let handle = state.read(cx).focus_handle(cx);
+            window.focus(&handle, cx);
+            assert!(handle.is_focused(window));
+        });
+    }
+
+    fn mark(cx: &mut VisualTestContext, state: &Entity<TextFieldState>) {
+        cx.update(|window, cx| {
+            state.update(cx, |state, cx| {
+                state.replace_and_mark_text_in_range(None, "にほん", None, window, cx);
+            })
+        });
+        draw(cx);
+        next_frame(cx);
+        assert!(state.read_with(cx, |state, _| state.marked_range().is_some()));
+    }
+
+    fn accepts(cx: &mut VisualTestContext, state: &Entity<TextFieldState>) -> bool {
+        cx.update(|window, cx| state.update(cx, |state, cx| state.accepts_text_input(window, cx)))
+    }
+
+    fn insert(cx: &mut VisualTestContext, state: &Entity<TextFieldState>, text: &str) {
+        cx.update(|window, cx| {
+            state.update(cx, |state, cx| {
+                state.replace_text_in_range(None, text, window, cx);
+            })
+        });
+    }
+
+    #[gpui::test]
+    fn blur_confirms_marked_text(cx: &mut TestAppContext) {
+        let (a, _, other, cx) = open(cx);
+        mark(cx, &a);
+        cx.update(|window, cx| {
+            window.focus(&other, cx);
+            assert!(other.is_focused(window));
+        });
+        draw(cx);
+        a.read_with(cx, |state, _| {
+            assert_eq!(state.text(), "にほん");
+            assert_eq!(state.marked_range(), None);
+        });
+    }
+
+    #[gpui::test]
+    fn window_deactivation_keeps_marked_text(cx: &mut TestAppContext) {
+        let (a, _, _, cx) = open(cx);
+        mark(cx, &a);
+        assert!(cx.update(|window, _| window.is_window_active()));
+        cx.deactivate_window();
+        assert!(!cx.update(|window, _| window.is_window_active()));
+        draw(cx);
+        a.read_with(cx, |state, _| {
+            assert_eq!(state.text(), "にほん");
+            assert_eq!(state.marked_range(), Some(0.."にほん".len()));
+        });
+    }
+
+    #[gpui::test]
+    fn focus_move_to_another_field_finishes_composition(cx: &mut TestAppContext) {
+        let (a, b, _, cx) = open(cx);
+        mark(cx, &a);
+        focus(cx, &b);
+        draw(cx);
+        a.read_with(cx, |state, _| {
+            assert_eq!(state.text(), "にほん");
+            assert_eq!(state.marked_range(), None);
+        });
+        assert!(!accepts(cx, &b), "変換終了のフレームでは入力を受け付けない");
+        // Windows の CPS_COMPLETE による確定文字は移動先に挿入しない。
+        insert(cx, &b, "にほん");
+        assert_eq!(b.read_with(cx, |state, _| state.text().to_owned()), "");
+        next_frame(cx);
+        draw(cx);
+        assert!(accepts(cx, &b));
+        insert(cx, &b, "a");
+        assert_eq!(b.read_with(cx, |state, _| state.text().to_owned()), "a");
+    }
+
+    #[gpui::test]
+    fn click_in_same_field_finishes_composition(cx: &mut TestAppContext) {
+        let (a, _, _, cx) = open(cx);
+        insert(cx, &a, "ab");
+        mark(cx, &a);
+        cx.simulate_mouse_down(
+            point(px(1.0), px(10.0)),
+            MouseButton::Left,
+            Modifiers::none(),
+        );
+        draw(cx);
+        a.read_with(cx, |state, _| {
+            assert_eq!(state.text(), "abにほん");
+            assert_eq!(state.selected_range(), 0..0, "クリックで先頭に移動する");
+            assert_eq!(state.marked_range(), None);
+        });
+        assert!(!accepts(cx, &a));
+        insert(cx, &a, "にほん");
+        a.read_with(cx, |state, _| {
+            assert_eq!(state.text(), "abにほん");
+            assert_eq!(state.selected_range(), 0..0);
+        });
+        next_frame(cx);
+        draw(cx);
+        assert!(accepts(cx, &a));
+        insert(cx, &a, "a");
+        assert_eq!(
+            a.read_with(cx, |state, _| state.text().to_owned()),
+            "aabにほん"
+        );
+    }
+
+    #[gpui::test]
+    fn click_outside_field_finishes_composition(cx: &mut TestAppContext) {
+        let (a, _, _, cx) = open(cx);
+        mark(cx, &a);
+        cx.simulate_mouse_down(
+            point(px(10.0), px(200.0)),
+            MouseButton::Left,
+            Modifiers::none(),
+        );
+        draw(cx);
+        cx.update(|window, cx| assert!(a.read(cx).focus_handle.is_focused(window)));
+        a.read_with(cx, |state, _| {
+            assert_eq!(state.text(), "にほん");
+            assert_eq!(state.marked_range(), None);
+        });
+        assert!(!accepts(cx, &a));
+        insert(cx, &a, "にほん");
+        assert_eq!(
+            a.read_with(cx, |state, _| state.text().to_owned()),
+            "にほん"
+        );
+        next_frame(cx);
+        draw(cx);
+        assert!(accepts(cx, &a));
+        insert(cx, &a, "a");
+        assert_eq!(
+            a.read_with(cx, |state, _| state.text().to_owned()),
+            "にほんa"
+        );
+    }
+
+    #[gpui::test]
+    fn click_on_other_field_hands_over_finish(cx: &mut TestAppContext) {
+        let (a, b, _, cx) = open(cx);
+        mark(cx, &a);
+        cx.simulate_mouse_down(
+            point(px(10.0), px(50.0)),
+            MouseButton::Left,
+            Modifiers::none(),
+        );
+        draw(cx);
+        cx.update(|window, cx| assert!(b.read(cx).focus_handle.is_focused(window)));
+        a.read_with(cx, |state, _| {
+            assert_eq!(state.text(), "にほん");
+            assert_eq!(state.marked_range(), None);
+        });
+        assert!(accepts(cx, &a));
+        assert!(!accepts(cx, &b));
+        insert(cx, &b, "にほん");
+        assert_eq!(b.read_with(cx, |state, _| state.text().to_owned()), "");
+        next_frame(cx);
+        draw(cx);
+        assert!(accepts(cx, &b));
+        insert(cx, &b, "a");
+        assert_eq!(b.read_with(cx, |state, _| state.text().to_owned()), "a");
+    }
+
+    #[gpui::test]
+    fn click_then_focus_move_before_paint_hands_over(cx: &mut TestAppContext) {
+        let (a, b, _, cx) = open(cx);
+        mark(cx, &a);
+        cx.update(|window, cx| {
+            window.dispatch_event(
+                MouseDownEvent {
+                    position: point(px(10.0), px(10.0)),
+                    button: MouseButton::Left,
+                    modifiers: Modifiers::none(),
+                    click_count: 1,
+                    first_mouse: false,
+                }
+                .to_platform_input(),
+                cx,
+            );
+            assert!(a.read(cx).ime_finish == ImeFinish::Requested);
+            let handle = b.read(cx).focus_handle.clone();
+            window.focus(&handle, cx);
+        });
+        draw(cx);
+        assert!(!accepts(cx, &b));
+        insert(cx, &b, "にほん");
+        assert_eq!(b.read_with(cx, |state, _| state.text().to_owned()), "");
+        next_frame(cx);
+        draw(cx);
+        assert!(accepts(cx, &a));
+        assert!(accepts(cx, &b));
+    }
+
+    #[gpui::test]
+    fn pending_finish_stays_in_its_window(cx: &mut TestAppContext) {
+        let (a, b, _, first) = open(cx);
+        let mut app = first.cx.clone();
+        let c = app.new(TextFieldState::new);
+        let d = app.new(TextFieldState::new);
+        let other = app.update(|cx| cx.focus_handle());
+        let (_, second) = app.add_window_view({
+            let c = c.clone();
+            move |_, _| Harness { a: c, b: d, other }
+        });
+        second.simulate_resize(size(px(400.0), px(300.0)));
+        second.update(|window, _| window.activate_window());
+        draw(second);
+        focus(second, &c);
+        draw(second);
+        next_frame(second);
+        mark(first, &a);
+        focus(first, &b);
+        draw(second);
+        assert!(accepts(second, &c), "別のウィンドウの入力を止めない");
+        draw(first);
+        assert!(!accepts(first, &b), "移動先のウィンドウで変換を終了する");
+    }
+
+    #[gpui::test]
+    fn plain_focus_move_does_not_reset_ime(cx: &mut TestAppContext) {
+        let (a, b, _, cx) = open(cx);
+        assert!(accepts(cx, &a));
+        focus(cx, &b);
+        assert!(accepts(cx, &b));
+        draw(cx);
+        assert!(accepts(cx, &b));
+        next_frame(cx);
+        assert!(accepts(cx, &b));
+        draw(cx);
+        assert!(accepts(cx, &b));
     }
 }

@@ -4,8 +4,10 @@
 
 ## 確認していないこと
 
-- 独自テーマの custom ページ: 実画面で hover / pressed / focus と操作、AT-SPI ツリーを未確認。
+- フォーカス移動やクリックによる IME 変換の終了は、Windows / macOS / Web / Linux の実際の IME では未確認。Windows 以外の入力欄間の移動は blur 処理のみに依存する。
+  gpui に変換を終える公開 API がないため、Windows 以外で変換中にプログラムからフォーカスを移して戻すと、次の変換の更新で文字が二重になることがある（Codex レビューの指摘。実際の IME では未確認。X11 / Wayland のマウスのクリックは gpui が変換を終えるので該当しない）。
 
+- 独自テーマの custom ページ: 実画面で hover / pressed / focus と操作、AT-SPI ツリーを未確認。
 
 - 自動テストと、Linux（WSL、X11、lavapipe）の gallery での目視・マウス操作までは確認した。
 
@@ -55,6 +57,7 @@ Claude によるレビュー（Codex のレビューは利用上限で中断）�
 
 ### その他
 
+- Web の IME 候補ウィンドウは左上に表示される。gpui_web の位置更新と隠れた textarea の変更が必要で、このリポジトリの許可された依存では修正できない。
 - ButtonGroup: 子の ID が同じ 2 つのグループを同じ親に置くと、押下の状態（`press_state`）を共有し、片方を押すと両方が広がる（`md3-components/src/expressive/button_group.rs`。分離前からの不具合）。
 - フォーカス追従: `.hidden()` の下でフォーカスを持ったまま隠れた部品は prepaint されず、再表示と同時にフォーカスを戻すと `reveal_on_focus` が移動に気付かない（Codex レビューの P2。今の部品には該当する使い方がない）。
 - Scrollbar: RTL での左右反転、タッチでのドラッグ（`docs/specs/scrollbar.md` の「制限」）。
