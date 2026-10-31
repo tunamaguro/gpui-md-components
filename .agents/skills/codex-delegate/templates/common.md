@@ -30,6 +30,6 @@ Done criteria (run them all; they must pass):
 - cargo build -p md3-components --target wasm32-unknown-unknown
 - cargo xtask check-tokens
 - gallery shows every new state/sample; docs/specs/\*.md, docs/guide.md, README and docs/a11y-audit.md are updated
-  where relevant. Comments and docs are in Japanese — match the existing style.
+  where relevant. Docs are in Japanese; comments, logs and error messages follow `コードコメント` in AGENTS.md.
   Finish with a concise summary per item, listing token values you used with their source, and anything you could
   not verify.
