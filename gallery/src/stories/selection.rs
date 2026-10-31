@@ -1,6 +1,6 @@
 //! 選択・状態表示の部品のページ。
 
-use gpui_headless::CheckboxState;
+use md3_components::selection::CheckboxState;
 
 use gpui::{App, IntoElement, WeakEntity, Window, div, prelude::*, px};
 use md3_components::selection::{

@@ -11,6 +11,8 @@
 
 - 自動テストと、Linux（WSL、X11、lavapipe）の gallery での目視・マウス操作までは確認した。
 
+- `examples/mail` は Linux（X11）の 1200×900 と 500 幅で操作を確認した。Windows / macOS、読み上げ、a11y ツリーは未確認。確認中に 1 度、長いメールを開いて戻ったあとの Tab でフォーカスリングが出ないことがあった。同じ手順では再現せず、原因は分かっていない（最初の止まり先の検索欄はリングを描かないので、見落としの可能性もある）。
+
 - Windows / macOS の実機での見た目と操作、トラックパッドの精密スクロールは未確認
   （CI の Gallery ワークフローの Artifacts で試せる）。
 
@@ -26,6 +28,38 @@
 
 ## 未対応の候補（バックログ）
 
+### サンプルアプリで見つけた不足
+
+`examples/mail` を作って分かったこと。ライブラリの不足を先に書き、サンプル側で直せるものは末尾にまとめる。
+
+- Compose の `Scaffold` に当たる部品がなく、Snackbar が FAB に重なる。FAB にキーボードフォーカスがあっても隠れる（WCAG 2.2 の 2.4.11 Focus Not Obscured）。Compose の `Scaffold` は Snackbar を FAB の上に出す（`Scaffold.kt` の `snackbarOffsetFromBottom`。1200×900 と 500 幅の `examples/mail` で確認）。
+
+- `List` に末尾の余白（Compose の `contentPadding`）を指定できず、スクロールの終端でも最後の行が FAB に隠れる（`examples/mail/src/main.rs`）。
+
+- `NavigationItem` にバッジを渡せず、受信トレイの未読数はラベルに含めた（`examples/mail/src/main.rs`）。
+
+- `ListItem` の末尾は文字または静的アイコンに限られ、行内のスター切り替えを置けない。詳細のメニューで切り替える（`examples/mail/src/main.rs`）。
+
+- `TextField` は 1 行入力のみで、メールの本文を複数行で入力できない（`examples/mail/src/compose.rs`）。
+
+- `DialogAction` は操作後に必ずフォーカスを戻すため、入力エラーでダイアログを閉じない場合も直前の要素に移る。次フレームで宛先欄に戻している（`examples/mail/src/compose.rs`）。
+
+- 再公開は `TextFieldState` / `TextFieldEvent` / `CheckboxState` / `ScrollbarInteraction` / `ScrollScope` だけを足した。`NestedScroll`、`reveal_on_focus`、`ScrollbarSource` はまだ `gpui-headless` への依存が要り、`a11y_node()` の戻り値の `A11yNode` も `md3-components` から名前を呼べない。公開 API に出る型の方針を決める。
+
+- 内容の上に重ねる部品は、下の要素にクリックを渡さない処理（`block_mouse_except_scroll`）を部品ごとに持つ必要がある。FAB は直したが、ほかの部品やアプリが重ねる要素には同じ問題が残りうる。
+
+- Tab の `focus_next` / `focus_prev` をルート要素の `on_action` で受けると、フォーカスしていた要素が消えた時点でイベントがルートに届かず、Tab が効かなくなる（Compact で開く、戻る、幅の変更、Snackbar の Undo など）。`examples/mail` はグローバルなアクションで受けて回避した。gallery は要素の `on_action` のままで（`gallery/src/main.rs`）、`docs/guide.md` と `a11y.md` は受ける場所を書いていない。`md3_components::init` が Tab まで受け持つかを含めて見直す。
+
+- Web では変換中の Esc がダイアログを閉じる可能性がある（`gpui_web/src/events.rs` は変換中の判定より先にキーを渡す。コードを読んだだけで、ブラウザでは未確認）。
+
+- サンプル側の改善: 検索や絞り込みで一覧から消えたメールが詳細に残る。To の入力エラーは次の Send まで消えない。Archive の行き先の画面がなく、Undo でしか戻せない。`MailView::render` が長いので、一覧・詳細・設定に分ける。
+
+- サンプルは画面のテストがなく、`model.rs` の単体テストだけ。`gpui` の test-support を dev-dependencies に足せば `MailView` を実際のキー割り当てで動かせる（`a11y.md` が認めている。レビューの検証用コピーで動作を確認）。
+
+- Snackbar は下の要素へのクリックを遮らない。Dialog と同時に出ていると、Snackbar のクリックがスクリムに届いてダイアログが閉じる（`overlays/snackbar.rs`。レビューがテストで確認）。
+
+- 入力欄（TextField / SearchBar）はフォーカスリングを描かず、キーボードでの位置は点滅するカーソルと下線でしか分からない。`a11y.md` の「必ず描く」との関係を整理する。
+
 ### Tooltip
 
 - 基準の要素がクリップされて見えないとき、ツールチップは出ないが 1 回目の Esc を受ける（`attach` が表示の判定を見ていない）。
@@ -40,6 +74,7 @@
 - Outlined の浮いたラベルが長いと枠の右をはみ出す。
 - `text_scale` は 0、負数、NaN を検証していない。
 - Filled の入力欄は 150% 以上で上下の余白がなくなる。Compose は `TextFieldWithLabelVerticalPadding` も足す。
+- NavigationBar のラベルは幅が足りないと単語の途中で折り返す（幅 500、200% の `Settings` が `Setting` / `s` になる。`examples/mail` で確認）。
 - NavigationBar はラベルの長さが違うと、200% で項目の高さが揃わない。ラベルの折り返しのテストがない（`rail_keeps_its_width_with_a_long_label` は幅だけを見る）。
 
 ### 既定モーション（Compose で既定のアニメーションがあるもの。参照は androidx@b8256a52）

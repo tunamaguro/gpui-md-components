@@ -1,6 +1,6 @@
 //! 入力の部品のページ。
 
-use gpui_headless::TextFieldState;
+use md3_components::inputs::TextFieldState;
 use std::collections::HashMap;
 
 use gpui::{AnyElement, App, Entity, IntoElement, WeakEntity, Window, div, prelude::*, px};

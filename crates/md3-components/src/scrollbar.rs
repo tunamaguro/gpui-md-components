@@ -5,9 +5,11 @@
 //! スクロール領域の末尾の子として置く、装飾用スクロールバー。
 
 use gpui::{App, Axis, ElementId, IntoElement, Pixels, RenderOnce, Window, fill, px};
-use gpui_headless::{ScrollbarGeometry, ScrollbarInteraction, ScrollbarSource};
+use gpui_headless::{ScrollbarGeometry, ScrollbarSource};
 use md3_theme::{Md3ThemeExt, md3_tokens::component::scrollbar as tokens};
 use std::time::Duration;
+
+pub use gpui_headless::{ScrollScope, ScrollbarInteraction};
 
 /// スクロールバー。供給元の領域内に最後の子として追加する。
 ///
