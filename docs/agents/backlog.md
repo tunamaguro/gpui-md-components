@@ -4,6 +4,9 @@
 
 ## 確認していないこと
 
+- フォーカス移動やクリックによる IME 変換の終了は、Windows / macOS / Web / Linux の実際の IME では未確認。Windows 以外の入力欄間の移動は blur 処理のみに依存する。
+  gpui に変換を終える公開 API がないため、Windows 以外で変換中にプログラムからフォーカスを移して戻すと、次の変換の更新で文字が二重になることがある（X11 で確認。マウスのクリックは gpui が変換を終えるので該当しない）。
+
 - 独自テーマの custom ページ: 実画面で hover / pressed / focus と操作、AT-SPI ツリーを未確認。
 
 - 自動テストと、Linux（WSL、X11、lavapipe）の gallery での目視・マウス操作までは確認した。

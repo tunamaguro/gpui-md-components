@@ -44,6 +44,9 @@
 - 1 行入力。はみ出した分はキャレットが見えるように横にスクロールする。
 - 編集キー: ←→、Shift+←→、Home / End、Shift+Home / End、Backspace / Delete、Ctrl(⌘)+A / C / X / V。
 - IME の変換中の文字は下線付きで表示し、確定で置き換える（`EntityInputHandler`）。
+- 入力欄からフォーカスが移ると変換範囲を解除し、文字を残す。ウィンドウの非アクティブ化だけでは解除しない。Windows では入力欄の内外をクリックしても文字を残して変換を終了し、欄内ならクリック位置にキャレットを移す。Linux のクリックは gpui の処理に委ねる。macOS / Web は未確認。
+- 参照: Compose foundation `TextFieldDecoratorModifier.kt` の `onFocusChange` @ b8256a52、および [Apple `NSTextInputClient.unmarkText()`](<https://developer.apple.com/documentation/appkit/nstextinputclient/unmarktext()>)。
+- Windows の変換終了処理中は一時的に入力を受け付けず、範囲を指定しない文字の置換を無視する。この間の通常の文字入力や Backspace / Delete / 貼り付けなどは反映されないことがある。Backspace / Delete は削除前に選択範囲を変える場合があり、切り取りはコピー後の削除が無視される場合がある。
 - フォーカス中は描画後に入力位置を IME に伝え、その位置や欄の範囲が変われば更新する。変換中は変換範囲の先頭、それ以外は選択の末端を使う。欄からはみ出す位置は左右の端に収め、空欄では入力行の左端を返す。
 - `max_length` を指定すると「n/max」のカウンタを出す（入力は制限しない。超過時のエラー表示は呼び出し側）。
 
