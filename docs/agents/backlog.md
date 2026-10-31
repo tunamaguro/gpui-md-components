@@ -62,6 +62,7 @@
 - Scrollbar: RTL での左右反転、タッチでのドラッグ（`docs/specs/scrollbar.md` の「制限」）。
 - Snackbar: 入場の拡大は幅による近似（`docs/specs/snackbar.md`）。
 - TextField / Select のエラーの通知: Linux はエラーになっても文字が変わらないと読み上げず（AT-SPI は名前の変更だけを通知する）、ページを開いた時点のエラーは全 OS で読み上げられ、補助テキストは description と Status で二重にツリーに出る（レビューの P3）。
+- Snackbar: `.aria_label()` を付けても macOS は `value`（本文）を読み上げるので、他の OS と読み上げる文が変わる（レビューの P3）。
 - Select: Windows の UI Automation の Expand / Collapse で開閉できない。Button の `.menu_expanded()` と同じ処理が要る（レビューの P3）。
 - `.menu_expanded()` の Expand / Collapse は `ClickEvent::default()` を渡すので位置が (0, 0) になる。位置でメニューを開くアプリは左上に開く（レビューの P3）。
 - `MenuItem::a11y_node` と `ListItem::a11y_node` は実際の描画と役割・位置が違い、使えるのは description だけ。`docs/specs/menu.md` の expanded の記述も古い（レビューの P3）。
