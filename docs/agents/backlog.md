@@ -65,5 +65,7 @@
 - Select: Windows の UI Automation の Expand / Collapse で開閉できない。Button の `.menu_expanded()` と同じ処理が要る（レビューの P3）。
 - `.menu_expanded()` の Expand / Collapse は `ClickEvent::default()` を渡すので位置が (0, 0) になる。位置でメニューを開くアプリは左上に開く（レビューの P3）。
 - `MenuItem::a11y_node` と `ListItem::a11y_node` は実際の描画と役割・位置が違い、使えるのは description だけ。`docs/specs/menu.md` の expanded の記述も古い（レビューの P3）。
+- Chip: 削除ボタンは Button の中の Button になる。ARIA では Button の子は表現上のものなので、VoiceOver / Narrator で届くかを読み上げ確認で見る。届かなければ Group と Button 2 つに分ける（レビューの P3）。`on_remove` のない Input の削除ボタンは、操作できないのに有効に見える（レビューの P3）。
+- TextField の支援技術: TextRun に位置と単語の境界がなく、拡大鏡のカーソル追従と単語単位の移動が効かない。無効の欄は macOS で値を設定できるように見えるが、要求は捨てられる。変換中の SetTextSelection は Windows 以外で文字が二重になることがある。支援技術からの値の `\r` は残る。IME の経路、`write_text_run`、`a11y_actions`、Chip の押せる範囲のクリックには自動テストがない（レビューの P3）。
 - M3 Expressive: 多角形の形のモーフ（`MaterialShapes`、LoadingIndicator）、FAB メニュー、ツールバーなどは未実装。
 - gpui の rev を上げるときは専用 PR にする。`gpui-notes.md` の各項目と gallery の全ページを確認し直す。
