@@ -34,7 +34,7 @@ mod tabs;
 mod text_field;
 mod tooltip;
 
-pub use a11y::{A11yExt, A11yNode, RangeValue, toggled};
+pub use a11y::{A11yExt, A11yNode, RangeValue, supporting_status, toggled};
 pub use app_bar::AppBar;
 pub use button::Button;
 pub use button_group::{ButtonGroup, ButtonItem};

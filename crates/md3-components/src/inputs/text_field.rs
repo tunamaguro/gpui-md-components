@@ -25,92 +25,64 @@ pub(crate) const CARET_WIDTH: f32 = 2.0;
 #[derive(IntoElement)]
 pub struct TextField {
     id: ElementId,
-    state: Entity<TextFieldState>,
+    inner: gpui_headless::TextField,
     label: Option<SharedString>,
-    aria_label: Option<SharedString>,
     variant: TextFieldVariant,
     placeholder: Option<SharedString>,
     supporting_text: Option<SharedString>,
-    error: bool,
-    required: bool,
-    max_length: Option<usize>,
     leading_icon: Option<IconName>,
     trailing_icon: Option<IconName>,
     prefix: Option<SharedString>,
     suffix: Option<SharedString>,
-    disabled: bool,
 }
 
 impl TextField {
     /// アクセシビリティ情報。
     pub fn a11y_node(&self) -> gpui_headless::A11yNode {
-        self.headless().a11y_node()
+        self.inner.a11y_node()
     }
 
     /// 補助テキストのアクセシビリティ情報。
     pub fn supporting_a11y_node(&self) -> Option<(gpui::ElementId, gpui_headless::A11yNode)> {
         self.supporting_text.as_ref().map(|text| {
-            (
-                ElementId::NamedChild(self.id.clone().into(), "supporting-text".into()),
-                // macOS の AccessKit は live の読み上げに value を使う。
-                gpui_headless::A11yNode::new(gpui::Role::Status)
-                    .label(text.clone())
-                    .value(text.clone())
-                    .live(self.error),
-            )
+            gpui_headless::supporting_status(&self.id, text.clone(), self.inner.a11y_node().invalid)
         })
     }
 
     /// 必須の入力か指定する。
     pub fn required(mut self, required: bool) -> Self {
-        self.required = required;
+        self.inner = self.inner.required(required);
         self
-    }
-
-    fn headless(&self) -> gpui_headless::TextField {
-        let mut field = gpui_headless::TextField::new(self.id.clone(), &self.state)
-            .error(self.error)
-            .disabled(self.disabled)
-            .required(self.required);
-        if let Some(label) = self.aria_label.clone().or_else(|| self.label.clone()) {
-            field = field.aria_label(label);
-        }
-        if let Some(text) = &self.supporting_text {
-            field = field.description(text.clone());
-        }
-        field
     }
 
     /// ID と中身から作る。
     pub fn new(id: impl Into<ElementId>, state: &Entity<TextFieldState>) -> Self {
+        let id = id.into();
         Self {
-            id: id.into(),
-            state: state.clone(),
+            inner: gpui_headless::TextField::new(id.clone(), state),
+            id,
             label: None,
-            aria_label: None,
             variant: TextFieldVariant::default(),
             placeholder: None,
             supporting_text: None,
-            error: false,
-            required: false,
-            max_length: None,
             leading_icon: None,
             trailing_icon: None,
             prefix: None,
             suffix: None,
-            disabled: false,
         }
     }
 
     /// 表示するラベルを設定し、既定の名前にする。
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
-        self.label = Some(text.into());
+        let text = text.into();
+        self.inner = self.inner.label(text.clone());
+        self.label = Some(text);
         self
     }
 
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        self.aria_label = Some(label.into());
+        self.inner = self.inner.aria_label(label);
         self
     }
 
@@ -122,25 +94,29 @@ impl TextField {
 
     /// 空のときに出す例（ラベルが上に出ているときだけ見える）。
     pub fn placeholder(mut self, placeholder: impl Into<SharedString>) -> Self {
-        self.placeholder = Some(placeholder.into());
+        let placeholder = placeholder.into();
+        self.inner = self.inner.placeholder(placeholder.clone());
+        self.placeholder = Some(placeholder);
         self
     }
 
     /// 下に出す補助テキスト（エラーのときはエラーの説明）。
     pub fn supporting_text(mut self, text: impl Into<SharedString>) -> Self {
-        self.supporting_text = Some(text.into());
+        let text = text.into();
+        self.inner = self.inner.description(text.clone());
+        self.supporting_text = Some(text);
         self
     }
 
     /// エラー状態にする。
     pub fn error(mut self, error: bool) -> Self {
-        self.error = error;
+        self.inner = self.inner.error(error);
         self
     }
 
     /// 文字数の上限。補助テキストの行に「文字数/上限」を出す（入力は制限しない）。
     pub fn max_length(mut self, max_length: usize) -> Self {
-        self.max_length = Some(max_length);
+        self.inner = self.inner.max_length(max_length);
         self
     }
 
@@ -170,34 +146,32 @@ impl TextField {
 
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
-        self.disabled = disabled;
+        self.inner = self.inner.disabled(disabled);
         self
     }
 }
 
 impl RenderOnce for TextField {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut headless = self.headless().reveal_margin(crate::focus::reveal_margin());
-        if let Some(placeholder) = self.placeholder.clone() {
-            headless = headless.placeholder(placeholder);
-        }
-        if let Some(max_length) = self.max_length {
-            headless = headless.max_length(max_length);
-        }
-        let (base, control) = headless.build(window, cx);
+        let node = self.inner.a11y_node();
+        let supporting_a11y = self.supporting_a11y_node();
+        let (base, control) = self
+            .inner
+            .reveal_margin(crate::focus::reveal_margin())
+            .build(window, cx);
         let text = &control.text;
         let focused = control.focused;
         let field_state = FieldState {
             focused,
             hovered: control.hovered,
-            error: self.error,
-            disabled: self.disabled,
+            error: node.invalid,
+            disabled: node.disabled,
         };
         let floated = focused || !text.is_empty();
         let theme = cx.md3();
         let colors = super::field::FieldColors::of(self.variant, field_state);
         let affix_color = |role: ColorRole| {
-            if self.disabled {
+            if node.disabled {
                 tint(theme, colors.input)
             } else {
                 theme.color(role)
@@ -261,7 +235,7 @@ impl RenderOnce for TextField {
             }),
             content,
             supporting_text: self.supporting_text.clone(),
-            supporting_a11y: self.supporting_a11y_node(),
+            supporting_a11y,
             counter,
         }
         .render(cx);

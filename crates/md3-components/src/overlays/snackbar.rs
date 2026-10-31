@@ -28,29 +28,28 @@ pub use gpui_headless::{SnackbarPolicy, SnackbarResult};
 pub struct Snackbar {
     id: ElementId,
     message: SharedString,
-    aria_label: Option<Option<SharedString>>,
+    inner: gpui_headless::Snackbar,
     action: Option<(SharedString, DismissHandler)>,
     dismiss: Option<(SharedString, DismissHandler)>,
-    active: bool,
 }
 
 impl Snackbar {
     /// ID と文から作る。
     pub fn new(id: impl Into<ElementId>, message: impl Into<SharedString>) -> Self {
+        let id = id.into();
+        let message = message.into();
         Self {
-            id: id.into(),
-            message: message.into(),
-            aria_label: None,
+            inner: gpui_headless::Snackbar::new(id.clone(), message.clone()),
+            id,
+            message,
             action: None,
             dismiss: None,
-            active: true,
         }
     }
 
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self.inner = self.inner.aria_label(label);
         self
     }
 
@@ -73,25 +72,15 @@ impl Snackbar {
         self.dismiss = Some((label.into(), Rc::new(handler)));
         self
     }
-
-    /// 役割と読み上げを受け持つ部品。
-    fn headless(&self) -> gpui_headless::Snackbar {
-        let mut snackbar =
-            gpui_headless::Snackbar::new(self.id.clone(), self.message.clone()).active(self.active);
-        if let Some(label) = self.aria_label.clone() {
-            snackbar = snackbar.aria_label(label.unwrap_or_default());
-        }
-        snackbar
-    }
 }
 
 impl RenderOnce for Snackbar {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let base = self.headless().build();
+        let disabled = !self.inner.a11y_node().live;
+        let base = self.inner.build();
         let theme = cx.md3();
         let parent = Arc::new(self.id.clone());
         let has_dismiss = self.dismiss.is_some();
-        let disabled = !self.active;
         let end_space = if has_dismiss {
             px(0.0)
         } else {
@@ -322,7 +311,7 @@ impl Render for SnackbarHost {
             });
         }
         let exiting = front.exiting;
-        snackbar.active = !exiting;
+        snackbar.inner = snackbar.inner.active(!exiting);
         let effects = cx.md3().spring(MotionToken::FastEffects);
         let spatial = cx.md3().spring(MotionToken::FastSpatial);
         // gpui には要素全体の scale 変換がないため、コンテナの幅で拡大を表す。
