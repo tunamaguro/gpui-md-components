@@ -32,6 +32,8 @@ macro_rules! delegate_accessible_name {
 }
 
 #[cfg(feature = "buttons")]
+mod anchor_tooltip;
+#[cfg(feature = "buttons")]
 pub mod buttons;
 #[cfg(feature = "containment")]
 pub mod containment;

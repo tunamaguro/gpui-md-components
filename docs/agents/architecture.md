@@ -85,6 +85,7 @@ gallery ─────────────> md3-components ──> md3-them
 | モジュール                                      | 役割                                                                                                               |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `state_layer.rs` / `focus.rs`                   | 状態レイヤーとフォーカスリング。角が不揃いな部品は `.corners(Corners)` を渡す                                      |
+| `anchor_tooltip.rs`                             | 部品の基準要素に Tooltip を付け、`overlays` feature の分岐をまとめる                                               |
 | `style.rs`                                      | `StyledExt`（`corners` など）                                                                                      |
 | `motion.rs`                                     | 色をテーマのバネで補間する `motion::color`（`Theme::spring` と組み合わせる）                                       |
 | `gpui-headless` の `control` / `focus` / `a11y` | 操作部品の共通処理、フォーカス、アクセシビリティ情報、矢印移動の `step`                                            |
