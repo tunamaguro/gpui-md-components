@@ -143,6 +143,13 @@ Tab でのフォーカス移動とフォーカスリングを確認した。
 - 手動確認: Windows / macOS / Linux のスクリーンリーダー、実 GPU の表示、Web のマウス操作は未検証。
   GPUI のテスト環境では AccessKit ツリーを取得できず、Web は AccessKit 非対応。
 
+## 複数行 TextField のスクロールバー（2026-11-01）
+
+- 判断の根拠は `docs/specs/text-field.md` の「アクセシビリティ」（WCAG 1.4.11、2.5.7、2.5.8、2.1.1）。m3.material.io の Text fields の Accessibility タブは本文を読めなかった。
+- 自動確認: `crates/gpui-headless/tests/text_field.rs`（隠れた行の報告、再描画で戻らないこと、無効の欄のホイール）、`tests/a11y_scrollbar.rs`（隠れた行があるときだけバーがクリックを受ける）。
+- gallery（Linux、X11、100% と 200%）: 常時表示、つまみのドラッグ、トラックのページ移動、無効の欄のホイール、末尾のアイコンと接尾辞がある欄の配置。
+- 未確認: Windows / macOS、Web のマウス操作、トラックパッド、読み上げ。コントラストの値は Compose の既定のベースライン配色（ライト Outline #79747E / Surface Container Highest #E6E0E9、ダーク #938F99 / #36343B）で計算した。
+
 ## 既定モーション / Snackbar の追加監査（2026-10-29）
 
 - 対象: Switch / RadioGroup、Snackbar / Filled TextField、NavigationBar / Rail。

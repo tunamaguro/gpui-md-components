@@ -88,11 +88,15 @@
 
 ### その他
 
-- TextField の複数行（レビューの P3）: ZWJ の直後の改行が前の文字と結合し、Backspace で前の文字ごと消える（`boundaries`）。内部のスクロールに `Scrollbar` がなく、`gpui-notes.md` の新しいスクロール領域の方針と合っていない。選択の改行の幅 `LINE_BREAK_SELECTION_WIDTH` は見た目の値だが headless にある。taffy の測定は丸める前の幅で折り返すので、端数の幅で prepaint の行数が 1 行増えることがある（コードを読んだだけ）。Web で変換中の上下キーは選択を動かす（コードを読んだだけ）。`reveal_in_scopes`、選択の改行の幅、段落の間引き、幅からのキャレット分の差し引きには自動テストがない。`tab_leaves_the_multi_line_field` は移動先を確かめていない。
+- TextField の複数行（レビューの P3）: ZWJ の直後の改行が前の文字と結合し、Backspace で前の文字ごと消える（`boundaries`）。選択の改行の幅 `LINE_BREAK_SELECTION_WIDTH` は見た目の値だが headless にある。taffy の測定は丸める前の幅で折り返すので、端数の幅で prepaint の行数が 1 行増えることがある（コードを読んだだけ）。Web で変換中の上下キーは選択を動かす（コードを読んだだけ）。`reveal_in_scopes`、選択の改行の幅、段落の間引き、幅からのキャレット分の差し引きには自動テストがない。`tab_leaves_the_multi_line_field` は移動先を確かめていない。
 - Web の IME 候補ウィンドウは左上に表示される。gpui_web の位置更新と隠れた textarea の変更が必要で、このリポジトリの許可された依存では修正できない。
 - ButtonGroup: 子の ID が同じ 2 つのグループを同じ親に置くと、押下の状態（`press_state`）を共有し、片方を押すと両方が広がる（`md3-components/src/expressive/button_group.rs`。分離前からの不具合）。
 - フォーカス追従: `.hidden()` の下でフォーカスを持ったまま隠れた部品は prepaint されず、再表示と同時にフォーカスを戻すと `reveal_on_focus` が移動に気付かない（Codex レビューの P2。今の部品には該当する使い方がない）。
 - Scrollbar: RTL での左右反転、タッチでのドラッグ（`docs/specs/scrollbar.md` の「制限」）。
+- TextField の選択ドラッグ（レビューの P3）: ウィンドウ全体の移動のリスナーを paint の `is_selecting` で登録するので、押下の次の描画より前の移動を取りこぼす。ドラッグ中に欄を無効にすると `is_selecting` が残り、欄の外のドラッグで選択が変わる。リスナーを常に登録し、イベントの時点で判定すれば両方直る（`event.dragging()` でなければ `is_selecting` を下げる）。
+- 複数行の TextField のスクロールバーのテスト（レビューの P3）: 余白の左端の境界、末尾のアイコンと接尾辞がある欄の位置、1 行の欄を外へドラッグする場合、バーの上で離す場合の自動テストがない。`a11y_scrollbar.rs` は右端から 4px しか見ない。
+- 複数行の TextField のスクロールバー（レビューの P3）: バーの上で欄の hover が切れる（`BlockMouseExceptScroll`）。端数の倍率で高さが丸められると、隠れた行がなくても 1 px 未満の `max` でバーが出る可能性がある（コードを読んだだけ）。
+- Scrollbar の WCAG: 既定の操作領域は幅 12dp で 2.5.8 の 24dp に届かない。既定のつまみ（Outline 0.7）は背景によって 3:1 に届かず（既定の配色の Surface で 2.58:1）、`.scrollbar_fade(false)` で常時表示にして唯一の印として使うなら 1.4.11 に当たる。複数行の TextField だけ `docs/specs/text-field.md` の値に直した。
 - Snackbar: 入場の拡大は幅による近似（`docs/specs/snackbar.md`）。
 - TextField / Select のエラーの通知: Linux はエラーになっても文字が変わらないと読み上げず（AT-SPI は名前の変更だけを通知する）、ページを開いた時点のエラーは全 OS で読み上げられ、補助テキストは description と Status で二重にツリーに出る（レビューの P3）。
 - Snackbar: `.aria_label()` を付けても macOS は `value`（本文）を読み上げるので、他の OS と読み上げる文が変わる（レビューの P3）。

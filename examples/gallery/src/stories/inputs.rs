@@ -103,6 +103,8 @@ pub fn page(
         let notes = fields.get("multi-filled", "", cx);
         let outlined_notes = fields.get("multi-outlined", "", cx);
         let scrolled = fields.get("multi-scrolled", &long, cx);
+        let scrolled_outlined = fields.get("multi-scrolled-outlined", &long, cx);
+        let scrolled_disabled = fields.get("multi-scrolled-disabled", &long, cx);
         let error = fields.get("multi-error", "1 行目\n2 行目", cx);
         let disabled = fields.get("multi-disabled", "1 行目\n2 行目", cx);
         Section::new("Multi-line text field").child(
@@ -129,6 +131,22 @@ pub fn page(
                     "上限でスクロール",
                     TextField::new("multi-scrolled", &scrolled)
                         .label("本文")
+                        .multi_line(1, 4),
+                ))
+                .child(labeled(
+                    "Outlined、末尾のアイコンと接尾辞でスクロール",
+                    TextField::new("multi-scrolled-outlined", &scrolled_outlined)
+                        .label("本文")
+                        .variant(TextFieldVariant::Outlined)
+                        .trailing_icon(IconName::Mail)
+                        .suffix("kg")
+                        .multi_line(1, 4),
+                ))
+                .child(labeled(
+                    "Disabled でスクロール",
+                    TextField::new("multi-scrolled-disabled", &scrolled_disabled)
+                        .label("本文")
+                        .disabled(true)
                         .multi_line(1, 4),
                 ))
                 .child(labeled(

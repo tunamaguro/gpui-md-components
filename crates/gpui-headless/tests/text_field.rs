@@ -3,11 +3,16 @@
 mod support;
 
 use gpui::{
-    Bounds, Entity, EntityInputHandler, Focusable, InputEvent, KeyBinding, Modifiers, MouseButton,
-    MouseDownEvent, Role, TestAppContext, VisualTestContext, actions, black, div, point,
-    prelude::*, px,
+    Axis, Bounds, Entity, EntityInputHandler, Focusable, InputEvent, KeyBinding, Modifiers,
+    MouseButton, MouseDownEvent, MouseMoveEvent, Pixels, Role, ScrollDelta, ScrollEvent,
+    TestAppContext, VisualTestContext, actions, black, div, point, prelude::*, px,
 };
-use gpui_headless::{SearchField, TextField, TextFieldState, TextPaint};
+use gpui_headless::{
+    Scrollbar, ScrollbarGeometry, ScrollbarSource, SearchField, TextField, TextFieldScroll,
+    TextFieldState, TextPaint,
+};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 fn open(cx: &mut TestAppContext) -> (Entity<TextFieldState>, &mut VisualTestContext) {
     open_with_placeholder(cx, None)
@@ -909,4 +914,190 @@ mod measured {
         assert_eq!(rect.size.height, line, "またがる範囲は開始行の高さ");
         assert_eq!(rect.right(), bounds.right());
     }
+}
+
+/// 複数行の欄と、その位置を読むスクロールバーを開く。
+fn open_with_scrollbar<'a>(
+    cx: &'a mut TestAppContext,
+    text: &str,
+    disabled: bool,
+) -> (
+    Entity<TextFieldState>,
+    Rc<RefCell<Option<TextFieldScroll>>>,
+    &'a mut VisualTestContext,
+) {
+    let state = cx.new(|cx| TextFieldState::new(cx).with_text(text));
+    let scroll = Rc::new(RefCell::new(None));
+    let cx = support::open(cx, {
+        let state = state.clone();
+        let scroll = scroll.clone();
+        move |window, cx| {
+            let (base, control) = TextField::new("field", &state)
+                .label("本文")
+                .multi_line(1, 4)
+                .disabled(disabled)
+                .build(window, cx);
+            let source = control.scroll(cx).expect("複数行の欄は位置を持つ");
+            *scroll.borrow_mut() = Some(source.clone());
+            let color = black();
+            let bar = Scrollbar::new(
+                "bar",
+                source,
+                ScrollbarGeometry {
+                    track_inset: px(2.0),
+                    cross_inset: px(0.0),
+                    thickness: px(4.0),
+                    min_thumb_length: px(24.0),
+                    max_thumb_fraction: 0.9,
+                    hit_width: px(24.0),
+                },
+            )
+            .build(window, cx, |_, _, _| {});
+            base.w(px(WIDTH))
+                .debug_selector(|| FIELD.into())
+                .child(control.input(
+                    TextPaint {
+                        text: color,
+                        placeholder: color,
+                        caret: color,
+                        selection: color,
+                        caret_width: px(2.0),
+                    },
+                    None,
+                ))
+                .child(bar)
+                .into_any_element()
+        }
+    });
+    (state, scroll, cx)
+}
+
+fn source(scroll: &Rc<RefCell<Option<TextFieldScroll>>>) -> TextFieldScroll {
+    scroll.borrow().clone().expect("描画で位置が渡されている")
+}
+
+fn offset(scroll: &Rc<RefCell<Option<TextFieldScroll>>>) -> Pixels {
+    ScrollbarSource::offset(&source(scroll), Axis::Vertical)
+}
+
+fn max_offset(scroll: &Rc<RefCell<Option<TextFieldScroll>>>) -> Pixels {
+    ScrollbarSource::max_offset(&source(scroll), Axis::Vertical)
+}
+
+fn wheel_on_field(
+    scroll: &Rc<RefCell<Option<TextFieldScroll>>>,
+    cx: &mut VisualTestContext,
+    delta: Pixels,
+) {
+    let bounds = ScrollbarSource::viewport(&source(scroll));
+    cx.update(|window, cx| {
+        window.dispatch_event(
+            ScrollEvent {
+                position: bounds.center(),
+                delta: ScrollDelta::Pixels(point(px(0.0), delta)),
+                ..Default::default()
+            }
+            .to_platform_input(),
+            cx,
+        );
+    });
+    support::draw(cx);
+}
+
+#[gpui::test]
+fn scroll_reports_hidden_rows(cx: &mut TestAppContext) {
+    let (_, scroll, cx) = open_with_scrollbar(cx, "1\n2\n3\n4", false);
+    assert_eq!(max_offset(&scroll), px(0.0), "4 行は上限に収まる");
+    let mut app = cx.cx.clone();
+    let (_, scroll, cx) = open_with_scrollbar(&mut app, &"行\n".repeat(30), false);
+    let viewport = ScrollbarSource::viewport(&source(&scroll));
+    assert!(viewport.size.height > px(0.0), "表示領域は入力行の範囲");
+    assert!(max_offset(&scroll) > px(0.0), "隠れた行の分だけ動かせる");
+    assert_eq!(
+        ScrollbarSource::max_offset(&source(&scroll), Axis::Horizontal),
+        px(0.0),
+        "横には動かない"
+    );
+    support::draw(cx);
+}
+
+#[gpui::test]
+fn scrollbar_position_survives_redraw_until_the_caret_moves(cx: &mut TestAppContext) {
+    let (state, scroll, cx) = open_with_scrollbar(cx, &"行\n".repeat(30), false);
+    support::tab(cx);
+    let max = max_offset(&scroll);
+    ScrollbarSource::set_offset(&source(&scroll), Axis::Vertical, px(-10.0));
+    assert_eq!(offset(&scroll), px(0.0), "先頭より前へは動かない");
+    ScrollbarSource::set_offset(&source(&scroll), Axis::Vertical, max + px(10.0));
+    assert_eq!(offset(&scroll), max, "末尾より後へは動かない");
+    ScrollbarSource::set_offset(&source(&scroll), Axis::Vertical, max / 2.0);
+    support::draw(cx);
+    assert_eq!(offset(&scroll), max / 2.0, "再描画で引き戻さない");
+    wheel_on_field(&scroll, cx, px(-24.0));
+    assert_eq!(
+        offset(&scroll),
+        max / 2.0 + px(24.0),
+        "ホイールは同じ位置から動く"
+    );
+    support::press(cx, DOCUMENT_START);
+    assert_eq!(cursor(&state, cx), 0);
+    assert_eq!(
+        offset(&scroll),
+        px(0.0),
+        "カーソルが動くと見える位置まで戻る"
+    );
+}
+
+#[gpui::test]
+fn disabled_field_still_scrolls_with_the_wheel(cx: &mut TestAppContext) {
+    let (_, scroll, cx) = open_with_scrollbar(cx, &"行\n".repeat(30), true);
+    assert!(max_offset(&scroll) > px(0.0));
+    wheel_on_field(&scroll, cx, px(-24.0));
+    assert_eq!(offset(&scroll), px(24.0), "無効の欄でも隠れた行を読める");
+}
+
+#[gpui::test]
+fn selection_drag_continues_over_the_scrollbar(cx: &mut TestAppContext) {
+    let (state, scroll, cx) = open_with_scrollbar(cx, &"行\n".repeat(30), false);
+    let bounds = ScrollbarSource::viewport(&source(&scroll));
+    let start = bounds.origin + point(px(1.0), px(1.0));
+    // バーの操作領域（右端の 24px）の上。
+    let over_bar = point(bounds.right() - px(2.0), bounds.bottom() - px(2.0));
+    cx.update(|window, cx| {
+        for event in [
+            MouseDownEvent {
+                position: start,
+                button: MouseButton::Left,
+                ..Default::default()
+            }
+            .to_platform_input(),
+            MouseMoveEvent {
+                position: start,
+                pressed_button: Some(MouseButton::Left),
+                ..Default::default()
+            }
+            .to_platform_input(),
+        ] {
+            window.dispatch_event(event, cx);
+        }
+    });
+    support::draw(cx);
+    cx.update(|window, cx| {
+        window.dispatch_event(
+            MouseMoveEvent {
+                position: over_bar,
+                pressed_button: Some(MouseButton::Left),
+                ..Default::default()
+            }
+            .to_platform_input(),
+            cx,
+        );
+    });
+    support::draw(cx);
+    let selected = cx.read_entity(&state, |state, _| state.selected_range());
+    assert!(
+        !selected.is_empty(),
+        "バーの上でも選択が広がる: {selected:?}"
+    );
+    assert_eq!(offset(&scroll), px(0.0), "バーは動かない");
 }

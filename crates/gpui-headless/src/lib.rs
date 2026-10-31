@@ -100,7 +100,7 @@ pub use snackbar::{
 pub use switch::{Switch, SwitchState};
 pub use tabs::{TabItem, TabOption, Tabs};
 pub use text_field::{
-    SearchField, TextField, TextFieldControl, TextFieldEvent, TextFieldState, TextPaint,
-    grapheme_count,
+    SearchField, TextField, TextFieldControl, TextFieldEvent, TextFieldScroll, TextFieldState,
+    TextPaint, grapheme_count,
 };
 pub use tooltip::{DescribedTooltip, FocusTooltip, Tooltip, tooltip_origin};
