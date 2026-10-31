@@ -441,6 +441,12 @@ actions!(
     ]
 );
 
+const MACOS: bool = cfg!(target_os = "macos");
+const DOCUMENT_START: &str = if MACOS { "cmd-up" } else { "ctrl-home" };
+const DOCUMENT_END: &str = if MACOS { "cmd-down" } else { "ctrl-end" };
+const COPY: &str = if MACOS { "cmd-c" } else { "ctrl-c" };
+const CUT: &str = if MACOS { "cmd-x" } else { "ctrl-x" };
+
 const FIELD: &str = "multi-line-field";
 const WIDTH: f32 = 102.0;
 /// 1 行に入る文字の数（`NoopTextSystem` の 1 文字は 9.6px、幅は `WIDTH` からキャレットの分を引く）。
@@ -508,7 +514,7 @@ fn cursor(state: &Entity<TextFieldState>, cx: &mut VisualTestContext) -> usize {
 #[gpui::test]
 fn edge_keys_on_an_empty_field_ignore_the_placeholder(cx: &mut TestAppContext) {
     let (state, cx) = open_with_placeholder(cx, Some("名前を入力"));
-    for key in ["end", "shift-end", "shift-home", "ctrl-c", "ctrl-x"] {
+    for key in ["end", "shift-end", "shift-home", COPY, CUT] {
         support::press(cx, key);
         cx.read_entity(&state, |state, _| {
             assert_eq!(state.text(), "");
@@ -652,11 +658,11 @@ fn arrows_keep_the_column_and_stop_at_the_ends(cx: &mut TestAppContext) {
     assert_eq!(cursor(&state, cx), 8, "x を保つ");
     support::press(cx, "up");
     assert_eq!(cursor(&state, cx), 0, "先頭より上は文字列の先頭");
-    support::press(cx, "ctrl-end");
+    support::press(cx, DOCUMENT_END);
     assert_eq!(cursor(&state, cx), text.len());
     support::press(cx, "down");
     assert_eq!(cursor(&state, cx), text.len(), "末尾より下は文字列の末尾");
-    support::press(cx, "ctrl-home");
+    support::press(cx, DOCUMENT_START);
     assert_eq!(cursor(&state, cx), 0);
     support::press(cx, "shift-down");
     cx.read_entity(&state, |state, _| {
@@ -671,7 +677,7 @@ fn page_keys_move_by_the_visible_rows(cx: &mut TestAppContext) {
         .collect::<Vec<_>>()
         .join("\n");
     let (state, _, cx) = open_field(cx, &text, Some((1, 3)));
-    support::press(cx, "ctrl-home");
+    support::press(cx, DOCUMENT_START);
     support::press(cx, "pagedown");
     assert_eq!(cursor(&state, cx), 18, "3 行下の先頭");
     support::press(cx, "pageup");
@@ -784,7 +790,7 @@ mod measured {
         );
         support::press(cx, "end");
         assert_eq!(cursor(&state, cx), 10, "もう一度押しても次の行へ進まない");
-        support::press(cx, "ctrl-home");
+        support::press(cx, DOCUMENT_START);
         support::press(cx, "shift-end");
         assert_eq!(ime_row_y(&state, cx), px(0.0), "選択の End も 1 行目に残る");
     }
@@ -819,9 +825,9 @@ mod measured {
     fn caret_scrolls_into_view_and_wheel_is_not_pulled_back(cx: &mut TestAppContext) {
         let text = format!("{ROW}\n{ROW}\n{ROW}\n{ROW}");
         let (state, parent, cx) = open_field(cx, &text, Some((2, 2)));
-        support::press(cx, "ctrl-home");
+        support::press(cx, DOCUMENT_START);
         assert_eq!(first_visible(&state, cx), 0);
-        support::press(cx, "ctrl-end");
+        support::press(cx, DOCUMENT_END);
         assert_eq!(first_visible(&state, cx), 22, "カーソルの行まで送る");
         wheel(cx, 1.0);
         assert_eq!(first_visible(&state, cx), 11, "ホイールで上へ戻る");
@@ -860,7 +866,7 @@ mod measured {
     fn click_after_scrolling_uses_the_scrolled_row(cx: &mut TestAppContext) {
         let text = format!("{ROW}\n{ROW}\n{ROW}\n{ROW}");
         let (state, _, cx) = open_field(cx, &text, Some((2, 2)));
-        support::press(cx, "ctrl-end");
+        support::press(cx, DOCUMENT_END);
         let position = field_bounds(cx).origin + point(px(1.0), px(1.0));
         cx.simulate_mouse_down(position, MouseButton::Left, Modifiers::none());
         cx.simulate_mouse_up(position, MouseButton::Left, Modifiers::none());
@@ -891,7 +897,7 @@ mod measured {
         let text = format!("{ROW}\n{ROW}\n{ROW}");
         let (state, _, cx) = open_field(cx, &text, Some((2, 2)));
         let line = line_height(cx);
-        support::press(cx, "ctrl-end");
+        support::press(cx, DOCUMENT_END);
         assert_eq!(ime_row_y(&state, cx), line, "最後の行は 2 行目に見える");
         let bounds = field_bounds(cx);
         let rect = cx.update(|window, cx| {
