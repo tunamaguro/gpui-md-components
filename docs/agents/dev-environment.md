@@ -26,6 +26,7 @@ nix develop -c bash -c '
 ```
 
 - `nix flake check` は crane のビルドなので時間がかかる。作業中の確認は `nix develop -c cargo clippy ...` / `cargo test -p <crate>` など cargo を直接使ってよい。
+- `nix flake check` は git が追跡するファイルだけを見る。新しいファイルは `git add` してから回す（未追跡だとビルドが落ちる）。
 - `nix fmt` は Markdown も整形する（番号付きリストは `1.` にそろう）。整形の差分も PR に含める。
 
 ## CI（GitHub Actions）
@@ -60,6 +61,11 @@ nix develop -c bash -c '
 - sandbox からは Wayland に繋がらず、Codex は gallery を目視できない。画面の確認は Claude が行う（skill `gallery-check`）。
 - 実装後は Codex にレビューさせ、指摘を Codex に直させて再レビューする。**レビューの完了を待ってからマージする**（skill `ship-pr`）。
 - Codex には使用量の上限がある。上限に達したら、回復時刻まで待つか、残りを Claude が行い PR に明記する。ユーザーが待たないと言ったら Claude が実装する。レビューはサブエージェントに任せる。
+
+## gallery のページを追加する
+
+`gallery/src/main.rs` の `Page` と `PAGES` に追加し、render の `match` とテスト内の全 variant の `match` を更新する。
+ビルド後のページキーの一覧は `MD3_GALLERY_LIST_PAGES=1 target/debug/gallery` で確認できる。
 
 ## 画面の確認
 

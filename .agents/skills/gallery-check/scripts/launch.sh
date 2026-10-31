@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # gallery をビルドして X11 で起動する（xdotool で操作・撮影するため Wayland を外す）。
-#   launch.sh [ページ] [ログ]   ページ: foundations buttons selection inputs overlays navigation containment expressive custom
+#   launch.sh [ページ] [ログ]   ページの一覧: MD3_GALLERY_LIST_PAGES=1 target/debug/gallery
 # 既に起動している gallery は止める。起動後、ウィンドウが出るまで待ってから戻る。
 set -euo pipefail
 root=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
