@@ -1,6 +1,6 @@
 //! ボタンの状態と操作。
 
-use crate::{A11yExt, A11yNode, ControlState, control, toggled};
+use crate::{A11yExt, A11yNode, ControlState, MenuKind, control, toggled};
 use gpui::{
     App, ClickEvent, Div, ElementId, Pixels, Role, SharedString, Stateful, Window, accesskit,
     prelude::*, px,
@@ -112,7 +112,7 @@ impl Button {
             node = node.description(description.clone());
         }
         if let Some(expanded) = self.menu_expanded {
-            node = node.expanded(expanded).has_popup(accesskit::HasPopup::Menu);
+            node = node.expanded(expanded).has_popup(MenuKind::Actions.popup());
         }
         match self.toggled {
             Some(value) => node.toggled(toggled(value)),
