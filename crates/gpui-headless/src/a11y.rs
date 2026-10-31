@@ -28,14 +28,16 @@ pub struct A11yNode {
     pub role: Role,
     /// 名前（読み上げられるラベル）。
     pub label: Option<SharedString>,
+    /// 文字列の値。
+    pub value: Option<SharedString>,
     /// 補足の説明。
     pub description: Option<SharedString>,
     /// 必須の入力か。
     pub required: bool,
     /// 開閉の状態。
     pub expanded: Option<bool>,
-    /// メニューを開くか。
-    pub has_popup_menu: bool,
+    /// 開くポップアップの種類。
+    pub has_popup: Option<accesskit::HasPopup>,
     /// 切り替えの状態（Checkbox、Switch、トグルボタン）。
     pub toggled: Option<Toggled>,
     /// 選択の状態（RadioButton、SegmentedButton の項目）。
@@ -60,10 +62,11 @@ impl A11yNode {
         Self {
             role,
             label: None,
+            value: None,
             description: None,
             required: false,
             expanded: None,
-            has_popup_menu: false,
+            has_popup: None,
             toggled: None,
             selected: None,
             range: None,
@@ -88,6 +91,12 @@ impl A11yNode {
         self
     }
 
+    /// 文字列の値を指定する。
+    pub fn value(mut self, value: impl Into<SharedString>) -> Self {
+        self.value = Some(value.into());
+        self
+    }
+
     /// 補足の説明を指定する。
     pub fn description(mut self, description: impl Into<SharedString>) -> Self {
         let description = description.into();
@@ -107,9 +116,9 @@ impl A11yNode {
         self
     }
 
-    /// メニューを開くか指定する。
-    pub fn has_popup_menu(mut self, has_popup_menu: bool) -> Self {
-        self.has_popup_menu = has_popup_menu;
+    /// 開くポップアップの種類を指定する。
+    pub fn has_popup(mut self, has_popup: accesskit::HasPopup) -> Self {
+        self.has_popup = Some(has_popup);
         self
     }
 
@@ -175,6 +184,9 @@ pub trait A11yExt: StatefulInteractiveElement + Sized {
         if let Some(label) = node.label {
             this = this.aria_label(label);
         }
+        if let Some(value) = node.value {
+            this = this.aria_value(value);
+        }
         if let Some(description) = node.description {
             this = this.aria_description(description);
         }
@@ -204,7 +216,7 @@ pub trait A11yExt: StatefulInteractiveElement + Sized {
             || node.invalid
             || node.live
             || node.required
-            || node.has_popup_menu
+            || node.has_popup.is_some()
         {
             this = this.a11y_synthetic_children(move |builder| {
                 let raw = builder.parent_node();
@@ -220,8 +232,8 @@ pub trait A11yExt: StatefulInteractiveElement + Sized {
                 if node.required {
                     raw.set_required();
                 }
-                if node.has_popup_menu {
-                    raw.set_has_popup(accesskit::HasPopup::Menu);
+                if let Some(has_popup) = node.has_popup {
+                    raw.set_has_popup(has_popup);
                 }
                 if node.live {
                     raw.set_live(accesskit::Live::Polite);

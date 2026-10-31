@@ -175,3 +175,5 @@ Tab でのフォーカス移動とフォーカスリングを確認した。
 ## 2026-10-31: 説明と状態の追加
 
 TextField / Select の補助テキストを description と Status に出し、エラー時の live（polite）と必須状態を追加した。Dialog、ListItem、MenuItem の補足も description に含め、メニューボタンと Select にポップアップの状態を付けた。ID を指定した Text は Label として出る。純関数のテストで値を検証する。画面、OS のアクセシビリティツリー、スクリーンリーダーでの通知は未確認。
+
+レビュー修正: メニューボタンの Expand / Collapse に対応し、Select の has-popup を Listbox にした。Text の文字は Label の value にも設定する。Linux / Windows の AccessKit のソースでは Status の名前は label から取得されるため、補助テキストの変更は不要。これらの修正後の OS のツリーと支援技術による操作は未確認。

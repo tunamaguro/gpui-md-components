@@ -35,7 +35,7 @@
 
 ## アクセシビリティ
 
-- メニューのトリガーには `.menu_expanded(open)` を指定し、has-popup と expanded を伝える（APG Menu Button）。
+- メニューのトリガーには `.menu_expanded(open)` を指定し、has-popup（Menu）と expanded を伝える（APG Menu Button）。支援技術の Expand / Collapse は状態が変わる場合だけクリックを実行する。
 
 - 役割: Button
 

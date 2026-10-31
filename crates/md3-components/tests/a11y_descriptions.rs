@@ -1,6 +1,6 @@
 //! 補足テキストと追加の状態のアクセシビリティ契約。
 
-use gpui::{AppContext, Role, TestAppContext};
+use gpui::{AppContext, Role, TestAppContext, accesskit::HasPopup};
 use gpui_headless::TextFieldState;
 use md3_components::{
     IconName, Text,
@@ -35,7 +35,7 @@ fn select_exposes_supporting_description_required_and_popup() {
     assert_eq!(node.role, Role::ComboBox);
     assert_eq!(node.description.as_deref(), Some("一つ選択"));
     assert!(node.required);
-    assert!(node.has_popup_menu);
+    assert_eq!(node.has_popup, Some(HasPopup::Listbox));
 }
 
 #[test]
@@ -143,7 +143,7 @@ fn md3_button_menu_states_distinguish_unset_closed_and_open() {
     for open in [false, true] {
         let node = Button::new("menu", "操作").menu_expanded(open).a11y_node();
         assert_eq!(node.expanded, Some(open));
-        assert!(node.has_popup_menu);
+        assert_eq!(node.has_popup, Some(HasPopup::Menu));
     }
 }
 
@@ -160,7 +160,7 @@ fn md3_icon_button_menu_states_distinguish_unset_closed_and_open() {
             .menu_expanded(open)
             .a11y_node();
         assert_eq!(node.expanded, Some(open));
-        assert!(node.has_popup_menu);
+        assert_eq!(node.has_popup, Some(HasPopup::Menu));
     }
 }
 
@@ -177,4 +177,5 @@ fn text_only_exposes_a_label_node_with_an_explicit_id() {
         .expect("ID を指定した文字のノード");
     assert_eq!(node.role, Role::Label);
     assert_eq!(node.label.as_deref(), Some("本文"));
+    assert_eq!(node.value.as_deref(), Some("本文"));
 }

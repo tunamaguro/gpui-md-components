@@ -29,7 +29,7 @@
 
 ## アクセシビリティ
 
-- 補助テキストを description と Status ノードにし、エラー時は invalid と live（polite）を付ける。`.required(true)` は必須状態を伝え、見える印はラベルに付ける（WCAG 1.3.1、3.3.1、4.1.3）。ComboBox に has-popup と expanded を付ける。
+- 補助テキストを description と Status ノードにし、エラー時は invalid と live（polite）を付ける。`.required(true)` は必須状態を伝え、見える印はラベルに付ける（WCAG 1.3.1、3.3.1、4.1.3）。ComboBox に has-popup（Listbox）と expanded を付ける。
 
 - 役割: ComboBox（選択肢は ListBox / ListBoxOption）
 

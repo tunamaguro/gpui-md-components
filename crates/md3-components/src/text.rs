@@ -24,9 +24,11 @@ impl Text {
 
     /// アクセシビリティ情報。
     pub fn a11y_node(&self) -> Option<gpui_headless::A11yNode> {
-        self.id
-            .as_ref()
-            .map(|_| gpui_headless::A11yNode::new(gpui::Role::Label).label(self.text.clone()))
+        self.id.as_ref().map(|_| {
+            gpui_headless::A11yNode::new(gpui::Role::Label)
+                .label(self.text.clone())
+                .value(self.text.clone())
+        })
     }
 
     /// タイプスケールの種類と文字列から作る。

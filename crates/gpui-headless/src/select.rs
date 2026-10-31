@@ -132,7 +132,7 @@ impl Select {
             .disabled(self.disabled)
             .invalid(self.error)
             .required(self.required)
-            .has_popup_menu(true);
+            .has_popup(gpui::accesskit::HasPopup::Listbox);
         if let Some(description) = &self.description {
             node = node.description(description.clone());
         }

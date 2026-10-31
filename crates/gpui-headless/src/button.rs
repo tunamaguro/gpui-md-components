@@ -2,8 +2,10 @@
 
 use crate::{A11yExt, A11yNode, ControlState, control, toggled};
 use gpui::{
-    App, ClickEvent, Div, ElementId, Pixels, Role, SharedString, Stateful, Window, prelude::*, px,
+    App, ClickEvent, Div, ElementId, Pixels, Role, SharedString, Stateful, Window, accesskit,
+    prelude::*, px,
 };
+use std::rc::Rc;
 
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
@@ -85,7 +87,7 @@ impl Button {
             node.label = label.clone();
         }
         if let Some(expanded) = self.menu_expanded {
-            node = node.expanded(expanded).has_popup_menu(true);
+            node = node.expanded(expanded).has_popup(accesskit::HasPopup::Menu);
         }
         match self.toggled {
             Some(value) => node.toggled(toggled(value)),
@@ -107,12 +109,55 @@ impl Button {
             self.reveal_margin,
             self.group,
         );
-        (
-            base.a11y(node)
-                .when_some(self.on_click.filter(|_| !self.disabled), |base, handler| {
-                    base.on_click(handler)
-                }),
-            state,
+        let mut base = base.a11y(node);
+        if let Some(handler) = self.on_click.filter(|_| !self.disabled) {
+            let handler: Rc<ClickHandler> = Rc::new(handler);
+            if let Some(expanded) = self.menu_expanded {
+                for action in [accesskit::Action::Expand, accesskit::Action::Collapse] {
+                    let handler = handler.clone();
+                    base = base.on_a11y_action(action, move |_, window, cx| {
+                        if should_activate_menu(action, expanded, false) {
+                            handler(&ClickEvent::default(), window, cx);
+                        }
+                    });
+                }
+            }
+            base = base.on_click(move |event, window, cx| handler(event, window, cx));
+        }
+        (base, state)
+    }
+}
+
+fn should_activate_menu(action: accesskit::Action, expanded: bool, disabled: bool) -> bool {
+    !disabled
+        && matches!(
+            (action, expanded),
+            (accesskit::Action::Expand, false) | (accesskit::Action::Collapse, true)
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn menu_actions_only_activate_for_enabled_state_changes() {
+        for disabled in [false, true] {
+            for expanded in [false, true] {
+                assert_eq!(
+                    should_activate_menu(accesskit::Action::Expand, expanded, disabled),
+                    !disabled && !expanded
+                );
+                assert_eq!(
+                    should_activate_menu(accesskit::Action::Collapse, expanded, disabled),
+                    !disabled && expanded
+                );
+                assert!(!should_activate_menu(
+                    accesskit::Action::Click,
+                    expanded,
+                    disabled
+                ));
+            }
+        }
     }
 }
