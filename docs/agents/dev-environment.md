@@ -53,7 +53,7 @@ nix develop -c bash -c '
 
 ## Codex との分担
 
-計画とレビュー・確認は Claude、実装は Codex に任せる運用をしている（skill `codex-delegate`）。
+計画/設計//レビュー/確認は Claude、実装は Codex に任せる運用をしている（skill `codex-delegate`）。
 
 - モデルとコマンドは skill `codex-delegate`。
 - Codex の sandbox からは Nix daemon に繋がらない。**`nix develop -c` の中で codex を起動する**と、
