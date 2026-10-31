@@ -109,3 +109,6 @@ GPUI の挙動で注意する点は [`gpui-notes.md`](gpui-notes.md)。
 
 部品の実装は `gpui-headless` の要素に見た目を足す形にする（`headless.md`）。例は `crates/md3-components/src/buttons/button.rs`。
 テーマの作り方と上書きできる項目は [`docs/guide.md`](../guide.md) の「テーマ」。
+
+`Theme` と `ThemeBuilder` の設定は非公開の `ThemeConfig` にまとめ、既定値は `ThemeConfig::new` に置く。
+設定項目を足すときはそこに追加し、公開 setter / getter と組み立て直しのテストを更新する。

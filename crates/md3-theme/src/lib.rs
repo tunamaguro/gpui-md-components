@@ -185,25 +185,48 @@ pub fn content_color(role: ColorRole) -> Option<ColorRole> {
     }
 }
 
-/// md3 のテーマ。配色（ライトとダークの両方）、文字、角丸、密度をまとめて持つ。
-///
-/// [`Theme::from_seed`] で [`ThemeBuilder`] を作って組み立てる。
 #[derive(Clone, Debug, PartialEq)]
-pub struct Theme {
+struct ThemeConfig {
     seed: Argb,
     variant: SchemeVariant,
     contrast: Contrast,
     appearance: Appearance,
     overrides: Vec<(ColorRole, Argb)>,
-    light: ColorTable,
-    dark: ColorTable,
-    is_dark: bool,
     font_family: Option<SharedString>,
     type_scale: TypeScaleStyles,
     density: Density,
     text_scale: f32,
     shapes: Shapes,
     motion_scheme: MotionScheme,
+}
+
+impl ThemeConfig {
+    fn new(seed: Argb) -> Self {
+        Self {
+            seed,
+            variant: SchemeVariant::TonalSpot,
+            contrast: Contrast::Standard,
+            appearance: Appearance::System,
+            overrides: Vec::new(),
+            font_family: None,
+            type_scale: TypeScaleStyles::default(),
+            density: Density::Default,
+            text_scale: 1.0,
+            shapes: Shapes::default(),
+            motion_scheme: MotionScheme::default(),
+        }
+    }
+}
+
+/// md3 のテーマ。配色（ライトとダークの両方）、文字、角丸、密度をまとめて持つ。
+///
+/// [`Theme::from_seed`] で [`ThemeBuilder`] を作って組み立てる。
+#[derive(Clone, Debug, PartialEq)]
+pub struct Theme {
+    config: ThemeConfig,
+    light: ColorTable,
+    dark: ColorTable,
+    is_dark: bool,
 }
 
 impl Global for Theme {}
@@ -223,39 +246,29 @@ impl Theme {
     /// 現在の設定を引き継いだ組み立てを始める（一部だけ変えたいとき）。
     pub fn to_builder(&self) -> ThemeBuilder {
         ThemeBuilder {
-            seed: self.seed,
-            variant: self.variant,
-            contrast: self.contrast,
-            appearance: self.appearance,
-            overrides: self.overrides.clone(),
-            font_family: self.font_family.clone(),
-            type_scale: self.type_scale.clone(),
-            density: self.density,
-            text_scale: self.text_scale,
-            shapes: self.shapes,
-            motion_scheme: self.motion_scheme,
+            config: self.config.clone(),
             system_is_dark: self.is_dark,
         }
     }
 
     /// シード色。
     pub fn seed(&self) -> Argb {
-        self.seed
+        self.config.seed
     }
 
     /// スキームのバリアント。
     pub fn variant(&self) -> SchemeVariant {
-        self.variant
+        self.config.variant
     }
 
     /// コントラストの段階。
     pub fn contrast(&self) -> Contrast {
-        self.contrast
+        self.config.contrast
     }
 
     /// ライト / ダークの選び方。
     pub fn appearance(&self) -> Appearance {
-        self.appearance
+        self.config.appearance
     }
 
     /// 現在ダークの配色を使っているか。
@@ -265,12 +278,12 @@ impl Theme {
 
     /// 密度。
     pub fn density(&self) -> Density {
-        self.density
+        self.config.density
     }
 
     /// 文字の拡大率。
     pub fn text_scale(&self) -> f32 {
-        self.text_scale
+        self.config.text_scale
     }
 
     /// 現在の配色でのカラーロールの色。
@@ -294,50 +307,50 @@ impl Theme {
 
     /// フォントファミリ。`None` ならシステムフォント。
     pub fn font_family(&self) -> Option<&SharedString> {
-        self.font_family.as_ref()
+        self.config.font_family.as_ref()
     }
 
     /// タイプスケール全体（文字の拡大率を掛ける前の値）。
     pub fn type_scale(&self) -> &TypeScaleStyles {
-        &self.type_scale
+        &self.config.type_scale
     }
 
     /// タイプスケールの 1 種の文字スタイル。フォントファミリはテーマのものを補い、文字の拡大率を掛ける。
     pub fn text_style(&self, scale: TypeScale) -> TypeScaleStyle {
-        let mut style = self.type_scale.get(scale).clone();
+        let mut style = self.config.type_scale.get(scale).clone();
         if style.font_family.is_none() {
-            style.font_family = self.font_family.clone();
+            style.font_family = self.config.font_family.clone();
         }
-        style.font_size *= self.text_scale;
-        style.line_height *= self.text_scale;
+        style.font_size *= self.config.text_scale;
+        style.line_height *= self.config.text_scale;
         style
     }
 
     /// 角丸スケール。
     pub fn shapes(&self) -> &Shapes {
-        &self.shapes
+        &self.config.shapes
     }
 
     /// 角丸の段階に対応する半径。
     pub fn corner(&self, shape: Shape) -> CornerRadius {
-        self.shapes.corner(shape)
+        self.config.shapes.corner(shape)
     }
 
     /// 密度を反映した寸法（既定の寸法から密度の段階 × 4dp を引く）。
     pub fn dense(&self, default: f32) -> Pixels {
-        px(self.density.apply(default))
+        px(self.config.density.apply(default))
     }
 
     /// モーションスキーム。
     pub fn motion_scheme(&self) -> MotionScheme {
-        self.motion_scheme
+        self.config.motion_scheme
     }
 
     /// モーションスキームのバネ（gpui の `with_spring` に渡す）。
     ///
     /// gpui の `with_spring` は `App::reduce_motion` が `true` のとき動かさずに目標の値で描く。
     pub fn spring(&self, token: MotionToken) -> gpui::SpringConfig {
-        self.motion_scheme.spring(token)
+        self.config.motion_scheme.spring(token)
     }
 
     /// 高さ（elevation）の段階に対応する影。MD3 の key / ambient の 2 層。
@@ -376,65 +389,45 @@ impl Theme {
 /// [`Theme`] の組み立て。
 #[derive(Clone, Debug)]
 pub struct ThemeBuilder {
-    seed: Argb,
-    variant: SchemeVariant,
-    contrast: Contrast,
-    appearance: Appearance,
-    overrides: Vec<(ColorRole, Argb)>,
-    font_family: Option<SharedString>,
-    type_scale: TypeScaleStyles,
-    density: Density,
-    text_scale: f32,
-    shapes: Shapes,
-    motion_scheme: MotionScheme,
+    config: ThemeConfig,
     system_is_dark: bool,
 }
 
 impl ThemeBuilder {
     fn new(seed: Argb) -> Self {
         Self {
-            seed,
-            variant: SchemeVariant::TonalSpot,
-            contrast: Contrast::Standard,
-            appearance: Appearance::System,
-            overrides: Vec::new(),
-            font_family: None,
-            type_scale: TypeScaleStyles::default(),
-            density: Density::Default,
-            text_scale: 1.0,
-            shapes: Shapes::default(),
-            motion_scheme: MotionScheme::default(),
+            config: ThemeConfig::new(seed),
             system_is_dark: false,
         }
     }
 
     /// シード色を変える。
     pub fn seed(mut self, seed: Argb) -> Self {
-        self.seed = seed;
+        self.config.seed = seed;
         self
     }
 
     /// スキームのバリアントを変える（既定は `TonalSpot`）。
     pub fn variant(mut self, variant: SchemeVariant) -> Self {
-        self.variant = variant;
+        self.config.variant = variant;
         self
     }
 
     /// コントラストの段階を変える。
     pub fn contrast(mut self, contrast: Contrast) -> Self {
-        self.contrast = contrast;
+        self.config.contrast = contrast;
         self
     }
 
     /// ライト / ダークの選び方を変える（既定は OS に従う）。
     pub fn appearance(mut self, appearance: Appearance) -> Self {
-        self.appearance = appearance;
+        self.config.appearance = appearance;
         self
     }
 
     /// フォントファミリを指定する。未指定ならシステムフォント。
     pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
-        self.font_family = Some(family.into());
+        self.config.font_family = Some(family.into());
         self
     }
 
@@ -444,45 +437,45 @@ impl ThemeBuilder {
     /// builder.type_scale(|s| s.body_large = s.body_large.clone().size(px(15.)))
     /// ```
     pub fn type_scale(mut self, f: impl FnOnce(&mut TypeScaleStyles)) -> Self {
-        f(&mut self.type_scale);
+        f(&mut self.config.type_scale);
         self
     }
 
     /// カラーロールの色を上書きする（ライト・ダークの両方）。
     pub fn override_color(mut self, role: ColorRole, argb: Argb) -> Self {
-        self.overrides.retain(|(r, _)| *r != role);
-        self.overrides.push((role, argb));
+        self.config.overrides.retain(|(r, _)| *r != role);
+        self.config.overrides.push((role, argb));
         self
     }
 
     /// すべての色の上書きを取り消す。
     pub fn clear_color_overrides(mut self) -> Self {
-        self.overrides.clear();
+        self.config.overrides.clear();
         self
     }
 
     /// 密度を変える。
     pub fn density(mut self, density: Density) -> Self {
-        self.density = density;
+        self.config.density = density;
         self
     }
 
     /// 文字の拡大率を変える（既定は 1.0）。gpui は OS の文字サイズを読まないので、アプリが設定する。
     /// WCAG 1.4.4 のため、部品は 2.0 まで文字を切らずに伸びる。
     pub fn text_scale(mut self, scale: f32) -> Self {
-        self.text_scale = scale;
+        self.config.text_scale = scale;
         self
     }
 
     /// 角丸スケールを書き換える。
     pub fn shapes(mut self, f: impl FnOnce(&mut Shapes)) -> Self {
-        f(&mut self.shapes);
+        f(&mut self.config.shapes);
         self
     }
 
     /// モーションスキームを変える（既定は `Standard`）。
     pub fn motion_scheme(mut self, scheme: MotionScheme) -> Self {
-        self.motion_scheme = scheme;
+        self.config.motion_scheme = scheme;
         self
     }
 
@@ -495,33 +488,23 @@ impl ThemeBuilder {
 
     /// テーマを作る。ライトとダークの配色をここで計算する。
     pub fn build(self) -> Theme {
-        let seed = Hct::from_argb(self.seed);
-        let mut light = ColorTable::new(seed, self.variant, false, self.contrast);
-        let mut dark = ColorTable::new(seed, self.variant, true, self.contrast);
-        for &(role, argb) in &self.overrides {
+        let seed = Hct::from_argb(self.config.seed);
+        let mut light = ColorTable::new(seed, self.config.variant, false, self.config.contrast);
+        let mut dark = ColorTable::new(seed, self.config.variant, true, self.config.contrast);
+        for &(role, argb) in &self.config.overrides {
             light.set(role, argb);
             dark.set(role, argb);
         }
-        let is_dark = match self.appearance {
+        let is_dark = match self.config.appearance {
             Appearance::System => self.system_is_dark,
             Appearance::Light => false,
             Appearance::Dark => true,
         };
         Theme {
-            seed: self.seed,
-            variant: self.variant,
-            contrast: self.contrast,
-            appearance: self.appearance,
-            overrides: self.overrides,
+            config: self.config,
             light,
             dark,
             is_dark,
-            font_family: self.font_family,
-            type_scale: self.type_scale,
-            density: self.density,
-            text_scale: self.text_scale,
-            shapes: self.shapes,
-            motion_scheme: self.motion_scheme,
         }
     }
 }
@@ -550,13 +533,13 @@ pub trait SetMd3ThemeExt {
 
 impl SetMd3ThemeExt for App {
     fn set_md3_theme(&mut self, theme: Theme) {
-        let forced = match theme.appearance {
+        let forced = match theme.config.appearance {
             Appearance::System => None,
             Appearance::Light => Some(WindowAppearance::Light),
             Appearance::Dark => Some(WindowAppearance::Dark),
         };
         self.set_window_appearance(forced);
-        let theme = if theme.appearance == Appearance::System {
+        let theme = if theme.config.appearance == Appearance::System {
             let is_dark = is_dark_appearance(self.window_appearance());
             Theme { is_dark, ..theme }
         } else {
@@ -582,7 +565,7 @@ pub fn follow_window_appearance(window: &Window, _cx: &mut App) -> Subscription 
     window.observe_window_appearance(|window, cx| {
         let is_dark = is_dark_appearance(window.appearance());
         let theme = cx.md3();
-        if theme.appearance == Appearance::System && theme.is_dark != is_dark {
+        if theme.config.appearance == Appearance::System && theme.is_dark != is_dark {
             let theme = Theme {
                 is_dark,
                 ..theme.clone()
