@@ -269,7 +269,7 @@ impl RenderOnce for Menu {
             let has_trailing = item.trailing_icon.is_some() || item.trailing_text.is_some();
             base.debug_selector(|| format!("md3-menu-item-{id}"))
                 .w_full()
-                .h(theme.dense(layout::MENU_ITEM_HEIGHT))
+                .min_h(theme.dense(layout::MENU_ITEM_HEIGHT))
                 .px(item_space)
                 .flex()
                 .items_center()
@@ -289,9 +289,6 @@ impl RenderOnce for Menu {
                     div()
                         .flex_1()
                         .min_w_0()
-                        .whitespace_nowrap()
-                        .overflow_hidden()
-                        .text_ellipsis()
                         .when(item.leading_icon.is_some(), |this| this.pl(item_space))
                         .when(has_trailing, |this| this.pr(item_space))
                         .child(item.label),

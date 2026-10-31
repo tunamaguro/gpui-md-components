@@ -20,7 +20,7 @@
 
 | 項目                   | 値                                        | トークン                                                   |
 | ---------------------- | ----------------------------------------- | ---------------------------------------------------------- |
-| 高さ                   | 56dp                                      | `outlined_text_field::CONTAINER_HEIGHT`                    |
+| 高さ                   | 56dp（最小値）                            | `outlined_text_field::CONTAINER_HEIGHT`                    |
 | 最小幅                 | 280dp                                     | `layout::TEXT_FIELD_MIN_WIDTH`                             |
 | 左右の余白             | 16dp（アイコンがあれば 12dp + 48dp の枠） | `layout::TEXT_FIELD_HORIZONTAL_SPACE`                      |
 | 下線                   | 1dp、フォーカスで 2dp                     | `ACTIVE_INDICATOR_HEIGHT`, `FOCUS_ACTIVE_INDICATOR_HEIGHT` |

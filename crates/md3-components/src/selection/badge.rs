@@ -38,7 +38,7 @@ impl RenderOnce for Badge {
                 .corner_radius(theme.corner(tokens::SHAPE))
                 .bg(theme.color(tokens::COLOR)),
             Some(label) => div()
-                .h(px(tokens::LARGE_SIZE))
+                .min_h(px(tokens::LARGE_SIZE))
                 .min_w(px(tokens::LARGE_SIZE))
                 .px(px(layout::BADGE_HORIZONTAL_SPACE))
                 .flex()

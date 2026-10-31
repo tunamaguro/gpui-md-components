@@ -185,3 +185,7 @@ Input の Chip の削除アイコンを Button にし、名前を `.remove_label
 ## 2026-10-31: フォーカスでのツールチップ
 
 `md3_focus_tooltip`（IconButton の `.tooltip()`）で、キーボードフォーカスでも Plain ツールチップを出し、Esc で閉じるようにした（APG の Tooltip パターン、WCAG 1.4.13 の解説）。Dialog の中でも Esc はツールチップを先に閉じる。`tests/a11y_tooltip.rs` で確かめる。全 OS の読み上げは未確認。
+
+## 2026-10-31: 文字の拡大
+
+`.text_scale()` を追加し、文字を含む容器を最小の高さにした（WCAG 1.4.4、Compose の `defaultMinSize`）。Outlined の入力欄はラベルの高さの半分を上に空ける（Compose の `minimizedLabelHalfHeight`）。Menu、List の項目、Drawer、NavigationBar / Rail、Tabs のラベル、Plain Tooltip は折り返す。LazyList は全項目が同じ高さなので省略する。Filled の入力欄はラベルが浮く分の高さを先に確保する。Linux の gallery で 200% を目視した。Windows / macOS / Web は未確認。

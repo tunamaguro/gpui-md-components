@@ -309,7 +309,7 @@ impl RenderOnce for Chip {
                 let id = self.id.clone();
                 move || format!("md3-chip-{id}")
             })
-            .h(theme.dense(assist_chip::CONTAINER_HEIGHT))
+            .min_h(theme.dense(assist_chip::CONTAINER_HEIGHT))
             .px(px(layout::CHIP_CONTENT_SPACE))
             .flex()
             .items_center()

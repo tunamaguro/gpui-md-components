@@ -82,6 +82,18 @@ pub fn controls(window: &mut Window, cx: &mut App) -> impl IntoElement {
             cx.set_md3_theme(theme);
         })
     });
+    let text_scale_options = [1.0, 1.5, 2.0].map(|scale: f32| {
+        let name = format!("{:.0}%", scale * 100.0);
+        let option = Choice::new(
+            format!("text-scale-{name}"),
+            name,
+            current.text_scale() == scale,
+        );
+        option.render(window, cx, move |cx| {
+            let theme = cx.md3().to_builder().text_scale(scale).build();
+            cx.set_md3_theme(theme);
+        })
+    });
     let mut motion_options: Vec<_> = MotionScheme::ALL
         .map(|scheme| {
             let name = format!("{scheme:?}");
@@ -119,6 +131,7 @@ pub fn controls(window: &mut Window, cx: &mut App) -> impl IntoElement {
         .child(option_row("Contrast", contrast_options))
         .child(option_row("Appearance", appearance_options))
         .child(option_row("Density", density_options))
+        .child(option_row("Text scale", text_scale_options))
         .child(option_row("Motion", motion_options))
         .child(Text::new(TypeScale::BodySmall, contrast_report).color(ColorRole::OnSurfaceVariant))
 }

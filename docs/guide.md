@@ -197,6 +197,7 @@ Switch は Space / Enter を押したまま Tab で移動した場合も、フ�
   一部の役割で無効を伝えない（`accesskit_atspi_common` が読み取り専用を持てる役割だけ `enabled` を外す）。
   Checkbox・RadioButton・Switch・Slider・TextField・Select では伝わる。
 - Snackbar は live region（polite）として出すが、表示時に読み上げられるかはスクリーンリーダー次第。
+- 文字の拡大はテーマの `.text_scale(..)` で設定する。OS の文字サイズは自動では反映されないので、アプリが読み取って渡す。
 - `md3_tooltip` のツールチップはポインタを重ねたときだけ出る。`md3_focus_tooltip`（IconButton の `.tooltip()`）はキーボードフォーカスでも出し、Esc で閉じる。どちらも同じ文を基準の要素の説明（description）に入れる。
 - TextField / Select は `.required(true)` で必須状態を伝える。見える必須表示はラベルに付ける。補助テキストは description に入り、エラー時は invalid と Status の live region で伝える。
 - Menu を開く Button / IconButton には `.menu_expanded(open)` を渡す。支援技術の開閉操作も状態に応じてクリックを実行する。Select のポップアップは Listbox として伝える。ListItem、MenuItem、Dialog の補足も description で伝える。

@@ -34,6 +34,13 @@ impl TopAppBarVariant {
         }
     }
 
+    fn title_bottom_space(self) -> f32 {
+        match self {
+            Self::Large => layout::LARGE_TOP_APP_BAR_TITLE_BOTTOM_SPACE,
+            _ => layout::MEDIUM_TOP_APP_BAR_TITLE_BOTTOM_SPACE,
+        }
+    }
+
     fn height(self) -> f32 {
         match self {
             Self::Small | Self::CenterAligned => app_bar_small::CONTAINER_HEIGHT,
@@ -152,9 +159,19 @@ impl RenderOnce for TopAppBar {
         // ナビゲーションのアイコンが無いとき、タイトルの前を空ける（Compose の `TopAppBarTitleInset`）。
         let title_inset = px(layout::TOP_APP_BAR_TITLE_INSET);
 
+        // Medium / Large は上の行を詰めて、タイトルと合わせた高さを保つ。文字が大きければ全体が伸びる。
+        let row_height = match self.variant {
+            TopAppBarVariant::Small | TopAppBarVariant::CenterAligned => row_height,
+            TopAppBarVariant::Medium | TopAppBarVariant::Large => row_height.min(
+                px(self.variant.height())
+                    - theme.text_style(self.variant.title_font()).line_height
+                    - px(self.variant.title_bottom_space()),
+            ),
+        };
+
         let top_row = |title: Option<AnyElement>| {
             div()
-                .h(row_height)
+                .min_h(row_height)
                 .w_full()
                 .flex()
                 .items_center()
@@ -175,7 +192,7 @@ impl RenderOnce for TopAppBar {
         let bar = headless
             .build()
             .w_full()
-            .h(px(self.variant.height()))
+            .min_h(px(self.variant.height()))
             .flex_none()
             .flex()
             .flex_col()
@@ -195,22 +212,15 @@ impl RenderOnce for TopAppBar {
                         .child(title.max_w_full()),
                 ),
             ),
-            TopAppBarVariant::Medium | TopAppBarVariant::Large => {
-                let bottom = if self.variant == TopAppBarVariant::Medium {
-                    layout::MEDIUM_TOP_APP_BAR_TITLE_BOTTOM_SPACE
-                } else {
-                    layout::LARGE_TOP_APP_BAR_TITLE_BOTTOM_SPACE
-                };
-                bar.child(top_row(None)).child(
-                    div()
-                        .flex_1()
-                        .flex()
-                        .items_end()
-                        .pb(px(bottom))
-                        .px(px(layout::TOP_APP_BAR_HORIZONTAL_SPACE) + title_inset)
-                        .child(title),
-                )
-            }
+            TopAppBarVariant::Medium | TopAppBarVariant::Large => bar.child(top_row(None)).child(
+                div()
+                    .flex_grow(1.0)
+                    .flex()
+                    .items_end()
+                    .pb(px(self.variant.title_bottom_space()))
+                    .px(px(layout::TOP_APP_BAR_HORIZONTAL_SPACE) + title_inset)
+                    .child(title),
+            ),
         }
     }
 }

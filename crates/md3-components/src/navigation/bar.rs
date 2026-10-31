@@ -124,7 +124,7 @@ fn vertical_item(
             div()
                 .type_style(&theme.text_style(navigation_bar::LABEL_TEXT_FONT))
                 .text_color(disabled(label_role))
-                .whitespace_nowrap()
+                .text_center()
                 .child(item.label.clone()),
         )
 }
@@ -223,7 +223,7 @@ impl RenderOnce for NavigationBar {
         let theme = cx.md3();
         nav.base
             .w_full()
-            .h(px(navigation_bar::TALL_CONTAINER_HEIGHT))
+            .min_h(px(navigation_bar::TALL_CONTAINER_HEIGHT))
             .flex_none()
             .flex()
             .gap(px(layout::NAVIGATION_BAR_ITEM_HORIZONTAL_SPACE))
@@ -232,7 +232,7 @@ impl RenderOnce for NavigationBar {
             .children(
                 items
                     .into_iter()
-                    .map(|item| div().flex_1().min_w_0().h_full().child(item)),
+                    .map(|item| div().flex_1().min_w_0().child(item)),
             )
     }
 }

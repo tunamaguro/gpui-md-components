@@ -103,7 +103,7 @@ impl RenderOnce for SearchBar {
                 )
                 .into_any_element(),
         };
-        base.h(px(tokens::CONTAINER_HEIGHT))
+        base.min_h(px(tokens::CONTAINER_HEIGHT))
             .min_w(px(layout::SEARCH_BAR_MIN_WIDTH))
             .max_w(px(layout::SEARCH_BAR_MAX_WIDTH))
             .flex()

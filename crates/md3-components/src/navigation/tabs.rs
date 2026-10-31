@@ -218,7 +218,7 @@ impl RenderOnce for Tabs {
                 let label = div()
                     .type_style(&theme.text_style(style.label_font))
                     .text_color(label_color)
-                    .whitespace_nowrap()
+                    .text_center()
                     .child(tab.label.clone());
                 let content = match variant {
                     TabsVariant::Primary => div()
@@ -266,7 +266,7 @@ impl RenderOnce for Tabs {
                 let element = base
                     .flex_1()
                     .min_w_0()
-                    .h(px(height))
+                    .min_h(px(height))
                     .flex()
                     .justify_center()
                     .items_center()

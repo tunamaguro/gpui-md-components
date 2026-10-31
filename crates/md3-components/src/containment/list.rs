@@ -49,6 +49,8 @@ pub struct ListItem {
     selected: bool,
     disabled: bool,
     on_select: Option<SelectHandler>,
+    // LazyList の中では全項目が同じ高さなので、折り返さずに省略する。
+    fixed_height: bool,
 }
 
 impl ListItem {
@@ -77,6 +79,7 @@ impl ListItem {
             selected: false,
             disabled: false,
             on_select: None,
+            fixed_height: false,
         }
     }
 
@@ -275,9 +278,9 @@ impl ListItem {
                 div()
                     .type_style(&theme.text_style(tokens::ITEM_LABEL_TEXT_FONT))
                     .text_color(headline_color)
-                    .whitespace_nowrap()
-                    .overflow_hidden()
-                    .text_ellipsis()
+                    .when(self.fixed_height, |this| {
+                        this.whitespace_nowrap().overflow_hidden().text_ellipsis()
+                    })
                     .child(self.headline),
             )
             .when_some(self.supporting_text, |this, text| {
@@ -285,7 +288,7 @@ impl ListItem {
                     div()
                         .type_style(&theme.text_style(tokens::ITEM_SUPPORTING_TEXT_FONT))
                         .text_color(secondary_color(tokens::ITEM_SUPPORTING_TEXT_COLOR))
-                        .when(lines < 3, |this| {
+                        .when(self.fixed_height && lines < 3, |this| {
                             this.whitespace_nowrap().overflow_hidden().text_ellipsis()
                         })
                         .child(text),
@@ -420,6 +423,7 @@ impl RenderOnce for List {
 
 type ItemBuilder = Rc<dyn Fn(usize, &mut App) -> (SharedString, ListItem)>;
 /// 見えている項目だけを描くリスト（gpui の `uniform_list`）。項目の高さはすべて同じにすること。
+/// 長い文は折り返さずに省略する。
 ///
 /// 大きさ（高さ）は呼び出し側が指定する。キー操作は [`List`] と同じで、
 /// 見えていない項目へ移るときはその項目までスクロールしてからフォーカスする。
@@ -480,7 +484,8 @@ impl RenderOnce for LazyList {
             self.count,
             &self.scroll,
             move |index, cx| {
-                let (key, item) = build(index, cx);
+                let (key, mut item) = build(index, cx);
+                item.fixed_height = true;
                 let behaviour = item.headless();
                 (key, behaviour, item)
             },

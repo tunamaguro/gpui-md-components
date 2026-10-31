@@ -57,8 +57,6 @@ impl PlainTooltip {
             .max_w(px(layout::PLAIN_TOOLTIP_MAX_WIDTH))
             .px(px(layout::PLAIN_TOOLTIP_HORIZONTAL_SPACE))
             .py(px(layout::PLAIN_TOOLTIP_VERTICAL_SPACE))
-            .flex()
-            .items_center()
             .bg(theme.color(plain_tooltip::CONTAINER_COLOR))
             .corner_radius(theme.corner(plain_tooltip::CONTAINER_SHAPE))
             .type_style(&theme.text_style(plain_tooltip::SUPPORTING_TEXT_FONT))

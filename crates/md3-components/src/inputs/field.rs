@@ -254,6 +254,12 @@ impl FieldFrame {
         let label_color = tint(theme, colors.label);
         // Filled のトークンには高さがないため Outlined の値を使う（どちらも 56dp。TextFieldDefaults.MinHeight と同じ）。
         let height = px(outlined::CONTAINER_HEIGHT);
+        // ラベルが浮いても高さが変わらないよう、Filled はその分を先に確保する（Compose の TextFieldImpl）。
+        let height = if self.variant == TextFieldVariant::Filled && self.label.is_some() {
+            height.max(label_small.line_height + theme.text_style(filled::INPUT_FONT).line_height)
+        } else {
+            height
+        };
 
         // 中央の列（ラベルと入力行）。
         let floated_label_in_column =
@@ -300,7 +306,7 @@ impl FieldFrame {
         let mut container = div()
             .relative()
             .w_full()
-            .h(height)
+            .min_h(height)
             .flex()
             .items_center()
             .when_some(self.leading_icon, |this, icon| {
@@ -418,8 +424,12 @@ impl FieldFrame {
                         .size_full(),
                     ),
                 );
+                let line_height = label_small.line_height;
+                // 枠線にかかるラベルの分を上に空ける（Compose の minimizedLabelHalfHeight）。
+                if self.label.is_some() {
+                    container = container.mt(line_height / 2.0);
+                }
                 if let Some(label) = self.label.clone().filter(|_| self.floated) {
-                    let line_height = label_small.line_height;
                     container = container.child(
                         div()
                             .absolute()

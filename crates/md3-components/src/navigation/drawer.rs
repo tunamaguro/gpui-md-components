@@ -155,7 +155,7 @@ impl RenderOnce for NavigationDrawer {
                 }
             };
             let element = base
-                .h(px(tokens::ACTIVE_INDICATOR_HEIGHT))
+                .min_h(px(tokens::ACTIVE_INDICATOR_HEIGHT))
                 .w_full()
                 .flex()
                 .items_center()
@@ -177,9 +177,6 @@ impl RenderOnce for NavigationDrawer {
                         .min_w_0()
                         .type_style(&theme.text_style(tokens::LABEL_TEXT_FONT))
                         .text_color(color(label_role))
-                        .whitespace_nowrap()
-                        .overflow_hidden()
-                        .text_ellipsis()
                         .child(source.label.clone()),
                 )
                 .child(
