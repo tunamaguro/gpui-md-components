@@ -10,12 +10,12 @@
 mod compose;
 mod model;
 
-use md3_components::buttons::{Button, ExtendedFab, IconButton, Segment, SegmentedButton};
-use md3_components::containment::{List, ListItem, ListTrailing};
+use md3_components::buttons::{Button, ExtendedFab, Fab, IconButton, Segment, SegmentedButton};
+use md3_components::containment::{List, ListItem, ListTrailing, Scaffold};
 use md3_components::gpui;
 use md3_components::gpui::{
-    App, Bounds, Context, Entity, FocusHandle, ScrollHandle, TitlebarOptions, Window, WindowBounds,
-    WindowOptions, div, point, prelude::*, px, size,
+    App, Bounds, ClickEvent, Context, Edges, Entity, FocusHandle, ScrollHandle, TitlebarOptions,
+    Window, WindowBounds, WindowOptions, div, point, prelude::*, px, size,
 };
 use md3_components::gpui_platform;
 use md3_components::inputs::{SearchBar, TextFieldState};
@@ -27,6 +27,8 @@ use md3_components::theme::md3_color::ColorRole;
 use md3_components::theme::{self, Appearance, Md3ThemeExt, SetMd3ThemeExt, TypeScale};
 use md3_components::{IconName, StyledExt, Text, WindowSizeClass};
 use model::{Folder, Mail};
+
+const COMPACT_LIST_BOTTOM_PADDING: f32 = 96.0;
 
 struct MailView {
     focus: FocusHandle,
@@ -79,6 +81,20 @@ impl MailView {
         .ok();
     }
 
+    fn compose_fab(view: gpui::WeakEntity<Self>) -> ExtendedFab {
+        ExtendedFab::new("compose", "Compose")
+            .icon(IconName::Edit)
+            .on_click(Self::compose_handler(view))
+    }
+
+    fn compose_handler(
+        view: gpui::WeakEntity<Self>,
+    ) -> impl Fn(&ClickEvent, &mut Window, &mut App) + 'static {
+        move |_, _, cx| {
+            view.update(cx, |this, cx| this.open_compose(None, cx)).ok();
+        }
+    }
+
     fn move_message(
         &mut self,
         id: u64,
@@ -111,7 +127,9 @@ impl MailView {
 impl Render for MailView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let view = cx.entity().downgrade();
-        let expanded = WindowSizeClass::of(window) >= WindowSizeClass::Expanded;
+        let size_class = WindowSizeClass::of(window);
+        let compact = size_class == WindowSizeClass::Compact;
+        let expanded = size_class >= WindowSizeClass::Expanded;
         let theme = cx.md3().clone();
         let unread_count = self
             .mail
@@ -126,7 +144,15 @@ impl Render for MailView {
         ];
         let mut list = List::new("messages")
             .aria_label("Messages")
-            .max_height(window.viewport_size().height);
+            .max_height(window.viewport_size().height)
+            .content_padding(Edges {
+                bottom: if compact {
+                    px(COMPACT_LIST_BOTTOM_PADDING)
+                } else {
+                    px(0.)
+                },
+                ..Default::default()
+            });
         let folder = match self.destination {
             0 => Some(Folder::Inbox),
             1 => None,
@@ -175,7 +201,6 @@ impl Render for MailView {
         }
         let unread_view = view.clone();
         let starred_view = view.clone();
-        let compose_view = view.clone();
         let list_pane = div()
             .relative()
             .flex_1()
@@ -216,18 +241,7 @@ impl Render for MailView {
                     ),
                 )
             })
-            .child(list)
-            .child(
-                div().absolute().right_4().bottom_4().child(
-                    ExtendedFab::new("compose", "Compose")
-                        .icon(IconName::Edit)
-                        .on_click(move |_, _, cx| {
-                            compose_view
-                                .update(cx, |this, cx| this.open_compose(None, cx))
-                                .ok();
-                        }),
-                ),
-            );
+            .child(list);
         let mut detail = div().flex_1().min_w_0().min_h_0().flex().flex_col();
         if let Some(message) = self.selected.and_then(|id| self.mail.get(id)).cloned() {
             let id = message.id;
@@ -446,9 +460,28 @@ impl Render for MailView {
                             this.selected = None;
                         })
                     })
-                    .child(content),
+                    .when(!compact, |nav| {
+                        nav.header(div().flex().pt_4().pb_2().child(if expanded {
+                            Self::compose_fab(view.clone()).into_any_element()
+                        } else {
+                            Fab::new("compose", IconName::Edit)
+                                .aria_label("Compose")
+                                .on_click(Self::compose_handler(view.clone()))
+                                .into_any_element()
+                        }))
+                    })
+                    .child(
+                        Scaffold::new("mail-scaffold")
+                            .snackbar_host(&self.snackbar)
+                            .when(
+                                compact && self.destination != 4 && self.selected.is_none(),
+                                |scaffold| {
+                                    scaffold.floating_action_button(Self::compose_fab(view.clone()))
+                                },
+                            )
+                            .child(content),
+                    ),
             )
-            .child(self.snackbar.clone())
             .when(self.compose_open, |el| el.child(self.compose_dialog(&view)))
     }
 }

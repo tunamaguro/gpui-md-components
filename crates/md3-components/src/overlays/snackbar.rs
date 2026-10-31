@@ -151,14 +151,16 @@ impl RenderOnce for Snackbar {
             )
             .when_some(self.action, |this, (label, handler)| {
                 this.child(
-                    Button::new(
-                        ElementId::NamedChild(parent.clone(), "action".into()),
-                        label,
-                    )
-                    .disabled(disabled)
-                    .variant(ButtonVariant::Text)
-                    .content_color(tokens::ACTION_LABEL_TEXT_COLOR)
-                    .on_click(move |_, window, cx| handler(window, cx)),
+                    div().debug_selector(|| "md3-snackbar-action".into()).child(
+                        Button::new(
+                            ElementId::NamedChild(parent.clone(), "action".into()),
+                            label,
+                        )
+                        .disabled(disabled)
+                        .variant(ButtonVariant::Text)
+                        .content_color(tokens::ACTION_LABEL_TEXT_COLOR)
+                        .on_click(move |_, window, cx| handler(window, cx)),
+                    ),
                 )
             })
             .when_some(self.dismiss, |this, (label, handler)| {
@@ -282,6 +284,7 @@ impl SnackbarMessage {
 pub struct SnackbarHost {
     dismiss_label: SharedString,
     queue: SnackbarQueue,
+    pub(crate) inline: bool,
 }
 
 impl SnackbarOwner for SnackbarHost {
@@ -296,6 +299,7 @@ impl SnackbarHost {
         Self {
             dismiss_label: dismiss_label.into(),
             queue: SnackbarQueue::new(),
+            inline: false,
         }
     }
 
@@ -395,19 +399,31 @@ impl Render for SnackbarHost {
                     })
                 },
             );
-        window_layer(
-            div()
-                .size_full()
-                .flex()
-                .flex_col()
-                .justify_end()
-                .items_center()
-                .p(px(layout::SNACKBAR_OUTER_SPACE))
-                .child(snackbar),
-            SNACKBAR_PRIORITY,
-            window,
-        )
-        .into_any_element()
+        let wrapper = div()
+            .debug_selector(|| "scaffold-snackbar".into())
+            .w_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .p(px(layout::SNACKBAR_OUTER_SPACE))
+            .child(snackbar);
+        if self.inline {
+            gpui::deferred(wrapper)
+                .with_priority(SNACKBAR_PRIORITY)
+                .into_any_element()
+        } else {
+            window_layer(
+                div()
+                    .size_full()
+                    .flex()
+                    .flex_col()
+                    .justify_end()
+                    .child(wrapper),
+                SNACKBAR_PRIORITY,
+                window,
+            )
+            .into_any_element()
+        }
     }
 }
 

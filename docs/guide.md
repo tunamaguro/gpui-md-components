@@ -228,3 +228,7 @@ Card は装飾用と押せるものを `CardBase` で区別し、渡した子要
 Slider の描画は `fraction` と `dragging` を使います。
 
 独自の見た目を作る手順は [headless 利用ガイド](headless-guide.md) を参照してください。
+
+## Scaffold と FAB
+
+FAB のある画面には `containment::Scaffold` を使う。上部・下部バー、本文、FAB、`SnackbarHost` を渡すと、Snackbar は FAB の上に置かれる。画面の根に置き、クリップされる領域やスクロール領域の中には置かない（Snackbar は遅延描画なのでクリップされない）。本文は FAB の分を自動では空けないので、スクロールする `List` に `.content_padding(gpui::Edges { bottom: px(必要な余白), ..Default::default() })` を指定する。`LazyList` は未対応。

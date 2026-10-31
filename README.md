@@ -36,7 +36,7 @@ Material Design 3（ベースライン）の UI 部品集。Windows / macOS / Li
 | `inputs`      | TextField（Filled / Outlined、IME 対応）、Select、SearchBar                                          |
 | `overlays`    | Menu、Dialog、Tooltip、Snackbar、BottomSheet / SideSheet                                             |
 | `navigation`  | TopAppBar（4 種）、NavigationBar / Rail / Drawer、NavigationSuite、Tabs                              |
-| `containment` | Card（3 種）、List / LazyList、Divider                                                               |
+| `containment` | Card（3 種）、List / LazyList、Divider、Scaffold                                                     |
 | `expressive`  | M3 Expressive の ToggleButton、ButtonGroup（Standard / Connected）。押下・選択で形と幅がバネで変わる |
 
 TextField / Select の必須状態は `.required(true)`、メニューボタンの開閉状態は `.menu_expanded(open)` で伝える。静的な `Text` を読み上げ可能にするには一意な `.id()` を指定する。

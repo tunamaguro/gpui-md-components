@@ -191,3 +191,5 @@ Input の Chip の削除アイコンを Button にし、名前を `.remove_label
 ## 2026-10-31: 文字の拡大
 
 `.text_scale()` を追加し、文字を含む容器を最小の高さにした（WCAG 1.4.4、Compose の `defaultMinSize`）。Outlined の入力欄はラベルの高さの半分を上に空ける（Compose の `minimizedLabelHalfHeight`）。Menu、List の項目、Drawer、NavigationBar / Rail、Tabs のラベル、Plain Tooltip は折り返す。LazyList は全項目が同じ高さなので省略する。Filled の入力欄はラベルが浮く分の高さを先に確保する。Linux の gallery で 200% を目視した。Windows / macOS / Web は未確認。
+
+Scaffold は Snackbar を FAB の上に置く。Tab 順は遅延描画のため Snackbar が最後になり、Compose（本文、Snackbar、FAB、下部バー）と異なる。Snackbar は一時的な通知で、ウィンドウの層に出すときも最後なので、この順のままとする。支援技術による確認は未実施。

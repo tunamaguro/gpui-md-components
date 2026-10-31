@@ -332,6 +332,7 @@ impl ListItem {
 #[derive(IntoElement)]
 pub struct List {
     max_height: Option<gpui::Pixels>,
+    content_padding: gpui::Edges<gpui::Pixels>,
     scrollbar: bool,
     id: ElementId,
     name: gpui_headless::AccessibleName,
@@ -345,6 +346,7 @@ impl List {
             name: gpui_headless::AccessibleName::default(),
             items: Vec::new(),
             max_height: None,
+            content_padding: gpui::Edges::default(),
             scrollbar: true,
         }
     }
@@ -353,6 +355,11 @@ impl List {
     /// 高さを制限し、超過する項目をスクロール可能にする。
     pub fn max_height(mut self, height: gpui::Pixels) -> Self {
         self.max_height = Some(height.max(px(0.)));
+        self
+    }
+    /// スクロールする内容の内側の余白。
+    pub fn content_padding(mut self, padding: gpui::Edges<gpui::Pixels>) -> Self {
+        self.content_padding = padding;
         self
     }
     /// スクロールバーの表示を切り替える（既定は表示）。
@@ -369,6 +376,7 @@ impl List {
 impl RenderOnce for List {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let mut list = gpui_headless::List::new(self.id.clone())
+            .content_padding(self.content_padding)
             .reveal_margin(crate::focus::reveal_margin())
             .group_prefix("md3");
         if let Some(label) = self.name.resolve() {

@@ -1,5 +1,7 @@
 // Ported from Jetpack Compose (https://android.googlesource.com/platform/frameworks/support)
 // Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/SnackbarHost.kt (SNACKBAR_ENTER_SCALE) @ b8256a52
+// Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/Scaffold.kt (FabSpacing) @ 2a941dd11aa
+// Copyright 2021 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 // Copyright 2020 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //! コンポーネントの配置の値のうち、Compose の tokens ではなく部品の実装（`*Defaults` など）にあるもの。
 //!
@@ -325,3 +327,6 @@ pub const WINDOW_WIDTH_EXTRA_LARGE: f32 = 1600.0;
 
 /// Snackbar の入場時の拡大率（Compose SnackbarHost.kt）。
 pub const SNACKBAR_ENTER_SCALE: f32 = 0.8;
+
+/// Scaffold の FAB と端または下部バーの間（`FabSpacing`）。
+pub const SCAFFOLD_FAB_SPACE: f32 = 16.0;

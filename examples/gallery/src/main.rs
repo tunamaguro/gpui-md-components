@@ -120,6 +120,8 @@ pub struct Demo {
     pub drawer_open: bool,
     /// リストで選んだ項目。
     pub list_selected: Option<usize>,
+    /// Scaffold の FAB の位置。
+    pub scaffold_position: usize,
     /// LazyList で選んだ連絡先。
     pub contact: Option<usize>,
     /// ToggleButton。
@@ -159,6 +161,7 @@ impl Default for Demo {
             secondary_tab: 0,
             drawer_open: false,
             list_selected: Some(0),
+            scaffold_position: 2,
             contact: None,
             toggle: false,
             formats: [true, false, false],
@@ -186,6 +189,7 @@ pub struct Gallery {
     demo: Demo,
     fields: stories::inputs::Fields,
     snackbar: Entity<SnackbarHost>,
+    scaffold_snackbar: Entity<SnackbarHost>,
     contacts: UniformListScrollHandle,
     custom: Entity<stories::custom_theme::Custom>,
 }
@@ -209,6 +213,7 @@ impl Gallery {
             demo: Demo::default(),
             fields: stories::inputs::Fields::default(),
             snackbar: cx.new(|_| SnackbarHost::new("閉じる")),
+            scaffold_snackbar: cx.new(|_| SnackbarHost::new("閉じる")),
             contacts: UniformListScrollHandle::new(),
             custom: cx.new(stories::custom_theme::Custom::new),
         }
@@ -282,6 +287,7 @@ impl Render for Gallery {
                 .child(stories::containment::page(
                     &self.demo,
                     &self.contacts,
+                    &self.scaffold_snackbar,
                     view,
                     window,
                     cx,

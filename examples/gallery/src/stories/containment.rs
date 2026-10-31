@@ -1,13 +1,15 @@
 //! 入れ物の部品のページ。
 
 use gpui::{
-    AnyElement, App, IntoElement, SharedString, UniformListScrollHandle, WeakEntity, Window, div,
-    prelude::*, px,
+    AnyElement, App, Edges, Entity, IntoElement, SharedString, UniformListScrollHandle, WeakEntity,
+    Window, div, prelude::*, px,
 };
-use md3_components::buttons::{Button, ButtonVariant};
+use md3_components::buttons::{Button, ButtonVariant, ExtendedFab, Segment, SegmentedButton};
 use md3_components::containment::{
-    Card, CardVariant, Divider, LazyList, List, ListItem, ListLeading, ListTrailing,
+    Card, CardVariant, Divider, FabPosition, LazyList, List, ListItem, ListLeading, ListTrailing,
+    Scaffold,
 };
+use md3_components::overlays::{SnackbarDuration, SnackbarHost, SnackbarMessage};
 use md3_components::theme::md3_color::ColorRole;
 use md3_components::theme::{Md3ThemeExt, TypeScale};
 use md3_components::{IconName, Text};
@@ -49,6 +51,7 @@ const CONTACTS: usize = 10_000;
 pub fn page(
     demo: &Demo,
     contacts: &UniformListScrollHandle,
+    snackbar: &Entity<SnackbarHost>,
     view: WeakEntity<Gallery>,
     _window: &mut Window,
     cx: &mut App,
@@ -282,10 +285,77 @@ pub fn page(
         ),
     );
 
+    let position = [FabPosition::Start, FabPosition::Center, FabPosition::End]
+        .get(demo.scaffold_position)
+        .copied()
+        .unwrap_or(FabPosition::End);
+    let mut scaffold_list = List::new("scaffold-list")
+        .aria_label("見本の項目")
+        .max_height(px(230.0))
+        .content_padding(Edges {
+            bottom: px(96.0),
+            ..Default::default()
+        });
+    for index in 0..8 {
+        scaffold_list = scaffold_list.item(
+            format!("{index}"),
+            ListItem::new(format!("項目 {}", index + 1)).on_select(|_, _| {}),
+        );
+    }
+    let host = snackbar.clone();
+    let scaffold = Section::new("Scaffold")
+        .child(
+            SegmentedButton::new("scaffold-position")
+                .aria_label("FAB の位置")
+                .segment(Segment::new("Start"))
+                .segment(Segment::new("Center"))
+                .segment(Segment::new("End"))
+                .selected([demo.scaffold_position])
+                .on_change({
+                    let view = view.clone();
+                    move |index, _, cx| {
+                        Gallery::update_demo(&view, cx, |demo| demo.scaffold_position = index)
+                    }
+                }),
+        )
+        .child(
+            div()
+                .w(px(420.0))
+                .h(px(360.0))
+                .border_1()
+                .border_color(theme.color(ColorRole::OutlineVariant))
+                .child(
+                    Scaffold::new("scaffold-demo")
+                        .fab_position(position)
+                        .snackbar_host(snackbar)
+                        .top_bar(div().p_3().child("上部バー"))
+                        .bottom_bar(div().p_3().child("下部バー"))
+                        .floating_action_button(
+                            ExtendedFab::new("scaffold-fab", "作成")
+                                .icon(IconName::Edit)
+                                .on_click(|_, _, _| {}),
+                        )
+                        .child(Button::new("scaffold-show", "Snackbar を表示").on_click(
+                            move |_, _, cx| {
+                                host.update(cx, |host, cx| {
+                                    host.show(
+                                        SnackbarMessage::new("保存しました")
+                                            .action("元に戻す", |_, _| {})
+                                            .duration(SnackbarDuration::Short),
+                                        cx,
+                                    );
+                                });
+                            },
+                        ))
+                        .child(scaffold_list),
+                ),
+        );
+
     div()
         .flex()
         .flex_col()
         .gap_8()
+        .child(scaffold)
         .child(cards)
         .child(dividers)
         .child(lists)
