@@ -34,7 +34,7 @@ pub fn run(workspace_root: &Path, args: impl Iterator<Item = String>) -> Result<
     for arg in args {
         match arg.as_str() {
             "--debug" => release = false,
-            other => return Err(format!("不明な引数: {other}")),
+            other => return Err(format!("unknown argument: {other}")),
         }
     }
 
@@ -43,7 +43,7 @@ pub fn run(workspace_root: &Path, args: impl Iterator<Item = String>) -> Result<
         .unwrap_or_default();
     if fonts.is_empty() {
         return Err(format!(
-            "環境変数 {FONTS_ENV} に UI の文字に使うフォント（TTF / OTF / TTC）のパスを並べる（`nix develop` では設定済み）"
+            "set {FONTS_ENV} to a list of paths to UI fonts (TTF / OTF / TTC); it is already set in `nix develop`"
         ));
     }
 
@@ -51,7 +51,7 @@ pub fn run(workspace_root: &Path, args: impl Iterator<Item = String>) -> Result<
     let installed = wasm_bindgen_version()?;
     if installed != expected {
         return Err(format!(
-            "wasm-bindgen の CLI は {installed}、Cargo.lock は {expected}。同じ版の CLI を使う（`nix develop` の環境には入っている）"
+            "wasm-bindgen CLI is {installed}, but Cargo.lock has {expected}; use the matching CLI version (available in `nix develop`)"
         ));
     }
 
@@ -88,7 +88,7 @@ pub fn run(workspace_root: &Path, args: impl Iterator<Item = String>) -> Result<
 
     let index = out_dir.join("index.html");
     std::fs::write(&index, INDEX_HTML)
-        .map_err(|error| format!("{} を書けない: {error}", index.display()))?;
+        .map_err(|error| format!("cannot write {}: {error}", index.display()))?;
     copy_fonts(&fonts, &out_dir.join(FONTS_DIR))?;
     Ok(out_dir.display().to_string())
 }
@@ -98,10 +98,10 @@ fn copy_fonts(fonts: &[PathBuf], dir: &Path) -> Result<(), String> {
     // 前回の出力が残らないよう作り直す。
     if dir.exists() {
         std::fs::remove_dir_all(dir)
-            .map_err(|error| format!("{} を消せない: {error}", dir.display()))?;
+            .map_err(|error| format!("cannot remove {}: {error}", dir.display()))?;
     }
     std::fs::create_dir_all(dir)
-        .map_err(|error| format!("{} を作れない: {error}", dir.display()))?;
+        .map_err(|error| format!("cannot create {}: {error}", dir.display()))?;
     let mut list = String::new();
     for (index, font) in fonts.iter().enumerate() {
         let extension = font
@@ -111,22 +111,22 @@ fn copy_fonts(fonts: &[PathBuf], dir: &Path) -> Result<(), String> {
         let name = format!("{index}.{extension}");
         // ストアのファイルは読み取り専用なので、権限ごと写す `fs::copy` ではなく中身だけを書く。
         let bytes = std::fs::read(font)
-            .map_err(|error| format!("{} を読めない: {error}", font.display()))?;
+            .map_err(|error| format!("cannot read {}: {error}", font.display()))?;
         std::fs::write(dir.join(&name), bytes)
-            .map_err(|error| format!("{} を書けない: {error}", dir.join(&name).display()))?;
+            .map_err(|error| format!("cannot write {}: {error}", dir.join(&name).display()))?;
         list.push_str(&name);
         list.push('\n');
     }
     let list_path = dir.join("list.txt");
     std::fs::write(&list_path, list)
-        .map_err(|error| format!("{} を書けない: {error}", list_path.display()))
+        .map_err(|error| format!("cannot write {}: {error}", list_path.display()))
 }
 
 /// Cargo.lock に記録された crate の版。
 fn locked_version(workspace_root: &Path, name: &str) -> Result<String, String> {
     let path = workspace_root.join("Cargo.lock");
     let lock = std::fs::read_to_string(&path)
-        .map_err(|error| format!("{} を読めない: {error}", path.display()))?;
+        .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
     let name_line = format!("name = \"{name}\"");
     let mut lines = lock.lines();
     while let Some(line) = lines.next() {
@@ -139,7 +139,7 @@ fn locked_version(workspace_root: &Path, name: &str) -> Result<String, String> {
             return Ok(version.to_owned());
         }
     }
-    Err(format!("Cargo.lock に {name} が無い"))
+    Err(format!("Cargo.lock does not contain {name}"))
 }
 
 /// PATH にある wasm-bindgen の CLI の版。
@@ -148,25 +148,25 @@ fn wasm_bindgen_version() -> Result<String, String> {
         .arg("--version")
         .output()
         .map_err(|error| {
-            format!("wasm-bindgen の CLI を起動できない（`nix develop` の環境で実行する）: {error}")
+            format!("cannot start wasm-bindgen CLI (run inside `nix develop`): {error}")
         })?;
     // 出力は `wasm-bindgen 0.2.129`。
     String::from_utf8_lossy(&output.stdout)
         .split_whitespace()
         .nth(1)
         .map(str::to_owned)
-        .ok_or_else(|| "wasm-bindgen --version の出力を読めない".to_owned())
+        .ok_or_else(|| "cannot read wasm-bindgen --version output".to_owned())
 }
 
 /// コマンドを実行し、失敗したらエラーにする。
 fn run_command(command: &mut Command) -> Result<(), String> {
     let status = command
         .status()
-        .map_err(|error| format!("{command:?} を起動できない: {error}"))?;
+        .map_err(|error| format!("cannot start {command:?}: {error}"))?;
     if status.success() {
         Ok(())
     } else {
-        Err(format!("{command:?} が失敗した（{status}）"))
+        Err(format!("{command:?} failed ({status})"))
     }
 }
 
@@ -183,18 +183,18 @@ fn target_directory(workspace_root: &Path) -> Result<PathBuf, String> {
             "--offline",
         ])
         .output()
-        .map_err(|error| format!("cargo metadata を起動できない: {error}"))?;
+        .map_err(|error| format!("cannot start cargo metadata: {error}"))?;
     if !output.status.success() {
         return Err(format!(
-            "cargo metadata が失敗した: {}",
+            "cargo metadata failed: {}",
             String::from_utf8_lossy(&output.stderr)
         ));
     }
     let json = std::str::from_utf8(&output.stdout)
-        .map_err(|error| format!("cargo metadata の出力が UTF-8 でない: {error}"))?;
+        .map_err(|error| format!("cargo metadata output is not UTF-8: {error}"))?;
     metadata_target_directory(json)
         .map(PathBuf::from)
-        .ok_or_else(|| "cargo metadata の target_directory を読めない".to_owned())
+        .ok_or_else(|| "cannot read target_directory from cargo metadata".to_owned())
 }
 
 /// 最上位の文字列プロパティだけを読む。依存なしで JSON のエスケープを復元する。

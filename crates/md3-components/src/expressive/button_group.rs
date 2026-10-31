@@ -149,7 +149,7 @@ impl RenderOnce for ButtonGroup {
         let mut items = items.into_iter();
         group
             .build(window, cx, move |item, _, cx| {
-                let (button, press) = items.next().expect("項目の数は一致する");
+                let (button, press) = items.next().expect("item counts match");
                 button.paint(item.base, item.state, press, cx)
             })
             .flex()
