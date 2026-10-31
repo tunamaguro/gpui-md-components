@@ -4,6 +4,7 @@
 //! - テキストフィールドの編集操作（[`TEXT_FIELD_CONTEXT`]）
 //! - Dialog / モーダルなシートの Esc と Tab。フォーカスを中に閉じ込める（[`MODAL_CONTEXT`]）
 //! - メニューの Esc と Tab。メニューを閉じる（[`MENU_CONTEXT`]）
+//! - フォーカスで出たツールチップの Esc（[`FOCUS_TOOLTIP_CONTEXT`]）
 //!
 //! gpui はコンテキストのない割り当てを「最も深いコンテキスト」と同じ優先度として扱い、同じ優先度では
 //! 後から足した割り当てが勝つ。アプリが Tab などをコンテキストなしで割り当てる場合は、その後で
@@ -98,9 +99,9 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("shift-tab", FocusPrevWithin, modal),
         // メニューは Tab でも閉じる（WAI-ARIA の menu パターン）。モーダルより内側なのでこちらが優先される。
         KeyBinding::new("escape", Dismiss, menu),
-        // 基準の要素が最も内側なので、Esc はダイアログより先にツールチップを閉じる。
-        KeyBinding::new("escape", DismissTooltip, Some(FOCUS_TOOLTIP_CONTEXT)),
         KeyBinding::new("tab", Dismiss, menu),
         KeyBinding::new("shift-tab", Dismiss, menu),
+        // 基準の要素が最も内側なので、Esc はダイアログより先にツールチップを閉じる。
+        KeyBinding::new("escape", DismissTooltip, Some(FOCUS_TOOLTIP_CONTEXT)),
     ]);
 }

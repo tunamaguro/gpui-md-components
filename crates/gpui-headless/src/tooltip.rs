@@ -1,7 +1,7 @@
 //! ツールチップの役割と説明。
 
 use crate::keys::{DismissTooltip, FOCUS_TOOLTIP_CONTEXT};
-use crate::{A11yExt, A11yNode};
+use crate::{A11yExt, A11yNode, focus_handle};
 use gpui::{
     AnyView, App, Bounds, Div, ElementId, Entity, InteractiveElement, Pixels, Point, Role,
     SharedString, Size, Stateful, StatefulInteractiveElement, Window, div, point, px,
@@ -43,7 +43,10 @@ pub struct FocusTooltip {
 }
 
 impl FocusTooltip {
-    /// `focus_visible` は基準の要素のキーボードフォーカスの表示。Esc で閉じた状態はフォーカスが離れるまで保つ。
+    /// `id` は基準の要素の ID、`focus_visible` はそのキーボードフォーカスの表示。
+    ///
+    /// Esc で閉じた状態とポインタで得たフォーカスは、離れるまで出さない。キーを押した時点で
+    /// `focus_visible` が真になるので、後者を外さないと見えないツールチップが Esc を受けてしまう。
     pub fn new(id: &ElementId, focus_visible: bool, window: &mut Window, cx: &mut App) -> Self {
         let dismissed = window.use_keyed_state(
             ElementId::NamedChild(id.clone().into(), "tooltip-dismissed".into()),
@@ -51,7 +54,8 @@ impl FocusTooltip {
             |_, _| false,
         );
         if !focus_visible {
-            dismissed.update(cx, |dismissed, _| *dismissed = false);
+            let focused = focus_handle(id.clone(), window, cx).is_focused(window);
+            dismissed.update(cx, |dismissed, _| *dismissed = focused);
         }
         let visible = focus_visible && !*dismissed.read(cx);
         Self { visible, dismissed }

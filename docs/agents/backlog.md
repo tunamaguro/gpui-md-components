@@ -26,6 +26,11 @@
 
 ## 未対応の候補（バックログ）
 
+### Tooltip
+
+- フォーカスのツールチップと、ほかの要素のホバーのツールチップが同時に出る。Compose は `BasicTooltipDefaults.GlobalMutatorMutex` で同時に 1 つにする（`BasicTooltip.kt`）。
+- Plain の長い文が幅の上限の中で折り返されないことがある（テスト用の text system での計測。実機では未確認）。
+
 ### 既定モーション（Compose で既定のアニメーションがあるもの。参照は androidx@b8256a52）
 
 | 候補                           | 状態・理由                                                                                                           |

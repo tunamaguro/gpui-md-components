@@ -5,7 +5,7 @@
 
 mod support;
 
-use gpui::{Modifiers, TestAppContext, VisualTestContext, div, prelude::*};
+use gpui::{Modifiers, TestAppContext, VisualTestContext, div, prelude::*, px};
 use md3_components::IconName;
 use md3_components::buttons::{Button, IconButton};
 use md3_components::overlays::Dialog;
@@ -72,6 +72,57 @@ fn pointer_focus_does_not_show_the_tooltip(cx: &mut TestAppContext) {
     cx.simulate_click(button.center(), Modifiers::none());
     support::draw(cx);
     assert!(!shown(cx));
+    support::press(cx, "a");
+    assert!(
+        !shown(cx),
+        "ポインタでのフォーカスは、キーを押しても出さない"
+    );
+}
+
+#[gpui::test]
+fn tooltip_stays_hidden_while_the_anchor_is_clipped(cx: &mut TestAppContext) {
+    let cx = support::open(cx, |_, _| {
+        div()
+            .h(px(40.0))
+            .overflow_hidden()
+            .child(div().h(px(100.0)))
+            .child(
+                IconButton::new("share", IconName::Share)
+                    .aria_label("共有")
+                    .tooltip("リンクをコピー")
+                    .on_click(|_, _, _| {}),
+            )
+            .into_any_element()
+    });
+    key_tab(cx);
+    assert!(!shown(cx), "基準の要素が見えないときは出さない");
+}
+
+#[gpui::test]
+fn escape_closes_a_dialog_focused_with_the_pointer(cx: &mut TestAppContext) {
+    let dismissed = Rc::new(Cell::new(0));
+    let cx = support::open(cx, {
+        let dismissed = dismissed.clone();
+        move |_, _| {
+            let dismissed = dismissed.clone();
+            Dialog::new("dialog")
+                .headline("確認")
+                .on_dismiss(move |_, _| dismissed.set(dismissed.get() + 1))
+                .child(
+                    IconButton::new("share", IconName::Share)
+                        .aria_label("共有")
+                        .tooltip("リンクをコピー")
+                        .on_click(|_, _, _| {}),
+                )
+                .into_any_element()
+        }
+    });
+    support::press(cx, "escape");
+    assert_eq!(
+        dismissed.get(),
+        1,
+        "出ていないツールチップは Esc を受けない"
+    );
 }
 
 #[gpui::test]
@@ -90,6 +141,7 @@ fn escape_closes_the_tooltip_before_the_dialog(cx: &mut TestAppContext) {
                         .tooltip("リンクをコピー")
                         .on_click(|_, _, _| {}),
                 )
+                .child(Button::new("next", "次へ").on_click(|_, _, _| {}))
                 .into_any_element()
         }
     });

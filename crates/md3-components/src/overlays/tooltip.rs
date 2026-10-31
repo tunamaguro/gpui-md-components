@@ -217,6 +217,10 @@ pub trait TooltipExt: StatefulInteractiveElement + Sized {
         let selector = format!("md3-focus-tooltip-{id}");
         let anchor = canvas(
             move |bounds, window, cx| {
+                // スクロールなどで基準の要素が見えないときは出さない。
+                if !window.content_mask().bounds.intersects(&bounds) {
+                    return;
+                }
                 let mut element = PlainTooltip::new(text)
                     .element(cx)
                     .debug_selector(|| selector)
