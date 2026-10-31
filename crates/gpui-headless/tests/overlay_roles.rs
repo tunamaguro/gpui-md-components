@@ -19,3 +19,27 @@ fn snackbar_is_a_status() {
     assert!(node.live, "表示されたら読み上げる");
     assert!(!Snackbar::new("s", "x").active(false).a11y_node().live);
 }
+
+#[test]
+fn tooltip_goes_above_the_anchor_and_stays_in_the_window() {
+    use gpui::{Bounds, point, px, size};
+    use gpui_headless::tooltip_origin;
+    let viewport = size(px(800.0), px(600.0));
+    let tooltip = size(px(100.0), px(24.0));
+    let at = |x: f32, y: f32| Bounds::new(point(px(x), px(y)), size(px(40.0), px(40.0)));
+
+    let origin = tooltip_origin(at(200.0, 200.0), tooltip, viewport, px(4.0));
+    assert_eq!(origin, point(px(170.0), px(172.0)), "上に中央揃え");
+
+    let origin = tooltip_origin(at(200.0, 10.0), tooltip, viewport, px(4.0));
+    assert_eq!(origin.y, px(54.0), "上に入らなければ下");
+
+    assert_eq!(
+        tooltip_origin(at(0.0, 200.0), tooltip, viewport, px(4.0)).x,
+        px(0.0)
+    );
+    assert_eq!(
+        tooltip_origin(at(780.0, 200.0), tooltip, viewport, px(4.0)).x,
+        px(700.0)
+    );
+}

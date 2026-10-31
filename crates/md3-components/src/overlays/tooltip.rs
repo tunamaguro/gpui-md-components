@@ -1,15 +1,16 @@
 //! Tooltip（Plain / Rich）。
 //!
 //! gpui のツールチップ（`.tooltip()` / `.hoverable_tooltip()`）の中身として使う。表示の遅延と位置
-//! （ポインタの近く）は gpui が決める。gpui のツールチップはポインタを重ねたときだけ出て、キーボードの
-//! フォーカスでは出ないため、基準の要素の説明（`aria_description`）にも同じ文を入れること
-//! （[`TooltipExt::md3_tooltip`] は両方を行う）。
+//! （ポインタの近く）は gpui が決める。gpui のツールチップはポインタを重ねたときだけ出るため、
+//! キーボードのフォーカスでは [`TooltipExt::md3_focus_tooltip`] が基準の要素の子として描く。
+//! 読み上げ用に、基準の要素の説明（`aria_description`）にも同じ文を入れること
+//! （[`TooltipExt`] のメソッドは両方を行う）。
 
 use std::rc::Rc;
 
 use gpui::{
-    AnyView, App, Context, ElementId, IntoElement, Render, SharedString,
-    StatefulInteractiveElement, Window, div, prelude::*, px,
+    AnyView, App, AvailableSpace, Context, Div, ElementId, IntoElement, ParentElement, Render,
+    SharedString, Stateful, StatefulInteractiveElement, Window, canvas, div, prelude::*, px, size,
 };
 use md3_theme::md3_tokens::component::{plain_tooltip, rich_tooltip};
 use md3_theme::md3_tokens::layout;
@@ -17,8 +18,8 @@ use md3_theme::{Elevation, Md3ThemeExt};
 
 use crate::StyledExt;
 use crate::buttons::{Button, ButtonVariant};
-use gpui_headless::DescribedTooltip;
-use gpui_headless::overlay::DismissHandler;
+use gpui_headless::overlay::{DismissHandler, TOOLTIP_PRIORITY};
+use gpui_headless::{DescribedTooltip, FocusTooltip, tooltip_origin};
 
 /// Plain ツールチップ（短い説明）。
 pub struct PlainTooltip {
@@ -42,6 +43,12 @@ impl PlainTooltip {
 
 impl Render for PlainTooltip {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.element(cx)
+    }
+}
+
+impl PlainTooltip {
+    fn element(&self, cx: &App) -> Stateful<Div> {
         let theme = cx.md3();
         gpui_headless::Tooltip::new("md3-plain-tooltip", self.text.clone())
             .build()
@@ -184,6 +191,51 @@ pub trait TooltipExt: StatefulInteractiveElement + Sized {
     fn md3_tooltip(self, text: impl Into<SharedString>) -> Self {
         let text = text.into();
         self.described_tooltip(text.clone(), PlainTooltip::builder(text))
+    }
+
+    /// [`md3_tooltip`](Self::md3_tooltip) に加えて、キーボードフォーカスでも出し、Esc で閉じる。
+    ///
+    /// `focus_visible` は要素のキーボードフォーカスの表示（`ControlState::focus_visible`）。
+    fn md3_focus_tooltip(
+        self,
+        id: &ElementId,
+        text: impl Into<SharedString>,
+        focus_visible: bool,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Self
+    where
+        Self: ParentElement,
+    {
+        let text = text.into();
+        let tooltip = FocusTooltip::new(id, focus_visible, window, cx);
+        if !tooltip.visible() {
+            return self.md3_tooltip(text);
+        }
+        // 出ている間はポインタ用のツールチップを付けず、2 つ出ないようにする。
+        let this = self.aria_description(text.clone());
+        let selector = format!("md3-focus-tooltip-{id}");
+        let anchor = canvas(
+            move |bounds, window, cx| {
+                let mut element = PlainTooltip::new(text)
+                    .element(cx)
+                    .debug_selector(|| selector)
+                    .into_any_element();
+                let content = size(AvailableSpace::MaxContent, AvailableSpace::MaxContent);
+                let measured = element.layout_as_root(content, window, cx);
+                let origin = tooltip_origin(
+                    bounds,
+                    measured,
+                    window.viewport_size(),
+                    px(layout::TOOLTIP_ANCHOR_SPACE),
+                );
+                window.defer_draw(element, origin, TOOLTIP_PRIORITY, None);
+            },
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .size_full();
+        tooltip.attach(this).child(anchor)
     }
 }
 

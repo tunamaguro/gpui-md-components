@@ -20,6 +20,8 @@ pub const MODAL_PRIORITY: usize = 1;
 pub const MENU_PRIORITY: usize = 2;
 /// 通知の重ね描きの優先度。
 pub const SNACKBAR_PRIORITY: usize = 3;
+/// ツールチップの描画の優先度。
+pub const TOOLTIP_PRIORITY: usize = 4;
 
 /// 開いたときに最初にフォーカスする先。
 pub enum InitialFocus {

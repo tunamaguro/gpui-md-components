@@ -181,7 +181,7 @@ pub fn page(
             this.child(dialog("dialog", &view, note))
         });
 
-    let tooltips = Section::new("Tooltip（ポインタを重ねる）")
+    let tooltips = Section::new("Tooltip（ポインタを重ねる、Tab でフォーカスする）")
         .child(
             div()
                 .flex()

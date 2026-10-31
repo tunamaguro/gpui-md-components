@@ -17,12 +17,16 @@ pub const TEXT_FIELD_CONTEXT: &str = "HeadlessTextField";
 pub const MODAL_CONTEXT: &str = "HeadlessModal";
 /// メニューのキーコンテキスト。
 pub const MENU_CONTEXT: &str = "HeadlessMenu";
+/// フォーカスで出たツールチップの基準の要素のキーコンテキスト。
+pub const FOCUS_TOOLTIP_CONTEXT: &str = "HeadlessFocusTooltip";
 
 actions!(
     headless,
     [
         /// 開いているオーバーレイ（メニュー、ダイアログ、シート）を閉じる。
         Dismiss,
+        /// フォーカスで出たツールチップを閉じる。
+        DismissTooltip,
         /// オーバーレイの中で次の要素にフォーカスを移す。
         FocusNextWithin,
         /// オーバーレイの中で前の要素にフォーカスを移す。
@@ -94,6 +98,8 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("shift-tab", FocusPrevWithin, modal),
         // メニューは Tab でも閉じる（WAI-ARIA の menu パターン）。モーダルより内側なのでこちらが優先される。
         KeyBinding::new("escape", Dismiss, menu),
+        // 基準の要素が最も内側なので、Esc はダイアログより先にツールチップを閉じる。
+        KeyBinding::new("escape", DismissTooltip, Some(FOCUS_TOOLTIP_CONTEXT)),
         KeyBinding::new("tab", Dismiss, menu),
         KeyBinding::new("shift-tab", Dismiss, menu),
     ]);

@@ -67,4 +67,4 @@ pub use text_field::{
     SearchField, TextField, TextFieldControl, TextFieldEvent, TextFieldState, TextPaint,
     grapheme_count,
 };
-pub use tooltip::{DescribedTooltip, Tooltip};
+pub use tooltip::{DescribedTooltip, FocusTooltip, Tooltip, tooltip_origin};
