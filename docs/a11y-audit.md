@@ -181,3 +181,7 @@ TextField / Select の補助テキストを description と Status に出し、�
 ## 2026-10-31: Chip の削除ボタンと TextField の編集
 
 Input の Chip の削除アイコンを Button にし、名前を `.remove_label()` で付けられるようにした。押せる範囲は描画を変えずに 24 × 24 に広げた（WCAG 2.5.8）。TextField は文字とカーソルを TextRun で渡し、SetValue / ReplaceSelectedText / SetTextSelection を受ける（WCAG 4.1.2）。Linux の AT-SPI ツリーで全 9 ページの名前のない要素が 0 であること、入力欄の文字とカーソル、削除ボタンの名前を確認した。gallery で、広げた範囲のクリックで削除できることも確認した。AT-SPI には EditableText がないので、Linux で届くのは SetTextSelection だけ。Windows / macOS のツリーと、全 OS の読み上げは未確認。
+
+## 2026-10-31: フォーカスでのツールチップ
+
+`md3_focus_tooltip`（IconButton の `.tooltip()`）で、キーボードフォーカスでも Plain ツールチップを出し、Esc で閉じるようにした（APG の Tooltip パターン、WCAG 1.4.13 の解説）。Dialog の中でも Esc はツールチップを先に閉じる。`tests/a11y_tooltip.rs` で確かめる。全 OS の読み上げは未確認。

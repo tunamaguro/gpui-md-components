@@ -203,7 +203,8 @@ impl IconButton {
         self
     }
 
-    /// ポインタを重ねたときに Plain ツールチップを出す。同じ文を読み上げ用の説明にも入れる。
+    /// ポインタを重ねたときとキーボードでフォーカスしたときに Plain ツールチップを出す。
+    /// 同じ文を読み上げ用の説明にも入れる。
     #[cfg(feature = "overlays")]
     pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
         self.tooltip = Some(text.into());
@@ -228,6 +229,18 @@ impl RenderOnce for IconButton {
             behaviour = behaviour.on_click(handler);
         }
         let (base, control) = behaviour.build(window, cx);
+        #[cfg(feature = "overlays")]
+        let base = match self.tooltip.clone() {
+            Some(text) => crate::overlays::TooltipExt::md3_focus_tooltip(
+                base,
+                &self.id,
+                text,
+                control.focus_visible,
+                window,
+                cx,
+            ),
+            None => base,
+        };
         let theme = cx.md3();
         let colors = IconButtonColors::of(self.variant, self.selected);
         let radius = theme.corner(small_icon_button::CONTAINER_SHAPE_ROUND);
@@ -242,15 +255,15 @@ impl RenderOnce for IconButton {
         };
 
         let mut button = base
+            .debug_selector({
+                let id = self.id.clone();
+                move || format!("md3-icon-button-{id}")
+            })
             .size(size)
             .flex()
             .items_center()
             .justify_center()
             .corner_radius(radius);
-        #[cfg(feature = "overlays")]
-        if let Some(text) = self.tooltip.clone() {
-            button = crate::overlays::TooltipExt::md3_tooltip(button, text);
-        }
         if let Some(container) = colors.container {
             button = if self.disabled {
                 button.bg(theme

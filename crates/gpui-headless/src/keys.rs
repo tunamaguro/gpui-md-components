@@ -4,6 +4,7 @@
 //! - テキストフィールドの編集操作（[`TEXT_FIELD_CONTEXT`]）
 //! - Dialog / モーダルなシートの Esc と Tab。フォーカスを中に閉じ込める（[`MODAL_CONTEXT`]）
 //! - メニューの Esc と Tab。メニューを閉じる（[`MENU_CONTEXT`]）
+//! - フォーカスで出たツールチップの Esc（[`FOCUS_TOOLTIP_CONTEXT`]）
 //!
 //! gpui はコンテキストのない割り当てを「最も深いコンテキスト」と同じ優先度として扱い、同じ優先度では
 //! 後から足した割り当てが勝つ。アプリが Tab などをコンテキストなしで割り当てる場合は、その後で
@@ -17,12 +18,16 @@ pub const TEXT_FIELD_CONTEXT: &str = "HeadlessTextField";
 pub const MODAL_CONTEXT: &str = "HeadlessModal";
 /// メニューのキーコンテキスト。
 pub const MENU_CONTEXT: &str = "HeadlessMenu";
+/// フォーカスで出たツールチップの基準の要素のキーコンテキスト。
+pub const FOCUS_TOOLTIP_CONTEXT: &str = "HeadlessFocusTooltip";
 
 actions!(
     headless,
     [
         /// 開いているオーバーレイ（メニュー、ダイアログ、シート）を閉じる。
         Dismiss,
+        /// フォーカスで出たツールチップを閉じる。
+        DismissTooltip,
         /// オーバーレイの中で次の要素にフォーカスを移す。
         FocusNextWithin,
         /// オーバーレイの中で前の要素にフォーカスを移す。
@@ -96,5 +101,7 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("escape", Dismiss, menu),
         KeyBinding::new("tab", Dismiss, menu),
         KeyBinding::new("shift-tab", Dismiss, menu),
+        // 基準の要素が最も内側なので、Esc はダイアログより先にツールチップを閉じる。
+        KeyBinding::new("escape", DismissTooltip, Some(FOCUS_TOOLTIP_CONTEXT)),
     ]);
 }
