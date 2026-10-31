@@ -36,8 +36,6 @@
 
 - [P2] `ListItem` の末尾は文字または静的アイコンに限られ、行内のスター切り替えを置けない。詳細のメニューで切り替える（`examples/mail/src/main.rs`）。
 
-- [P2] `TextField` は 1 行入力のみで、メールの本文を複数行で入力できない（`examples/mail/src/compose.rs`）。
-
 - [P3] 内容の上に重ねる部品は、下の要素にクリックを渡さない処理（`block_mouse_except_scroll`）を部品ごとに持つ必要がある。FAB は直したが、ほかの部品やアプリが重ねる要素には同じ問題が残りうる。
 
 - [P3] Web では変換中の Esc がダイアログを閉じる可能性がある（`gpui_web/src/events.rs` は変換中の判定より先にキーを渡す。コードを読んだだけで、ブラウザでは未確認）。
@@ -88,16 +86,9 @@
 
 「退場中も描き続ける」仕組みは Snackbar（`overlays/snackbar.rs`）に実装がある。Menu / Sheet / Tooltip に広げるなら共通化を検討する。
 
-### レビューで見つけた不具合
-
-直したら行を消す。
-
-| 優先 | 部品      | 内容                                  |
-| ---- | --------- | ------------------------------------- |
-| P3   | TextField | 貼り付けで `\r` が残る（CRLF の改行） |
-
 ### その他
 
+- TextField の複数行（レビューの P3）: ZWJ の直後の改行が前の文字と結合し、Backspace で前の文字ごと消える（`boundaries`）。内部のスクロールに `Scrollbar` がなく、`gpui-notes.md` の新しいスクロール領域の方針と合っていない。選択の改行の幅 `LINE_BREAK_SELECTION_WIDTH` は見た目の値だが headless にある。taffy の測定は丸める前の幅で折り返すので、端数の幅で prepaint の行数が 1 行増えることがある（コードを読んだだけ）。Web で変換中の上下キーは選択を動かす（コードを読んだだけ）。`reveal_in_scopes`、選択の改行の幅、段落の間引き、幅からのキャレット分の差し引きには自動テストがない。`tab_leaves_the_multi_line_field` は移動先を確かめていない。
 - Web の IME 候補ウィンドウは左上に表示される。gpui_web の位置更新と隠れた textarea の変更が必要で、このリポジトリの許可された依存では修正できない。
 - ButtonGroup: 子の ID が同じ 2 つのグループを同じ親に置くと、押下の状態（`press_state`）を共有し、片方を押すと両方が広がる（`md3-components/src/expressive/button_group.rs`。分離前からの不具合）。
 - フォーカス追従: `.hidden()` の下でフォーカスを持ったまま隠れた部品は prepaint されず、再表示と同時にフォーカスを戻すと `reveal_on_focus` が移動に気付かない（Codex レビューの P2。今の部品には該当する使い方がない）。
@@ -108,6 +99,6 @@
 - Select: Windows の UI Automation の Expand / Collapse で開閉できない。Button の `.menu_expanded()` と同じ処理が要る（レビューの P3）。
 - `.menu_expanded()` の Expand / Collapse は `ClickEvent::default()` を渡すので位置が (0, 0) になる。位置でメニューを開くアプリは左上に開く（レビューの P3）。
 - Chip: 削除ボタンは Button の中の Button になる。ARIA では Button の子は表現上のものなので、VoiceOver / Narrator で届くかを読み上げ確認で見る。届かなければ Group と Button 2 つに分ける（レビューの P3）。`on_remove` のない Input の削除ボタンは、操作できないのに有効に見える（レビューの P3）。
-- TextField の支援技術: TextRun に位置と単語の境界がなく、拡大鏡のカーソル追従と単語単位の移動が効かない。無効の欄は macOS で値を設定できるように見えるが、要求は捨てられる。変換中の SetTextSelection は Windows 以外で文字が二重になることがある。支援技術からの値の `\r` は残る。IME の経路、`write_text_run`、`a11y_actions`、Chip の押せる範囲のクリックには自動テストがない（レビューの P3）。
+- TextField の支援技術: TextRun に位置と単語の境界がなく、拡大鏡のカーソル追従と単語単位の移動が効かない。無効の欄は macOS で値を設定できるように見えるが、要求は捨てられる。変換中の SetTextSelection は Windows 以外で文字が二重になることがある。IME の経路、`write_text_runs`、`a11y_actions`、Chip の押せる範囲のクリックには自動テストがない（レビューの P3）。
 - M3 Expressive: 多角形の形のモーフ（`MaterialShapes`、LoadingIndicator）、FAB メニュー、ツールバーなどは未実装。
 - gpui の rev を上げるときは専用 PR にする。`gpui-notes.md` の各項目と gallery の全ページを確認し直す。

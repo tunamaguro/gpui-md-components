@@ -67,6 +67,80 @@ fn filled_field_height_does_not_change_on_focus(cx: &mut TestAppContext) {
     assert_eq!(height(cx), before, "ラベルが浮いても高さは変わらない");
 }
 
+fn multi_line_field(
+    variant: TextFieldVariant,
+    label: Option<&'static str>,
+    min_lines: usize,
+) -> impl Fn(&mut gpui::Window, &mut gpui::Context<support::Harness>) -> AnyElement + 'static {
+    let state = std::cell::RefCell::new(None::<TextFieldState>);
+    move |_, cx| {
+        let field = state
+            .borrow_mut()
+            .get_or_insert_with(|| TextFieldState::new(cx))
+            .clone();
+        let mut field = TextField::new("body", &field)
+            .variant(variant)
+            .multi_line(min_lines, 8);
+        if let Some(label) = label {
+            field = field.label(label);
+        }
+        target(field)
+    }
+}
+
+#[gpui::test]
+fn multi_line_field_heights_at_100_percent(cx: &mut TestAppContext) {
+    let filled = support::open(
+        cx,
+        multi_line_field(TextFieldVariant::Filled, Some("本文"), 1),
+    );
+    assert_eq!(height(filled), px(56.0), "Filled の 1 行は 1 行の欄と同じ");
+    let mut app = filled.cx.clone();
+    let three = support::open(
+        &mut app,
+        multi_line_field(TextFieldVariant::Filled, Some("本文"), 3),
+    );
+    assert_eq!(height(three), px(104.0), "8 + 16 + 72 + 8");
+    let mut app = three.cx.clone();
+    let bare = support::open(
+        &mut app,
+        multi_line_field(TextFieldVariant::Filled, None, 3),
+    );
+    assert_eq!(height(bare), px(104.0), "ラベルなしは上下 16");
+    let mut app = bare.cx.clone();
+    let outlined = support::open(
+        &mut app,
+        multi_line_field(TextFieldVariant::Outlined, None, 3),
+    );
+    assert_eq!(height(outlined), px(104.0), "Outlined は上下 16");
+}
+
+#[gpui::test]
+fn multi_line_field_height_does_not_change_on_focus(cx: &mut TestAppContext) {
+    for variant in TextFieldVariant::ALL {
+        let mut app = cx.clone();
+        let window = support::open(&mut app, multi_line_field(variant, Some("本文"), 3));
+        for scale in [1.0, 2.0] {
+            set_scale(window, scale);
+            let before = height(window);
+            support::press(window, "tab");
+            assert_eq!(height(window), before, "入力の行を常に確保する");
+            support::press(window, "shift-tab");
+        }
+    }
+}
+
+#[gpui::test]
+fn multi_line_field_grows_with_the_text_scale(cx: &mut TestAppContext) {
+    let window = support::open(
+        cx,
+        multi_line_field(TextFieldVariant::Filled, Some("本文"), 3),
+    );
+    let before = height(window);
+    set_scale(window, 2.0);
+    assert!(height(window) >= before + px(72.0), "3 行分の文字が伸びる");
+}
+
 #[gpui::test]
 fn rail_keeps_its_width_with_a_long_label(cx: &mut TestAppContext) {
     let cx = support::open(cx, |_, _| {

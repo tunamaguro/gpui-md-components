@@ -1,7 +1,8 @@
 //! 部品が使うキー操作（gpui のアクション）と、その割り当て。
 //!
 //! Tab / Shift-Tab でフォーカスを移し、部品内の操作にはキーコンテキストを付ける。
-//! - テキストフィールドの編集操作（[`TEXT_FIELD_CONTEXT`]）
+//! - テキストフィールドの編集操作（[`TEXT_FIELD_CONTEXT`]）。改行と上下の移動は複数行の欄だけ
+//!   （[`MULTI_LINE_FIELD_CONTEXT`]）で、1 行の欄では親の要素へ渡る
 //! - Dialog / モーダルなシートの Esc と Tab。フォーカスを中に閉じ込める（[`MODAL_CONTEXT`]）
 //! - メニューの Esc と Tab。メニューを閉じる（[`MENU_CONTEXT`]）
 //! - フォーカスで出たツールチップの Esc（[`FOCUS_TOOLTIP_CONTEXT`]）
@@ -15,6 +16,8 @@ use gpui::{App, KeyBinding, Window, actions};
 
 /// テキストフィールドのキーコンテキスト。
 pub const TEXT_FIELD_CONTEXT: &str = "HeadlessTextField";
+/// 複数行のテキストフィールドのキーコンテキスト。[`TEXT_FIELD_CONTEXT`] と一緒に付く。
+pub const MULTI_LINE_FIELD_CONTEXT: &str = "HeadlessMultiLineField";
 /// Dialog とモーダルなシートのキーコンテキスト。
 pub const MODAL_CONTEXT: &str = "HeadlessModal";
 /// メニューのキーコンテキスト。
@@ -51,14 +54,40 @@ actions!(
         SelectRight,
         /// すべて選択する。
         SelectAll,
-        /// 行頭へ。
+        /// 表示行の先頭へ。
         Home,
-        /// 行末へ。
+        /// 表示行の末尾へ。
         End,
-        /// 行頭まで選択する。
+        /// 表示行の先頭まで選択する。
         SelectHome,
-        /// 行末まで選択する。
+        /// 表示行の末尾まで選択する。
         SelectEnd,
+        /// 改行を入れる。
+        Newline,
+        /// カーソルを 1 行上へ。
+        Up,
+        /// カーソルを 1 行下へ。
+        Down,
+        /// 選択を 1 行上へ広げる。
+        SelectUp,
+        /// 選択を 1 行下へ広げる。
+        SelectDown,
+        /// カーソルを欄に見えている行数だけ上へ。
+        PageUp,
+        /// カーソルを欄に見えている行数だけ下へ。
+        PageDown,
+        /// 選択を欄に見えている行数だけ上へ広げる。
+        SelectPageUp,
+        /// 選択を欄に見えている行数だけ下へ広げる。
+        SelectPageDown,
+        /// 文字列の先頭へ。
+        DocumentStart,
+        /// 文字列の末尾へ。
+        DocumentEnd,
+        /// 文字列の先頭まで選択する。
+        SelectDocumentStart,
+        /// 文字列の末尾まで選択する。
+        SelectDocumentEnd,
         /// 貼り付ける。
         Paste,
         /// 切り取る。
@@ -93,6 +122,13 @@ pub fn init(cx: &mut App) {
     cx.on_action(|_: &FocusNext, cx| with_active_window(cx, |window, cx| window.focus_next(cx)));
     cx.on_action(|_: &FocusPrev, cx| with_active_window(cx, |window, cx| window.focus_prev(cx)));
     let text = Some(TEXT_FIELD_CONTEXT);
+    let multi_line = Some(MULTI_LINE_FIELD_CONTEXT);
+    let (document_start, document_end, select_document_start, select_document_end) =
+        if cfg!(target_os = "macos") {
+            ("cmd-up", "cmd-down", "cmd-shift-up", "cmd-shift-down")
+        } else {
+            ("ctrl-home", "ctrl-end", "ctrl-shift-home", "ctrl-shift-end")
+        };
     let modal = Some(MODAL_CONTEXT);
     let menu = Some(MENU_CONTEXT);
     let inside_modal = format!("{MODAL_CONTEXT} > !{MENU_CONTEXT}");
@@ -114,6 +150,20 @@ pub fn init(cx: &mut App) {
         KeyBinding::new(shortcut!("v"), Paste, text),
         KeyBinding::new(shortcut!("x"), Cut, text),
         KeyBinding::new(shortcut!("c"), Copy, text),
+        KeyBinding::new("enter", Newline, multi_line),
+        KeyBinding::new("shift-enter", Newline, multi_line),
+        KeyBinding::new("up", Up, multi_line),
+        KeyBinding::new("down", Down, multi_line),
+        KeyBinding::new("shift-up", SelectUp, multi_line),
+        KeyBinding::new("shift-down", SelectDown, multi_line),
+        KeyBinding::new("pageup", PageUp, multi_line),
+        KeyBinding::new("pagedown", PageDown, multi_line),
+        KeyBinding::new("shift-pageup", SelectPageUp, multi_line),
+        KeyBinding::new("shift-pagedown", SelectPageDown, multi_line),
+        KeyBinding::new(document_start, DocumentStart, multi_line),
+        KeyBinding::new(document_end, DocumentEnd, multi_line),
+        KeyBinding::new(select_document_start, SelectDocumentStart, multi_line),
+        KeyBinding::new(select_document_end, SelectDocumentEnd, multi_line),
         KeyBinding::new("escape", Dismiss, modal),
         KeyBinding::new("tab", FocusNextWithin, modal),
         KeyBinding::new("shift-tab", FocusPrevWithin, modal),

@@ -67,6 +67,7 @@ mod snackbar;
 mod switch;
 mod tabs;
 mod text_field;
+mod text_layout;
 mod tooltip;
 
 pub use a11y::{A11yExt, A11yNode, AccessibleName, RangeValue, supporting_status, toggled};

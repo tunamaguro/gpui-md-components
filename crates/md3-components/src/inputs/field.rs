@@ -221,8 +221,10 @@ pub(crate) struct FieldFrame {
     pub floated: bool,
     pub leading_icon: Option<IconName>,
     pub trailing: Option<AnyElement>,
-    /// 入力行（接頭辞・入力・接尾辞）。ラベルが上に出ていないときは描かない。
+    /// 入力行（接頭辞・入力・接尾辞）。1 行の欄はラベルが上に出ていないときは描かない。
     pub content: AnyElement,
+    /// 複数行の入力か。入力を上に寄せ、ラベルの有無にかかわらず入力の高さを確保する。
+    pub multi_line: bool,
     pub supporting_text: Option<SharedString>,
     pub supporting_a11y: Option<(gpui::ElementId, gpui_headless::A11yNode)>,
     pub counter: Option<SharedString>,
@@ -262,17 +264,56 @@ impl FieldFrame {
         };
 
         // 中央の列（ラベルと入力行）。
-        let floated_label_in_column =
-            self.variant == TextFieldVariant::Filled && self.floated && self.label.is_some();
+        let label_in_column = self.variant == TextFieldVariant::Filled && self.label.is_some();
+        let floated_label_in_column = label_in_column && self.floated;
         let mut column = div()
+            .relative()
             .flex_1()
             .min_w_0()
             .h_full()
             .flex()
             .flex_col()
-            .justify_center()
             .pl(text_start)
             .pr(text_end);
+        if self.multi_line {
+            // Compose の contentPaddingWithLabel / contentPaddingWithoutLabel。
+            let vertical = if label_in_column {
+                px(layout::TEXT_FIELD_WITH_LABEL_VERTICAL_SPACE)
+            } else {
+                space
+            };
+            column = column.justify_start().pt(vertical).pb(vertical);
+            if label_in_column && !self.floated {
+                // ラベルが浮いても高さが変わらないよう、その分を空ける。
+                column = column.child(div().flex_none().h(label_small.line_height));
+            }
+            if !self.floated
+                && let Some(label) = self.label.clone()
+            {
+                // 空の入力の上に重ねる。位置は TextFieldMeasurePolicy の labelStartY
+                // （Filled は上の余白 + 小さいラベルの高さの半分）と startY（Outlined は上の余白）。
+                let top = if label_in_column {
+                    vertical + label_small.line_height / 2.0
+                } else {
+                    vertical
+                };
+                column = column.child(
+                    div()
+                        .absolute()
+                        .top(top)
+                        .left(text_start)
+                        .right(text_end)
+                        .type_style(&label_large)
+                        .text_color(label_color)
+                        .whitespace_nowrap()
+                        .overflow_hidden()
+                        .text_ellipsis()
+                        .child(label),
+                );
+            }
+        } else {
+            column = column.justify_center();
+        }
         if floated_label_in_column {
             column = column.child(
                 div()
@@ -284,7 +325,7 @@ impl FieldFrame {
                     .children(self.label.clone()),
             );
         }
-        if self.floated || self.label.is_none() {
+        if self.multi_line || self.floated || self.label.is_none() {
             column = column.child(
                 div()
                     .type_style(&theme.text_style(filled::INPUT_FONT))

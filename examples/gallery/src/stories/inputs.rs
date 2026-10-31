@@ -96,6 +96,60 @@ pub fn page(
     let filled = section(TextFieldVariant::Filled, "Filled", fields);
     let outlined = section(TextFieldVariant::Outlined, "Outlined", fields);
 
+    let multi_line = {
+        let long =
+            "長い本文は欄の幅で折り返します。\n上限の 4 行を超えた分は欄の中でスクロールします。\n"
+                .repeat(3);
+        let notes = fields.get("multi-filled", "", cx);
+        let outlined_notes = fields.get("multi-outlined", "", cx);
+        let scrolled = fields.get("multi-scrolled", &long, cx);
+        let error = fields.get("multi-error", "1 行目\n2 行目", cx);
+        let disabled = fields.get("multi-disabled", "1 行目\n2 行目", cx);
+        Section::new("Multi-line text field").child(
+            div()
+                .flex()
+                .flex_wrap()
+                .gap_6()
+                .child(labeled(
+                    "Filled",
+                    TextField::new("multi-filled", &notes)
+                        .label("本文")
+                        .placeholder("本文を入力")
+                        .multi_line(3, 6),
+                ))
+                .child(labeled(
+                    "Outlined",
+                    TextField::new("multi-outlined", &outlined_notes)
+                        .label("本文")
+                        .variant(TextFieldVariant::Outlined)
+                        .leading_icon(IconName::Mail)
+                        .multi_line(3, 6),
+                ))
+                .child(labeled(
+                    "上限でスクロール",
+                    TextField::new("multi-scrolled", &scrolled)
+                        .label("本文")
+                        .multi_line(1, 4),
+                ))
+                .child(labeled(
+                    "Error",
+                    TextField::new("multi-error", &error)
+                        .label("本文")
+                        .variant(TextFieldVariant::Outlined)
+                        .error(true)
+                        .supporting_text("エラーの説明")
+                        .multi_line(3, 6),
+                ))
+                .child(labeled(
+                    "Disabled",
+                    TextField::new("multi-disabled", &disabled)
+                        .label("本文")
+                        .disabled(true)
+                        .multi_line(3, 6),
+                )),
+        )
+    };
+
     let name = fields.get("name", "", cx);
     let email = fields.get("email", "user@", cx);
     let price = fields.get("price", "1200", cx);
@@ -212,4 +266,5 @@ pub fn page(
         .child(selects)
         .child(filled)
         .child(outlined)
+        .child(multi_line)
 }
