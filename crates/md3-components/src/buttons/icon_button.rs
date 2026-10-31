@@ -10,7 +10,7 @@ use md3_theme::md3_tokens::component::{
     standard_icon_button,
 };
 
-use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
+use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt, anchor_tooltip::AnchorTooltip};
 
 /// アイコンボタンの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -116,8 +116,7 @@ pub struct IconButton {
     inner: gpui_headless::Button,
     variant: IconButtonVariant,
     content_role: Option<ColorRole>,
-    #[cfg_attr(not(feature = "overlays"), allow(dead_code))]
-    tooltip: Option<SharedString>,
+    tooltip: AnchorTooltip,
 }
 
 impl IconButton {
@@ -137,7 +136,7 @@ impl IconButton {
             icon,
             variant: IconButtonVariant::default(),
             content_role: None,
-            tooltip: None,
+            tooltip: AnchorTooltip::default(),
         }
     }
 
@@ -182,7 +181,7 @@ impl IconButton {
     pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
         let text = text.into();
         self.inner = self.inner.description(text.clone());
-        self.tooltip = Some(text);
+        self.tooltip.set(text);
         self
     }
 
@@ -198,18 +197,9 @@ impl RenderOnce for IconButton {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let selected = self.inner.toggled_state();
         let (base, control) = self.inner.build(window, cx);
-        #[cfg(feature = "overlays")]
-        let base = match self.tooltip.clone() {
-            Some(text) => crate::overlays::TooltipExt::md3_focus_tooltip(
-                base,
-                &self.id,
-                text,
-                control.focus_visible,
-                window,
-                cx,
-            ),
-            None => base,
-        };
+        let base = self
+            .tooltip
+            .apply(base, &self.id, control.focus_visible, window, cx);
         let theme = cx.md3();
         let colors = IconButtonColors::of(self.variant, selected);
         let radius = theme.corner(small_icon_button::CONTAINER_SHAPE_ROUND);
