@@ -946,7 +946,8 @@ pub fn grapheme_count(text: &str) -> usize {
 pub struct TextField {
     id: ElementId,
     state: Entity<TextFieldState>,
-    label: SharedString,
+    label: Option<SharedString>,
+    aria_label: Option<SharedString>,
     placeholder: Option<SharedString>,
     error: bool,
     disabled: bool,
@@ -956,16 +957,13 @@ pub struct TextField {
 }
 
 impl TextField {
-    /// ID、中身、読み上げる名前から作る。
-    pub fn new(
-        id: impl Into<ElementId>,
-        state: &Entity<TextFieldState>,
-        label: impl Into<SharedString>,
-    ) -> Self {
+    /// ID と中身から作る。
+    pub fn new(id: impl Into<ElementId>, state: &Entity<TextFieldState>) -> Self {
         Self {
             id: id.into(),
             state: state.clone(),
-            label: label.into(),
+            label: None,
+            aria_label: None,
             placeholder: None,
             error: false,
             disabled: false,
@@ -974,6 +972,18 @@ impl TextField {
             role: Role::TextInput,
         }
     }
+    /// 表示するラベルを既定の名前にする。
+    pub fn label(mut self, label: impl Into<SharedString>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
+        self
+    }
+
     /// プレースホルダーを設定する。
     pub fn placeholder(mut self, placeholder: impl Into<SharedString>) -> Self {
         self.placeholder = Some(placeholder.into());
@@ -1002,7 +1012,7 @@ impl TextField {
     /// アクセシビリティ情報。
     pub fn a11y_node(&self) -> A11yNode {
         A11yNode::new(self.role)
-            .label(self.label.clone())
+            .with_label(self.aria_label.clone().or_else(|| self.label.clone()))
             .disabled(self.disabled)
             .invalid(self.error)
     }
@@ -1083,15 +1093,16 @@ impl TextFieldControl {
 /// 検索用の入力欄。
 pub struct SearchField(TextField);
 impl SearchField {
-    /// ID、中身、読み上げる名前から作る。
-    pub fn new(
-        id: impl Into<ElementId>,
-        state: &Entity<TextFieldState>,
-        label: impl Into<SharedString>,
-    ) -> Self {
-        let mut field = TextField::new(id, state, label);
+    /// ID と中身から作る。
+    pub fn new(id: impl Into<ElementId>, state: &Entity<TextFieldState>) -> Self {
+        let mut field = TextField::new(id, state);
         field.role = Role::SearchInput;
         Self(field)
+    }
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.0 = self.0.aria_label(label);
+        self
     }
     /// プレースホルダーを設定する。
     pub fn placeholder(mut self, placeholder: impl Into<SharedString>) -> Self {
@@ -1255,7 +1266,9 @@ mod ime_focus_tests {
     impl Render for CachedField {
         fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
             let color = black();
-            let (base, control) = TextField::new(self.id, &self.state, "入力").build(window, cx);
+            let (base, control) = TextField::new(self.id, &self.state)
+                .label("入力")
+                .build(window, cx);
             base.size_full().child(control.input(
                 TextPaint {
                     text: color,
@@ -1299,7 +1312,7 @@ mod ime_focus_tests {
                          state: &Entity<TextFieldState>,
                          window: &mut Window,
                          cx: &mut Context<Self>| {
-                let (base, control) = TextField::new(id, state, "入力").build(window, cx);
+                let (base, control) = TextField::new(id, state).label("入力").build(window, cx);
                 base.w(px(300.0)).h(px(40.0)).child(control.input(
                     TextPaint {
                         text: color,

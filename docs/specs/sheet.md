@@ -32,7 +32,7 @@
 ## アクセシビリティ
 
 - 役割: BottomSheet と Modal の SideSheet は Dialog、Standard の SideSheet は Complementary
-- 名前: ラベル（SideSheet は見出し）
+- 名前: 任意の `.aria_label()`。SideSheet は `.headline()` が既定の名前
 
 ## 既知の制限・仕様からの逸脱
 

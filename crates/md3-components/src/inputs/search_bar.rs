@@ -21,6 +21,7 @@ pub struct SearchBar {
     id: ElementId,
     state: Entity<TextFieldState>,
     placeholder: SharedString,
+    aria_label: Option<SharedString>,
     leading: Option<IconButton>,
     trailing: Vec<IconButton>,
 }
@@ -36,9 +37,16 @@ impl SearchBar {
             id: id.into(),
             state: state.clone(),
             placeholder: placeholder.into(),
+            aria_label: None,
             leading: None,
             trailing: Vec::new(),
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
+        self
     }
 
     /// 先頭の検索のアイコンを、押せるアイコン（戻る、メニューなど）に置き換える。
@@ -56,7 +64,8 @@ impl SearchBar {
 
 impl RenderOnce for SearchBar {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let (base, control) = SearchField::new(self.id, &self.state, self.placeholder.clone())
+        let (base, control) = SearchField::new(self.id, &self.state)
+            .aria_label(self.aria_label.unwrap_or_else(|| self.placeholder.clone()))
             .placeholder(self.placeholder.clone())
             .reveal_margin(crate::focus::reveal_margin())
             .build(window, cx);

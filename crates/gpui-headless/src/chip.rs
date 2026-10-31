@@ -13,6 +13,7 @@ type RemoveHandler = Rc<dyn Fn(&mut Window, &mut App) + 'static>;
 pub struct Chip {
     id: ElementId,
     label: SharedString,
+    aria_label: Option<Option<SharedString>>,
     selected: Option<bool>,
     disabled: bool,
     on_click: Option<ClickHandler>,
@@ -28,6 +29,7 @@ impl Chip {
             group: format!("control-{id}").into(),
             id,
             label: label.into(),
+            aria_label: None,
             selected: None,
             disabled: false,
             on_click: None,
@@ -35,6 +37,13 @@ impl Chip {
             reveal_margin: px(0.0),
         }
     }
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
+    }
+
     /// チェックボックスとして扱い、選択状態を指定する。
     pub fn selected(mut self, selected: Option<bool>) -> Self {
         self.selected = selected;
@@ -74,7 +83,12 @@ impl Chip {
             Some(value) => A11yNode::new(Role::CheckBox).toggled(toggled(value)),
             None => A11yNode::new(Role::Button),
         };
-        node.label(self.label.clone()).disabled(self.disabled)
+        node.with_label(
+            self.aria_label
+                .clone()
+                .unwrap_or_else(|| Some(self.label.clone())),
+        )
+        .disabled(self.disabled)
     }
     /// 操作を付けた要素と描画用の状態を返す。
     pub fn build(self, window: &mut Window, cx: &mut App) -> (Stateful<Div>, ControlState) {

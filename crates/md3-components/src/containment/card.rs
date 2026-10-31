@@ -81,7 +81,6 @@ type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 /// 押せるカードの設定。
 struct Clickable {
     id: ElementId,
-    label: SharedString,
     handler: ClickHandler,
 }
 
@@ -94,6 +93,7 @@ pub struct Card {
     variant: CardVariant,
     base: Div,
     clickable: Option<Clickable>,
+    label: Option<SharedString>,
     disabled: bool,
 }
 
@@ -104,22 +104,28 @@ impl Card {
             variant,
             base: div(),
             clickable: None,
+            label: None,
             disabled: false,
         }
     }
 
-    /// 押せるカードにする。`label` は読み上げられる名前（カードの見出しなど）。
+    /// 押せるカードにする。
     pub fn on_click(
         mut self,
         id: impl Into<ElementId>,
-        label: impl Into<SharedString>,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.clickable = Some(Clickable {
             id: id.into(),
-            label: label.into(),
             handler: Rc::new(handler),
         });
+        self
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
         self
     }
 
@@ -180,12 +186,15 @@ impl RenderOnce for Card {
         let mut behaviour = gpui_headless::Card::new()
             .disabled(disabled)
             .reveal_margin(crate::focus::reveal_margin());
+        if let Some(label) = self.label {
+            behaviour = behaviour.aria_label(label);
+        }
         if let Some(clickable) = self.clickable {
-            behaviour = behaviour.group(format!("md3-{}", clickable.id)).on_click(
-                clickable.id,
-                clickable.label,
-                move |event, window, cx| (clickable.handler)(event, window, cx),
-            );
+            behaviour = behaviour
+                .group(format!("md3-{}", clickable.id))
+                .on_click(clickable.id, move |event, window, cx| {
+                    (clickable.handler)(event, window, cx)
+                });
         }
         let (card, control) = match behaviour.build(card, window, cx) {
             gpui_headless::CardBase::Plain(card) => return card.shadow(resting).into_any_element(),

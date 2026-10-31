@@ -26,15 +26,18 @@ fn tall_overlay_bodies_scroll(cx: &mut TestAppContext) {
                 .w(px(100.0))
                 .h(px(2000.0));
                 match kind {
-                    0 => Dialog::new("dialog", "長い本文")
+                    0 => Dialog::new("dialog")
+                        .headline("長い本文")
                         .inline()
                         .child(content)
                         .into_any_element(),
-                    1 => BottomSheet::new("bottom", "長い本文")
+                    1 => BottomSheet::new("bottom")
+                        .aria_label("長い本文")
                         .inline()
                         .child(content)
                         .into_any_element(),
-                    _ => SideSheet::new("side", "長い本文")
+                    _ => SideSheet::new("side")
+                        .headline("長い本文")
                         .inline()
                         .child(content)
                         .into_any_element(),

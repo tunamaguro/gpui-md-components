@@ -7,7 +7,8 @@ use std::{cell::Cell, rc::Rc};
 
 #[test]
 fn menu_items_are_menuitems_in_a_set() {
-    let menu = Menu::new("m", "編集")
+    let menu = Menu::new("m")
+        .aria_label("編集")
         .item(MenuItem::new("切り取り"))
         .item(MenuItem::new("コピー").disabled(true));
     assert_eq!(menu.a11y_node().role, Role::Menu);
@@ -20,7 +21,8 @@ fn menu_items_are_menuitems_in_a_set() {
 
 #[test]
 fn option_menus_report_selection() {
-    let menu = Menu::new("m", "色")
+    let menu = Menu::new("m")
+        .aria_label("色")
         .kind(MenuKind::Options)
         .selected(Some(0))
         .item(MenuItem::new("赤"))
@@ -37,7 +39,9 @@ fn arrows_skip_disabled_items_and_enter_selects(cx: &mut TestAppContext) {
     let cx = support::open(cx, {
         let (chosen, dismissed) = (chosen.clone(), dismissed.clone());
         move |window, cx| {
-            let mut menu = Menu::new("m", "編集").item(MenuItem::new("切り取り"));
+            let mut menu = Menu::new("m")
+                .aria_label("編集")
+                .item(MenuItem::new("切り取り"));
             menu = menu.item(MenuItem::new("コピー").disabled(true));
             let on_select = chosen.clone();
             menu = menu.item(

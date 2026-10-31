@@ -49,6 +49,7 @@ pub(crate) struct GroupSlot {
 pub struct ToggleButton {
     pub(crate) id: ElementId,
     pub(crate) label: SharedString,
+    aria_label: Option<Option<SharedString>>,
     pub(crate) icon: Option<IconName>,
     checked: bool,
     disabled: bool,
@@ -63,6 +64,7 @@ impl ToggleButton {
         Self {
             id: id.into(),
             label: label.into(),
+            aria_label: None,
             icon: None,
             checked: false,
             disabled: false,
@@ -70,6 +72,13 @@ impl ToggleButton {
             press: None,
             slot: None,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
     }
 
     /// 選択中か。
@@ -173,6 +182,9 @@ impl ToggleButton {
             .disabled(self.disabled)
             .group(format!("md3-{}", self.id))
             .reveal_margin(crate::focus::reveal_margin());
+        if let Some(label) = self.aria_label.clone() {
+            behaviour = behaviour.aria_label(label.unwrap_or_default());
+        }
         if let Some(on_change) = self.on_change.clone() {
             let checked = self.checked;
             let press = press.clone();

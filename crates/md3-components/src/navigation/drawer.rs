@@ -38,7 +38,7 @@ pub enum NavigationDrawerKind {
 pub struct NavigationDrawer {
     scrollbar: bool,
     id: ElementId,
-    label: SharedString,
+    label: Option<SharedString>,
     kind: NavigationDrawerKind,
     items: Vec<NavigationItem>,
     selected: Option<usize>,
@@ -55,12 +55,12 @@ impl NavigationDrawer {
         self
     }
 
-    /// ID と名前（読み上げられる）から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             scrollbar: true,
             id: id.into(),
-            label: label.into(),
+            label: None,
             kind: NavigationDrawerKind::default(),
             items: Vec::new(),
             selected: None,
@@ -69,6 +69,13 @@ impl NavigationDrawer {
             header: Vec::new(),
             inline: false,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
     }
 
     /// 種類を変える。
@@ -271,9 +278,11 @@ mod tests {
 
     #[test]
     fn modal_drawers_are_dialogs() {
-        let standard = NavigationDrawer::new("d", "メイン");
+        let standard = NavigationDrawer::new("d").aria_label("メイン");
         assert_eq!(standard.dialog_mode(), None);
-        let modal = NavigationDrawer::new("d", "メイン").kind(NavigationDrawerKind::Modal);
+        let modal = NavigationDrawer::new("d")
+            .aria_label("メイン")
+            .kind(NavigationDrawerKind::Modal);
         assert_eq!(modal.dialog_mode(), Some(true));
     }
 }

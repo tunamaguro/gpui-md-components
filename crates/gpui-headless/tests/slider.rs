@@ -11,7 +11,8 @@ fn slider_keys_follow_apg(cx: &mut TestAppContext) {
         let value = value.clone();
         move |window, cx| {
             let set = value.clone();
-            Slider::new("volume", value.get(), "音量")
+            Slider::new("volume", value.get())
+                .aria_label("音量")
                 .range(0.0, 10.0)
                 .step(1.0)
                 .on_change(move |next, _, _| set.set(next))
@@ -36,7 +37,8 @@ fn slider_keys_follow_apg(cx: &mut TestAppContext) {
 
 #[test]
 fn slider_exposes_range() {
-    let slider = Slider::new("s", 3.0, "明るさ")
+    let slider = Slider::new("s", 3.0)
+        .aria_label("明るさ")
         .range(0.0, 10.0)
         .step(1.0)
         .a11y_node();
@@ -58,7 +60,8 @@ fn drag_tracks_position_and_releases_outside(cx: &mut TestAppContext) {
         let dragging = dragging.clone();
         move |window, cx| {
             let set = value.clone();
-            let (base, state) = Slider::new("drag", value.get(), "音量")
+            let (base, state) = Slider::new("drag", value.get())
+                .aria_label("音量")
                 .on_change(move |next, _, _| set.set(next))
                 .build(window, cx);
             dragging.set(state.dragging);
@@ -107,4 +110,21 @@ fn drag_tracks_position_and_releases_outside(cx: &mut TestAppContext) {
     });
     support::draw(cx);
     assert!(!dragging.get());
+}
+
+#[test]
+fn slider_name_is_optional() {
+    assert_eq!(Slider::new("test", 0.5).a11y_node().label, None);
+    assert_eq!(
+        Slider::new("test", 0.5).aria_label("").a11y_node().label,
+        None
+    );
+    assert_eq!(
+        Slider::new("test", 0.5)
+            .aria_label("名前")
+            .a11y_node()
+            .label
+            .as_deref(),
+        Some("名前")
+    );
 }

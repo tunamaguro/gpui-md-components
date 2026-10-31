@@ -18,7 +18,9 @@ fn open_with_placeholder<'a>(
     let cx = support::open(cx, {
         let state = state.clone();
         move |window, cx| {
-            let (base, control) = TextField::new("name", &state, "名前").build(window, cx);
+            let (base, control) = TextField::new("name", &state)
+                .label("名前")
+                .build(window, cx);
             let color = black();
             base.child(control.input(
                 TextPaint {
@@ -228,7 +230,8 @@ fn emoji_and_combining_marks_are_deleted_whole(cx: &mut TestAppContext) {
 #[gpui::test]
 fn fields_expose_names_roles_and_states(cx: &mut TestAppContext) {
     let state = cx.new(TextFieldState::new);
-    let field = TextField::new("name", &state, "名前")
+    let field = TextField::new("name", &state)
+        .label("名前")
         .disabled(true)
         .error(true)
         .placeholder("入力")
@@ -237,7 +240,8 @@ fn fields_expose_names_roles_and_states(cx: &mut TestAppContext) {
     assert_eq!(field.label.as_deref(), Some("名前"));
     assert!(field.disabled);
     assert!(field.invalid);
-    let search = SearchField::new("search", &state, "メールを検索")
+    let search = SearchField::new("search", &state)
+        .aria_label("メールを検索")
         .placeholder("メールを検索")
         .a11y_node();
     assert_eq!(search.role, gpui::Role::SearchInput);
@@ -252,7 +256,9 @@ fn keyboard_focus_visibility_is_exposed(cx: &mut TestAppContext) {
     let cx = support::open(cx, {
         let visible = visible.clone();
         move |window, cx| {
-            let (base, control) = TextField::new("focus-field", &state, "名前").build(window, cx);
+            let (base, control) = TextField::new("focus-field", &state)
+                .label("名前")
+                .build(window, cx);
             visible.set(control.focus_visible);
             base.into_any_element()
         }
@@ -261,4 +267,51 @@ fn keyboard_focus_visibility_is_exposed(cx: &mut TestAppContext) {
     support::tab(cx);
     support::press(cx, "left");
     assert!(visible.get(), "キー操作でフォーカス表示を得る");
+}
+
+#[gpui::test]
+fn field_names_are_optional_and_overridable(cx: &mut TestAppContext) {
+    let state = cx.new(TextFieldState::new);
+    assert_eq!(TextField::new("field", &state).a11y_node().label, None);
+    assert_eq!(
+        TextField::new("field", &state)
+            .label("名前")
+            .a11y_node()
+            .label
+            .as_deref(),
+        Some("名前")
+    );
+    assert_eq!(
+        TextField::new("field", &state)
+            .label("名前")
+            .aria_label("名前を入力")
+            .a11y_node()
+            .label
+            .as_deref(),
+        Some("名前を入力")
+    );
+    assert_eq!(
+        TextField::new("field", &state)
+            .label("名前")
+            .aria_label("")
+            .a11y_node()
+            .label,
+        None
+    );
+    assert_eq!(SearchField::new("search", &state).a11y_node().label, None);
+    assert_eq!(
+        SearchField::new("search", &state)
+            .aria_label("検索")
+            .a11y_node()
+            .label
+            .as_deref(),
+        Some("検索")
+    );
+    assert_eq!(
+        SearchField::new("search", &state)
+            .aria_label("")
+            .a11y_node()
+            .label,
+        None
+    );
 }

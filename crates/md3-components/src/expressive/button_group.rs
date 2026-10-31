@@ -21,7 +21,7 @@ use super::toggle_button::{GroupSlot, ToggleButton};
 /// `on_change` で他の項目の選択を外す（読み上げで「1 つを選ぶ」と伝えたいときは SegmentedButton を使う）。
 ///
 /// ```ignore
-/// ButtonGroup::new("align", "配置")
+/// ButtonGroup::new("align").aria_label("配置")
 ///     .connected(true)
 ///     .child(ToggleButton::new("left", "左").checked(align == 0).on_change(…))
 ///     .child(ToggleButton::new("center", "中央").checked(align == 1).on_change(…))
@@ -29,20 +29,27 @@ use super::toggle_button::{GroupSlot, ToggleButton};
 #[derive(IntoElement)]
 pub struct ButtonGroup {
     id: ElementId,
-    label: SharedString,
+    label: Option<SharedString>,
     connected: bool,
     items: Vec<ToggleButton>,
 }
 
 impl ButtonGroup {
-    /// ID とグループのラベル（読み上げ用の名前）から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: label.into(),
+            label: None,
             connected: false,
             items: Vec::new(),
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
     }
 
     /// 項目の間を詰めてつなげる（connected button group）。
@@ -126,7 +133,10 @@ impl RenderOnce for ButtonGroup {
             .iter()
             .map(|&n| compressible_width(n, padding))
             .collect();
-        let mut group = gpui_headless::ButtonGroup::new(self.id.clone(), self.label);
+        let mut group = gpui_headless::ButtonGroup::new(self.id.clone());
+        if let Some(label) = self.label {
+            group = group.aria_label(label);
+        }
         let mut items = Vec::with_capacity(count);
         for (index, ((mut item, natural), press)) in self
             .items

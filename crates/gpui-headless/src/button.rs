@@ -11,6 +11,7 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 pub struct Button {
     id: ElementId,
     label: SharedString,
+    aria_label: Option<Option<SharedString>>,
     toggled: Option<bool>,
     disabled: bool,
     on_click: Option<ClickHandler>,
@@ -26,11 +27,18 @@ impl Button {
             group: format!("control-{id}").into(),
             id,
             label: label.into(),
+            aria_label: None,
             toggled: None,
             disabled: false,
             on_click: None,
             reveal_margin: px(0.0),
         }
+    }
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
     }
     /// トグルの状態を設定する。
     pub fn toggled(mut self, value: Option<bool>) -> Self {
@@ -62,9 +70,12 @@ impl Button {
     }
     /// アクセシビリティツリーに出す情報。
     pub fn a11y_node(&self) -> A11yNode {
-        let node = A11yNode::new(Role::Button)
+        let mut node = A11yNode::new(Role::Button)
             .label(self.label.clone())
             .disabled(self.disabled);
+        if let Some(label) = &self.aria_label {
+            node.label = label.clone();
+        }
         match self.toggled {
             Some(value) => node.toggled(toggled(value)),
             None => node,

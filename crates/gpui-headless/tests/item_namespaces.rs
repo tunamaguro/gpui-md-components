@@ -30,7 +30,8 @@ fn check_item_namespaces(cx: &mut TestAppContext, kind: GroupKind) {
                     ));
                 };
                 let group = match kind {
-                    GroupKind::Buttons => ButtonGroup::new(id, id)
+                    GroupKind::Buttons => ButtonGroup::new(id)
+                        .aria_label(id)
                         .item(Button::new("a", "a"))
                         .item(Button::new("b", "b"))
                         .build(window, cx, |item, window, cx| {
@@ -39,7 +40,8 @@ fn check_item_namespaces(cx: &mut TestAppContext, kind: GroupKind) {
                         })
                         .into_any_element(),
                     GroupKind::Navigation => {
-                        let nav = Navigation::new(id, id)
+                        let nav = Navigation::new(id)
+                            .aria_label(id)
                             .item("a", false)
                             .item("b", false)
                             .build(window, cx, |item, window, cx| {
@@ -48,7 +50,8 @@ fn check_item_namespaces(cx: &mut TestAppContext, kind: GroupKind) {
                             });
                         nav.base.children(nav.items).into_any_element()
                     }
-                    GroupKind::Radio => RadioGroup::new(id, id)
+                    GroupKind::Radio => RadioGroup::new(id)
+                        .aria_label(id)
                         .option("a")
                         .option("b")
                         .build(window, cx, |item, window, cx| {
@@ -56,7 +59,8 @@ fn check_item_namespaces(cx: &mut TestAppContext, kind: GroupKind) {
                             item.base.size(px(40.)).into_any_element()
                         })
                         .into_any_element(),
-                    GroupKind::Segments => SegmentedButton::new(id, id)
+                    GroupKind::Segments => SegmentedButton::new(id)
+                        .aria_label(id)
                         .segment("a", false)
                         .segment("b", false)
                         .build(window, cx, |item, window, cx| {
@@ -64,7 +68,8 @@ fn check_item_namespaces(cx: &mut TestAppContext, kind: GroupKind) {
                             item.base.size(px(40.)).into_any_element()
                         })
                         .into_any_element(),
-                    GroupKind::Tabs => Tabs::new(id, id, 0)
+                    GroupKind::Tabs => Tabs::new(id, 0)
+                        .aria_label(id)
                         .tab("a", false)
                         .tab("b", false)
                         .build(window, cx, |item, window, cx| {

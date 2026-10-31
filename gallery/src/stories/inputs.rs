@@ -64,7 +64,8 @@ pub fn page(
                 let empty = fields.get(&format!("{key}-empty"), "", cx);
                 let filled = fields.get(&format!("{key}-filled"), "入力した文字", cx);
                 let make = |id: String, entity: &Entity<TextFieldState>| {
-                    let field = TextField::new(id, entity, "ラベル")
+                    let field = TextField::new(id, entity)
+                        .label("ラベル")
                         .variant(variant)
                         .placeholder("例")
                         .supporting_text(if state == "Error" {
@@ -110,11 +111,14 @@ pub fn page(
             .gap_6()
             .child(labeled(
                 "Filled",
-                TextField::new("name", &name, "名前").placeholder("山田 太郎"),
+                TextField::new("name", &name)
+                    .label("名前")
+                    .placeholder("山田 太郎"),
             ))
             .child(labeled(
                 "Outlined・入力の検証",
-                TextField::new("email", &email, "メールアドレス")
+                TextField::new("email", &email)
+                    .label("メールアドレス")
                     .variant(TextFieldVariant::Outlined)
                     .error(email_invalid)
                     .supporting_text(if email_invalid {
@@ -125,21 +129,24 @@ pub fn page(
             ))
             .child(labeled(
                 "接頭辞・接尾辞",
-                TextField::new("price", &price, "価格")
+                TextField::new("price", &price)
+                    .label("価格")
                     .variant(TextFieldVariant::Outlined)
                     .prefix("¥")
                     .suffix("円（税込）"),
             ))
             .child(labeled(
                 "文字数カウンタ",
-                TextField::new("bio", &bio, "自己紹介")
+                TextField::new("bio", &bio)
+                    .label("自己紹介")
                     .max_length(40)
                     .error(bio_len > 40)
                     .supporting_text("40 文字まで"),
             ))
             .child(labeled(
                 "アイコン",
-                TextField::new("search", &search, "検索")
+                TextField::new("search", &search)
+                    .label("検索")
                     .leading_icon(IconName::Search)
                     .trailing_icon(IconName::Mail),
             )),
@@ -148,7 +155,8 @@ pub fn page(
     const COLORS: [&str; 5] = ["赤", "緑", "青", "黄", "紫"];
     let select = |id: &str, variant: TextFieldVariant, selected: Option<usize>| {
         let view = view.clone();
-        Select::new(id.to_owned(), "色", COLORS, selected)
+        Select::new(id.to_owned(), COLORS, selected)
+            .label("色")
             .variant(variant)
             .supporting_text("↓ / Enter で開く")
             .on_change(move |index, _, cx| {
@@ -159,7 +167,8 @@ pub fn page(
         let cells: Vec<AnyElement> = FIELD_STATES
             .iter()
             .map(|&state| {
-                let field = Select::new(format!("select-{name}-{state}"), "色", COLORS, Some(2))
+                let field = Select::new(format!("select-{name}-{state}"), COLORS, Some(2))
+                    .label("色")
                     .variant(variant);
                 let field = match state {
                     "Error" => field.error(true).supporting_text("選んでください"),

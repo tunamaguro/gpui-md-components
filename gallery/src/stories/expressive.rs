@@ -46,25 +46,28 @@ pub fn page(
             move |checked, _, cx| Gallery::update_demo(&view, cx, |demo| demo.toggle = checked)
         });
 
-    let standard = ButtonGroup::new("group-standard", "書式").children(
-        [
-            ("group-bold", "太字"),
-            ("group-italic", "斜体"),
-            ("group-underline", "下線"),
-        ]
-        .into_iter()
-        .enumerate()
-        .map(|(index, (id, label))| {
-            let view = view.clone();
-            ToggleButton::new(id, label)
-                .checked(demo.formats[index])
-                .on_change(move |checked, _, cx| {
-                    Gallery::update_demo(&view, cx, |demo| demo.formats[index] = checked)
-                })
-        }),
-    );
+    let standard = ButtonGroup::new("group-standard")
+        .aria_label("書式")
+        .children(
+            [
+                ("group-bold", "太字"),
+                ("group-italic", "斜体"),
+                ("group-underline", "下線"),
+            ]
+            .into_iter()
+            .enumerate()
+            .map(|(index, (id, label))| {
+                let view = view.clone();
+                ToggleButton::new(id, label)
+                    .checked(demo.formats[index])
+                    .on_change(move |checked, _, cx| {
+                        Gallery::update_demo(&view, cx, |demo| demo.formats[index] = checked)
+                    })
+            }),
+        );
 
-    let connected_single = ButtonGroup::new("group-range", "期間")
+    let connected_single = ButtonGroup::new("group-range")
+        .aria_label("期間")
         .connected(true)
         .children(
             ["日", "週", "月", "年"]
@@ -80,7 +83,8 @@ pub fn page(
                 }),
         );
 
-    let connected_multi = ButtonGroup::new("group-filters", "表示する項目")
+    let connected_multi = ButtonGroup::new("group-filters")
+        .aria_label("表示する項目")
         .connected(true)
         .children(
             [

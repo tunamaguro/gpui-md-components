@@ -19,6 +19,7 @@ use std::sync::Arc;
 /// メニューの項目。
 pub struct MenuItem {
     label: SharedString,
+    aria_label: Option<Option<SharedString>>,
     disabled: bool,
     on_select: Option<DismissHandler>,
 }
@@ -28,9 +29,17 @@ impl MenuItem {
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
             label: label.into(),
+            aria_label: None,
             disabled: false,
             on_select: None,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
     }
 
     /// 無効にする。
@@ -62,7 +71,7 @@ pub enum MenuKind {
 /// Esc・Tab・外側の押下で閉じる。キーボードで閉じたときは、開く前の要素にフォーカスを戻す。
 pub struct Menu {
     id: ElementId,
-    label: SharedString,
+    label: Option<SharedString>,
     items: Vec<MenuItem>,
     selected: Option<usize>,
     on_dismiss: Option<DismissHandler>,
@@ -150,11 +159,11 @@ impl MenuPopup {
 }
 
 impl Menu {
-    /// ID とラベル（読み上げ用の名前）から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: label.into(),
+            label: None,
             items: Vec::new(),
             selected: None,
             on_dismiss: None,
@@ -165,6 +174,13 @@ impl Menu {
             reveal_margin: px(0.0),
             group_prefix: "control".into(),
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
     }
 
     /// 項目を足す。
@@ -227,7 +243,7 @@ impl Menu {
             MenuKind::Actions => Role::Menu,
             MenuKind::Options => Role::ListBox,
         };
-        A11yNode::new(role).label(self.label.clone())
+        A11yNode::new(role).with_label(self.label.clone())
     }
 
     /// 項目のアクセシビリティツリーに出す情報。
@@ -240,9 +256,13 @@ impl Menu {
             }
         };
         Some(
-            node.label(item.label.clone())
-                .position(index, self.items.len())
-                .disabled(item.disabled),
+            node.with_label(
+                item.aria_label
+                    .clone()
+                    .unwrap_or_else(|| Some(item.label.clone())),
+            )
+            .position(index, self.items.len())
+            .disabled(item.disabled),
         )
     }
 

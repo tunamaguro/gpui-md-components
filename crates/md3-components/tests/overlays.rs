@@ -60,7 +60,8 @@ fn dialog(
                 let cancel = log.record("cancel");
                 let close_cancel = log.close();
                 this.child(
-                    Dialog::new("confirm", "確認")
+                    Dialog::new("confirm")
+                        .headline("確認")
                         .child(
                             Button::new("inner", "中")
                                 .on_click(move |_, window, cx| record(window, cx)),
@@ -130,7 +131,8 @@ fn menu(
             .child(opener(&log))
             .when(log.open.get(), |this| {
                 this.child(
-                    Menu::new("actions", "操作")
+                    Menu::new("actions")
+                        .aria_label("操作")
                         .item(MenuItem::new("切り取り").on_select(log.record("cut")))
                         .item(MenuItem::new("コピー").disabled(true))
                         .item(MenuItem::new("貼り付け").on_select(log.record("paste")))

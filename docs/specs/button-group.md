@@ -40,8 +40,8 @@
 
 ## アクセシビリティ
 
-- 役割: Group（グループのラベルを名前に持つ）+ 各項目は Button（toggled）
-- 名前: グループのラベル、各項目のラベル
+- 役割: Group+ 各項目は Button（toggled）
+- 名前: グループは任意の `.aria_label()`、各項目は表示ラベルが既定で `.aria_label()` で上書き可能
 - 状態: 各項目の toggled、disabled
 - キー操作: 各項目が Tab で止まる（無効な項目は飛ばす）。Enter / Space で反転。
 

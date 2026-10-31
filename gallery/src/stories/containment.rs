@@ -78,17 +78,17 @@ pub fn page(
             let view = view.clone();
             let cells = vec![
                 Card::new(*variant)
-                    .on_click(
-                        format!("card-{name}-Enabled"),
-                        "旅行の計画",
-                        move |_, _, cx| Gallery::update_demo(&view, cx, |demo| demo.clicks += 1),
-                    )
+                    .on_click(format!("card-{name}-Enabled"), move |_, _, cx| {
+                        Gallery::update_demo(&view, cx, |demo| demo.clicks += 1)
+                    })
+                    .aria_label("旅行の計画")
                     .w(px(140.0))
                     .h(px(80.0))
                     .child(div().p_3().child(Text::new(TypeScale::TitleSmall, "旅行")))
                     .into_any_element(),
                 Card::new(*variant)
-                    .on_click(format!("card-{name}-disabled"), "旅行の計画", |_, _, _| {})
+                    .on_click(format!("card-{name}-disabled"), |_, _, _| {})
+                    .aria_label("旅行の計画")
                     .disabled(true)
                     .w(px(140.0))
                     .h(px(80.0))
@@ -147,7 +147,7 @@ pub fn page(
         }
     };
     let selected = |index: usize| demo.list_selected == Some(index);
-    let list = List::new("mail", "メール")
+    let list = List::new("mail").aria_label("メール")
         .item(
             "inbox",
             ListItem::new("受信トレイ")
@@ -194,7 +194,7 @@ pub fn page(
         sample(
             "Enabled",
             div().w(px(220.0)).child(
-                List::new("list-state-Enabled", "見本").item(
+                List::new("list-state-Enabled").aria_label("見本").item(
                     "a",
                     ListItem::new("受信トレイ")
                         .leading(ListLeading::Icon(IconName::Inbox))
@@ -205,7 +205,7 @@ pub fn page(
         sample(
             "Selected",
             div().w(px(220.0)).child(
-                List::new("list-state-selected", "見本").item(
+                List::new("list-state-selected").aria_label("見本").item(
                     "a",
                     ListItem::new("受信トレイ")
                         .leading(ListLeading::Icon(IconName::Inbox))
@@ -217,7 +217,7 @@ pub fn page(
         sample(
             "Disabled",
             div().w(px(220.0)).child(
-                List::new("list-state-disabled", "見本").item(
+                List::new("list-state-disabled").aria_label("見本").item(
                     "a",
                     ListItem::new("受信トレイ")
                         .leading(ListLeading::Icon(IconName::Inbox))
@@ -246,7 +246,7 @@ pub fn page(
             .border_1()
             .border_color(theme.color(ColorRole::OutlineVariant))
             .child(
-                LazyList::new("contacts", "連絡先", CONTACTS, contacts, {
+                LazyList::new("contacts", CONTACTS, contacts, {
                     let view = view.clone();
                     let selected = demo.contact;
                     move |index, _| {
@@ -267,6 +267,7 @@ pub fn page(
                         )
                     }
                 })
+                .aria_label("連絡先")
                 .size_full(),
             ),
     )

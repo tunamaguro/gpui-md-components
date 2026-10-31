@@ -5,7 +5,8 @@ use gpui_headless::Tabs;
 use std::{cell::Cell, rc::Rc};
 #[test]
 fn tabs_are_a_tab_list() {
-    let tabs = Tabs::new("t", "表示", 1)
+    let tabs = Tabs::new("t", 1)
+        .aria_label("表示")
         .tab("写真", false)
         .tab("アルバム", false);
     assert_eq!(tabs.a11y_node().role, Role::TabList);
@@ -23,7 +24,8 @@ fn arrows_select_the_next_tab(cx: &mut TestAppContext) {
         let selected = selected.clone();
         move |window, cx| {
             let on_change = selected.clone();
-            Tabs::new("tabs", "表示", selected.get())
+            Tabs::new("tabs", selected.get())
+                .aria_label("表示")
                 .tab("写真", false)
                 .tab("アルバム", true)
                 .tab("共有", false)
@@ -43,4 +45,18 @@ fn arrows_select_the_next_tab(cx: &mut TestAppContext) {
     assert_eq!(selected.get(), 2);
     support::press(cx, "home");
     assert_eq!(selected.get(), 0);
+}
+
+#[test]
+fn group_name_is_optional_and_can_be_cleared() {
+    assert_eq!(Tabs::new("g", 0).a11y_node().label, None);
+    assert_eq!(
+        Tabs::new("g", 0)
+            .aria_label("表示")
+            .a11y_node()
+            .label
+            .as_deref(),
+        Some("表示")
+    );
+    assert_eq!(Tabs::new("g", 0).aria_label("").a11y_node().label, None);
 }

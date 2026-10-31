@@ -153,6 +153,7 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 pub struct Button {
     id: ElementId,
     label: SharedString,
+    aria_label: Option<Option<SharedString>>,
     variant: ButtonVariant,
     icon: Option<IconName>,
     disabled: bool,
@@ -166,12 +167,20 @@ impl Button {
         Self {
             id: id.into(),
             label: label.into(),
+            aria_label: None,
             variant: ButtonVariant::default(),
             icon: None,
             disabled: false,
             on_click: None,
             content_role: None,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
     }
 
     /// 種類を変える。
@@ -215,6 +224,9 @@ impl RenderOnce for Button {
             .disabled(self.disabled)
             .group(format!("md3-{}", self.id))
             .reveal_margin(crate::focus::reveal_margin());
+        if let Some(label) = self.aria_label {
+            behaviour = behaviour.aria_label(label.unwrap_or_default());
+        }
         if let Some(handler) = self.on_click {
             behaviour = behaviour.on_click(handler);
         }

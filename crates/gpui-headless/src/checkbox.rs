@@ -33,7 +33,7 @@ type ChangeHandler = Box<dyn Fn(CheckboxState, &mut Window, &mut App) + 'static>
 pub struct Checkbox {
     id: ElementId,
     state: CheckboxState,
-    label: SharedString,
+    label: Option<SharedString>,
     disabled: bool,
     on_change: Option<ChangeHandler>,
     reveal_margin: Pixels,
@@ -41,22 +41,25 @@ pub struct Checkbox {
 }
 
 impl Checkbox {
-    /// ID、状態、読み上げ用の名前から作る。
-    pub fn new(
-        id: impl Into<ElementId>,
-        state: CheckboxState,
-        label: impl Into<SharedString>,
-    ) -> Self {
+    /// ID と状態から作る。
+    pub fn new(id: impl Into<ElementId>, state: CheckboxState) -> Self {
         let id = id.into();
         Self {
             group: format!("control-{id}").into(),
             id,
             state,
-            label: label.into(),
+            label: None,
             disabled: false,
             on_change: None,
             reveal_margin: px(0.0),
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
     }
 
     /// 無効にする。
@@ -93,10 +96,11 @@ impl Checkbox {
             CheckboxState::Checked => Toggled::True,
             CheckboxState::Indeterminate => Toggled::Mixed,
         };
-        A11yNode::new(Role::CheckBox)
-            .label(self.label.clone())
+        let mut node = A11yNode::new(Role::CheckBox)
             .toggled(toggled)
-            .disabled(self.disabled)
+            .disabled(self.disabled);
+        node.label = self.label.clone();
+        node
     }
 
     /// 操作を付けた要素と描画用の状態を返す。

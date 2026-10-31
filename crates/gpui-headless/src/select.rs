@@ -11,7 +11,8 @@ use std::sync::Arc;
 /// 押すか、Enter / Space / ↓ で開く入力。選択肢は [`crate::Menu`] で描く。
 pub struct Select {
     id: ElementId,
-    label: SharedString,
+    label: Option<SharedString>,
+    aria_label: Option<SharedString>,
     value: Option<SharedString>,
     disabled: bool,
     error: bool,
@@ -52,17 +53,30 @@ fn set_open(open: &Entity<bool>, value: bool, cx: &mut App) {
 }
 
 impl Select {
-    /// ID とラベル（読み上げ用の名前）から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: label.into(),
+            label: None,
+            aria_label: None,
             value: None,
             disabled: false,
             error: false,
             reveal_margin: px(0.0),
             group_prefix: "control".into(),
         }
+    }
+
+    /// 表示するラベルを既定の名前にする。
+    pub fn label(mut self, label: impl Into<SharedString>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
+        self
     }
 
     /// 選ばれている値の文。
@@ -98,7 +112,7 @@ impl Select {
     /// アクセシビリティツリーに出す情報（開閉の状態は `build` が付ける）。
     pub fn a11y_node(&self) -> A11yNode {
         A11yNode::new(Role::ComboBox)
-            .label(self.label.clone())
+            .with_label(self.aria_label.clone().or_else(|| self.label.clone()))
             .disabled(self.disabled)
             .invalid(self.error)
     }

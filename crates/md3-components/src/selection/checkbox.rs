@@ -56,32 +56,35 @@ impl CheckboxColors {
 
 type ChangeHandler = Box<dyn Fn(CheckboxState, &mut Window, &mut App) + 'static>;
 
-/// チェックボックス。ラベル（読み上げ用の名前）が必須。見える文字は呼び出し側で隣に置く。
+/// チェックボックス。見える文字は呼び出し側で隣に置く。
 #[derive(IntoElement)]
 pub struct Checkbox {
     id: ElementId,
     state: CheckboxState,
-    label: SharedString,
+    label: Option<SharedString>,
     error: bool,
     disabled: bool,
     on_change: Option<ChangeHandler>,
 }
 
 impl Checkbox {
-    /// ID、状態、ラベルから作る。
-    pub fn new(
-        id: impl Into<ElementId>,
-        state: CheckboxState,
-        label: impl Into<SharedString>,
-    ) -> Self {
+    /// ID と状態から作る。
+    pub fn new(id: impl Into<ElementId>, state: CheckboxState) -> Self {
         Self {
             id: id.into(),
             state,
-            label: label.into(),
+            label: None,
             error: false,
             disabled: false,
             on_change: None,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
     }
 
     /// エラー状態にする。
@@ -108,10 +111,13 @@ impl Checkbox {
 
 impl RenderOnce for Checkbox {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut headless = gpui_headless::Checkbox::new(self.id.clone(), self.state, self.label)
+        let mut headless = gpui_headless::Checkbox::new(self.id.clone(), self.state)
             .disabled(self.disabled)
             .group(format!("md3-{}", self.id))
             .reveal_margin(crate::focus::reveal_margin());
+        if let Some(label) = self.label {
+            headless = headless.aria_label(label);
+        }
         if let Some(handler) = self.on_change {
             headless = headless.on_change(handler);
         }

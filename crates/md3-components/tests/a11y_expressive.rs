@@ -45,7 +45,8 @@ fn group_harness(
                             checked.set(next);
                         })
                 });
-            ButtonGroup::new("range", "期間")
+            ButtonGroup::new("range")
+                .aria_label("期間")
                 .connected(connected)
                 .children(items)
                 .into_any_element()

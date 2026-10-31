@@ -36,9 +36,10 @@ fn list_arrows_stop_at_the_ends(cx: &mut TestAppContext) {
     let (log, item) = recorder();
     let cx = support::open(cx, move |_, _| {
         (0..4)
-            .fold(List::new("list", "受信トレイ"), |list, index| {
-                list.item(SharedString::from(format!("k{index}")), item(index))
-            })
+            .fold(
+                List::new("list").aria_label("受信トレイ"),
+                |list, index| list.item(SharedString::from(format!("k{index}")), item(index)),
+            )
             .into_any_element()
     });
     support::tab(cx);
@@ -70,9 +71,10 @@ fn lazy_list_scrolls_to_items_that_are_not_drawn(cx: &mut TestAppContext) {
             .h(px(150.0))
             .w(px(300.0))
             .child(
-                LazyList::new("lazy", "連絡先", 1000, &scroll, move |index, _| {
+                LazyList::new("lazy", 1000, &scroll, move |index, _| {
                     (SharedString::from(format!("k{index}")), item(index))
                 })
+                .aria_label("連絡先")
                 .size_full(),
             )
             .into_any_element()
@@ -107,7 +109,8 @@ fn modal_drawer_takes_focus_and_escape_restores_it(cx: &mut TestAppContext) {
                 .child(Button::new("opener", "メニュー").on_click(move |_, _, _| toggle.set(true)))
                 .when(open.get(), |this| {
                     this.child(
-                        NavigationDrawer::new("drawer", "メイン")
+                        NavigationDrawer::new("drawer")
+                            .aria_label("メイン")
                             .kind(NavigationDrawerKind::Modal)
                             .item(NavigationItem::new(IconName::Inbox, "受信トレイ"))
                             .item(NavigationItem::new(IconName::Send, "送信済み"))
@@ -150,12 +153,13 @@ fn nested_lazy_list_consumes_wheel_until_its_edge(cx: &mut TestAppContext) {
                 .overflow_y_scroll()
                 .track_scroll(&outer)
                 .child(
-                    LazyList::new("nested-list", "項目", 100, &inner, |index, _| {
+                    LazyList::new("nested-list", 100, &inner, |index, _| {
                         (
                             format!("{index}").into(),
                             ListItem::new(format!("項目 {index}")),
                         )
                     })
+                    .aria_label("項目")
                     .h(px(150.0))
                     .w_full(),
                 )
@@ -272,7 +276,8 @@ fn modal_drawer_falls_back_from_disabled_selection(cx: &mut TestAppContext) {
         let selected = selected.clone();
         move |_, _| {
             let selected = selected.clone();
-            NavigationDrawer::new("drawer", "移動")
+            NavigationDrawer::new("drawer")
+                .aria_label("移動")
                 .kind(NavigationDrawerKind::Modal)
                 .item(NavigationItem::new(IconName::Home, "無効").disabled(true))
                 .item(NavigationItem::new(IconName::Search, "検索"))
@@ -297,7 +302,9 @@ fn focused_item_is_scrolled_into_view(cx: &mut TestAppContext) {
     let cx = support::open(cx, |_, _| {
         (0..20)
             .fold(
-                List::new("mail", "受信トレイ").max_height(px(120.0)),
+                List::new("mail")
+                    .aria_label("受信トレイ")
+                    .max_height(px(120.0)),
                 |list, index| {
                     list.item(
                         format!("k{index}"),
@@ -493,7 +500,8 @@ fn page_reveals_card_and_text_field(cx: &mut TestAppContext) {
                             .child(
                                 div().debug_selector(|| "card".into()).child(
                                     Card::new(CardVariant::Filled)
-                                        .on_click("card", "カード", |_, _, _| {})
+                                        .on_click("card", |_, _, _| {})
+                                        .aria_label("カード")
                                         .h(px(64.0))
                                         .child("カード"),
                                 ),
@@ -501,7 +509,7 @@ fn page_reveals_card_and_text_field(cx: &mut TestAppContext) {
                             .child(
                                 div()
                                     .debug_selector(|| "field".into())
-                                    .child(TextField::new("field", &state, "名前")),
+                                    .child(TextField::new("field", &state).label("名前")),
                             ),
                     ),
             )
@@ -543,7 +551,7 @@ fn nested_list_reveals_item_in_both_scopes(cx: &mut TestAppContext) {
                             .gap(px(300.0))
                             .child(Button::new("start", "開始"))
                             .child((0..20).fold(
-                                List::new("nested", "一覧").max_height(px(120.0)),
+                                List::new("nested").aria_label("一覧").max_height(px(120.0)),
                                 |list, i| {
                                     list.item(
                                         format!("k{i}"),
@@ -691,11 +699,10 @@ fn deferred_menu_reveals_arrow_focus_without_scrolling_the_page(cx: &mut TestApp
                                 window.refresh();
                             }))
                             .when(open.get(), |this| {
-                                this.child(
-                                    (0..40).fold(Menu::new("long-menu", "操作"), |menu, i| {
-                                        menu.item(MenuItem::new(format!("操作 {i}")))
-                                    }),
-                                )
+                                this.child((0..40).fold(
+                                    Menu::new("long-menu").aria_label("操作"),
+                                    |menu, i| menu.item(MenuItem::new(format!("操作 {i}"))),
+                                ))
                             }),
                     )
                     .child(div().h(px(1000.0))),

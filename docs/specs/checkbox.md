@@ -37,7 +37,7 @@
 ## アクセシビリティ
 
 - 役割: CheckBox
-- 名前: ラベル引数（必須。見える文字は呼び出し側で隣に置く）
+- 名前: `.aria_label()`（任意。見える文字は呼び出し側で隣に置く）
 - 状態: toggled（true / false / mixed）
 - キー操作: Space（gpui の仕様で Enter でも切り替わる）
 

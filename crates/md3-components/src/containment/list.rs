@@ -41,6 +41,7 @@ pub enum ListTrailing {
 #[derive(Clone)]
 pub struct ListItem {
     headline: SharedString,
+    aria_label: Option<Option<SharedString>>,
     overline: Option<SharedString>,
     supporting_text: Option<SharedString>,
     leading: Option<ListLeading>,
@@ -55,6 +56,7 @@ impl ListItem {
     pub fn new(headline: impl Into<SharedString>) -> Self {
         Self {
             headline: headline.into(),
+            aria_label: None,
             overline: None,
             supporting_text: None,
             leading: None,
@@ -63,6 +65,13 @@ impl ListItem {
             disabled: false,
             on_select: None,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
     }
 
     /// 見出しの上の小さな文字。
@@ -120,6 +129,9 @@ impl ListItem {
         let mut item = gpui_headless::ListItem::new(self.headline.clone())
             .selected(self.selected)
             .disabled(self.disabled);
+        if let Some(label) = self.aria_label.clone() {
+            item = item.aria_label(label.unwrap_or_default());
+        }
         if let Some(on_select) = self.on_select.clone() {
             item = item.on_select(move |window, cx| on_select(window, cx));
         }
@@ -315,20 +327,27 @@ pub struct List {
     max_height: Option<gpui::Pixels>,
     scrollbar: bool,
     id: ElementId,
-    label: SharedString,
+    label: Option<SharedString>,
     items: Vec<(SharedString, ListItem)>,
 }
 impl List {
-    /// ID と名前（読み上げられる）から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: label.into(),
+            label: None,
             items: Vec::new(),
             max_height: None,
             scrollbar: true,
         }
     }
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
+    }
+
     /// 高さを制限し、超過する項目をスクロール可能にする。
     pub fn max_height(mut self, height: gpui::Pixels) -> Self {
         self.max_height = Some(height.max(px(0.)));
@@ -347,9 +366,12 @@ impl List {
 }
 impl RenderOnce for List {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut list = gpui_headless::List::new(self.id.clone(), self.label)
+        let mut list = gpui_headless::List::new(self.id.clone())
             .reveal_margin(crate::focus::reveal_margin())
             .group_prefix("md3");
+        if let Some(label) = self.label {
+            list = list.aria_label(label);
+        }
         if let Some(height) = self.max_height {
             list = list.max_height(height);
         }
@@ -389,19 +411,18 @@ type ItemBuilder = Rc<dyn Fn(usize, &mut App) -> (SharedString, ListItem)>;
 pub struct LazyList {
     scrollbar: bool,
     id: ElementId,
-    label: SharedString,
+    label: Option<SharedString>,
     count: usize,
     scroll: UniformListScrollHandle,
     build: ItemBuilder,
     base: Div,
 }
 impl LazyList {
-    /// ID、名前、項目数、スクロール状態、項目を作る関数から作る。
+    /// ID、項目数、スクロール状態、項目を作る関数から作る。
     ///
     /// `build(index)` は項目のキーと中身を返す。キーはデータの安定したキーにする。
     pub fn new(
         id: impl Into<ElementId>,
-        label: impl Into<SharedString>,
         count: usize,
         scroll: &UniformListScrollHandle,
         build: impl Fn(usize, &mut App) -> (SharedString, ListItem) + 'static,
@@ -409,13 +430,20 @@ impl LazyList {
         Self {
             scrollbar: true,
             id: id.into(),
-            label: label.into(),
+            label: None,
             count,
             scroll: scroll.clone(),
             build: Rc::new(build),
             base: div(),
         }
     }
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
+    }
+
     /// スクロールバーの表示を切り替える（既定は表示）。
     pub fn scrollbar(mut self, visible: bool) -> Self {
         self.scrollbar = visible;
@@ -430,9 +458,8 @@ impl gpui::Styled for LazyList {
 impl RenderOnce for LazyList {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let build = self.build;
-        let list = gpui_headless::LazyList::new(
+        let mut list = gpui_headless::LazyList::new(
             self.id.clone(),
-            self.label,
             self.count,
             &self.scroll,
             move |index, cx| {
@@ -443,6 +470,9 @@ impl RenderOnce for LazyList {
         )
         .reveal_margin(crate::focus::reveal_margin())
         .group_prefix("md3");
+        if let Some(label) = self.label {
+            list = list.aria_label(label);
+        }
         let mut base = list.build(window, cx, |row, item, _, cx| {
             item.render(row, cx).into_any_element()
         });

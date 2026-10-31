@@ -15,6 +15,7 @@ type Handler = Rc<dyn Fn(&mut Window, &mut App)>;
 #[derive(Clone)]
 pub struct ListItem {
     label: SharedString,
+    aria_label: Option<Option<SharedString>>,
     selected: bool,
     disabled: bool,
     on_select: Option<Handler>,
@@ -24,11 +25,19 @@ impl ListItem {
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
             label: label.into(),
+            aria_label: None,
             selected: false,
             disabled: false,
             on_select: None,
         }
     }
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
+    }
+
     /// 選択状態を指定する。
     pub fn selected(mut self, selected: bool) -> Self {
         self.selected = selected;
@@ -50,7 +59,11 @@ impl ListItem {
     /// 項目のアクセシビリティ情報。
     pub fn a11y_node(&self, index: usize, count: usize) -> A11yNode {
         A11yNode::new(Role::ListItem)
-            .label(self.label.clone())
+            .with_label(
+                self.aria_label
+                    .clone()
+                    .unwrap_or_else(|| Some(self.label.clone())),
+            )
             .selected(self.selected)
             .position(index, count)
             .disabled(self.disabled)
@@ -138,24 +151,31 @@ fn row(
 /// 全項目を描くリスト。
 pub struct List {
     id: ElementId,
-    label: SharedString,
+    label: Option<SharedString>,
     items: Vec<(SharedString, ListItem)>,
     max_height: Option<Pixels>,
     reveal_margin: Pixels,
     group_prefix: SharedString,
 }
 impl List {
-    /// ID と名前から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: label.into(),
+            label: None,
             items: Vec::new(),
             max_height: None,
             reveal_margin: px(0.),
             group_prefix: "control".into(),
         }
     }
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
+    }
+
     /// 安定したキーと項目を加える。
     pub fn item(mut self, key: impl Into<SharedString>, item: ListItem) -> Self {
         self.items.push((key.into(), item));
@@ -178,7 +198,7 @@ impl List {
     }
     /// リストのアクセシビリティ情報。
     pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::List).label(self.label.clone())
+        A11yNode::new(Role::List).with_label(self.label.clone())
     }
     /// 項目の描画を受け取り、スクロール可能なリストを組み立てる。
     pub fn build(
@@ -281,7 +301,7 @@ type ItemBuilder<T> = Rc<dyn Fn(usize, &mut App) -> (SharedString, ListItem, T)>
 /// 表示範囲だけを描く、均一な高さの項目のリスト。
 pub struct LazyList<T> {
     id: ElementId,
-    label: SharedString,
+    label: Option<SharedString>,
     count: usize,
     scroll: UniformListScrollHandle,
     build: ItemBuilder<T>,
@@ -293,17 +313,16 @@ struct LazyState {
     pending: Option<usize>,
 }
 impl<T: 'static> LazyList<T> {
-    /// ID、名前、項目数、スクロール状態と項目の生成関数から作る。
+    /// ID、項目数、スクロール状態と項目の生成関数から作る。
     pub fn new(
         id: impl Into<ElementId>,
-        label: impl Into<SharedString>,
         count: usize,
         scroll: &UniformListScrollHandle,
         build: impl Fn(usize, &mut App) -> (SharedString, ListItem, T) + 'static,
     ) -> Self {
         Self {
             id: id.into(),
-            label: label.into(),
+            label: None,
             count,
             scroll: scroll.clone(),
             build: Rc::new(build),
@@ -311,6 +330,13 @@ impl<T: 'static> LazyList<T> {
             group_prefix: "control".into(),
         }
     }
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
+    }
+
     /// フォーカス位置を表示する際の余白。
     pub fn reveal_margin(mut self, margin: Pixels) -> Self {
         self.reveal_margin = margin;
@@ -323,7 +349,7 @@ impl<T: 'static> LazyList<T> {
     }
     /// リストのアクセシビリティ情報。
     pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::List).label(self.label.clone())
+        A11yNode::new(Role::List).with_label(self.label.clone())
     }
     /// 項目の描画を受け取り、仮想リストを組み立てる。
     pub fn build(

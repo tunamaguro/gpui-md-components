@@ -11,7 +11,8 @@ fn segmented_button_moves_with_arrows(cx: &mut TestAppContext) {
         let selected = selected.clone();
         move |window, cx| {
             let set = selected.clone();
-            SegmentedButton::new("view", "表示")
+            SegmentedButton::new("view")
+                .aria_label("表示")
                 .segment("日", false)
                 .segment("週", false)
                 .segment("月", false)
@@ -33,7 +34,8 @@ fn segmented_button_moves_with_arrows(cx: &mut TestAppContext) {
 
 #[test]
 fn single_select_is_a_radio_group() {
-    let button = SegmentedButton::new("s", "表示")
+    let button = SegmentedButton::new("s")
+        .aria_label("表示")
         .segment("日", false)
         .segment("週", false)
         .selected([1]);
@@ -43,4 +45,21 @@ fn single_select_is_a_radio_group() {
     assert_eq!(node.toggled, Some(Toggled::True));
     assert_eq!(node.selected, None);
     assert_eq!(node.position, Some((2, 2)));
+}
+
+#[test]
+fn group_name_is_optional_and_can_be_cleared() {
+    assert_eq!(SegmentedButton::new("g").a11y_node().label, None);
+    assert_eq!(
+        SegmentedButton::new("g")
+            .aria_label("表示")
+            .a11y_node()
+            .label
+            .as_deref(),
+        Some("表示")
+    );
+    assert_eq!(
+        SegmentedButton::new("g").aria_label("").a11y_node().label,
+        None
+    );
 }

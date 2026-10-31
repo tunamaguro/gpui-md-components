@@ -59,7 +59,7 @@ gallery ─────────────> md3-components ──> md3-them
 
 1. **不正状態を型で排除する**
    - 操作可能な要素はコンストラクタで `ElementId` を必須にする（a11y の安定 ID になる）。
-   - アイコンのみのボタンはラベル必須: `IconButton::new(id, icon, label)`。
+   - アイコンのみのボタンには読み上げ用の名前を指定する: `IconButton::new(id, icon).aria_label(label)`。
 1. **バリアントは enum**
    - `ButtonVariant::{Filled, Tonal, Elevated, Outlined, Text}` など。
    - `ColorRole` は全ロールを列挙し、`Scheme::color(role)` を網羅 `match` で実装する（ワイルドカード `_` 禁止）。

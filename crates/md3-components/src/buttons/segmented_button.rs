@@ -13,6 +13,7 @@ use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
 #[derive(Clone, Debug)]
 pub struct Segment {
     label: SharedString,
+    aria_label: Option<Option<SharedString>>,
     icon: Option<IconName>,
     disabled: bool,
 }
@@ -22,9 +23,17 @@ impl Segment {
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
             label: label.into(),
+            aria_label: None,
             icon: None,
             disabled: false,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
     }
 
     /// アイコンを付ける（選択中はチェックに置き換わる）。
@@ -50,18 +59,29 @@ pub struct SegmentedButton {
     segments: Vec<Segment>,
 }
 impl SegmentedButton {
-    /// ID とグループのラベル（読み上げ用の名前）から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
-            inner: gpui_headless::SegmentedButton::new(id, label)
+            inner: gpui_headless::SegmentedButton::new(id)
                 .reveal_margin(crate::focus::reveal_margin())
                 .group_prefix("md3"),
             segments: Vec::new(),
         }
     }
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.inner = self.inner.aria_label(label);
+        self
+    }
+
     /// 項目を加える。
     pub fn segment(mut self, segment: Segment) -> Self {
         self.inner = self.inner.segment(segment.label.clone(), segment.disabled);
+        if let Some(label) = segment.aria_label.clone() {
+            self.inner = self
+                .inner
+                .segment_aria_label(self.segments.len(), label.unwrap_or_default());
+        }
         self.segments.push(segment);
         self
     }

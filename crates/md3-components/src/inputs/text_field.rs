@@ -14,11 +14,11 @@ use md3_theme::md3_tokens::layout;
 /// カーソルの幅。
 pub(crate) const CARET_WIDTH: f32 = 2.0;
 
-/// テキストフィールド。ラベル（読み上げ用の名前を兼ねる）が必須。
+/// テキストフィールド。ラベルは読み上げ用の名前も兼ねる。
 ///
 /// ```ignore
 /// let state = cx.new(TextFieldState::new);
-/// TextField::new("name", &state, "名前").supporting_text("必須")
+/// TextField::new("name", &state).label("名前").supporting_text("必須")
 /// ```
 ///
 /// キー操作は [`crate::init`] で割り当てる。
@@ -26,7 +26,8 @@ pub(crate) const CARET_WIDTH: f32 = 2.0;
 pub struct TextField {
     id: ElementId,
     state: Entity<TextFieldState>,
-    label: SharedString,
+    label: Option<SharedString>,
+    aria_label: Option<SharedString>,
     variant: TextFieldVariant,
     placeholder: Option<SharedString>,
     supporting_text: Option<SharedString>,
@@ -40,16 +41,13 @@ pub struct TextField {
 }
 
 impl TextField {
-    /// ID、中身、ラベルから作る。
-    pub fn new(
-        id: impl Into<ElementId>,
-        state: &Entity<TextFieldState>,
-        label: impl Into<SharedString>,
-    ) -> Self {
+    /// ID と中身から作る。
+    pub fn new(id: impl Into<ElementId>, state: &Entity<TextFieldState>) -> Self {
         Self {
             id: id.into(),
             state: state.clone(),
-            label: label.into(),
+            label: None,
+            aria_label: None,
             variant: TextFieldVariant::default(),
             placeholder: None,
             supporting_text: None,
@@ -61,6 +59,18 @@ impl TextField {
             suffix: None,
             disabled: false,
         }
+    }
+
+    /// 表示するラベルを設定し、既定の名前にする。
+    pub fn label(mut self, text: impl Into<SharedString>) -> Self {
+        self.label = Some(text.into());
+        self
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
+        self
     }
 
     /// 種類を変える。
@@ -126,10 +136,13 @@ impl TextField {
 
 impl RenderOnce for TextField {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut headless = gpui_headless::TextField::new(self.id, &self.state, self.label.clone())
+        let mut headless = gpui_headless::TextField::new(self.id, &self.state)
             .error(self.error)
             .disabled(self.disabled)
             .reveal_margin(crate::focus::reveal_margin());
+        if let Some(label) = self.aria_label.clone().or_else(|| self.label.clone()) {
+            headless = headless.aria_label(label);
+        }
         if let Some(placeholder) = self.placeholder.clone() {
             headless = headless.placeholder(placeholder);
         }
@@ -166,7 +179,9 @@ impl RenderOnce for TextField {
                     .opacity(layout::TEXT_SELECTION_OPACITY),
                 caret_width: px(CARET_WIDTH),
             },
-            self.placeholder.clone().filter(|_| focused),
+            self.placeholder
+                .clone()
+                .filter(|_| focused || self.label.is_none()),
         );
         let affix_space = px(layout::TEXT_FIELD_PREFIX_SUFFIX_SPACE);
         let content = div()
@@ -200,7 +215,7 @@ impl RenderOnce for TextField {
         let (container, supporting) = FieldFrame {
             variant: self.variant,
             state: field_state,
-            label: Some(self.label.clone()),
+            label: self.label.clone(),
             floated,
             leading_icon: self.leading_icon,
             trailing: self.trailing_icon.map(|icon| {

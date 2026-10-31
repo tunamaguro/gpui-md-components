@@ -24,6 +24,7 @@ pub enum TabsVariant {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Tab {
     label: SharedString,
+    aria_label: Option<Option<SharedString>>,
     icon: Option<IconName>,
     disabled: bool,
 }
@@ -33,9 +34,17 @@ impl Tab {
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
             label: label.into(),
+            aria_label: None,
             icon: None,
             disabled: false,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
     }
 
     /// アイコンを付ける。
@@ -98,16 +107,22 @@ pub struct Tabs {
     tabs: Vec<Tab>,
 }
 impl Tabs {
-    /// ID、名前、選択中のタブの位置から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>, selected: usize) -> Self {
+    /// ID と選択中のタブの位置から作る。
+    pub fn new(id: impl Into<ElementId>, selected: usize) -> Self {
         Self {
-            inner: gpui_headless::Tabs::new(id, label, selected)
+            inner: gpui_headless::Tabs::new(id, selected)
                 .reveal_margin(crate::focus::reveal_margin())
                 .group_prefix("md3"),
             variant: TabsVariant::default(),
             tabs: Vec::new(),
         }
     }
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.inner = self.inner.aria_label(label);
+        self
+    }
+
     /// 種類を変える。
     pub fn variant(mut self, variant: TabsVariant) -> Self {
         self.variant = variant;
@@ -116,6 +131,11 @@ impl Tabs {
     /// タブを足す。
     pub fn tab(mut self, tab: Tab) -> Self {
         self.inner = self.inner.tab(tab.label.clone(), tab.disabled);
+        if let Some(label) = tab.aria_label.clone() {
+            self.inner = self
+                .inner
+                .tab_aria_label(self.tabs.len(), label.unwrap_or_default());
+        }
         self.tabs.push(tab);
         self
     }

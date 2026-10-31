@@ -69,7 +69,7 @@
 
 1. **無効・modal・入力エラー・live region がツリーに出ていなかった。** gpui の要素の API（`aria_*`）に無いため。
    `a11y_synthetic_children` で要素自身の AccessKit のノード（`gpui::accesskit` で再公開されている）に直接書くようにした
-   （`crates/md3-components/src/a11y.rs`）。依存は増えていない。
+   （`crates/gpui-headless/src/a11y.rs`）。依存は増えていない。
 1. **アクセシビリティが有効なとき、gallery でダイアログを開くと gpui のデバッグ用の検査で panic した**
    （`set_focus called more than once in a single frame`）。gallery の見本のダイアログと本物のダイアログが同じ ID と
    同じ入力欄の状態を使い、1 つのフォーカスハンドルを 2 つの要素が追跡していた。gallery の ID を分けて解消。

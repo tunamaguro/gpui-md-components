@@ -13,7 +13,8 @@ fn space_toggles_a_checkbox(cx: &mut TestAppContext) {
         let state = state.clone();
         move |window, cx| {
             let set = state.clone();
-            Checkbox::new("all", state.get(), "すべて")
+            Checkbox::new("all", state.get())
+                .aria_label("すべて")
                 .on_change(move |next, _, _| set.set(next))
                 .build(window, cx)
                 .0
@@ -35,7 +36,8 @@ fn disabled_checkbox_does_not_change(cx: &mut TestAppContext) {
         let state = state.clone();
         move |window, cx| {
             let set = state.clone();
-            Checkbox::new("c", state.get(), "無効")
+            Checkbox::new("c", state.get())
+                .aria_label("無効")
                 .disabled(true)
                 .on_change(move |next, _, _| set.set(next))
                 .build(window, cx)
@@ -51,15 +53,44 @@ fn disabled_checkbox_does_not_change(cx: &mut TestAppContext) {
 
 #[test]
 fn checkbox_exposes_state() {
-    let checkbox = Checkbox::new("c", CheckboxState::Checked, "同意する").a11y_node();
+    let checkbox = Checkbox::new("c", CheckboxState::Checked)
+        .aria_label("同意する")
+        .a11y_node();
     assert_eq!(checkbox.role, Role::CheckBox);
     assert_eq!(checkbox.label.as_deref(), Some("同意する"));
     assert_eq!(checkbox.toggled, Some(Toggled::True));
 
-    let mixed = Checkbox::new("c", CheckboxState::Indeterminate, "すべて").a11y_node();
+    let mixed = Checkbox::new("c", CheckboxState::Indeterminate)
+        .aria_label("すべて")
+        .a11y_node();
     assert_eq!(mixed.role, Role::CheckBox);
     assert_eq!(mixed.toggled, Some(Toggled::Mixed));
     assert_eq!(CheckboxState::Unchecked.next(), CheckboxState::Checked);
     assert_eq!(CheckboxState::Checked.next(), CheckboxState::Unchecked);
     assert_eq!(CheckboxState::Indeterminate.next(), CheckboxState::Checked);
+}
+
+#[test]
+fn checkbox_name_is_optional() {
+    assert_eq!(
+        Checkbox::new("c", CheckboxState::Unchecked)
+            .a11y_node()
+            .label,
+        None
+    );
+    assert_eq!(
+        Checkbox::new("c", CheckboxState::Unchecked)
+            .aria_label("")
+            .a11y_node()
+            .label,
+        None
+    );
+    assert_eq!(
+        Checkbox::new("c", CheckboxState::Unchecked)
+            .aria_label("同意")
+            .a11y_node()
+            .label
+            .as_deref(),
+        Some("同意")
+    );
 }

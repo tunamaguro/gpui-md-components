@@ -8,26 +8,30 @@ use crate::{A11yExt, A11yNode, RangeValue};
 pub struct Progress {
     id: ElementId,
     value: Option<f32>,
-    label: SharedString,
+    label: Option<SharedString>,
 }
 
 impl Progress {
-    /// ID、値、ラベルから作る。
-    pub fn new(
-        id: impl Into<ElementId>,
-        value: Option<f32>,
-        label: impl Into<SharedString>,
-    ) -> Self {
+    /// ID と値から作る。
+    pub fn new(id: impl Into<ElementId>, value: Option<f32>) -> Self {
         Self {
             id: id.into(),
             value,
-            label: label.into(),
+            label: None,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
     }
 
     /// アクセシビリティ情報。値は 0〜1 に収める。
     pub fn a11y_node(&self) -> A11yNode {
-        let node = A11yNode::new(Role::ProgressIndicator).label(self.label.clone());
+        let mut node = A11yNode::new(Role::ProgressIndicator);
+        node.label = self.label.clone();
         match self.value {
             Some(value) => node.range(RangeValue {
                 value: f64::from(value.clamp(0.0, 1.0)),

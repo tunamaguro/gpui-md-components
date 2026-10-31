@@ -8,23 +8,30 @@ use gpui::{
 /// 各ボタンがそれぞれ Tab で止まるグループ。
 pub struct ButtonGroup {
     id: ElementId,
-    label: SharedString,
+    label: Option<SharedString>,
     items: Vec<Button>,
 }
 
 impl ButtonGroup {
-    /// ID とグループの名前から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: label.into(),
+            label: None,
             items: Vec::new(),
         }
     }
 
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
+    }
+
     /// グループのアクセシビリティ情報。
     pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::Group).label(self.label.clone())
+        A11yNode::new(Role::Group).with_label(self.label.clone())
     }
 
     /// ボタンを追加する。

@@ -57,7 +57,7 @@
 
 - 役割: TextInput
 
-- 名前: ラベル
+- 名前: 任意の `.label()` が既定。`.aria_label()` で上書きできる
 
 - 状態: value（入力文字）、placeholder
 

@@ -47,28 +47,35 @@ impl SwitchColors {
 
 type ChangeHandler = Box<dyn Fn(bool, &mut Window, &mut App) + 'static>;
 
-/// スイッチ。ラベル（読み上げ用の名前）が必須。
+/// スイッチ。
 #[derive(IntoElement)]
 pub struct Switch {
     id: ElementId,
     selected: bool,
-    label: SharedString,
+    label: Option<SharedString>,
     icons: bool,
     disabled: bool,
     on_change: Option<ChangeHandler>,
 }
 
 impl Switch {
-    /// ID、状態、ラベルから作る。
-    pub fn new(id: impl Into<ElementId>, selected: bool, label: impl Into<SharedString>) -> Self {
+    /// ID と状態から作る。
+    pub fn new(id: impl Into<ElementId>, selected: bool) -> Self {
         Self {
             id: id.into(),
             selected,
-            label: label.into(),
+            label: None,
             icons: false,
             disabled: false,
             on_change: None,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
     }
 
     /// つまみにアイコン（オンはチェック、オフはバツ）を出す。
@@ -92,10 +99,13 @@ impl Switch {
 
 impl RenderOnce for Switch {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut headless = gpui_headless::Switch::new(self.id.clone(), self.selected, self.label)
+        let mut headless = gpui_headless::Switch::new(self.id.clone(), self.selected)
             .disabled(self.disabled)
             .group(format!("md3-{}", self.id))
             .reveal_margin(crate::focus::reveal_margin());
+        if let Some(label) = self.label {
+            headless = headless.aria_label(label);
+        }
         if let Some(handler) = self.on_change {
             headless = headless.on_change(handler);
         }

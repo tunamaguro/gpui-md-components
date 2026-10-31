@@ -43,7 +43,7 @@ pub fn page(
         states(
             format!("checkbox-{name}"),
             name,
-            move |id| Checkbox::new(id, state, name).error(error),
+            move |id| Checkbox::new(id, state).aria_label(name).error(error),
             |c| c.disabled(true),
         )
     });
@@ -56,7 +56,7 @@ pub fn page(
         states(
             format!("switch-{name}"),
             name,
-            move |id| Switch::new(id, on, name).icons(icons),
+            move |id| Switch::new(id, on).aria_label(name).icons(icons),
             |s| s.disabled(true),
         )
     });
@@ -103,20 +103,25 @@ pub fn page(
                         .flex()
                         .flex_col()
                         .child(labeled(
-                            Checkbox::new("check-all", parent, "すべて").on_change({
-                                let view = view.clone();
-                                move |next, _, cx| {
-                                    let on = next == CheckboxState::Checked;
-                                    Gallery::update_demo(&view, cx, |demo| demo.checks = [on, on])
-                                }
-                            }),
+                            Checkbox::new("check-all", parent)
+                                .aria_label("すべて")
+                                .on_change({
+                                    let view = view.clone();
+                                    move |next, _, cx| {
+                                        let on = next == CheckboxState::Checked;
+                                        Gallery::update_demo(&view, cx, |demo| {
+                                            demo.checks = [on, on]
+                                        })
+                                    }
+                                }),
                             "すべて",
                         ))
                         .children(["メール", "プッシュ通知"].into_iter().enumerate().map(
                             |(i, name)| {
                                 let view = view.clone();
                                 div().pl(px(32.0)).child(labeled(
-                                    Checkbox::new(format!("check-{i}"), checked(checks[i]), name)
+                                    Checkbox::new(format!("check-{i}"), checked(checks[i]))
+                                        .aria_label(name)
                                         .on_change(move |next, _, cx| {
                                             Gallery::update_demo(&view, cx, |demo| {
                                                 demo.checks[i] = next == CheckboxState::Checked
@@ -130,7 +135,8 @@ pub fn page(
         )
         .child(
             Section::new("Radio button").child(
-                RadioGroup::new("radio", "配送方法")
+                RadioGroup::new("radio")
+                    .aria_label("配送方法")
                     .option("通常")
                     .option("お急ぎ")
                     .disabled_option("当日（選べません）")
@@ -149,12 +155,14 @@ pub fn page(
                 .child(state_header())
                 .children(switches)
                 .child(labeled(
-                    Switch::new("switch-demo", demo.switch, "Wi-Fi").on_change({
-                        let view = view.clone();
-                        move |next, _, cx| {
-                            Gallery::update_demo(&view, cx, |demo| demo.switch = next)
-                        }
-                    }),
+                    Switch::new("switch-demo", demo.switch)
+                        .aria_label("Wi-Fi")
+                        .on_change({
+                            let view = view.clone();
+                            move |next, _, cx| {
+                                Gallery::update_demo(&view, cx, |demo| demo.switch = next)
+                            }
+                        }),
                     "Wi-Fi",
                 )),
         )
@@ -195,17 +203,20 @@ pub fn page(
             Section::new("Slider")
                 .child(slider_row(
                     "連続",
-                    Slider::new("volume", demo.volume, "音量").on_change({
-                        let view = view.clone();
-                        move |value, _, cx| {
-                            Gallery::update_demo(&view, cx, |demo| demo.volume = value)
-                        }
-                    }),
+                    Slider::new("volume", demo.volume)
+                        .aria_label("音量")
+                        .on_change({
+                            let view = view.clone();
+                            move |value, _, cx| {
+                                Gallery::update_demo(&view, cx, |demo| demo.volume = value)
+                            }
+                        }),
                     format!("{:.2}", demo.volume),
                 ))
                 .child(slider_row(
                     "離散",
-                    Slider::new("rating", demo.rating, "評価")
+                    Slider::new("rating", demo.rating)
+                        .aria_label("評価")
                         .range(0.0, 5.0)
                         .step(1.0)
                         .on_change(move |value, _, cx| {
@@ -215,7 +226,9 @@ pub fn page(
                 ))
                 .child(slider_row(
                     "Disabled",
-                    Slider::new("slider-disabled", 0.3, "無効").disabled(true),
+                    Slider::new("slider-disabled", 0.3)
+                        .aria_label("無効")
+                        .disabled(true),
                     String::new(),
                 )),
         )
@@ -231,26 +244,25 @@ pub fn page(
         )
         .child(
             Section::new("Progress")
-                .child(div().w(px(320.0)).child(LinearProgress::new(
-                    "linear",
-                    Some(0.4),
-                    "ダウンロード",
-                )))
-                .child(div().w(px(320.0)).child(LinearProgress::new(
-                    "linear-indeterminate",
-                    None,
-                    "読み込み中",
-                )))
+                .child(
+                    div()
+                        .w(px(320.0))
+                        .child(LinearProgress::new("linear", Some(0.4)).aria_label("ダウンロード")),
+                )
+                .child(div().w(px(320.0)).child(
+                    LinearProgress::new("linear-indeterminate", None).aria_label("読み込み中"),
+                ))
                 .child(
                     div()
                         .flex()
                         .gap_6()
-                        .child(CircularProgress::new("circular", Some(0.7), "アップロード"))
-                        .child(CircularProgress::new(
-                            "circular-indeterminate",
-                            None,
-                            "読み込み中",
-                        )),
+                        .child(
+                            CircularProgress::new("circular", Some(0.7)).aria_label("アップロード"),
+                        )
+                        .child(
+                            CircularProgress::new("circular-indeterminate", None)
+                                .aria_label("読み込み中"),
+                        ),
                 ),
         )
 }

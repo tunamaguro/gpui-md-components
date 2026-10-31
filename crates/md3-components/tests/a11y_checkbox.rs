@@ -22,9 +22,11 @@ fn switch_cancels_keyboard_press_when_focus_moves_away(cx: &mut TestAppContext) 
             let changed = changed.clone();
             div()
                 .child(
-                    Switch::new("wifi", false, "Wi-Fi").on_change(move |_, _, _| changed.set(true)),
+                    Switch::new("wifi", false)
+                        .aria_label("Wi-Fi")
+                        .on_change(move |_, _, _| changed.set(true)),
                 )
-                .child(Checkbox::new("next", CheckboxState::Unchecked, "次"))
+                .child(Checkbox::new("next", CheckboxState::Unchecked).aria_label("次"))
                 .into_any_element()
         }
     });

@@ -40,7 +40,7 @@
 
 - 役割: List / ListItem（selected、位置）
 
-- 名前: リストのラベル、項目の見出し
+- 名前: リストは任意の `.aria_label()`、項目は表示見出しが既定で `.aria_label()` で上書き可能
 
 - `max_height` で高さを限ったときは、フォーカスが移った項目（キーボードによる矢印・Tab・初期フォーカス）は、スクロール領域の見える範囲に最小の量だけ動かして入れる（WCAG 2.2 の 2.4.11 Focus Not Obscured）。LazyList は `scroll_to_item` で同じことをする
 

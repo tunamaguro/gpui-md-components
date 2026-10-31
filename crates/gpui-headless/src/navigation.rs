@@ -7,9 +7,28 @@ use gpui::{
 use std::rc::Rc;
 
 type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App)>;
-struct Destination {
+/// 表示文字と操作状態を持つ選択肢。
+#[derive(Clone, Debug)]
+pub struct NavigationOption {
     label: SharedString,
+    aria_label: Option<Option<SharedString>>,
     disabled: bool,
+}
+impl NavigationOption {
+    /// 表示文字と無効状態から作る。
+    pub fn new(label: impl Into<SharedString>, disabled: bool) -> Self {
+        Self {
+            label: label.into(),
+            aria_label: None,
+            disabled,
+        }
+    }
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
+    }
 }
 
 /// 行き先の要素と描画に使う状態。
@@ -37,8 +56,8 @@ pub struct NavigationBase {
 /// 見た目を持たない行き先のグループ。
 pub struct Navigation {
     id: ElementId,
-    label: SharedString,
-    items: Vec<Destination>,
+    label: Option<SharedString>,
+    items: Vec<NavigationOption>,
     selected: Option<usize>,
     vertical: bool,
     dialog: Option<bool>,
@@ -47,11 +66,11 @@ pub struct Navigation {
     group_prefix: SharedString,
 }
 impl Navigation {
-    /// ID と名前から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: label.into(),
+            label: None,
             items: Vec::new(),
             selected: None,
             vertical: false,
@@ -61,14 +80,37 @@ impl Navigation {
             group_prefix: "control".into(),
         }
     }
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
+    }
+
     /// 行き先を足す。
     pub fn item(mut self, label: impl Into<SharedString>, disabled: bool) -> Self {
-        self.items.push(Destination {
+        self.items.push(NavigationOption {
             label: label.into(),
+            aria_label: None,
             disabled,
         });
         self
     }
+    /// 名前を上書きできる項目を加える。
+    pub fn destination(mut self, item: NavigationOption) -> Self {
+        self.items.push(item);
+        self
+    }
+
+    /// 項目の読み上げ名を指定する。表示文字を優先し、表示ラベルを名前に含める（WCAG 2.5.3）。
+    pub fn item_aria_label(mut self, index: usize, label: impl Into<SharedString>) -> Self {
+        if let Some(item) = self.items.get_mut(index) {
+            let label = label.into();
+            item.aria_label = Some((!label.is_empty()).then_some(label));
+        }
+        self
+    }
+
     /// 選択中の位置を設定する。
     pub fn selected(mut self, selected: Option<usize>) -> Self {
         self.selected = selected;
@@ -103,9 +145,9 @@ impl Navigation {
     pub fn a11y_node(&self) -> A11yNode {
         match self.dialog {
             Some(modal) => A11yNode::new(Role::Dialog)
-                .label(self.label.clone())
+                .with_label(self.label.clone())
                 .modal(modal),
-            None => A11yNode::new(Role::Navigation).label(self.label.clone()),
+            None => A11yNode::new(Role::Navigation).with_label(self.label.clone()),
         }
     }
     /// 項目のアクセシビリティ情報。
@@ -113,7 +155,11 @@ impl Navigation {
         let item = self.items.get(index)?;
         Some(
             A11yNode::new(Role::Tab)
-                .label(item.label.clone())
+                .with_label(
+                    item.aria_label
+                        .clone()
+                        .unwrap_or_else(|| Some(item.label.clone())),
+                )
                 .selected(self.selected == Some(index))
                 .position(index, self.items.len())
                 .disabled(item.disabled),

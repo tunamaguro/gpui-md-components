@@ -121,7 +121,9 @@ fn keyboard_sample(window: &mut Window, cx: &mut App) -> impl IntoElement {
     };
     let wheel = NestedScroll::new(&id, handle.clone(), window, cx);
     let list = (0..12).fold(
-        List::new("keyboard-scroll-list", "候補").max_height(px(120.0)),
+        List::new("keyboard-scroll-list")
+            .aria_label("候補")
+            .max_height(px(120.0)),
         |list, i| {
             let selection = selected.clone();
             list.item(
@@ -159,10 +161,11 @@ fn keyboard_sample(window: &mut Window, cx: &mut App) -> impl IntoElement {
                     .child(Button::new("keyboard-scroll-disabled", "無効なボタン").disabled(true))
                     .child(
                         Card::new(CardVariant::Filled)
-                            .on_click("keyboard-scroll-card", "カード", increment(count.clone()))
+                            .on_click("keyboard-scroll-card", increment(count.clone()))
+                            .aria_label("カード")
                             .child(div().p_4().child("押せるカード")),
                     )
-                    .child(TextField::new("keyboard-scroll-field", &state, "入力欄"))
+                    .child(TextField::new("keyboard-scroll-field", &state).label("入力欄"))
                     .child(list)
                     .child(
                         Button::new("keyboard-scroll-last", "末尾のボタン")

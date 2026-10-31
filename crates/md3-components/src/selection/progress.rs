@@ -37,28 +37,35 @@ fn progress_paint(cx: &App) -> ProgressPaint {
 pub struct LinearProgress {
     id: ElementId,
     value: Option<f32>,
-    label: SharedString,
+    label: Option<SharedString>,
 }
 
 impl LinearProgress {
-    /// ID、進み具合（0〜1、不定なら `None`）、ラベルから作る。
-    pub fn new(
-        id: impl Into<ElementId>,
-        value: Option<f32>,
-        label: impl Into<SharedString>,
-    ) -> Self {
+    /// ID と進み具合（0〜1、不定なら `None`）から作る。
+    pub fn new(id: impl Into<ElementId>, value: Option<f32>) -> Self {
         Self {
             id: id.into(),
             value,
-            label: label.into(),
+            label: None,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
     }
 }
 
 impl RenderOnce for LinearProgress {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let paint = progress_paint(cx);
-        let base = Progress::new(self.id, self.value, self.label)
+        let mut progress = Progress::new(self.id, self.value);
+        if let Some(label) = self.label {
+            progress = progress.aria_label(label);
+        }
+        let base = progress
             .build()
             .h(px(linear::HEIGHT))
             .w_full()
@@ -161,30 +168,35 @@ fn paint_linear(
 pub struct CircularProgress {
     id: ElementId,
     value: Option<f32>,
-    label: SharedString,
+    label: Option<SharedString>,
 }
 
 impl CircularProgress {
-    /// ID、進み具合（0〜1、不定なら `None`）、ラベルから作る。
-    pub fn new(
-        id: impl Into<ElementId>,
-        value: Option<f32>,
-        label: impl Into<SharedString>,
-    ) -> Self {
+    /// ID と進み具合（0〜1、不定なら `None`）から作る。
+    pub fn new(id: impl Into<ElementId>, value: Option<f32>) -> Self {
         Self {
             id: id.into(),
             value,
-            label: label.into(),
+            label: None,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
     }
 }
 
 impl RenderOnce for CircularProgress {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let paint = progress_paint(cx);
-        let base = Progress::new(self.id, self.value, self.label)
-            .build()
-            .size(px(circular::SIZE));
+        let mut progress = Progress::new(self.id, self.value);
+        if let Some(label) = self.label {
+            progress = progress.aria_label(label);
+        }
+        let base = progress.build().size(px(circular::SIZE));
         match self.value {
             Some(value) => {
                 let value = value.clamp(0.0, 1.0);

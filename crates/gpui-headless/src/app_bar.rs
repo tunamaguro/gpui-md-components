@@ -8,6 +8,7 @@ use crate::{A11yExt, A11yNode};
 pub struct AppBar {
     id: ElementId,
     title: SharedString,
+    aria_label: Option<Option<SharedString>>,
 }
 
 impl AppBar {
@@ -16,12 +17,24 @@ impl AppBar {
         Self {
             id: id.into(),
             title: title.into(),
+            aria_label: None,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
     }
 
     /// アプリバーのアクセシビリティ情報。
     pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::Header).label(self.title.clone())
+        A11yNode::new(Role::Header).with_label(
+            self.aria_label
+                .clone()
+                .unwrap_or_else(|| Some(self.title.clone())),
+        )
     }
 
     /// タイトルのアクセシビリティ情報。
