@@ -238,7 +238,7 @@ impl ToggleButton {
             (theme.color(container), theme.color(content_role))
         };
         let mut button = base
-            .h(height)
+            .min_h(height)
             .min_w(px(layout::BUTTON_MIN_WIDTH))
             .pl(px(tokens::LEADING_SPACE))
             .pr(px(tokens::TRAILING_SPACE))

@@ -157,7 +157,7 @@ impl RenderOnce for SegmentedButton {
                 };
 
                 let item = base
-                    .h(theme.dense(tokens::CONTAINER_HEIGHT))
+                    .min_h(theme.dense(tokens::CONTAINER_HEIGHT))
                     .flex_1()
                     .flex()
                     .items_center()

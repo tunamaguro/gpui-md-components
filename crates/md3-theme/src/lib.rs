@@ -201,6 +201,7 @@ pub struct Theme {
     font_family: Option<SharedString>,
     type_scale: TypeScaleStyles,
     density: Density,
+    text_scale: f32,
     shapes: Shapes,
     motion_scheme: MotionScheme,
 }
@@ -230,6 +231,7 @@ impl Theme {
             font_family: self.font_family.clone(),
             type_scale: self.type_scale.clone(),
             density: self.density,
+            text_scale: self.text_scale,
             shapes: self.shapes,
             motion_scheme: self.motion_scheme,
             system_is_dark: self.is_dark,
@@ -266,6 +268,11 @@ impl Theme {
         self.density
     }
 
+    /// 文字の拡大率。
+    pub fn text_scale(&self) -> f32 {
+        self.text_scale
+    }
+
     /// 現在の配色でのカラーロールの色。
     pub fn argb(&self, role: ColorRole) -> Argb {
         self.table(self.is_dark).get(role)
@@ -290,17 +297,19 @@ impl Theme {
         self.font_family.as_ref()
     }
 
-    /// タイプスケール全体。
+    /// タイプスケール全体（文字の拡大率を掛ける前の値）。
     pub fn type_scale(&self) -> &TypeScaleStyles {
         &self.type_scale
     }
 
-    /// タイプスケールの 1 種の文字スタイル。フォントファミリはテーマのものを補う。
+    /// タイプスケールの 1 種の文字スタイル。フォントファミリはテーマのものを補い、文字の拡大率を掛ける。
     pub fn text_style(&self, scale: TypeScale) -> TypeScaleStyle {
         let mut style = self.type_scale.get(scale).clone();
         if style.font_family.is_none() {
             style.font_family = self.font_family.clone();
         }
+        style.font_size *= self.text_scale;
+        style.line_height *= self.text_scale;
         style
     }
 
@@ -375,6 +384,7 @@ pub struct ThemeBuilder {
     font_family: Option<SharedString>,
     type_scale: TypeScaleStyles,
     density: Density,
+    text_scale: f32,
     shapes: Shapes,
     motion_scheme: MotionScheme,
     system_is_dark: bool,
@@ -391,6 +401,7 @@ impl ThemeBuilder {
             font_family: None,
             type_scale: TypeScaleStyles::default(),
             density: Density::Default,
+            text_scale: 1.0,
             shapes: Shapes::default(),
             motion_scheme: MotionScheme::default(),
             system_is_dark: false,
@@ -456,6 +467,13 @@ impl ThemeBuilder {
         self
     }
 
+    /// 文字の拡大率を変える（既定は 1.0）。gpui は OS の文字サイズを読まないので、アプリが設定する。
+    /// WCAG 1.4.4 のため、部品は 2.0 まで文字を切らずに伸びる。
+    pub fn text_scale(mut self, scale: f32) -> Self {
+        self.text_scale = scale;
+        self
+    }
+
     /// 角丸スケールを書き換える。
     pub fn shapes(mut self, f: impl FnOnce(&mut Shapes)) -> Self {
         f(&mut self.shapes);
@@ -501,6 +519,7 @@ impl ThemeBuilder {
             font_family: self.font_family,
             type_scale: self.type_scale,
             density: self.density,
+            text_scale: self.text_scale,
             shapes: self.shapes,
             motion_scheme: self.motion_scheme,
         }

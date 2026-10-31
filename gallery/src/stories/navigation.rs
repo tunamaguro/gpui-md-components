@@ -34,7 +34,7 @@ fn frame(width: f32, height: f32, cx: &App, child: impl IntoElement) -> AnyEleme
     let theme = cx.md3();
     div()
         .w(px(width))
-        .h(px(height))
+        .min_h(px(height))
         .flex_none()
         .overflow_hidden()
         .border_1()

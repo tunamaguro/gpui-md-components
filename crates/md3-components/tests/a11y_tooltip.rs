@@ -157,3 +157,17 @@ fn escape_closes_the_tooltip_before_the_dialog(cx: &mut TestAppContext) {
     support::press(cx, "escape");
     assert_eq!(dismissed.get(), 1, "次の Esc でダイアログを閉じる");
 }
+
+#[gpui::test]
+fn long_tooltip_text_wraps(cx: &mut TestAppContext) {
+    let cx = support::open(cx, |_, _| {
+        IconButton::new("share", IconName::Share)
+            .aria_label("共有")
+            .tooltip("長い説明の文が幅の上限で折り返されて、切れずにすべて読めること".repeat(3))
+            .on_click(|_, _, _| {})
+            .into_any_element()
+    });
+    key_tab(cx);
+    let bounds = cx.debug_bounds(TOOLTIP).expect("ツールチップの位置");
+    assert!(bounds.size.height > px(24.0), "{bounds:?}");
+}

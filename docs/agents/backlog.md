@@ -29,7 +29,14 @@
 ### Tooltip
 
 - フォーカスのツールチップと、ほかの要素のホバーのツールチップが同時に出る。Compose は `BasicTooltipDefaults.GlobalMutatorMutex` で同時に 1 つにする（`BasicTooltip.kt`）。
-- Plain の長い文が幅の上限の中で折り返されないことがある（テスト用の text system での計測。実機では未確認）。
+
+### 文字の拡大
+
+- ListItem の行数は内容の有無で決まり、折り返しを見ていない。Compose は補助テキストが複数行なら 3 行として扱う（`ListItem.kt`）。
+- Menu の末尾の文字が長いと、本文の幅がほとんどなくなる。
+- 200% で文字が容器に接する部品がある（Button の上下の余白、Rich Tooltip の上の余白）。リストのアバターの頭文字は 40dp の円からはみ出すことがある。
+- Outlined の浮いたラベルが長いと枠の右をはみ出す。
+- `text_scale` は 0、負数、NaN を検証していない。
 
 ### 既定モーション（Compose で既定のアニメーションがあるもの。参照は androidx@b8256a52）
 

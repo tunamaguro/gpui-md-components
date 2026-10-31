@@ -275,7 +275,7 @@ impl RenderOnce for Button {
         };
 
         let mut button = base
-            .h(theme.dense(baseline_button::CONTAINER_HEIGHT))
+            .min_h(theme.dense(baseline_button::CONTAINER_HEIGHT))
             .min_w(px(layout::BUTTON_MIN_WIDTH))
             .pl(px(leading))
             .pr(px(trailing))

@@ -292,7 +292,7 @@ impl RenderOnce for ExtendedFab {
                         layout::EXTENDED_FAB_TEXT_SPACE,
                     )
                 };
-                fab.h(px(extended_fab_primary::CONTAINER_HEIGHT))
+                fab.min_h(px(extended_fab_primary::CONTAINER_HEIGHT))
                     .min_w(px(layout::EXTENDED_FAB_MIN_WIDTH))
                     .pl(px(start))
                     .pr(px(end))
