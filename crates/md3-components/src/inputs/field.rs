@@ -33,6 +33,24 @@ impl TextFieldVariant {
     pub const ALL: [TextFieldVariant; 2] = [TextFieldVariant::Filled, TextFieldVariant::Outlined];
 }
 
+/// 複数行の入力の右の余白の幅。スクロールバーの操作領域（WCAG 2.5.8 の 24 CSS px）が文字に
+/// かからない幅で、Compose の 16dp より広い。
+const MULTI_LINE_END_SPACE: f32 = 24.0;
+
+/// 入力の右の余白の幅。
+pub(crate) fn text_end_space(multi_line: bool, trailing: bool) -> Pixels {
+    let space = px(layout::TEXT_FIELD_HORIZONTAL_SPACE);
+    if trailing {
+        // アイコンの枠の内側の余白の分を詰める（`icon_padding`）。
+        let icon_padding = (px(layout::MIN_INTERACTIVE_SIZE) - px(filled::LEADING_ICON_SIZE)) / 2.0;
+        (space - icon_padding).max(px(0.0))
+    } else if multi_line {
+        px(MULTI_LINE_END_SPACE)
+    } else {
+        space
+    }
+}
+
 /// 外枠の状態。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct FieldState {
@@ -225,6 +243,8 @@ pub(crate) struct FieldFrame {
     pub content: AnyElement,
     /// 複数行の入力か。入力を上に寄せ、ラベルの有無にかかわらず入力の高さを確保する。
     pub multi_line: bool,
+    /// 入力の右の余白に重ねる要素。余白いっぱいの箱に入れ、入力より後に描く。
+    pub gutter: Option<AnyElement>,
     pub supporting_text: Option<SharedString>,
     pub supporting_a11y: Option<(gpui::ElementId, gpui_headless::A11yNode)>,
     pub counter: Option<SharedString>,
@@ -248,11 +268,7 @@ impl FieldFrame {
         } else {
             space
         };
-        let text_end = if self.trailing.is_some() {
-            (space - icon_padding).max(px(0.0))
-        } else {
-            space
-        };
+        let text_end = text_end_space(self.multi_line, self.trailing.is_some());
         let label_color = tint(theme, colors.label);
         // Filled のトークンには高さがないため Outlined の値を使う（どちらも 56dp。TextFieldDefaults.MinHeight と同じ）。
         let height = px(outlined::CONTAINER_HEIGHT);
@@ -325,6 +341,15 @@ impl FieldFrame {
                     .children(self.label.clone()),
             );
         }
+        let gutter = self.gutter.map(|gutter| {
+            div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .right_0()
+                .w(text_end)
+                .child(gutter)
+        });
         if self.multi_line || self.floated || self.label.is_none() {
             column = column.child(
                 div()
@@ -343,6 +368,7 @@ impl FieldFrame {
                     .child(label),
             );
         }
+        column = column.children(gutter);
 
         let mut container = div()
             .relative()

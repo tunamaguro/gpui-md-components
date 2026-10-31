@@ -168,6 +168,7 @@ impl RenderOnce for Select {
             floated: value.is_some() || focused,
             leading_icon: self.leading_icon,
             multi_line: false,
+            gutter: None,
             trailing: Some(
                 Icon::new(arrow)
                     .size(px(tokens::TRAILING_ICON_SIZE))

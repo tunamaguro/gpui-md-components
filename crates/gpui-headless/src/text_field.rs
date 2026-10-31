@@ -12,9 +12,9 @@ use crate::keys::{
 };
 use crate::scroll::{gesture_step, reveal_in_scopes};
 use crate::text_layout::{Caret, TextLayout};
-use crate::{A11yExt, A11yNode};
+use crate::{A11yExt, A11yNode, ScrollbarSource};
 use gpui::{
-    A11ySubtreeBuilder, App, AvailableSpace, Bounds, ClipboardItem, ContentMask, Context,
+    A11ySubtreeBuilder, App, AvailableSpace, Axis, Bounds, ClipboardItem, ContentMask, Context,
     CursorStyle, Div, Element, ElementId, ElementInputHandler, Entity, EntityInputHandler,
     EventEmitter, FocusHandle, Focusable, Font, Global, GlobalElementId, Hsla, InspectorElementId,
     IntoElement, KeyContext, LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, PaintQuad,
@@ -23,7 +23,7 @@ use gpui::{
     relative, size,
 };
 use std::borrow::Cow;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::ops::Range;
 use std::rc::Rc;
 
@@ -113,7 +113,8 @@ pub struct TextFieldState {
     last_layout: Option<TextLayout>,
     last_bounds: Option<Bounds<Pixels>>,
     last_ime_anchor: Option<ImeAnchor>,
-    scroll: Point<Pixels>,
+    scroll_x: Pixels,
+    vertical: TextFieldScroll,
     is_selecting: bool,
     multi_line: bool,
     /// 折り返し位置のカーソルを、前の表示行の末尾に出すか。
@@ -150,7 +151,8 @@ impl TextFieldState {
             last_layout: None,
             last_bounds: None,
             last_ime_anchor: None,
-            scroll: point(px(0.0), px(0.0)),
+            scroll_x: px(0.0),
+            vertical: TextFieldScroll::default(),
             is_selecting: false,
             multi_line: false,
             caret_upstream: false,
@@ -277,8 +279,8 @@ impl TextFieldState {
         let position = layout.position(offset, upstream);
         let bottom = (bounds.bottom() - layout.line_height()).max(bounds.top());
         Some(point(
-            (bounds.left() - self.scroll.x + position.x).clamp(bounds.left(), bounds.right()),
-            (bounds.top() - self.scroll.y + position.y).clamp(bounds.top(), bottom),
+            (bounds.left() - self.scroll_x + position.x).clamp(bounds.left(), bounds.right()),
+            (bounds.top() - self.vertical.get().offset + position.y).clamp(bounds.top(), bottom),
         ))
     }
 
@@ -590,6 +592,10 @@ impl TextFieldState {
         }
     }
 
+    fn scroll(&self) -> Point<Pixels> {
+        point(self.scroll_x, self.vertical.get().offset)
+    }
+
     /// ホイールで文字を送る。動かせたら `true`。動かせない分は祖先のスクロールに任せる。
     fn scroll_by_wheel(&mut self, event: &ScrollEvent, cx: &mut Context<Self>) -> bool {
         let (Some(bounds), Some(layout)) = (self.last_bounds, self.last_layout.as_ref()) else {
@@ -597,9 +603,10 @@ impl TextFieldState {
         };
         let delta = event.delta.pixel_delta(layout.line_height());
         let max = (layout.height() - bounds.size.height).max(px(0.0));
-        let before = self.scroll.y;
-        self.scroll.y = (before - delta.y).clamp(px(0.0), max);
-        let moved = self.scroll.y != before;
+        let before = self.vertical.get().offset;
+        let after = (before - delta.y).clamp(px(0.0), max);
+        self.vertical.update(|metrics| metrics.offset = after);
+        let moved = after != before;
         let (active, claimed) = self.scroll_gesture;
         let (consume, next) = gesture_step(
             active,
@@ -653,7 +660,7 @@ impl TextFieldState {
             }
         }
         // 複数行の欄の外は、最も近い表示行に収める（`caret_at`）。
-        layout.caret_at(position - bounds.origin + self.scroll)
+        layout.caret_at(position - bounds.origin + self.scroll())
     }
 
     fn select_to(&mut self, offset: usize, window: &Window, cx: &mut Context<Self>) {
@@ -901,7 +908,7 @@ impl EntityInputHandler for TextFieldState {
         _cx: &mut Context<Self>,
     ) -> Option<usize> {
         let line_point = self.last_bounds?.localize(&point)?;
-        let caret = self.current_layout()?.caret_at(line_point + self.scroll);
+        let caret = self.current_layout()?.caret_at(line_point + self.scroll());
         Some(self.offset_to_utf16(caret.offset))
     }
 }
@@ -1062,6 +1069,55 @@ fn next_boundary(text: &str, offset: usize) -> usize {
         .unwrap_or(text.len())
 }
 
+#[derive(Clone, Copy, Default)]
+struct ScrollMetrics {
+    viewport: Bounds<Pixels>,
+    max: Pixels,
+    offset: Pixels,
+}
+
+/// 複数行の欄の縦のスクロール位置。[`TextFieldControl::scroll`] で得る。
+///
+/// [`ScrollbarSource`] として [`crate::Scrollbar`] に渡す。値は入力行の描画で更新されるので、
+/// バーは入力行より後に置く。横には動かない。
+#[derive(Clone, Default)]
+pub struct TextFieldScroll(Rc<Cell<ScrollMetrics>>);
+
+impl TextFieldScroll {
+    fn get(&self) -> ScrollMetrics {
+        self.0.get()
+    }
+
+    fn update(&self, f: impl FnOnce(&mut ScrollMetrics)) {
+        let mut metrics = self.0.get();
+        f(&mut metrics);
+        self.0.set(metrics);
+    }
+}
+
+impl ScrollbarSource for TextFieldScroll {
+    fn viewport(&self) -> Bounds<Pixels> {
+        self.get().viewport
+    }
+    fn max_offset(&self, axis: Axis) -> Pixels {
+        match axis {
+            Axis::Vertical => self.get().max,
+            Axis::Horizontal => px(0.0),
+        }
+    }
+    fn offset(&self, axis: Axis) -> Pixels {
+        match axis {
+            Axis::Vertical => self.get().offset,
+            Axis::Horizontal => px(0.0),
+        }
+    }
+    fn set_offset(&self, axis: Axis, offset: Pixels) {
+        if axis == Axis::Vertical {
+            self.update(|metrics| metrics.offset = offset.clamp(px(0.0), metrics.max.max(px(0.0))));
+        }
+    }
+}
+
 /// 入力欄の文字（文字、placeholder、変換中の下線、選択、キャレット）を描く要素。
 ///
 /// `line_limits` があれば欄の幅で折り返し、行数に合わせて高さを決める。なければ 1 行で、
@@ -1214,7 +1270,7 @@ impl Element for TextContent {
         let cursor = input.cursor_offset();
         let upstream = input.caret_upstream;
         let marked_range = input.marked_range.clone();
-        let mut scroll = input.scroll;
+        let mut scroll = input.scroll();
         let reveal = input.reveal_caret;
         let style = window.text_style();
 
@@ -1285,6 +1341,7 @@ impl Element for TextContent {
         } else {
             layout.position(cursor, upstream)
         };
+        let mut max_scroll_y = px(0.0);
         if multi_line {
             // カーソルが見える位置まで縦に送る。
             if reveal {
@@ -1295,9 +1352,8 @@ impl Element for TextContent {
                     scroll.y = caret.y + line_height - bounds.size.height;
                 }
             }
-            scroll.y = scroll
-                .y
-                .clamp(px(0.0), (layout.height() - bounds.size.height).max(px(0.0)));
+            max_scroll_y = (layout.height() - bounds.size.height).max(px(0.0));
+            scroll.y = scroll.y.clamp(px(0.0), max_scroll_y);
         } else {
             // カーソルが見える位置まで横に送る。
             let visible = (bounds.size.width - self.paint.caret_width).max(px(0.0));
@@ -1315,7 +1371,12 @@ impl Element for TextContent {
             scroll.x = scroll.x.min(max_scroll).max(px(0.0));
         }
         self.state.update(cx, |state, _| {
-            state.scroll = scroll;
+            state.scroll_x = scroll.x;
+            state.vertical.0.set(ScrollMetrics {
+                viewport: bounds,
+                max: max_scroll_y,
+                offset: scroll.y,
+            });
             state.reveal_caret = false;
         });
         let origin = bounds.origin - scroll;
@@ -1394,6 +1455,15 @@ impl Element for TextContent {
                 window.paint_quad(caret);
             }
         });
+        // 選択のドラッグは欄の外やスクロールバーの上でも続けるので、ウィンドウ全体の移動を受ける。
+        if self.state.read(cx).is_selecting {
+            let state = self.state.clone();
+            window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
+                if phase.capture() && event.dragging() {
+                    state.update(cx, |state, cx| state.on_mouse_move(event, window, cx));
+                }
+            });
+        }
         self.state.update(cx, |input, cx| {
             input.last_layout = Some(layout);
             input.last_bounds = Some(bounds);
@@ -1585,6 +1655,15 @@ impl TextField {
             .when_some(self.placeholder.clone(), |this, placeholder| {
                 this.aria_placeholder(placeholder)
             });
+        if multi_line {
+            // 無効の欄でも、隠れた行を読めるようホイールは受ける。
+            let state = self.state.clone();
+            base = base.on_scroll(move |event, _, cx| {
+                if state.update(cx, |state, cx| state.scroll_by_wheel(event, cx)) {
+                    cx.stop_propagation();
+                }
+            });
+        }
         if !self.disabled {
             base = a11y_actions(base, &self.state, run_nodes);
             base = editable(
@@ -1628,6 +1707,12 @@ pub struct TextFieldControl {
     pub hovered: bool,
 }
 impl TextFieldControl {
+    /// 複数行の欄の縦のスクロール位置。1 行の欄は `None`。
+    pub fn scroll(&self, cx: &App) -> Option<TextFieldScroll> {
+        self.line_limits
+            .map(|_| self.state.read(cx).vertical.clone())
+    }
+
     /// 指定した色とプレースホルダーで入力行を作る。
     pub fn input(
         &self,
@@ -1877,14 +1962,6 @@ fn editable(
             |s, w, cx| s.select_document_end(w, cx),
             SelectDocumentEnd,
         ))
-        .when(multi_line, |field| {
-            let state = state.clone();
-            field.on_scroll(move |event, _, cx| {
-                if state.update(cx, |state, cx| state.scroll_by_wheel(event, cx)) {
-                    cx.stop_propagation();
-                }
-            })
-        })
         .on_mouse_down_out({
             let state = state.clone();
             move |_, _, cx| {
@@ -1911,12 +1988,8 @@ fn editable(
             let state = state.clone();
             move |_, _, cx| state.update(cx, |state, _| state.is_selecting = false)
         })
-        .on_mouse_up_out(MouseButton::Left, {
-            let state = state.clone();
-            move |_, _, cx| state.update(cx, |state, _| state.is_selecting = false)
-        })
-        .on_mouse_move(move |event, window, cx| {
-            state.update(cx, |state, cx| state.on_mouse_move(event, window, cx))
+        .on_mouse_up_out(MouseButton::Left, move |_, _, cx| {
+            state.update(cx, |state, _| state.is_selecting = false)
         })
 }
 

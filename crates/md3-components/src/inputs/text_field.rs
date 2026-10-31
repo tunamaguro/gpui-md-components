@@ -1,17 +1,84 @@
 //! TextField（Filled / Outlined）。1 行と複数行の入力欄。
 
 use super::TextFieldState;
-use super::field::{FieldFrame, FieldState, TextFieldVariant, tint};
+use super::field::{FieldFrame, FieldState, TextFieldVariant, text_end_space, tint};
 use crate::IconName;
-use gpui::{App, ElementId, IntoElement, RenderOnce, SharedString, Window, div, prelude::*, px};
-use gpui_headless::{TextPaint, grapheme_count};
+use crate::scrollbar::{Scrollbar, ScrollbarTarget};
+use gpui::{
+    AnyElement, App, Axis, Bounds, ElementId, IntoElement, Pixels, RenderOnce, SharedString,
+    Window, canvas, div, prelude::*, px,
+};
+use gpui_headless::{ScrollbarSource, TextFieldScroll, TextPaint, grapheme_count};
 use md3_theme::Md3ThemeExt;
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::filled_text_field as tokens;
+use md3_theme::md3_tokens::component::scrollbar as scrollbar_tokens;
 use md3_theme::md3_tokens::layout;
+use std::cell::Cell;
+use std::rc::Rc;
 
 /// カーソルの幅。
 pub(crate) const CARET_WIDTH: f32 = 2.0;
+
+/// スクロールバーの操作領域の幅。WCAG 2.5.8 の 24 × 24 CSS px。
+const SCROLLBAR_HIT_WIDTH: f32 = 24.0;
+/// つまみの不透明度。常に見えるバーは隠れた行があることを示す唯一の印なので、
+/// WCAG 1.4.11 の 3:1 を満たす値にする。
+const SCROLLBAR_THUMB_OPACITY: f32 = 1.0;
+
+/// 高さと位置はそのままに、右端を入力の右の余白の左端 + 操作領域の幅に合わせたスクロール。
+struct GutterScroll {
+    inner: TextFieldScroll,
+    gutter_left: Rc<Cell<Pixels>>,
+}
+
+impl ScrollbarSource for GutterScroll {
+    fn viewport(&self) -> Bounds<Pixels> {
+        let mut viewport = self.inner.viewport();
+        viewport.size.width = self.gutter_left.get() + px(SCROLLBAR_HIT_WIDTH) - viewport.left();
+        viewport
+    }
+    fn max_offset(&self, axis: Axis) -> Pixels {
+        self.inner.max_offset(axis)
+    }
+    fn offset(&self, axis: Axis) -> Pixels {
+        self.inner.offset(axis)
+    }
+    fn set_offset(&self, axis: Axis, offset: Pixels) {
+        self.inner.set_offset(axis, offset);
+    }
+}
+
+/// 複数行の欄のスクロールバー。隠れた行がある間は常に表示し、幅 `gutter` の右の余白の中央に置く。
+/// 操作領域は余白の左端から始まるので文字にかからず、バーが出ても折り返しは変わらない。
+fn gutter_scrollbar(id: ElementId, scroll: TextFieldScroll, gutter: Pixels) -> AnyElement {
+    let gutter_left = Rc::new(Cell::new(px(0.0)));
+    let measured = gutter_left.clone();
+    let source = GutterScroll {
+        inner: scroll,
+        gutter_left,
+    };
+    let cross_inset = px(SCROLLBAR_HIT_WIDTH) - (gutter + px(scrollbar_tokens::THICKNESS)) / 2.0;
+    div()
+        .size_full()
+        .child(
+            canvas(
+                move |bounds, _, _| measured.set(bounds.left()),
+                |_, _, _, _| {},
+            )
+            .size_full(),
+        )
+        .child(
+            Scrollbar::new(
+                ElementId::NamedChild(id.into(), "scrollbar".into()),
+                ScrollbarTarget::new(source),
+            )
+            .fade(false)
+            .thumb_opacity(SCROLLBAR_THUMB_OPACITY)
+            .placement(cross_inset, px(SCROLLBAR_HIT_WIDTH)),
+        )
+        .into_any_element()
+}
 
 /// テキストフィールド。ラベルは読み上げ用の名前も兼ねる。
 ///
@@ -147,8 +214,9 @@ impl TextField {
     /// 複数行の入力欄にする。文字は欄の幅で折り返し、Enter で改行する。
     ///
     /// 高さは `min_lines` 行から `max_lines` 行の間で内容に合わせて変わり、`max_lines` を超えた分は
-    /// 欄の中でスクロールする。上限なしは `usize::MAX`。`min_lines` は 1 以上に、`max_lines` は
-    /// `min_lines` 以上に直す。
+    /// 欄の中でスクロールする。隠れた行がある間はスクロールバーを出す（トラックが最小長に届かない低い
+    /// 欄を除く）。上限なしは `usize::MAX`。
+    /// `min_lines` は 1 以上に、`max_lines` は `min_lines` 以上に直す。
     ///
     /// ```ignore
     /// TextField::new("body", &state).label("本文").multi_line(4, 10)
@@ -174,6 +242,10 @@ impl RenderOnce for TextField {
             .inner
             .reveal_margin(crate::focus::reveal_margin())
             .build(window, cx);
+        let gutter = control.scroll(cx).map(|scroll| {
+            let width = text_end_space(self.multi_line, self.trailing_icon.is_some());
+            gutter_scrollbar(self.id.clone(), scroll, width)
+        });
         let text = &control.text;
         let focused = control.focused;
         let field_state = FieldState {
@@ -259,6 +331,7 @@ impl RenderOnce for TextField {
             }),
             content,
             multi_line: self.multi_line,
+            gutter,
             supporting_text: self.supporting_text.clone(),
             supporting_a11y,
             counter,

@@ -40,6 +40,7 @@
 - 各スクロール領域の最後の子として配置する。自身はレイアウト上のサイズを持たず、スクロール位置によらず
   供給元の表示領域に描画する。UniformList ではリストの後ろの兄弟として置く。
 - gallery の根、LazyList、`List::max_height`、Dialog 本文、Menu / Select、Sheet 本文、Drawer に適用。
+  複数行の TextField は常時表示、不透明度 1.0、操作領域 24dp で使う（`docs/specs/text-field.md`）。
   各部品の `.scrollbar(false)` はバーだけを隠し、スクロールは維持する。
 - アプリ側のスクロール領域では `md3_components::scrollbar::ScrollScope` を使える。メール見本の詳細本文にも適用する。
 

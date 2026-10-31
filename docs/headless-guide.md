@@ -36,7 +36,7 @@ let popup = popup.place(|base| base.flex().flex_col());
 
 ## テキストとスクロール
 
-`TextFieldState` を Entity で保持し、`TextField::build` が返す `TextFieldControl::input` に `TextPaint`（文字・プレースホルダー・キャレット・選択範囲の色とキャレット幅）を渡します。`focus_visible` はキーボードフォーカスの表示に使います。スクロール領域には `ScrollScope` と必要に応じ `NestedScroll` を使い、`Scrollbar` には表示領域の `ScrollHandle`、テーマ側の寸法と描画を渡します。詳細は [利用ガイドのスクロールバー](guide.md) と [Scrollbar の仕様](specs/scrollbar.md) を参照してください。
+`TextFieldState` を Entity で保持し、`TextField::build` が返す `TextFieldControl::input` に `TextPaint`（文字・プレースホルダー・キャレット・選択範囲の色とキャレット幅）を渡します。`focus_visible` はキーボードフォーカスの表示に使います。スクロール領域には `ScrollScope` と必要に応じ `NestedScroll` を使い、`Scrollbar` には表示領域の `ScrollHandle`（複数行の入力欄の中は `TextFieldControl::scroll` の値）、テーマ側の寸法と描画を渡します。詳細は [利用ガイドのスクロールバー](guide.md) と [Scrollbar の仕様](specs/scrollbar.md) を参照してください。
 
 入力要素はレイアウトを状態に書き戻すため、1 つの `TextFieldState` は必ず 1 つの入力要素だけで表示してください。
 

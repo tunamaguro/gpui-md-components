@@ -39,7 +39,7 @@ pub struct ScrollbarTarget(
 );
 
 impl ScrollbarTarget {
-    fn new(source: impl ScrollbarSource) -> Self {
+    pub(crate) fn new(source: impl ScrollbarSource) -> Self {
         Self(Box::new(move |id, geometry| {
             gpui_headless::Scrollbar::new(id, source, geometry)
         }))
@@ -76,6 +76,9 @@ pub struct Scrollbar {
     axis: Axis,
     interaction: ScrollbarInteraction,
     fade: bool,
+    thumb_opacity: f32,
+    cross_inset: Pixels,
+    hit_width: Pixels,
 }
 impl Scrollbar {
     /// 安定 ID とスクロール位置の供給元から縦バーを作る。
@@ -86,6 +89,10 @@ impl Scrollbar {
             axis: Axis::Vertical,
             interaction: ScrollbarInteraction::default(),
             fade: true,
+            thumb_opacity: tokens::THUMB_OPACITY,
+            cross_inset: px(tokens::CROSS_AXIS_TRACK_INSET),
+            // デスクトップの操作領域としての実装判断。
+            hit_width: px(12.0),
         }
     }
     /// スクロール軸を選ぶ。
@@ -101,6 +108,17 @@ impl Scrollbar {
     /// false ならスクロール可能な間は常に表示する。
     pub fn fade(mut self, fade: bool) -> Self {
         self.fade = fade;
+        self
+    }
+    /// つまみの不透明度を変える。
+    pub(crate) fn thumb_opacity(mut self, opacity: f32) -> Self {
+        self.thumb_opacity = opacity;
+        self
+    }
+    /// 表示領域の端からの間隔とポインタの操作領域の幅を変える。
+    pub(crate) fn placement(mut self, cross_inset: Pixels, hit_width: Pixels) -> Self {
+        self.cross_inset = cross_inset;
+        self.hit_width = hit_width;
         self
     }
 }
@@ -142,12 +160,11 @@ impl RenderOnce for Scrollbar {
         );
         let geometry = ScrollbarGeometry {
             track_inset: px(tokens::MAIN_AXIS_TRACK_INSET),
-            cross_inset: px(tokens::CROSS_AXIS_TRACK_INSET),
+            cross_inset: self.cross_inset,
             thickness: px(tokens::THICKNESS),
             min_thumb_length: px(tokens::THUMB_MIN_LENGTH),
             max_thumb_fraction: tokens::THUMB_MAX_LENGTH_FRACTION,
-            // デスクトップの操作領域としての実装判断。
-            hit_width: px(12.0),
+            hit_width: self.hit_width,
         };
         let color = cx.md3().color(tokens::THUMB_COLOR);
         (self.target.0)(self.id, geometry)
@@ -176,7 +193,7 @@ impl RenderOnce for Scrollbar {
                 });
                 if alpha > 0.0 {
                     window.paint_quad(
-                        fill(bar.thumb, color.opacity(tokens::THUMB_OPACITY * alpha))
+                        fill(bar.thumb, color.opacity(self.thumb_opacity * alpha))
                             .corner_radii(geometry.thickness / 2.0),
                     );
                     if self.fade && !bar.hovered && !bar.dragging {

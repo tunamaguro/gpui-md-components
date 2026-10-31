@@ -18,16 +18,16 @@
 
 ## 寸法
 
-| 項目                   | 値                                                                  | トークン                                                                              |
-| ---------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| 高さ                   | 56dp（最小値。Outlined はラベルがあると上に行の高さの半分を空ける） | `outlined_text_field::CONTAINER_HEIGHT`                                               |
-| 複数行の上下の余白     | Filled + ラベルは 8dp、それ以外は 16dp                              | `layout::TEXT_FIELD_WITH_LABEL_VERTICAL_SPACE`, `layout::TEXT_FIELD_HORIZONTAL_SPACE` |
-| 最小幅                 | 280dp                                                               | `layout::TEXT_FIELD_MIN_WIDTH`                                                        |
-| 左右の余白             | 16dp（アイコンがあれば 12dp + 48dp の枠）                           | `layout::TEXT_FIELD_HORIZONTAL_SPACE`                                                 |
-| 下線                   | 1dp、フォーカスで 2dp                                               | `ACTIVE_INDICATOR_HEIGHT`, `FOCUS_ACTIVE_INDICATOR_HEIGHT`                            |
-| 枠線                   | 1dp、フォーカスで 2dp                                               | `OUTLINE_WIDTH`, `FOCUS_OUTLINE_WIDTH`                                                |
-| ラベルの切り欠きの余白 | 4dp                                                                 | `layout::OUTLINED_TEXT_FIELD_LABEL_GAP`                                               |
-| 補助テキストの上       | 4dp                                                                 | `layout::TEXT_FIELD_SUPPORTING_TOP_SPACE`                                             |
+| 項目                   | 値                                                                                      | トークン                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 高さ                   | 56dp（最小値。Outlined はラベルがあると上に行の高さの半分を空ける）                     | `outlined_text_field::CONTAINER_HEIGHT`                                               |
+| 複数行の上下の余白     | Filled + ラベルは 8dp、それ以外は 16dp                                                  | `layout::TEXT_FIELD_WITH_LABEL_VERTICAL_SPACE`, `layout::TEXT_FIELD_HORIZONTAL_SPACE` |
+| 最小幅                 | 280dp                                                                                   | `layout::TEXT_FIELD_MIN_WIDTH`                                                        |
+| 左右の余白             | 16dp（アイコンがあれば 4dp + 48dp の枠。複数行の右は 24dp、末尾のアイコンがあれば 4dp） | `layout::TEXT_FIELD_HORIZONTAL_SPACE`                                                 |
+| 下線                   | 1dp、フォーカスで 2dp                                                                   | `ACTIVE_INDICATOR_HEIGHT`, `FOCUS_ACTIVE_INDICATOR_HEIGHT`                            |
+| 枠線                   | 1dp、フォーカスで 2dp                                                                   | `OUTLINE_WIDTH`, `FOCUS_OUTLINE_WIDTH`                                                |
+| ラベルの切り欠きの余白 | 4dp                                                                                     | `layout::OUTLINED_TEXT_FIELD_LABEL_GAP`                                               |
+| 補助テキストの上       | 4dp                                                                                     | `layout::TEXT_FIELD_SUPPORTING_TOP_SPACE`                                             |
 
 ## 色（状態別）
 
@@ -44,7 +44,9 @@
 - 中身は `Entity<TextFieldState>` が持ち、変更は `gpui_headless::TextFieldEvent::Changed` で通知する。
 - 既定は 1 行入力。はみ出した分はキャレットが見えるように横にスクロールする。
 - `.multi_line(min_lines, max_lines)` で複数行入力にする（Compose の `TextFieldLineLimits.MultiLine`）。欄の幅で折り返し、高さは `min_lines` 行から `max_lines` 行の間で内容に合わせて変わる。`max_lines` を超えた分は欄の中で縦にスクロールする。上限なしは `usize::MAX`。
-  カーソルが動くと、欄の中と祖先の `ScrollScope` の中でカーソルが見える位置まで送る。ホイールで動かした位置は再描画で戻さない。端に達したホイールは祖先へ渡す（`NestedScroll` と同じ）。
+  カーソルが動くと、欄の中と祖先の `ScrollScope` の中でカーソルが見える位置まで送る。ホイールやスクロールバーで動かした位置は再描画で戻さない。端に達したホイールは祖先へ渡す（`NestedScroll` と同じ）。無効の欄もホイールとスクロールバーで隠れた行を読める。
+- 隠れた行がある間はスクロールバーを出す。Compose の TextField はバーを持たず、MD3 の Text fields の Accessibility タブは本文を読めなかったので、下の「アクセシビリティ」の WCAG の項に従う。
+  入力の右の余白の中央に置く。余白は隠れた行の有無によらず同じなので、バーが出ても折り返しは変わらない。縦の範囲は入力の行で、トラックのクリックは入力の高さの分だけ動く。
 - 複数行の配置（Compose の `TextFieldMeasurePolicy`）: 入力とラベルは上に寄せ、先頭・末尾のアイコンは縦の中央に置く。空でフォーカスがないときも入力の行を確保するので、フォーカスで高さは変わらない（折り返す placeholder を除く）。
 - 改行は LF で持つ。貼り付けや `set_text` の CRLF / CR は LF にそろえる。1 行の欄では、入力された改行は空白にし、改行だけの入力は無視する。`set_text` / `with_text` は欄の種類を知らないので LF を残し、1 行の欄では空白として表示する。
 - 編集キー: ←→、Shift+←→、Home / End、Shift+Home / End（表示行の先頭・末尾）、Backspace / Delete、Ctrl(⌘)+A / C / X / V。
@@ -64,6 +66,13 @@
 - キーボードでフォーカスが移ると、祖先の `ScrollScope` の表示領域へ移す（WCAG 2.2 の 2.4.11）。
   `reveal_on_focus` を共有し、マウスクリックやフォーカスが変わらないホイール操作では引き戻さない。
 
+- 複数行のスクロールバー（Compose に無いので WCAG 2.2 で決めた）:
+
+  - 1.4.11: 隠れた行があることを示す印はバーだけなので、フェードさせず、つまみは Outline の不透明度 1.0 にする。トークンの 0.7 は既定の配色の Filled で 2.28:1（ライト）/ 2.68:1（ダーク）と 3:1 に届かない。1.0 なら 3.51:1 / 3.87:1。
+  - 2.5.8: 操作領域は幅 24dp で、文字に重ねない。トラックが 24dp 未満なら描かないので、高さも 24dp 以上ある。
+  - 2.5.7: トラックのクリックでページ移動できるので、ドラッグなしで操作できる。
+  - 2.1.1: バーはフォーカスを持たず、キーボードでは ↑↓ / PageUp / PageDown でカーソルと一緒に動く。APG に textbox のパターンはない。
+
 - 役割: TextInput（複数行は MultilineTextInput）
 
 - 名前: 任意の `.label()` が既定。`.aria_label()` で上書きできる
@@ -80,9 +89,10 @@
 
 ## 既知の制限・仕様からの逸脱
 
-- 複数行で、ドラッグが欄の外に出ても時間で送り続けない（マウスが動いた分だけ送る）。
+- 選択のドラッグは欄の外やスクロールバーの上でも続くが、複数行で欄の外に出ても時間で送り続けない（マウスが動いた分だけ送る）。
 - 複数行の支援技術の行は段落単位で、折り返しの位置を見ない。
-- 複数行のスクロールバーは描かない。`max_lines` を超えた内容があることは見た目で分からない。
+- Text scale 100% の高さ 1 行の欄（`.multi_line(1, 1)`）はトラックが最小長の 24dp に届かず、スクロールバーを描かない（`docs/specs/scrollbar.md`）。
+- 複数行の右の余白は 24dp で、Compose の 16dp より広い。スクロールバーの操作領域を文字に重ねないため（WCAG 2.5.8）で、隠れた行の有無によらず同じ幅にして折り返しを変えない。末尾のアイコンがある欄の余白は 1 行の欄と同じ 4dp で、操作領域は装飾のアイコンの枠に 20dp かかる。
 - ラベルのある欄の placeholder はフォーカス中だけ出るので、折り返すとフォーカスで高さが変わる。
 - Web の IME 候補ウィンドウは gpui_web の制限により左上に表示される。
 - 依存を増やせないため、書記素の境界は簡易判定（結合文字、異体字セレクタ、ZWJ、肌色修飾、地域指示子のペア）。Unicode の全規則は満たさない。
