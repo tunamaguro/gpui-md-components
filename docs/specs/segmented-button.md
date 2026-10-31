@@ -14,12 +14,12 @@
 
 ## 寸法
 
-| 項目       | 値                     | トークン                                           |
-| ---------- | ---------------------- | -------------------------------------------------- |
-| 高さ       | 40dp（密度で減る）     | `outlined_segmented_button::CONTAINER_HEIGHT`      |
-| 枠線       | 1dp                    | `OUTLINE_WIDTH`                                    |
-| 左右の余白 | 12dp                   | `layout::SEGMENTED_BUTTON_HORIZONTAL_SPACE`        |
-| アイコン   | 18dp、ラベルとの間 8dp | `ICON_SIZE`, `layout::SEGMENTED_BUTTON_ICON_SPACE` |
+| 項目       | 値                      | トークン                                           |
+| ---------- | ----------------------- | -------------------------------------------------- |
+| 高さ       | 最小 40dp（密度で減る） | `outlined_segmented_button::CONTAINER_HEIGHT`      |
+| 枠線       | 1dp                     | `OUTLINE_WIDTH`                                    |
+| 左右の余白 | 12dp                    | `layout::SEGMENTED_BUTTON_HORIZONTAL_SPACE`        |
+| アイコン   | 18dp、ラベルとの間 8dp  | `ICON_SIZE`, `layout::SEGMENTED_BUTTON_ICON_SPACE` |
 
 ## 色（状態別）
 

@@ -10,12 +10,12 @@
 
 ## 寸法
 
-| 項目         | 値                                                | トークン                                                               |
-| ------------ | ------------------------------------------------- | ---------------------------------------------------------------------- |
-| 高さ         | 48dp（Primary でアイコンとラベルの両方なら 72dp） | `primary_navigation_tab::CONTAINER_HEIGHT`, `layout::TAB_LARGE_HEIGHT` |
-| ラベルの左右 | 16dp                                              | `layout::TAB_HORIZONTAL_SPACE`                                         |
-| 印の太さ     | 3dp                                               | `primary_navigation_tab::ACTIVE_INDICATOR_HEIGHT`                      |
-| 下の区切り線 | 1dp、OutlineVariant                               | `divider::THICKNESS`, `divider::COLOR`                                 |
+| 項目         | 値                                                     | トークン                                                               |
+| ------------ | ------------------------------------------------------ | ---------------------------------------------------------------------- |
+| 高さ         | 最小 48dp（Primary でアイコンとラベルの両方なら 72dp） | `primary_navigation_tab::CONTAINER_HEIGHT`, `layout::TAB_LARGE_HEIGHT` |
+| ラベルの左右 | 16dp（長いラベルは折り返す）                           | `layout::TAB_HORIZONTAL_SPACE`                                         |
+| 印の太さ     | 3dp                                                    | `primary_navigation_tab::ACTIVE_INDICATOR_HEIGHT`                      |
+| 下の区切り線 | 1dp、OutlineVariant                                    | `divider::THICKNESS`, `divider::COLOR`                                 |
 
 ## 色（状態別）
 

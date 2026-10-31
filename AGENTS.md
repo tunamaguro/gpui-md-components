@@ -52,7 +52,7 @@ GPUI（Zed の UI フレームワーク）上に Material Design 3（ベース�
 - `nix fmt` で整形し、`nix flake check`（整形・clippy・test・ビルド・audit / deny）が通る
 - `cargo build -p md3-components --target wasm32-unknown-unknown` と `cargo xtask check-tokens` が通る
   （手順は `docs/agents/dev-environment.md` の「完了チェック」。作業中は cargo を直接使ってよい）
-- 新規コンポーネントは gallery に全バリアントの操作できる見本と disabled、該当すれば selected / error の見本がある。hover / focused / pressed は見本を実際に操作して確認する（skill `gallery-check`）
+- 新規コンポーネントは gallery に全バリアントの操作できる見本と disabled、該当すれば selected / error の見本がある。hover / focused / pressed は見本を実際に操作して確認する（skill `gallery-check`）。文字を持つ部品は Text scale 200% でも切れない
 - 公開 API に doc コメントがある（`#![deny(missing_docs)]`）
 - Codex またはサブエージェントのレビューが完了している。使用量の制限で使えない場合を除き、完了を待ってからマージする（skill `ship-pr`）
 
@@ -73,4 +73,5 @@ nix develop -c tools/a11y-tree/run.sh <出力先> [ページ...]   # Linux の a
 ## 不明点があるとき
 
 GPUI の API 名・シグネチャは版で変わる。推測で書かず、固定している rev の `crates/gpui/src` と `crates/gpui/examples` を grep して確認する。
+ガイドラインや Compose の内容も記憶で書かない。文書に「Compose と同じ」と書く前に、参照先を grep して確かめる。
 このドキュメントのコード例の GPUI API 名（`.role()` `.aria_label()` など）も「要確認」扱い。

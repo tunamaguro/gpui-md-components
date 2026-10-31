@@ -1654,7 +1654,7 @@
 `gpui-headless` の `reveal_offset` には `md3-components` が既存の `state::FOCUS_INDICATOR_THICKNESS`（3.0dp）と
 `state::FOCUS_INDICATOR_OUTER_OFFSET`（2.0dp）を渡し、外側へ 5.0dp 広げて表示位置を計算する。
 新しい寸法トークンは追加しない。`FocusRing` の外周と同じ計算で、出典は
-[material-web の `_md-sys-state-focus-indicator.scss`](https://github.com/material-components/material-web/blob/86cb0d484d0cda1193f09bb3ee70b8e2ed8e6a79/tokens/versions/latest/sass/_md-sys-state-focus-indicator.scss)
-L21（outer-offset）・L23（thickness）、material-web@86cb0d48（Google LLC、Apache-2.0）。
+[material-web の `_md-sys-state-focus-indicator.scss`](references/material-web/tokens/versions/latest/sass/_md-sys-state-focus-indicator.scss)
+L21（outer-offset）・L23（thickness）。転記元は material-web@86cb0d48（Google LLC、Apache-2.0）。
 
 テキスト入力のキャレット幅 2px は既存実装を維持する。出典: Zed `crates/gpui/examples/input.rs` @ `37faef81` のキャレット描画（`size(px(2.), …)`）。

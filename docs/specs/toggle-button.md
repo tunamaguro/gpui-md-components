@@ -15,15 +15,15 @@
 
 ## 寸法
 
-| 項目         | 値                     | トークン                                        |
-| ------------ | ---------------------- | ----------------------------------------------- |
-| 高さ         | 40dp（密度で減る）     | `button_small::CONTAINER_HEIGHT`                |
-| 左右の余白   | 16dp                   | `button_small::LEADING_SPACE`, `TRAILING_SPACE` |
-| アイコン     | 20dp、ラベルとの間 8dp | `button_small::ICON_SIZE`, `ICON_LABEL_SPACE`   |
-| 最小の幅     | 58dp                   | `layout::BUTTON_MIN_WIDTH`                      |
-| 形（非選択） | 丸（高さの半分）       | `button_small::CONTAINER_SHAPE_ROUND`           |
-| 形（選択中） | 角丸 12dp              | `button_small::SELECTED_CONTAINER_SHAPE_SQUARE` |
-| 形（押下中） | 角丸 8dp               | `button_small::PRESSED_CONTAINER_SHAPE`         |
+| 項目         | 値                      | トークン                                        |
+| ------------ | ----------------------- | ----------------------------------------------- |
+| 高さ         | 最小 40dp（密度で減る） | `button_small::CONTAINER_HEIGHT`                |
+| 左右の余白   | 16dp                    | `button_small::LEADING_SPACE`, `TRAILING_SPACE` |
+| アイコン     | 20dp、ラベルとの間 8dp  | `button_small::ICON_SIZE`, `ICON_LABEL_SPACE`   |
+| 最小の幅     | 58dp                    | `layout::BUTTON_MIN_WIDTH`                      |
+| 形（非選択） | 丸（高さの半分）        | `button_small::CONTAINER_SHAPE_ROUND`           |
+| 形（選択中） | 角丸 12dp               | `button_small::SELECTED_CONTAINER_SHAPE_SQUARE` |
+| 形（押下中） | 角丸 8dp                | `button_small::PRESSED_CONTAINER_SHAPE`         |
 
 ## 色（状態別）
 

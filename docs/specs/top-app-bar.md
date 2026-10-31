@@ -5,7 +5,7 @@
 
 ## バリアント
 
-- Small / CenterAligned（64dp）、Medium（112dp）、Large（152dp）
+- Small / CenterAligned（最小 64dp）、Medium（最小 112dp）、Large（最小 152dp）
 
 ## 構成要素（アナトミー）
 
@@ -16,12 +16,12 @@
 
 ## 寸法
 
-| 項目                             | 値                  | トークン                                                   |
-| -------------------------------- | ------------------- | ---------------------------------------------------------- |
-| 高さ                             | 64 / 112 / 152dp    | `app_bar_small/medium/large::CONTAINER_HEIGHT`             |
-| 左右の余白                       | 4dp                 | `layout::TOP_APP_BAR_HORIZONTAL_SPACE`                     |
-| アイコンが無いときのタイトルの前 | 12dp（端から 16dp） | `layout::TOP_APP_BAR_TITLE_INSET`                          |
-| Medium / Large のタイトルの下    | 24 / 28dp           | `layout::MEDIUM_TOP_APP_BAR_TITLE_BOTTOM_SPACE`, `LARGE_…` |
+| 項目                             | 値                    | トークン                                                   |
+| -------------------------------- | --------------------- | ---------------------------------------------------------- |
+| 高さ                             | 最小 64 / 112 / 152dp | `app_bar_small/medium/large::CONTAINER_HEIGHT`             |
+| 左右の余白                       | 4dp                   | `layout::TOP_APP_BAR_HORIZONTAL_SPACE`                     |
+| アイコンが無いときのタイトルの前 | 12dp（端から 16dp）   | `layout::TOP_APP_BAR_TITLE_INSET`                          |
+| Medium / Large のタイトルの下    | 24 / 28dp             | `layout::MEDIUM_TOP_APP_BAR_TITLE_BOTTOM_SPACE`, `LARGE_…` |
 
 ## 振る舞い
 

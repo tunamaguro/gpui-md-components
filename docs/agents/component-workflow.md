@@ -5,6 +5,7 @@
 ## 1. 仕様の要約を作る
 
 - m3.material.io の該当コンポーネント（Overview / Specs / Guidelines / Accessibility）を読み、`docs/specs/<component>.md` に `docs/specs/_template.md` の形式で要約する。
+- 本文を読めないときは Compose の実装で代え、読めなかったと spec と PR に書く。
 - 長文の引用はしない。寸法・状態・振る舞いを箇条書きにまとめる。
 
 ## 2. トークンを転記する
@@ -24,6 +25,7 @@
 - スクロール領域を持つなら `NestedScroll` と `Scrollbar` を付ける（`architecture.md` の「共有部品」）。
 - 状態の変化に Compose が既定でアニメーションを付けているなら、`Theme::spring` のバネで付ける。`reduce_motion` で止まることを確かめる。
 - 利用者のコールバックは Entity の update の中から直接呼ばない（`cx.defer`）。押下状態はフォーカスを失ったときにも解除する。
+- 文字は `Theme::text_style` を通し、文字を含む容器は `.min_h()` にして、省略せず折り返す（`a11y.md` の「文字の拡大」）。
 - 描画経路に thread / Mutex / ブロッキングを入れない（wasm）。
 
 ## 4. gallery に見本を追加する
@@ -35,11 +37,14 @@
 
 - `crates/gpui-headless/tests/`: 役割・名前・状態・キー操作（a11y.md の手順 1）。
 - 既存の部品のアクセシビリティの問題を直すときは、先に問題を再現するテストを足し、失敗を確かめてから修正する。
+- 「出ない」を assert するテストは、その前に「出る」状態を assert する。前提が崩れていても通ってしまう。
+- 寸法を変える修正は、定数ではなく描いた結果を `debug_bounds` で確かめる（100% の寸法を含む）。
 - 見た目のロジック（色の選択、寸法計算）は純関数に切り出して単体テストする。
 
 ## 6. 画面で確かめる
 
 - gallery を起動して、追加した見本を操作し、hover / focused / pressed を撮って確かめる（skill `gallery-check`）。
+- Theme の Text scale を 200% にして、文字が切れない・重ならないことを確かめる。
 
 ## 7. 完了チェック
 

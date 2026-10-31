@@ -18,7 +18,7 @@
 
 | 項目                 | 値                                          | トークン                                 |
 | -------------------- | ------------------------------------------- | ---------------------------------------- |
-| 高さ                 | 40dp（密度で減る）                          | `baseline_button::CONTAINER_HEIGHT`      |
+| 高さ                 | 最小 40dp（密度で減る）                     | `baseline_button::CONTAINER_HEIGHT`      |
 | 最小幅               | 58dp                                        | `layout::BUTTON_MIN_WIDTH`               |
 | 左右の余白           | 24dp（アイコン付きは左 16dp、Text は 12dp） | `baseline_button::LEADING_SPACE` ほか    |
 | アイコンとラベルの間 | 8dp                                         | `baseline_button::ICON_LABEL_SPACE`      |

@@ -28,6 +28,8 @@
 
 ### Tooltip
 
+- 基準の要素がクリップされて見えないとき、ツールチップは出ないが 1 回目の Esc を受ける（`attach` が表示の判定を見ていない）。
+- `md3_focus_tooltip` は `key_context` を上書きし、独自の `FocusHandle` を使う要素ではポインタの判定が効かない見込み（コードを読んだだけ）。doc コメントに前提がない。
 - フォーカスのツールチップと、ほかの要素のホバーのツールチップが同時に出る。Compose は `BasicTooltipDefaults.GlobalMutatorMutex` で同時に 1 つにする（`BasicTooltip.kt`）。
 
 ### 文字の拡大
@@ -37,6 +39,8 @@
 - 200% で文字が容器に接する部品がある（Button の上下の余白、Rich Tooltip の上の余白）。リストのアバターの頭文字は 40dp の円からはみ出すことがある。
 - Outlined の浮いたラベルが長いと枠の右をはみ出す。
 - `text_scale` は 0、負数、NaN を検証していない。
+- Filled の入力欄は 150% 以上で上下の余白がなくなる。Compose は `TextFieldWithLabelVerticalPadding` も足す。
+- NavigationBar はラベルの長さが違うと、200% で項目の高さが揃わない。ラベルの折り返しのテストがない（`rail_keeps_its_width_with_a_long_label` は幅だけを見る）。
 
 ### 既定モーション（Compose で既定のアニメーションがあるもの。参照は androidx@b8256a52）
 

@@ -8,7 +8,11 @@ page=${1:-foundations}
 log=${2:-${TMPDIR:-/tmp}/md3-gallery.log}
 cd "$root"
 pkill -x gallery || true
-nix develop -c cargo build -p gallery 2>&1 | grep -E "^(error|warning: unused)" || true
+# ビルドに失敗したら止める。続けると古いバイナリを見てしまう。
+if ! output=$(env -u CARGO_TARGET_DIR nix develop -c cargo build -p gallery 2>&1); then
+  echo "$output" | tail -30 >&2
+  exit 1
+fi
 (env -u WAYLAND_DISPLAY MD3_GALLERY_PAGE="$page" ${MD3_REDUCE_MOTION:+MD3_REDUCE_MOTION=$MD3_REDUCE_MOTION} \
   nix develop -c ./target/debug/gallery >"$log" 2>&1 &)
 for _ in $(seq 1 60); do

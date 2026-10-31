@@ -17,7 +17,7 @@
 | 項目                 | 値                  | トークン                                                 |
 | -------------------- | ------------------- | -------------------------------------------------------- |
 | 幅                   | 112〜280dp          | `layout::MENU_MIN_WIDTH`, `MENU_MAX_WIDTH`               |
-| 項目の高さ           | 48dp                | `layout::MENU_ITEM_HEIGHT`                               |
+| 項目の高さ           | 最小 48dp           | `layout::MENU_ITEM_HEIGHT`                               |
 | 項目の左右           | 12dp                | `layout::MENU_ITEM_HORIZONTAL_SPACE`                     |
 | 上下の余白           | 8dp                 | `layout::MENU_VERTICAL_SPACE`                            |
 | ウィンドウ端との間隔 | 上下 48dp、左右 8dp | `layout::MENU_VERTICAL_MARGIN`, `MENU_HORIZONTAL_MARGIN` |
