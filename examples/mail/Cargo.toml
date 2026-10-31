@@ -9,5 +9,8 @@ publish.workspace = true
 [dependencies]
 md3-components = { workspace = true, features = ["platform"] }
 
+[target.'cfg(target_family = "wasm")'.dependencies]
+wasm-bindgen.workspace = true
+
 [lints]
 workspace = true

@@ -29,7 +29,7 @@ GPUI（Zed の UI フレームワーク）上に Material Design 3（ベース�
 
 ## 絶対に守るルール
 
-- **依存の追加は禁止。** `gpui-headless` が依存してよいのは `gpui` だけ。使ってよい外部 crate は `gpui`（上流 Zed リポジトリの git rev 固定）と、`gallery` のバイナリだけ `gpui_platform` と `wasm-bindgen`（wasm32 ターゲットのみ、エントリポイント用）。例外として `md3-components` は再公開のためだけに `gpui_platform` を optional（feature `platform`）で持つ。dev-dependencies も原則なし。どうしても必要だと判断したら実装を止めて人間に相談する。
+- **依存の追加は禁止。** `gpui-headless` が依存してよいのは `gpui` だけ。使ってよい外部 crate は `gpui`（上流 Zed リポジトリの git rev 固定）と、`examples/` のバイナリだけ `gpui_platform` と `wasm-bindgen`（wasm32 ターゲットのみ、エントリポイント用）。例外として `md3-components` は再公開のためだけに `gpui_platform` を optional（feature `platform`）で持つ。dev-dependencies も原則なし。どうしても必要だと判断したら実装を止めて人間に相談する。
 - `build.rs` は作らない。コード生成が必要なら `xtask`（std のみ）で生成し、生成物をコミットする。
 - 全 crate に `#![forbid(unsafe_code)]`。`md3-color` では `unwrap` / `expect` / `panic!` 禁止（`clippy::unwrap_used`, `clippy::expect_used` を deny）。
 - lint の抑制は `#[expect(..., reason = "...")]` を使い、`#[allow(...)]` は使わない。理由は必須（`clippy::allow_attributes_without_reason` を deny）。`#![allow(...)]` は `clippy::allow_attributes` が検出しないので、これも手で避ける。
@@ -63,7 +63,7 @@ GPUI（Zed の UI フレームワーク）上に Material Design 3（ベース�
 ```sh
 cargo run -p gallery                     # デスクトップでギャラリー起動
 cargo run -p mail-sample                 # メールアプリの見本を起動
-cargo xtask web                          # wasm 版ギャラリーを target/web/ にビルド（nix develop の環境で）
+cargo xtask web                          # examples/ の全見本の wasm 版を target/web/ にビルド（nix develop の環境で）
 cargo test -p md3-color                  # 配色エンジンのテスト（GPU 不要）
 cargo xtask check-tokens                 # TOKENS_SOURCE.md と定数の突き合わせ
 MD3_GALLERY_PAGE=inputs cargo run -p gallery   # ページを指定して起動

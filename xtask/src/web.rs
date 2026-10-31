@@ -1,8 +1,9 @@
-//! `cargo xtask web`: wasm 版ギャラリーをビルドし、静的ファイル一式を `target/web/` に出力する。
+//! `cargo xtask web`: [`EXAMPLES`] の見本を wasm でビルドし、静的ファイル一式を `target/web/` に出力する。
 //!
-//! 1. `cargo build -p gallery --target wasm32-unknown-unknown`（既定は `--release`）
-//! 2. `wasm-bindgen --target web` で JS バインディングを作る
-//! 3. `index.html` と、UI の文字に使うフォント（`fonts/`）を置く
+//! 1. `cargo build -p <見本>... --target wasm32-unknown-unknown`（既定は `--release`）
+//! 2. 見本ごとに `wasm-bindgen --target web` で JS バインディングを作り、`<見本>/` に
+//!    `example.html` から作った `index.html` と一緒に置く
+//! 3. 見本を選ぶ `index.html` と、全見本で共有するフォント（`fonts/`）を直下に置く
 //!
 //! ブラウザでは gpui がシステムフォントを読めないため、ページがフォントを取得して wasm に渡す。
 //! ライブラリはフォントを同梱しない方針なので、フォントはリポジトリに置かず、環境変数
@@ -19,8 +20,41 @@ use std::process::Command;
 /// 出力先（ワークスペース直下からの相対パス）。
 const OUT_DIR: &str = "target/web";
 
-/// 配信するページ。
+/// `examples/` の見本。ここに載せたものが Web 版の選択ページに並ぶ。
+struct Example {
+    /// `examples/` の下のディレクトリ名。配信時のパスにも使う。
+    dir: &'static str,
+    /// Cargo のパッケージ名。
+    package: &'static str,
+    /// ページの題名。
+    title: &'static str,
+    /// 選択ページに出す説明。
+    description: &'static str,
+}
+
+const EXAMPLES: &[Example] = &[
+    Example {
+        dir: "gallery",
+        package: "gallery",
+        title: "Gallery",
+        description: "全部品・全バリアントを操作できる見本",
+    },
+    Example {
+        dir: "mail",
+        package: "mail-sample",
+        title: "Mail",
+        description: "部品を組み合わせたメールアプリの見本",
+    },
+];
+
+/// 見本を選ぶページ。`{{examples}}` を見本の一覧に置き換える。
 const INDEX_HTML: &str = include_str!("../web/index.html");
+
+/// 見本を起動するページ。`{{title}}` を見本の題名に置き換える。
+const EXAMPLE_HTML: &str = include_str!("../web/example.html");
+
+/// wasm-bindgen の出力の名前。`example.html` が `./app.js` を読み込む。
+const APP_NAME: &str = "app";
 
 /// フォントのファイルの並びを指す環境変数。
 const FONTS_ENV: &str = "MD3_WEB_FONTS";
@@ -58,48 +92,69 @@ pub fn run(workspace_root: &Path, args: impl Iterator<Item = String>) -> Result<
     let target_dir = target_directory(workspace_root)?;
     let profile = if release { "release" } else { "debug" };
     let mut build = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned()));
-    build
-        .current_dir(workspace_root)
-        .args(["build", "--locked", "-p", "gallery", "--target"])
-        .arg("wasm32-unknown-unknown");
+    build.current_dir(workspace_root).args([
+        "build",
+        "--locked",
+        "--target",
+        "wasm32-unknown-unknown",
+    ]);
+    for example in EXAMPLES {
+        build.args(["-p", example.package]);
+    }
     if release {
         build.arg("--release");
     }
     run_command(&mut build)?;
 
     let out_dir = workspace_root.join(OUT_DIR);
-    let wasm = target_dir
-        .join("wasm32-unknown-unknown")
-        .join(profile)
-        .join("gallery.wasm");
-    run_command(
-        Command::new("wasm-bindgen")
-            .args([
-                "--target",
-                "web",
-                "--no-typescript",
-                "--out-name",
-                "gallery",
-            ])
-            .arg("--out-dir")
-            .arg(&out_dir)
-            .arg(&wasm),
-    )?;
+    // 前回の出力が残らないよう作り直す。
+    if out_dir.exists() {
+        std::fs::remove_dir_all(&out_dir)
+            .map_err(|error| format!("cannot remove {}: {error}", out_dir.display()))?;
+    }
+    let wasm_dir = target_dir.join("wasm32-unknown-unknown").join(profile);
+    for example in EXAMPLES {
+        let dir = out_dir.join(example.dir);
+        let wasm = wasm_dir.join(format!("{}.wasm", example.package));
+        run_command(
+            Command::new("wasm-bindgen")
+                .args(["--target", "web", "--no-typescript", "--out-name", APP_NAME])
+                .arg("--out-dir")
+                .arg(&dir)
+                .arg(&wasm),
+        )?;
+        write_file(
+            &dir.join("index.html"),
+            &EXAMPLE_HTML.replace("{{title}}", example.title),
+        )?;
+    }
 
-    let index = out_dir.join("index.html");
-    std::fs::write(&index, INDEX_HTML)
-        .map_err(|error| format!("cannot write {}: {error}", index.display()))?;
+    write_file(&out_dir.join("index.html"), &index_html())?;
     copy_fonts(&fonts, &out_dir.join(FONTS_DIR))?;
     Ok(out_dir.display().to_string())
 }
 
+/// 見本を選ぶページの HTML。
+fn index_html() -> String {
+    let items: String = EXAMPLES
+        .iter()
+        .map(|example| {
+            format!(
+                "<li><a href=\"{}/\"><strong>{}</strong><span>{}</span></a></li>\n",
+                example.dir, example.title, example.description
+            )
+        })
+        .collect();
+    INDEX_HTML.replace("{{examples}}", &items)
+}
+
+fn write_file(path: &Path, contents: &str) -> Result<(), String> {
+    std::fs::write(path, contents)
+        .map_err(|error| format!("cannot write {}: {error}", path.display()))
+}
+
 /// フォントを `dir` に `0.ttf` のような名前で写し、ファイル名の一覧を `list.txt` に書く。
 fn copy_fonts(fonts: &[PathBuf], dir: &Path) -> Result<(), String> {
-    // 前回の出力が残らないよう作り直す。
-    if dir.exists() {
-        std::fs::remove_dir_all(dir)
-            .map_err(|error| format!("cannot remove {}: {error}", dir.display()))?;
-    }
     std::fs::create_dir_all(dir)
         .map_err(|error| format!("cannot create {}: {error}", dir.display()))?;
     let mut list = String::new();
@@ -117,9 +172,7 @@ fn copy_fonts(fonts: &[PathBuf], dir: &Path) -> Result<(), String> {
         list.push_str(&name);
         list.push('\n');
     }
-    let list_path = dir.join("list.txt");
-    std::fs::write(&list_path, list)
-        .map_err(|error| format!("cannot write {}: {error}", list_path.display()))
+    write_file(&dir.join("list.txt"), &list)
 }
 
 /// Cargo.lock に記録された crate の版。
@@ -275,6 +328,56 @@ fn json_string(chars: &mut impl Iterator<Item = char>) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `examples/` に足した見本が Web 版から漏れないようにする。
+    #[test]
+    fn every_example_directory_is_published() {
+        let examples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples");
+        let mut dirs: Vec<String> = std::fs::read_dir(&examples)
+            .expect("examples/ を読めること")
+            .map(|entry| {
+                entry
+                    .expect("examples/ の項目を読めること")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        dirs.sort();
+        let mut listed: Vec<&str> = EXAMPLES.iter().map(|example| example.dir).collect();
+        listed.sort();
+        assert_eq!(
+            dirs, listed,
+            "EXAMPLES は examples/ の全ディレクトリを載せる"
+        );
+
+        for example in EXAMPLES {
+            let dir = examples.join(example.dir);
+            let manifest = std::fs::read_to_string(dir.join("Cargo.toml"))
+                .expect("見本の Cargo.toml を読めること");
+            assert!(
+                manifest.contains(&format!("name = \"{}\"", example.package)),
+                "{} のパッケージ名が EXAMPLES と違う",
+                example.dir
+            );
+            let main = std::fs::read_to_string(dir.join("src/main.rs"))
+                .expect("見本の main.rs を読めること");
+            assert!(
+                main.contains("pub fn start("),
+                "{} に wasm のエントリポイントがない",
+                example.dir
+            );
+        }
+    }
+
+    #[test]
+    fn index_links_to_every_example() {
+        let html = index_html();
+        assert!(!html.contains("{{examples}}"));
+        for example in EXAMPLES {
+            assert!(html.contains(&format!("href=\"{}/\"", example.dir)));
+        }
+    }
 
     #[test]
     fn metadata_paths_decode_escapes_and_ignore_nested_fields() {

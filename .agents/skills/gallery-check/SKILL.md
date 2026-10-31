@@ -14,7 +14,7 @@ GPUI の癖は `docs/agents/gpui-notes.md`。
 
 1. 起動（ビルドも行う。既存の gallery は止める）:
    `scripts/launch.sh <ページ> [ログ]`
-   ページの一覧は `MD3_GALLERY_LIST_PAGES=1 target/debug/gallery` で出る（定義は `gallery/src/main.rs` の `PAGES`）。
+   ページの一覧は `MD3_GALLERY_LIST_PAGES=1 target/debug/gallery` で出る（定義は `examples/gallery/src/main.rs` の `PAGES`）。
    モーションを減らす設定で見るなら `MD3_REDUCE_MOTION=1 scripts/launch.sh ...`。
 1. 目的の見本まで送る: `scripts/xdo.sh scroll 1100 600 <段数>`（ページ右側の空いた所で回すと、中のリストを回さない）。
    撮ってから位置を決める。ウィンドウは 1200×900、座標はスクリーンショットと同じ。

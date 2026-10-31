@@ -1,0 +1,63 @@
+<!doctype html>
+<!-- `cargo xtask web` が target/web/<見本>/ に置くページ。gpui はキャンバスを body の末尾に足して全面に描く。
+     ブラウザでは gpui がシステムフォントを読めないので、UI の文字のフォントを取得して start に渡す。 -->
+<html lang="ja">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>{{title}} - md3 examples</title>
+        <style>
+            html,
+            body {
+                margin: 0;
+                height: 100%;
+                overflow: hidden;
+            }
+            #status {
+                position: fixed;
+                inset: 1rem 1rem auto;
+                margin: 0;
+                font-family: system-ui, sans-serif;
+            }
+        </style>
+    </head>
+    <body>
+        <noscript>{{title}} を表示するには JavaScript と WebAssembly を有効にしてください。</noscript>
+        <p id="status" role="status">読み込み中…</p>
+        <script type="module">
+            const status = document.getElementById("status");
+            try {
+                const fetchOk = async (path) => {
+                    const response = await fetch(path);
+                    if (!response.ok) throw new Error(`${path} を取得できない（${response.status}）`);
+                    return response;
+                };
+                const loadFonts = async () => {
+                    const names = (await (await fetchOk("../fonts/list.txt")).text()).split("\n").filter(Boolean);
+                    return Promise.all(
+                        names.map(async (name) => new Uint8Array(await (await fetchOk(`../fonts/${name}`)).arrayBuffer())),
+                    );
+                };
+                const [app, fonts] = await Promise.all([import("./app.js"), loadFonts()]);
+                await app.default();
+                status.remove();
+                // wasm にはフォントを 1 つの配列につなげ、それぞれの長さを添えて渡す。
+                const data = new Uint8Array(fonts.reduce((sum, font) => sum + font.length, 0));
+                let offset = 0;
+                for (const font of fonts) {
+                    data.set(font, offset);
+                    offset += font.length;
+                }
+                const lengths = new Uint32Array(fonts.map((font) => font.length));
+                // `?renderer=webgl` で WebGPU を使わず WebGL2 で描く。
+                const webgl = new URLSearchParams(location.search).get("renderer") === "webgl";
+                // 「視差効果を減らす」の設定（gpui の reduce_motion）。部品のバネとアニメーションが止まる。
+                const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+                app.start(data, lengths, webgl, reduceMotion);
+            } catch (error) {
+                console.error(error);
+                status.textContent = `起動できませんでした: ${error.message ?? error}`;
+            }
+        </script>
+    </body>
+</html>

@@ -115,9 +115,9 @@ impl Render for Root {
 
 詳しくは [利用ガイド](docs/guide.md)。
 
-## 見本（gallery）
+## 見本（examples）
 
-各バリアントの操作できる見本と disabled、該当すれば selected / error の見本を並べる。
+`examples/` に見本アプリを置いている。`gallery` は各バリアントの操作できる見本と disabled、該当すれば selected / error の見本を並べる。
 hover / focused / pressed はマウスやキーボードで操作して確かめる。
 
 ```sh
@@ -126,17 +126,17 @@ cargo run -p mail-sample                # メールアプリの見本
 MD3_GALLERY_PAGE=inputs cargo run -p gallery   # ページを指定して起動
 MD3_GALLERY_LIST_PAGES=1 target/debug/gallery   # ビルド後、ページキーの一覧を表示
 MD3_REDUCE_MOTION=1 cargo run -p gallery       # 「視差効果を減らす」を有効にして起動（画面でも切り替えられる）
-cargo xtask web                         # wasm 版を target/web/ にビルド（`nix develop` の環境で）
+cargo xtask web                         # 全見本の wasm 版を target/web/ にビルド（`nix develop` の環境で）
 python3 -m http.server -d target/web    # 静的ファイルとして配信して http://localhost:8000/ を開く
 ```
 
 main の Web 版は GitHub Pages で公開している: https://tunamaguro.github.io/gpui-md-components/
 
-wasm 版で WebGPU が使えない環境では `?renderer=webgl` を付けると WebGL2 で描く。
+開いたページで見本を選ぶ。`gallery/` や `mail/` を直接開いてもよい。WebGPU が使えない環境では見本の URL に `?renderer=webgl` を付けると WebGL2 で描く（例: `gallery/?renderer=webgl`）。
 
 ### CI のビルドを試す（動作確認用）
 
-push・PR ごとに GitHub Actions の「Gallery」ワークフローが gallery をビルドし、実行結果のページの Artifacts に置く
+push・PR ごとに GitHub Actions の「Gallery」ワークフローが見本をビルドし、実行結果のページの Artifacts に置く
 （動作確認用で配布物ではないので、3 日で消える）。
 
 | Artifact                 | 動かし方                                                                                                        |
@@ -144,7 +144,7 @@ push・PR ごとに GitHub Actions の「Gallery」ワークフローが gallery
 | `gallery-linux-x86_64`   | `tar xzf gallery-linux-x86_64.tar.gz && ./gallery`（Vulkan のドライバと libxkbcommon が要る）                   |
 | `gallery-macos-arm64`    | `tar xzf gallery-macos-arm64.tar.gz && xattr -d com.apple.quarantine gallery; ./gallery`（署名していないため）  |
 | `gallery-windows-x86_64` | `gallery.exe` を実行（署名していないため SmartScreen の警告が出る）                                             |
-| `gallery-web`            | 展開したフォルダで `python3 -m http.server` を実行し、`http://localhost:8000/` を開く（`file://` では動かない） |
+| `examples-web`           | 展開したフォルダで `python3 -m http.server` を実行し、`http://localhost:8000/` を開く（`file://` では動かない） |
 
 ## 既知の制限
 

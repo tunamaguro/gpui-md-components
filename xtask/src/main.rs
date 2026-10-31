@@ -15,7 +15,7 @@ const USAGE: &str = "\
 Usage: cargo xtask <subcommand>
 
 Subcommands:
-  web [--debug] build the wasm gallery in target/web/
+  web [--debug] build the wasm examples in target/web/
   check-tokens  check md3-tokens constants against docs/TOKENS_SOURCE.md
   help          show this help";
 
@@ -39,7 +39,7 @@ fn main() -> ExitCode {
     }
 }
 
-/// wasm 版ギャラリーをビルドする。
+/// wasm 版の見本をビルドする。
 fn web(args: impl Iterator<Item = String>) -> ExitCode {
     match web::run(workspace_root(), args) {
         Ok(out_dir) => {

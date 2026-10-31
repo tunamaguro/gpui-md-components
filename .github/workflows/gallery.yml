@@ -1,9 +1,9 @@
 name: Gallery
 
-# 見本アプリ（gallery）をビルドして、Actions の実行結果の Artifacts からダウンロードできるようにする。
-# デスクトップ 3 OS のリリースビルドと、Web 版（`cargo xtask web`）。動作確認用で配布物ではないので、保存は 3 日だけ。
+# 見本アプリをビルドして、Actions の実行結果の Artifacts からダウンロードできるようにする。
+# gallery のデスクトップ 3 OS のリリースビルドと、examples/ の全見本の Web 版（`cargo xtask web`）。動作確認用で配布物ではないので、保存は 3 日だけ。
 # main への push では、Web 版を GitHub Pages にも公開する（deploy-pages ジョブ）。
-# 動かし方は README の「見本（gallery）」。
+# 動かし方は README の「見本（examples）」。
 on:
   push:
     branches:
@@ -144,7 +144,7 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: gallery-web
+          name: examples-web
           path: target/web/
           retention-days: 3
           if-no-files-found: error

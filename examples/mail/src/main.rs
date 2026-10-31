@@ -1,4 +1,9 @@
-//! md3-components を利用するデスクトップメールの見本。
+//! md3-components を利用するメールアプリの見本。
+//!
+//! wasm 版は `cargo xtask web` でビルドする。ブラウザではシステムフォントを読めないので、ページが
+//! フォントを取得して [`start`] に渡す。
+
+#![cfg_attr(target_family = "wasm", no_main)]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
@@ -473,8 +478,17 @@ fn with_active_window(cx: &mut App, f: impl FnOnce(&mut Window, &mut App) + 'sta
     });
 }
 
-fn main() {
-    gpui_platform::application().run(|cx: &mut App| {
+/// `fonts` は起動時に読み込むフォントのデータ（デスクトップではシステムフォントを使うので空）。
+/// `reduce_motion` は OS・ブラウザの「視差効果を減らす」相当の設定（gpui は OS の設定を読まないので、起動側が渡す）。
+fn run(app: gpui::Application, fonts: Vec<Vec<u8>>, reduce_motion: bool) {
+    app.run(move |cx: &mut App| {
+        cx.set_reduce_motion(reduce_motion);
+        if !fonts.is_empty() {
+            let fonts = fonts.into_iter().map(std::borrow::Cow::Owned).collect();
+            if let Err(error) = cx.text_system().add_fonts(fonts) {
+                eprintln!("failed to load the fonts: {error:#}");
+            }
+        }
         // ペインや Snackbar が消えてフォーカスの行き先がなくなると、要素の on_action には
         // 届かない。どの状態でも Tab が効くよう、グローバルに受ける。
         cx.on_action(|_: &FocusNext, cx| {
@@ -505,8 +519,58 @@ fn main() {
         );
         if let Err(error) = result {
             eprintln!("failed to open mail window: {error:#}");
-            std::process::exit(1);
+            exit_with_failure(cx);
+            return;
         }
         cx.activate(true);
     });
+}
+
+/// 起動に失敗したことを呼び出し元に伝えて終了する。
+///
+/// Linux ではウィンドウを開けなかった後に `App::quit` を呼んでもイベントループが止まらないため、
+/// デスクトップではプロセスを直接終了する。
+fn exit_with_failure(cx: &mut App) {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        let _ = cx;
+        std::process::exit(1);
+    }
+    #[cfg(target_family = "wasm")]
+    cx.quit();
+}
+
+#[cfg(not(target_family = "wasm"))]
+fn main() {
+    // デスクトップでは OS の設定を読む手段が gpui に無いため、環境変数で指定する。
+    let reduce_motion = std::env::var("MD3_REDUCE_MOTION").is_ok_and(|value| value == "1");
+    run(gpui_platform::application(), Vec::new(), reduce_motion);
+}
+
+/// wasm 版のエントリポイント。ブラウザでは gpui がシステムフォントを読めないため、ページが
+/// UI の文字に使うフォントを取得し、1 つの配列 `fonts` につなげて、それぞれの長さ `lengths` と
+/// 一緒に渡す。`webgl` が真なら WebGPU を使わず WebGL2 で描く（ページの `?renderer=webgl`）。
+/// `reduce_motion` はブラウザの `prefers-reduced-motion: reduce`。
+#[cfg(target_family = "wasm")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub fn start(fonts: Vec<u8>, lengths: Vec<u32>, webgl: bool, reduce_motion: bool) {
+    use gpui_platform::WebBackendPreference;
+    gpui_platform::web_init();
+    let mut rest = fonts.as_slice();
+    let mut split = Vec::new();
+    for length in lengths {
+        let (font, tail) = rest.split_at(rest.len().min(length as usize));
+        split.push(font.to_vec());
+        rest = tail;
+    }
+    let backend = if webgl {
+        WebBackendPreference::WebGl
+    } else {
+        WebBackendPreference::Auto
+    };
+    run(
+        gpui_platform::application_with_web_backend(backend),
+        split,
+        reduce_motion,
+    );
 }
