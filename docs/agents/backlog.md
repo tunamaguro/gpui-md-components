@@ -30,33 +30,29 @@
 
 ### サンプルアプリで見つけた不足
 
-`examples/mail` を作って分かったこと。ライブラリの不足を先に書き、サンプル側で直せるものは末尾にまとめる。
+`examples/mail` を作って分かったこと。先頭の印は優先度で、P1 は操作不能・入力の喪失・WCAG 違反、P2 は機能の不足、P3 は整理や未確認の項目。
 
-- Compose の `Scaffold` に当たる部品がなく、Snackbar が FAB に重なる。FAB にキーボードフォーカスがあっても隠れる（WCAG 2.2 の 2.4.11 Focus Not Obscured）。Compose の `Scaffold` は Snackbar を FAB の上に出す（`Scaffold.kt` の `snackbarOffsetFromBottom`。1200×900 と 500 幅の `examples/mail` で確認）。
+- [P1] Compose の `Scaffold` に当たる部品がなく、Snackbar が FAB に重なる。FAB にキーボードフォーカスがあっても隠れる（WCAG 2.2 の 2.4.11 Focus Not Obscured）。Compose の `Scaffold` は Snackbar を FAB の上に出す（`Scaffold.kt` の `snackbarOffsetFromBottom`。1200×900 と 500 幅の `examples/mail` で確認）。
 
-- `List` に末尾の余白（Compose の `contentPadding`）を指定できず、スクロールの終端でも最後の行が FAB に隠れる（`examples/mail/src/main.rs`）。
+- [P1] `List` に末尾の余白（Compose の `contentPadding`）を指定できず、スクロールの終端でも最後の行が FAB に隠れる（`examples/mail/src/main.rs`）。
 
-- `NavigationItem` にバッジを渡せず、受信トレイの未読数はラベルに含めた（`examples/mail/src/main.rs`）。
+- [P2] `NavigationItem` にバッジを渡せず、受信トレイの未読数はラベルに含めた（`examples/mail/src/main.rs`）。
 
-- `ListItem` の末尾は文字または静的アイコンに限られ、行内のスター切り替えを置けない。詳細のメニューで切り替える（`examples/mail/src/main.rs`）。
+- [P2] `ListItem` の末尾は文字または静的アイコンに限られ、行内のスター切り替えを置けない。詳細のメニューで切り替える（`examples/mail/src/main.rs`）。
 
-- `TextField` は 1 行入力のみで、メールの本文を複数行で入力できない（`examples/mail/src/compose.rs`）。
+- [P2] `TextField` は 1 行入力のみで、メールの本文を複数行で入力できない（`examples/mail/src/compose.rs`）。
 
-- `DialogAction` は操作後に必ずフォーカスを戻すため、入力エラーでダイアログを閉じない場合も直前の要素に移る。次フレームで宛先欄に戻している（`examples/mail/src/compose.rs`）。
+- [P2] `DialogAction` は操作後に必ずフォーカスを戻すため、入力エラーでダイアログを閉じない場合も直前の要素に移る。次フレームで宛先欄に戻している（`examples/mail/src/compose.rs`）。
 
-- 内容の上に重ねる部品は、下の要素にクリックを渡さない処理（`block_mouse_except_scroll`）を部品ごとに持つ必要がある。FAB は直したが、ほかの部品やアプリが重ねる要素には同じ問題が残りうる。
+- [P3] 内容の上に重ねる部品は、下の要素にクリックを渡さない処理（`block_mouse_except_scroll`）を部品ごとに持つ必要がある。FAB は直したが、ほかの部品やアプリが重ねる要素には同じ問題が残りうる。
 
-- Tab の `focus_next` / `focus_prev` をルート要素の `on_action` で受けると、フォーカスしていた要素が消えた時点でイベントがルートに届かず、Tab が効かなくなる（Compact で開く、戻る、幅の変更、Snackbar の Undo など）。`examples/mail` はグローバルなアクションで受けて回避した。gallery は要素の `on_action` のままで（`examples/gallery/src/main.rs`）、`docs/guide.md` と `a11y.md` は受ける場所を書いていない。`md3_components::init` が Tab まで受け持つかを含めて見直す。
+- [P3] Web では変換中の Esc がダイアログを閉じる可能性がある（`gpui_web/src/events.rs` は変換中の判定より先にキーを渡す。コードを読んだだけで、ブラウザでは未確認）。
 
-- Web では変換中の Esc がダイアログを閉じる可能性がある（`gpui_web/src/events.rs` は変換中の判定より先にキーを渡す。コードを読んだだけで、ブラウザでは未確認）。
+- [P3] サンプル側の改善: 検索や絞り込みで一覧から消えたメールが詳細に残る。To の入力エラーは次の Send まで消えない。Archive の行き先の画面がなく、Undo でしか戻せない。`MailView::render` が長いので、一覧・詳細・設定に分ける。
 
-- サンプル側の改善: 検索や絞り込みで一覧から消えたメールが詳細に残る。To の入力エラーは次の Send まで消えない。Archive の行き先の画面がなく、Undo でしか戻せない。`MailView::render` が長いので、一覧・詳細・設定に分ける。
+- [P3] サンプルは画面のテストがなく、`model.rs` の単体テストだけ。`gpui` の test-support を dev-dependencies に足せば `MailView` を実際のキー割り当てで動かせる（`a11y.md` が認めている。レビューの検証用コピーで動作を確認）。
 
-- サンプルは画面のテストがなく、`model.rs` の単体テストだけ。`gpui` の test-support を dev-dependencies に足せば `MailView` を実際のキー割り当てで動かせる（`a11y.md` が認めている。レビューの検証用コピーで動作を確認）。
-
-- Snackbar は下の要素へのクリックを遮らない。Dialog と同時に出ていると、Snackbar のクリックがスクリムに届いてダイアログが閉じる（`overlays/snackbar.rs`。レビューがテストで確認）。
-
-- 入力欄（TextField / SearchBar）はフォーカスリングを描かず、キーボードでの位置は点滅するカーソルと下線でしか分からない。`a11y.md` の「必ず描く」との関係を整理する。
+- [P3] 入力欄（TextField / SearchBar）はフォーカスリングを描かず、キーボードでの位置は点滅するカーソルと下線でしか分からない。`a11y.md` の「必ず描く」との関係を整理する。
 
 ### Tooltip
 

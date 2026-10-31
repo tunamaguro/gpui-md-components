@@ -6,6 +6,7 @@ use gpui::{AppContext, IntoElement, TestAppContext};
 use md3_components::overlays::{
     SnackbarDuration, SnackbarHost, SnackbarMessage, SnackbarPolicy, SnackbarResult,
 };
+use md3_theme::md3_tokens::{component::snackbar, layout};
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
 #[gpui::test]
@@ -233,4 +234,133 @@ fn enabling_reduced_motion_finishes_an_in_flight_exit(cx: &mut TestAppContext) {
             .as_deref(),
         Some("新しい")
     );
+}
+
+#[gpui::test]
+fn snackbar_text_does_not_dismiss_the_dialog_under_it(cx: &mut TestAppContext) {
+    use gpui::{Modifiers, div, point, prelude::*, px};
+    use md3_components::overlays::Dialog;
+    use std::cell::Cell;
+
+    cx.update(|cx| cx.set_reduce_motion(true));
+    let dismissed = Rc::new(Cell::new(0));
+    let host = cx.new(|_| SnackbarHost::new("Close"));
+    let cx = support::open(cx, {
+        let dismissed = dismissed.clone();
+        let host = host.clone();
+        move |_, _| {
+            let dismissed = dismissed.clone();
+            div()
+                .child(
+                    Dialog::new("dialog")
+                        .headline("Dialog")
+                        .on_dismiss(move |_, _| dismissed.set(dismissed.get() + 1)),
+                )
+                .child(host.clone())
+                .into_any_element()
+        }
+    });
+    host.update(cx, |host, cx| {
+        host.show(
+            SnackbarMessage::new("A long snackbar message covering the center of the window")
+                .duration(SnackbarDuration::Indefinite),
+            cx,
+        );
+    });
+    support::draw(cx);
+    let size = cx.update(|window, _| window.viewport_size());
+    cx.simulate_click(point(px(2.0), px(2.0)), Modifiers::none());
+    assert_eq!(dismissed.get(), 1, "スクリムを押すと閉じる操作が呼ばれる");
+    dismissed.set(0);
+    cx.simulate_click(
+        point(
+            size.width / 2.0,
+            size.height
+                - px(layout::SNACKBAR_OUTER_SPACE + snackbar::SINGLE_LINE_CONTAINER_HEIGHT / 2.0),
+        ),
+        Modifiers::none(),
+    );
+    assert_eq!(
+        dismissed.get(),
+        0,
+        "Snackbar の文を押してもスクリムに届かない"
+    );
+}
+
+#[gpui::test]
+fn snackbar_blocks_button_clicks_but_allows_wheel_scrolling(cx: &mut TestAppContext) {
+    use gpui::{InputEvent, Modifiers, ScrollHandle, div, point, prelude::*, px};
+    use md3_components::{buttons::Button, scrollbar::ScrollArea};
+    use std::cell::Cell;
+
+    cx.update(|cx| cx.set_reduce_motion(true));
+    let clicks = Rc::new(Cell::new(0));
+    let handle = ScrollHandle::new();
+    let host = cx.new(|_| SnackbarHost::new("Close"));
+    let cx = support::open(cx, {
+        let clicks = clicks.clone();
+        let handle = handle.clone();
+        let host = host.clone();
+        move |window, _| {
+            let clicks = clicks.clone();
+            let size = window.viewport_size();
+            div()
+                .child(
+                    ScrollArea::new("area")
+                        .handle(handle.clone())
+                        .w(size.width - px(32.0))
+                        .h(size.height - px(32.0))
+                        .child(
+                            div().relative().w_full().h(px(2000.0)).child(
+                                div()
+                                    .absolute()
+                                    .top(size.height - px(72.0))
+                                    .w_full()
+                                    .flex()
+                                    .justify_center()
+                                    .child(
+                                        Button::new("behind", "Button behind snackbar text")
+                                            .on_click(move |_, _, _| clicks.set(clicks.get() + 1)),
+                                    ),
+                            ),
+                        ),
+                )
+                .child(host.clone())
+                .into_any_element()
+        }
+    });
+    host.update(cx, |host, cx| {
+        host.show(
+            SnackbarMessage::new("A long snackbar message covering the center of the window")
+                .duration(SnackbarDuration::Indefinite),
+            cx,
+        );
+    });
+    support::draw(cx);
+    let size = cx.update(|window, _| window.viewport_size());
+    let position = point(
+        size.width / 2.0,
+        size.height
+            - px(layout::SNACKBAR_OUTER_SPACE + snackbar::SINGLE_LINE_CONTAINER_HEIGHT / 2.0),
+    );
+    cx.simulate_click(position, Modifiers::none());
+    cx.update(|window, cx| {
+        window.dispatch_event(
+            gpui::ScrollEvent {
+                position,
+                delta: gpui::ScrollDelta::Pixels(point(px(0.0), px(-100.0))),
+                touch_phase: gpui::TouchPhase::Started,
+                ..Default::default()
+            }
+            .to_platform_input(),
+            cx,
+        );
+    });
+    support::draw(cx);
+    assert_eq!(
+        handle.offset().y,
+        px(-100.0),
+        "ホイールは下の領域をスクロールする"
+    );
+    assert_eq!(clicks.get(), 0, "Snackbar の下のボタンは押されない");
 }

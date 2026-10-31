@@ -50,7 +50,8 @@ impl Snackbar {
     /// 役割と名前を付けた土台を返す。
     pub fn build(self) -> Stateful<Div> {
         let node = self.a11y_node();
-        div().id(self.id).a11y(node)
+        // 下の要素へのクリックやホバーを遮り、スクロールは通す。
+        div().id(self.id).a11y(node).block_mouse_except_scroll()
     }
 }
 
