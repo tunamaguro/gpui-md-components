@@ -104,6 +104,10 @@ pub struct Demo {
     pub icon_menu_open: bool,
     /// ダイアログを開いているか。
     pub dialog_open: bool,
+    /// 入力を検証するダイアログ。
+    pub validating_dialog_open: bool,
+    /// 必須欄の入力エラー。
+    pub validating_dialog_error: bool,
     /// ボトムシートを開いているか。
     pub bottom_sheet_open: bool,
     /// Standard のサイドシートを出しているか。
@@ -153,6 +157,8 @@ impl Default for Demo {
             menu_open: false,
             icon_menu_open: false,
             dialog_open: false,
+            validating_dialog_open: false,
+            validating_dialog_error: false,
             bottom_sheet_open: false,
             side_sheet_open: false,
             modal_side_sheet_open: false,
@@ -272,8 +278,17 @@ impl Render for Gallery {
                 .into_any_element(),
             Page::Overlays => {
                 let note = self.fields.get("dialog-note", "", cx);
-                stories::overlays::page(&self.demo, &note, &self.snackbar, view, window, cx)
-                    .into_any_element()
+                let required = self.fields.get("dialog-required", "", cx);
+                stories::overlays::page(
+                    &self.demo,
+                    &note,
+                    &required,
+                    &self.snackbar,
+                    view,
+                    window,
+                    cx,
+                )
+                .into_any_element()
             }
             Page::Navigation => {
                 let search = self.fields.get("search-people", "", cx);

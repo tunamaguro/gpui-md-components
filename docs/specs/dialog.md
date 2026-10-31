@@ -31,7 +31,8 @@
 
 - ウィンドウの中央に出す。スクリムのクリックと Esc で `on_dismiss` を呼ぶ。
 - 開くと中の最初の要素にフォーカスする。Tab / Shift+Tab は中で回る。
-- 閉じると開いた要素にフォーカスを戻す。操作のボタンは handler を呼んだ後に戻す。
+- 閉じると開いた要素にフォーカスを戻す。`DialogAction::new` は handler の後に戻す。
+- `DialogAction::validating` は handler が `true` を返すとフォーカスを戻し、`false` を返すとダイアログを開いたままフォーカスを維持する。handler は必要に応じてエラーの入力欄へ移せる。
 
 ## アクセシビリティ
 

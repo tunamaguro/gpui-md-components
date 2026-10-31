@@ -48,6 +48,9 @@ nix develop -c bash -c "timeout 3000 codex exec -m gpt-6.1-terra -c model_reason
 
 ## 4. レビューと修正
 
+レビューは基本的にClaudeのサブエージェントが行う。Codexの報告を信じず実装、アーキテクチャ、テスト、ドキュメントの観点でレビューする。指摘があれば、Codexに修正させる。
+使用量制限が近い、もしくはユーザの指示があった場合はCodexにレビューを任せる。Codexのレビューは、`codex review` コマンドで行う。実行のしかたは以下の通り。
+
 ```sh
 nix develop -c bash -c "timeout 3000 codex review -c model='\"gpt-6.1-sol\"' -c model_reasoning_effort='\"xhigh\"' --uncommitted" > $SCRATCH/review.txt 2>&1
 ```

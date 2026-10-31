@@ -19,10 +19,12 @@ use gpui_headless::overlay::{
     window_layer,
 };
 
+type ActionHandler = Rc<dyn Fn(&mut Window, &mut App) -> bool>;
+
 /// ダイアログの下に並ぶ操作（Text ボタン）。
 pub struct DialogAction {
     label: SharedString,
-    handler: DismissHandler,
+    handler: ActionHandler,
 }
 
 impl DialogAction {
@@ -30,6 +32,22 @@ impl DialogAction {
     pub fn new(
         label: impl Into<SharedString>,
         handler: impl Fn(&mut Window, &mut App) + 'static,
+    ) -> Self {
+        Self {
+            label: label.into(),
+            handler: Rc::new(move |window, cx| {
+                handler(window, cx);
+                true
+            }),
+        }
+    }
+
+    /// 押されたときの処理が、ダイアログを閉じるかどうかを返す操作を作る。
+    /// `false` なら開いたままにし、元の要素にフォーカスを戻さない。
+    /// `true` を返す場合は、処理の中でダイアログを閉じること。
+    pub fn validating(
+        label: impl Into<SharedString>,
+        handler: impl Fn(&mut Window, &mut App) -> bool + 'static,
     ) -> Self {
         Self {
             label: label.into(),
@@ -43,6 +61,7 @@ impl DialogAction {
 /// 開くとダイアログの中の最初の要素にフォーカスを移し、Tab / Shift-Tab はダイアログの中で回る。
 /// Esc とスクリムの押下で `on_dismiss` を呼ぶ。`on_dismiss` か操作のボタンで閉じると、
 /// 開く前にフォーカスしていた要素にフォーカスを戻す。
+/// `DialogAction::validating` が `false` を返した場合は、フォーカスを戻さない。
 ///
 /// ```ignore
 /// Dialog::new("delete").headline("削除しますか？")
@@ -165,8 +184,9 @@ impl RenderOnce for Dialog {
                     )
                     .variant(ButtonVariant::Text)
                     .on_click(move |_, window, cx| {
-                        handler(window, cx);
-                        if let Some(focus) = &focus {
+                        if handler(window, cx)
+                            && let Some(focus) = &focus
+                        {
                             restore_focus(focus, window, cx);
                         }
                     })

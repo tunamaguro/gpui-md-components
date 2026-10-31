@@ -1,6 +1,8 @@
 //! オーバーレイの部品のページ。
 
-use gpui::{AnyElement, App, Entity, IntoElement, WeakEntity, Window, div, prelude::*, px};
+use gpui::{
+    AnyElement, App, Entity, Focusable, IntoElement, WeakEntity, Window, div, prelude::*, px,
+};
 use md3_components::buttons::{Button, ButtonVariant, IconButton};
 use md3_components::inputs::TextField;
 use md3_components::inputs::TextFieldState;
@@ -82,10 +84,48 @@ fn dialog(view: &WeakEntity<Gallery>, note: &TextFieldState) -> Dialog {
         .on_dismiss(close("閉じる（Esc / スクリム）"))
 }
 
+fn validating_dialog(view: &WeakEntity<Gallery>, required: &TextFieldState, error: bool) -> Dialog {
+    let close = view.clone();
+    let dismiss = view.clone();
+    let submit = view.clone();
+    let state = required.clone();
+    let mut field = TextField::new("dialog-required", required)
+        .label("名前")
+        .required(true)
+        .error(error);
+    if error {
+        field = field.supporting_text("名前を入力してください。");
+    }
+    Dialog::new("validating-dialog")
+        .headline("名前を入力")
+        .child(field)
+        .action(DialogAction::new("キャンセル", move |_, cx| {
+            Gallery::update_demo(&close, cx, |demo| demo.validating_dialog_open = false);
+        }))
+        .action(DialogAction::validating("保存", move |window, cx| {
+            let valid = !state.text(cx).trim().is_empty();
+            if !valid {
+                window.focus(&state.focus_handle(cx), cx);
+            }
+            Gallery::update_demo(&submit, cx, |demo| {
+                demo.validating_dialog_error = !valid;
+                if valid {
+                    demo.validating_dialog_open = false;
+                    demo.last_action = Some("保存");
+                }
+            });
+            valid
+        }))
+        .on_dismiss(move |_, cx| {
+            Gallery::update_demo(&dismiss, cx, |demo| demo.validating_dialog_open = false);
+        })
+}
+
 /// オーバーレイの部品のページ。
 pub fn page(
     demo: &Demo,
     note: &TextFieldState,
+    required: &TextFieldState,
     snackbar: &Entity<SnackbarHost>,
     view: WeakEntity<Gallery>,
     _window: &mut Window,
@@ -155,12 +195,31 @@ pub fn page(
 
     let dialogs = Section::new("Dialog（中で Tab が回り、Esc で閉じ、閉じると開いたボタンに戻る）")
         .child(
-            div().flex().gap_4().child(
-                Button::new("dialog-open", "ダイアログを開く")
-                    .on_click(set(|demo| demo.dialog_open = true)),
-            ),
+            div()
+                .flex()
+                .flex_wrap()
+                .gap_4()
+                .child(
+                    Button::new("dialog-open", "ダイアログを開く")
+                        .on_click(set(|demo| demo.dialog_open = true)),
+                )
+                .child(
+                    Button::new("validating-dialog-open", "必須入力のダイアログ").on_click(set(
+                        |demo| {
+                            demo.validating_dialog_error = false;
+                            demo.validating_dialog_open = true;
+                        },
+                    )),
+                ),
         )
-        .when(demo.dialog_open, |this| this.child(dialog(&view, note)));
+        .when(demo.dialog_open, |this| this.child(dialog(&view, note)))
+        .when(demo.validating_dialog_open, |this| {
+            this.child(validating_dialog(
+                &view,
+                required,
+                demo.validating_dialog_error,
+            ))
+        });
 
     let tooltips = Section::new("Tooltip（ポインタを重ねる、Tab でフォーカスする）")
         .child(
