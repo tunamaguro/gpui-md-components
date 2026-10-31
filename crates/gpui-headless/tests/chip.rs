@@ -60,3 +60,23 @@ fn chip_exposes_role_and_state() {
     let assist = Chip::new("a", "予定に追加").a11y_node();
     assert_eq!(assist.role, Role::Button);
 }
+
+#[test]
+fn remove_control_is_a_named_button() {
+    let node = Chip::new("tag", "rust")
+        .remove_label("rust を削除")
+        .remove_a11y_node();
+    assert_eq!(node.role, Role::Button);
+    assert_eq!(node.label.as_deref(), Some("rust を削除"));
+    assert!(!node.disabled);
+}
+
+#[test]
+fn remove_control_name_is_optional_and_follows_disabled() {
+    let node = Chip::new("tag", "rust").disabled(true).remove_a11y_node();
+    assert_eq!(node.role, Role::Button);
+    assert_eq!(node.label, None);
+    assert!(node.disabled);
+    let empty = Chip::new("tag", "rust").remove_label("").remove_a11y_node();
+    assert_eq!(empty.label, None);
+}

@@ -6,7 +6,9 @@
 //! gpui の要素の API（`aria_*`）に無い状態（無効・modal・入力エラー・live region）は、
 //! `a11y_synthetic_children` で渡される要素自身の AccessKit のノード（`gpui::accesskit`）に直接書く。
 
-use gpui::{Role, SharedString, StatefulInteractiveElement, Toggled, accesskit};
+use gpui::{
+    A11ySubtreeBuilder, Role, SharedString, StatefulInteractiveElement, Toggled, accesskit,
+};
 
 /// 範囲を持つ値（Slider、Progress）。
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -180,6 +182,18 @@ pub fn toggled(on: bool) -> Toggled {
 pub trait A11yExt: StatefulInteractiveElement + Sized {
     /// アクセシビリティ情報を要素に付ける。
     fn a11y(self, node: A11yNode) -> Self {
+        self.a11y_with_children(node, |_| {})
+    }
+
+    /// アクセシビリティ情報と、要素に対応しない子ノード（入力欄の文字など）を付ける。
+    ///
+    /// gpui の `a11y_synthetic_children` は 1 つだけ持てて、無効などの状態もそこで書く。
+    /// 別に呼ぶと状態が消えるので、子ノードはここへ渡す。
+    fn a11y_with_children(
+        self,
+        node: A11yNode,
+        children: impl FnOnce(&mut A11ySubtreeBuilder) + 'static,
+    ) -> Self {
         let mut this = self.role(node.role);
         if let Some(label) = node.label {
             this = this.aria_label(label);
@@ -211,36 +225,28 @@ pub trait A11yExt: StatefulInteractiveElement + Sized {
         if let Some((position, size)) = node.position {
             this = this.aria_position_in_set(position).aria_size_of_set(size);
         }
-        if node.disabled
-            || node.modal
-            || node.invalid
-            || node.live
-            || node.required
-            || node.has_popup.is_some()
-        {
-            this = this.a11y_synthetic_children(move |builder| {
-                let raw = builder.parent_node();
-                if node.disabled {
-                    raw.set_disabled();
-                }
-                if node.modal {
-                    raw.set_modal();
-                }
-                if node.invalid {
-                    raw.set_invalid(accesskit::Invalid::True);
-                }
-                if node.required {
-                    raw.set_required();
-                }
-                if let Some(has_popup) = node.has_popup {
-                    raw.set_has_popup(has_popup);
-                }
-                if node.live {
-                    raw.set_live(accesskit::Live::Polite);
-                }
-            });
-        }
-        this
+        this.a11y_synthetic_children(move |builder| {
+            let raw = builder.parent_node();
+            if node.disabled {
+                raw.set_disabled();
+            }
+            if node.modal {
+                raw.set_modal();
+            }
+            if node.invalid {
+                raw.set_invalid(accesskit::Invalid::True);
+            }
+            if node.required {
+                raw.set_required();
+            }
+            if let Some(has_popup) = node.has_popup {
+                raw.set_has_popup(has_popup);
+            }
+            if node.live {
+                raw.set_live(accesskit::Live::Polite);
+            }
+            children(builder);
+        })
     }
 }
 

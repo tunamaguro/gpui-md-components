@@ -65,6 +65,8 @@
 
 - キー操作: 通常の文字入力、IME
 
+- 支援技術: 文字とカーソルを TextRun で渡し、SetValue / ReplaceSelectedText / SetTextSelection を受ける（WCAG 4.1.2。Compose の `setText` など）。無効のときは受けない
+
 ## デスクトップ向け調整（密度など）
 
 - 高さは密度で変えない（Compose も TextField の高さは密度に追従しない）。

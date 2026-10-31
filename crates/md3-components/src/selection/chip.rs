@@ -9,6 +9,7 @@ use md3_theme::md3_tokens::layout;
 use md3_theme::{Elevation, Md3ThemeExt};
 
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
+use gpui_headless::A11yExt;
 
 /// チップの種類。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -150,6 +151,9 @@ impl ChipStyle {
     }
 }
 
+/// 削除ボタンの押せる範囲。WCAG 2.5.8 の下限（24 × 24 CSS px）。
+const REMOVE_TARGET_SIZE: f32 = 24.0;
+
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 type RemoveHandler = Box<dyn Fn(&mut Window, &mut App) + 'static>;
 type SharedRemoveHandler = std::rc::Rc<dyn Fn(&mut Window, &mut App) + 'static>;
@@ -170,6 +174,7 @@ pub struct Chip {
     disabled: bool,
     on_click: Option<ClickHandler>,
     on_remove: Option<RemoveHandler>,
+    remove_label: Option<SharedString>,
 }
 
 impl Chip {
@@ -186,7 +191,24 @@ impl Chip {
             disabled: false,
             on_click: None,
             on_remove: None,
+            remove_label: None,
         }
+    }
+
+    /// 削除ボタンの読み上げる名前を指定する（Input）。
+    pub fn remove_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.remove_label = Some(label.into());
+        self
+    }
+
+    /// 削除ボタンのアクセシビリティ情報。
+    pub fn remove_a11y_node(&self) -> gpui_headless::A11yNode {
+        let mut chip =
+            gpui_headless::Chip::new(self.id.clone(), self.label.clone()).disabled(self.disabled);
+        if let Some(label) = self.remove_label.clone() {
+            chip = chip.remove_label(label);
+        }
+        chip.remove_a11y_node()
     }
 
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
@@ -238,6 +260,7 @@ impl Chip {
 
 impl RenderOnce for Chip {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let remove_node = self.remove_a11y_node();
         let on_remove: Option<SharedRemoveHandler> = self
             .on_remove
             .filter(|_| !self.disabled)
@@ -282,6 +305,10 @@ impl RenderOnce for Chip {
         let icon_size = px(assist_chip::ICON_SIZE);
 
         let mut chip = base
+            .debug_selector({
+                let id = self.id.clone();
+                move || format!("md3-chip-{id}")
+            })
             .h(theme.dense(assist_chip::CONTAINER_HEIGHT))
             .px(px(layout::CHIP_CONTENT_SPACE))
             .flex()
@@ -321,8 +348,20 @@ impl RenderOnce for Chip {
         })
         .child(div().px(px(layout::CHIP_LABEL_SPACE)).child(self.label))
         .when_some(trailing, |this, icon| {
+            // 押せる範囲だけを広げ、はみ出す分を負の余白で打ち消してチップの大きさを保つ。
+            let overhang = (px(REMOVE_TARGET_SIZE) - icon_size) / 2.0;
             let mut remove = div()
                 .id("remove")
+                .a11y(remove_node)
+                .debug_selector({
+                    let id = self.id.clone();
+                    move || format!("md3-chip-remove-{id}")
+                })
+                .size(px(REMOVE_TARGET_SIZE))
+                .m(-overhang)
+                .flex()
+                .items_center()
+                .justify_center()
                 .child(Icon::new(icon).size(icon_size).tint(trailing_color));
             if let Some(on_remove) = on_remove.clone() {
                 remove = remove.on_click(move |_, window, cx| {

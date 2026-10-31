@@ -75,7 +75,8 @@ pub fn page(
             move |id| {
                 let chip = Chip::new(id, kind, "Label")
                     .selected(selected)
-                    .elevated(elevated);
+                    .elevated(elevated)
+                    .remove_label("Label を削除");
                 if kind == ChipKind::Assist {
                     chip.icon(IconName::Star)
                 } else {
@@ -189,13 +190,13 @@ pub fn page(
                         ))
                         .children(tags.into_iter().map(|tag| {
                             let view = view.clone();
-                            Chip::new(format!("tag-{tag}"), ChipKind::Input, tag).on_remove(
-                                move |_, cx| {
+                            Chip::new(format!("tag-{tag}"), ChipKind::Input, tag)
+                                .remove_label(format!("{tag} を削除"))
+                                .on_remove(move |_, cx| {
                                     Gallery::update_demo(&view, cx, |demo| {
                                         demo.tags.retain(|t| *t != tag)
                                     })
-                                },
-                            )
+                                })
                         })),
                 ),
         )

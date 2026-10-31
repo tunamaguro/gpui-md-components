@@ -10,12 +10,12 @@ use crate::keys::{
 };
 use crate::{A11yExt, A11yNode};
 use gpui::{
-    App, Bounds, ClipboardItem, ContentMask, Context, CursorStyle, Div, Element, ElementId,
-    ElementInputHandler, Entity, EntityInputHandler, EventEmitter, FocusHandle, Focusable, Global,
-    GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, MouseButton, MouseDownEvent,
-    MouseMoveEvent, PaintQuad, Pixels, Point, Role, ShapedLine, SharedString, Stateful, Style,
-    Subscription, TextAlign, TextRun, UTF16Selection, UnderlineStyle, Window, WindowId, div, fill,
-    point, prelude::*, px, relative, size,
+    A11ySubtreeBuilder, App, Bounds, ClipboardItem, ContentMask, Context, CursorStyle, Div,
+    Element, ElementId, ElementInputHandler, Entity, EntityInputHandler, EventEmitter, FocusHandle,
+    Focusable, Global, GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId,
+    MouseButton, MouseDownEvent, MouseMoveEvent, PaintQuad, Pixels, Point, Role, ShapedLine,
+    SharedString, Stateful, Style, Subscription, TextAlign, TextRun, UTF16Selection,
+    UnderlineStyle, Window, WindowId, accesskit, div, fill, point, prelude::*, px, relative, size,
 };
 use std::ops::Range;
 
@@ -140,6 +140,73 @@ impl TextFieldState {
         let end = self.content.len();
         self.selected_range = end..end;
         self
+    }
+
+    /// 支援技術に渡す、文字（書記素）ごとの UTF-8 の長さ。
+    pub fn a11y_character_lengths(&self) -> Vec<u8> {
+        character_lengths(&self.content)
+    }
+
+    /// 支援技術に渡す選択範囲の始点と終点（文字の番号）。
+    pub fn a11y_selection(&self) -> (usize, usize) {
+        selection_characters(&self.content, &self.selected_range, self.selection_reversed)
+    }
+
+    /// 支援技術からの要求で、文字列全体を置き換える。
+    pub fn a11y_set_value(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let range = 0..self.content.encode_utf16().count();
+        self.replace_from_a11y(range, text, window, cx);
+    }
+
+    /// 支援技術からの要求で、選択範囲を置き換える。
+    pub fn a11y_replace_selection(
+        &mut self,
+        text: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let range = self.range_to_utf16(&self.selected_range);
+        self.replace_from_a11y(range, text, window, cx);
+    }
+
+    /// 支援技術からの要求で、選択範囲を移す。位置は文字の番号。
+    pub fn a11y_set_selection(
+        &mut self,
+        anchor: usize,
+        focus: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.end_composition();
+        let characters = characters(&self.content);
+        let offset = |index: usize| {
+            characters
+                .get(index)
+                .map_or(self.content.len(), |character| character.start)
+        };
+        let (anchor_offset, focus_offset) = (offset(anchor), offset(focus));
+        self.selected_range = anchor_offset.min(focus_offset)..anchor_offset.max(focus_offset);
+        self.selection_reversed = focus_offset < anchor_offset;
+        window.notify_text_selection_changed(&self.focus_handle);
+        cx.notify();
+    }
+
+    /// 範囲を明示して置き換える（範囲なしは `CPS_COMPLETE` の確定文字として捨てられる）。
+    fn replace_from_a11y(
+        &mut self,
+        range_utf16: Range<usize>,
+        text: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.end_composition();
+        self.replace_text_in_range(Some(range_utf16), &text.replace('\n', " "), window, cx);
+    }
+
+    fn end_composition(&mut self) {
+        if self.marked_range.take().is_some() && ENDS_IME_WITH_HANDLER {
+            self.ime_finish = ImeFinish::Requested;
+        }
     }
 
     /// 入力されている文字列。
@@ -667,6 +734,41 @@ fn boundaries(text: &str) -> impl Iterator<Item = usize> + '_ {
     })
 }
 
+/// 支援技術に渡す文字の範囲。AccessKit は 1 文字の長さを `u8` で持つので、それを超える書記素は分ける。
+fn characters(text: &str) -> Vec<Range<usize>> {
+    let mut starts: Vec<usize> = boundaries(text).collect();
+    starts.push(text.len());
+    let mut characters = Vec::with_capacity(starts.len());
+    for pair in starts.windows(2) {
+        let (mut start, end) = (pair[0], pair[1]);
+        while end - start > u8::MAX as usize {
+            let mut split = start + u8::MAX as usize;
+            while !text.is_char_boundary(split) {
+                split -= 1;
+            }
+            characters.push(start..split);
+            start = split;
+        }
+        characters.push(start..end);
+    }
+    characters
+}
+
+fn character_lengths(text: &str) -> Vec<u8> {
+    characters(text)
+        .into_iter()
+        .map(|character| character.len() as u8)
+        .collect()
+}
+
+/// 選択範囲の始点と終点を文字の番号にする。
+fn selection_characters(text: &str, selection: &Range<usize>, reversed: bool) -> (usize, usize) {
+    let characters = characters(text);
+    let index = |offset: usize| characters.partition_point(|character| character.end <= offset);
+    let (start, end) = (index(selection.start), index(selection.end));
+    if reversed { (end, start) } else { (start, end) }
+}
+
 fn previous_boundary(text: &str, offset: usize) -> usize {
     boundaries(text)
         .take_while(|&index| index < offset)
@@ -1048,17 +1150,23 @@ impl TextField {
         );
         let state = self.state.read(cx);
         let text = state.text().to_owned();
+        let selection = state.selected_range();
+        let reversed = state.selection_reversed;
         let handle = state.focus_handle.clone();
         let focused = !self.disabled && handle.is_focused(window);
         let focus_visible = !self.disabled && crate::is_focus_visible(&handle, window, cx);
         let mut base = div()
             .id(self.id.clone())
-            .a11y(self.a11y_node())
+            .a11y_with_children(self.a11y_node(), {
+                let text = text.clone();
+                move |builder| write_text_run(builder, text, selection, reversed)
+            })
             .aria_value(SharedString::from(text.clone()))
             .when_some(self.placeholder.clone(), |this, placeholder| {
                 this.aria_placeholder(placeholder)
             });
         if !self.disabled {
+            base = a11y_actions(base, &self.state);
             base = editable(
                 base,
                 &self.id,
@@ -1109,6 +1217,70 @@ impl TextFieldControl {
             focused: self.focused,
         }
     }
+}
+
+/// 文字とカーソルを支援技術に渡す（gpui の `_accessibility` の例と同じ形）。
+fn write_text_run(
+    builder: &mut A11ySubtreeBuilder,
+    text: String,
+    selection: Range<usize>,
+    reversed: bool,
+) {
+    let (anchor, focus) = selection_characters(&text, &selection, reversed);
+    let mut run = accesskit::Node::new(Role::TextRun);
+    run.set_character_lengths(character_lengths(&text));
+    run.set_value(text);
+    let node = builder.synthetic_node_id(0);
+    builder.push_child(node, run);
+    builder
+        .parent_node()
+        .set_text_selection(accesskit::TextSelection {
+            anchor: accesskit::TextPosition {
+                node,
+                character_index: anchor,
+            },
+            focus: accesskit::TextPosition {
+                node,
+                character_index: focus,
+            },
+        });
+}
+
+/// 支援技術からの編集を受ける（WCAG 4.1.2。Compose の `setText` など）。
+fn a11y_actions(field: Stateful<Div>, state: &Entity<TextFieldState>) -> Stateful<Div> {
+    field
+        .on_a11y_action(accesskit::Action::SetValue, {
+            let state = state.clone();
+            move |data, window, cx| {
+                if let Some(accesskit::ActionData::Value(text)) = data {
+                    state.update(cx, |state, cx| state.a11y_set_value(text, window, cx));
+                }
+            }
+        })
+        .on_a11y_action(accesskit::Action::ReplaceSelectedText, {
+            let state = state.clone();
+            move |data, window, cx| {
+                if let Some(accesskit::ActionData::Value(text)) = data {
+                    state.update(cx, |state, cx| {
+                        state.a11y_replace_selection(text, window, cx)
+                    });
+                }
+            }
+        })
+        .on_a11y_action(accesskit::Action::SetTextSelection, {
+            let state = state.clone();
+            move |data, window, cx| {
+                if let Some(accesskit::ActionData::SetTextSelection(selection)) = data {
+                    let (anchor, focus) = (
+                        selection.anchor.character_index,
+                        selection.focus.character_index,
+                    );
+                    state.update(cx, |state, cx| {
+                        state.a11y_set_selection(anchor, focus, window, cx)
+                    });
+                }
+            }
+        })
 }
 
 /// 検索用の入力欄。

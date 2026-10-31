@@ -34,12 +34,13 @@
 ## 振る舞い
 
 - Filter は `on_click` で呼び出し側が選択を反転する。
-- Input は Backspace / Delete か削除アイコンで `on_remove`。
+- Input は Backspace / Delete か削除アイコンで `on_remove`。押せる範囲は描画を変えずに 24 × 24 に広げる（WCAG 2.5.8）。
 
 ## アクセシビリティ
 
 - 役割: Filter は CheckBox（toggled）、他は Button
 - 名前: 表示ラベルが既定。`.aria_label()` で上書き可能
+- 削除アイコン: 役割は Button、名前は `.remove_label()`。Tab では止まらない
 - キー操作: Enter / Space、Input は Backspace / Delete で削除
 
 ## デスクトップ向け調整（密度など）

@@ -18,6 +18,7 @@ pub struct Chip {
     disabled: bool,
     on_click: Option<ClickHandler>,
     on_remove: Option<RemoveHandler>,
+    remove_label: Option<SharedString>,
     reveal_margin: Pixels,
     group: SharedString,
 }
@@ -34,6 +35,7 @@ impl Chip {
             disabled: false,
             on_click: None,
             on_remove: None,
+            remove_label: None,
             reveal_margin: px(0.0),
         }
     }
@@ -66,6 +68,18 @@ impl Chip {
     pub fn on_remove(mut self, handler: impl Fn(&mut Window, &mut App) + 'static) -> Self {
         self.on_remove = Some(Rc::new(handler));
         self
+    }
+    /// 削除ボタンの読み上げる名前を指定する。
+    pub fn remove_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.remove_label = (!label.is_empty()).then_some(label);
+        self
+    }
+    /// 削除ボタンのアクセシビリティ情報。
+    pub fn remove_a11y_node(&self) -> A11yNode {
+        A11yNode::new(Role::Button)
+            .with_label(self.remove_label.clone())
+            .disabled(self.disabled)
     }
     /// フォーカス位置を表示する際の余白を指定する。
     pub fn reveal_margin(mut self, margin: Pixels) -> Self {
