@@ -73,13 +73,6 @@ impl BottomSheet {
         self.on_dismiss = Some(Rc::new(handler));
         self
     }
-
-    /// 見本用に、スクリムなしでその場に描く（フォーカスは動かさない）。
-    #[doc(hidden)]
-    pub fn inline(mut self) -> Self {
-        self.inner = self.inner.modal(false);
-        self
-    }
 }
 
 impl ParentElement for BottomSheet {
@@ -178,7 +171,6 @@ pub struct SideSheet {
     close_label: Option<SharedString>,
     children: Vec<AnyElement>,
     on_dismiss: Option<DismissHandler>,
-    inline: bool,
 }
 
 impl SideSheet {
@@ -199,7 +191,6 @@ impl SideSheet {
             close_label: None,
             children: Vec::new(),
             on_dismiss: None,
-            inline: false,
         }
     }
 
@@ -231,18 +222,11 @@ impl SideSheet {
         self
     }
 
-    /// 見本用に、Modal でもスクリムなしでその場に描く（フォーカスは動かさない）。
-    #[doc(hidden)]
-    pub fn inline(mut self) -> Self {
-        self.inline = true;
-        self
-    }
-
     fn headless(&self) -> gpui_headless::Dialog {
         let dialog = gpui_headless::Dialog::new(self.id.clone()).name(self.name.clone());
         match self.kind {
             SideSheetKind::Standard => dialog.complementary(),
-            SideSheetKind::Modal => dialog.modal(!self.inline),
+            SideSheetKind::Modal => dialog.modal(true),
         }
     }
 }
@@ -406,14 +390,6 @@ mod tests {
         assert!(
             BottomSheet::new("b")
                 .aria_label("共有")
-                .inner
-                .a11y_node()
-                .modal
-        );
-        assert!(
-            !BottomSheet::new("b")
-                .aria_label("共有")
-                .inline()
                 .inner
                 .a11y_node()
                 .modal

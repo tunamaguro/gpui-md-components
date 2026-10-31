@@ -24,7 +24,6 @@ pub enum ScrollbarInteraction {
     Draggable,
 }
 
-#[doc(hidden)]
 impl From<ScrollbarInteraction> for gpui_headless::ScrollbarInteraction {
     fn from(interaction: ScrollbarInteraction) -> Self {
         match interaction {

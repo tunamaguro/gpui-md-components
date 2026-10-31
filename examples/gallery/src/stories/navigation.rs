@@ -289,40 +289,20 @@ pub fn page(
             ),
         )
         .child(
-            div()
-                .flex()
-                .flex_wrap()
-                .gap_6()
-                .child(sample(
-                    "Standard",
-                    frame(
-                        360.0,
-                        360.0,
-                        cx,
-                        NavigationDrawer::new("nav-drawer")
-                            .aria_label("メイン")
-                            .child(drawer_header())
-                            .items(destinations())
-                            .selected(Some(demo.destination))
-                            .on_change(select_nav(&view)),
-                    ),
-                ))
-                .child(sample(
-                    "Modal（見本）",
-                    frame(
-                        360.0,
-                        360.0,
-                        cx,
-                        NavigationDrawer::new("nav-drawer-modal-sample")
-                            .aria_label("メイン")
-                            .kind(NavigationDrawerKind::Modal)
-                            .inline()
-                            .child(drawer_header())
-                            .items(destinations())
-                            .selected(Some(demo.destination))
-                            .on_change(select_nav(&view)),
-                    ),
-                )),
+            div().flex().flex_wrap().gap_6().child(sample(
+                "Standard",
+                frame(
+                    360.0,
+                    360.0,
+                    cx,
+                    NavigationDrawer::new("nav-drawer")
+                        .aria_label("メイン")
+                        .child(drawer_header())
+                        .items(destinations())
+                        .selected(Some(demo.destination))
+                        .on_change(select_nav(&view)),
+                ),
+            )),
         )
         .when(demo.drawer_open, |this| {
             let view = view.clone();

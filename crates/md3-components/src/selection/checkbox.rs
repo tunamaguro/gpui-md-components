@@ -27,7 +27,6 @@ impl CheckboxState {
     }
 }
 
-#[doc(hidden)]
 impl From<CheckboxState> for gpui_headless::CheckboxState {
     fn from(state: CheckboxState) -> Self {
         match state {
@@ -38,7 +37,6 @@ impl From<CheckboxState> for gpui_headless::CheckboxState {
     }
 }
 
-#[doc(hidden)]
 impl From<gpui_headless::CheckboxState> for CheckboxState {
     fn from(state: gpui_headless::CheckboxState) -> Self {
         match state {

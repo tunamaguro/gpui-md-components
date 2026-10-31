@@ -134,13 +134,6 @@ impl Dialog {
         self.inner = self.inner.alert(alert);
         self
     }
-
-    /// 見本用に、スクリムなしでその場に描く（フォーカスは動かさない）。
-    #[doc(hidden)]
-    pub fn inline(mut self) -> Self {
-        self.inner = self.inner.modal(false);
-        self
-    }
 }
 
 impl ParentElement for Dialog {

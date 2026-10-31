@@ -77,7 +77,6 @@ cx.set_reduce_motion(user_prefers_reduced_motion); // 起動時と、設定が�
   例外は TextField（`md3_components::inputs::TextFieldState` を持つ）と、フォーカスや一時的な表示状態（部品が内部で保持）。
   Checkbox の値には `md3_components::selection::CheckboxState` を使う。
 - 無効な部品（`.disabled(true)`）は Tab で止まらず、操作できない。
-- 見本用の `inline()` は gallery 向けで、アプリでは使わない（`#[doc(hidden)]`）。
 - gallery には各バリアントの操作できる見本と disabled、該当すれば selected / error の見本を並べる。hover / focused / pressed はマウスやキーボードで実際に操作して確かめる。
 
 ## 5. キーボード操作

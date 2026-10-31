@@ -36,7 +36,7 @@
 
 ## 規約
 
-- `md3-components` の公開 API に `gpui-headless` の型を出さない。再公開せず、アプリが書く型は `md3-components` に定義する。列挙型は `From` で変換し、`gpui-headless` の型を含む `From` の実装には `#[doc(hidden)]` を付ける。状態は `TextFieldState` のように包む。`crates/md3-components/tests/public_api.rs` で確かめる。
+- `md3-components` の公開 API に `gpui-headless` の型を出さない。再公開せず、アプリが書く型は `md3-components` に定義する。列挙型は `From` で変換する。状態は `TextFieldState` のように包む。`crates/md3-components/tests/public_api.rs` で確かめる。
 - `gpui-headless` の依存は `gpui` だけ。`md3-*` には依存しない。crate のテストで確かめる。
 - 公開 API には `MD3` の語も `Material` の語も使わない。
 - MD3 の部品は headless の部品を `inner` に持って設定を委譲し、同じ状態を自分のフィールドに持たない。種類から役割を導く SideSheet と、行ごとに見た目と振る舞いが混ざる Menu / List の項目は写す関数を残す。

@@ -104,7 +104,6 @@ pub struct Menu {
     on_dismiss: Option<DismissHandler>,
     kind: MenuKind,
     match_anchor_width: bool,
-    inline: bool,
     window_margin: Edges<Pixels>,
     reveal_margin: Pixels,
     group_prefix: SharedString,
@@ -137,26 +136,18 @@ pub struct MenuPopup {
     pub scroll: ScrollHandle,
     /// 基準の要素の幅に揃えるときの幅。
     pub anchor_width: Option<Pixels>,
-    placement: Option<Placement>,
+    placement: Placement,
 }
 
 impl MenuPopup {
-    /// 開いたメニューか（その場に描く見本なら `false`）。
-    pub fn is_floating(&self) -> bool {
-        self.placement.is_some()
-    }
-
     /// `style` で見た目を足し、基準の要素の下に重ねて描く要素を返す。
     pub fn place(self, style: impl FnOnce(Stateful<Div>) -> Stateful<Div>) -> AnyElement {
         let container = style(self.container);
-        let Some(Placement {
+        let Placement {
             anchor_bounds,
             window_margin,
             scroll,
-        }) = self.placement
-        else {
-            return container.into_any_element();
-        };
+        } = self.placement;
         // 親（基準の要素と同じ大きさ）を覆う層の下端に、メニューを重ね描きする。
         div()
             .absolute()
@@ -196,7 +187,6 @@ impl Menu {
             on_dismiss: None,
             kind: MenuKind::Actions,
             match_anchor_width: false,
-            inline: false,
             window_margin: Edges::all(px(0.0)),
             reveal_margin: px(0.0),
             group_prefix: "control".into(),
@@ -232,12 +222,6 @@ impl Menu {
     /// 基準の要素の幅を [`MenuPopup::anchor_width`] で受け取る。
     pub fn match_anchor_width(mut self, enabled: bool) -> Self {
         self.match_anchor_width = enabled;
-        self
-    }
-
-    /// その場に描く（フォーカスは動かさない）。
-    pub fn inline(mut self, inline: bool) -> Self {
-        self.inline = inline;
         self
     }
 
@@ -315,25 +299,21 @@ impl Menu {
             .filter(|&index| enabled.get(index).copied().unwrap_or(false))
             .or_else(|| enabled.iter().position(|&enabled| enabled))
             .and_then(|index| handles.get(index).cloned().flatten());
-        let focus = (!self.inline).then(|| {
-            overlay_focus(
-                &self.id,
-                move || match initial {
-                    Some(handle) => InitialFocus::Handle(handle),
-                    None => InitialFocus::Within,
-                },
-                window,
-                cx,
-            )
-        });
+        let focus = overlay_focus(
+            &self.id,
+            move || match initial {
+                Some(handle) => InitialFocus::Handle(handle),
+                None => InitialFocus::Within,
+            },
+            window,
+            cx,
+        );
         let anchor_bounds: Entity<Option<Bounds<Pixels>>> = window.use_keyed_state(
             ElementId::NamedChild(parent.clone(), "anchor".into()),
             cx,
             |_, _| None,
         );
-        let close = focus
-            .as_ref()
-            .and_then(|focus| dismiss_and_restore(self.on_dismiss.clone(), focus));
+        let close = dismiss_and_restore(self.on_dismiss.clone(), &focus);
 
         let node = self.a11y_node();
         let item_nodes: Vec<Option<A11yNode>> = (0..self.items.len())
@@ -386,14 +366,6 @@ impl Menu {
             .then(|| (*anchor_bounds.read(cx)).map(|bounds| bounds.size.width))
             .flatten();
         let container = div().id(self.id.clone()).a11y(node).children(rows);
-        let Some(focus) = focus else {
-            return MenuPopup {
-                container,
-                scroll,
-                anchor_width,
-                placement: None,
-            };
-        };
 
         let handle = focus.read(cx).handle.clone();
         let on_outside = self.on_dismiss.clone();
@@ -449,11 +421,11 @@ impl Menu {
             container,
             scroll: scroll.clone(),
             anchor_width,
-            placement: Some(Placement {
+            placement: Placement {
                 anchor_bounds,
                 window_margin: margin,
                 scroll,
-            }),
+            },
         }
     }
 }

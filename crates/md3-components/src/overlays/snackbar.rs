@@ -30,7 +30,6 @@ pub enum SnackbarPolicy {
     Queue,
 }
 
-#[doc(hidden)]
 impl From<SnackbarPolicy> for gpui_headless::SnackbarPolicy {
     fn from(policy: SnackbarPolicy) -> Self {
         match policy {
@@ -40,7 +39,6 @@ impl From<SnackbarPolicy> for gpui_headless::SnackbarPolicy {
     }
 }
 
-#[doc(hidden)]
 impl From<gpui_headless::SnackbarPolicy> for SnackbarPolicy {
     fn from(policy: gpui_headless::SnackbarPolicy) -> Self {
         match policy {
@@ -59,7 +57,6 @@ pub enum SnackbarResult {
     Dismissed,
 }
 
-#[doc(hidden)]
 impl From<gpui_headless::SnackbarResult> for SnackbarResult {
     fn from(result: gpui_headless::SnackbarResult) -> Self {
         match result {

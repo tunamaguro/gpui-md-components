@@ -45,7 +45,6 @@ pub struct NavigationDrawer {
     on_change: Option<ChangeHandler>,
     on_dismiss: Option<DismissHandler>,
     header: Vec<AnyElement>,
-    inline: bool,
 }
 
 impl NavigationDrawer {
@@ -67,7 +66,6 @@ impl NavigationDrawer {
             on_change: None,
             on_dismiss: None,
             header: Vec::new(),
-            inline: false,
         }
     }
 
@@ -85,13 +83,6 @@ impl NavigationDrawer {
         self
     }
 
-    /// 見本用に、Modal でもスクリムなしでその場に描く（フォーカスは動かさない）。
-    #[doc(hidden)]
-    pub fn inline(mut self) -> Self {
-        self.inline = true;
-        self
-    }
-
     destination_builders!();
 }
 
@@ -104,13 +95,13 @@ impl ParentElement for NavigationDrawer {
 impl NavigationDrawer {
     /// 支援技術にダイアログとして出すか。`Some(true)` ならモーダル。Standard は `None`。
     fn dialog_mode(&self) -> Option<bool> {
-        (self.kind == NavigationDrawerKind::Modal).then_some(!self.inline)
+        (self.kind == NavigationDrawerKind::Modal).then_some(true)
     }
 }
 
 impl RenderOnce for NavigationDrawer {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let modal = self.kind == NavigationDrawerKind::Modal && !self.inline;
+        let modal = self.kind == NavigationDrawerKind::Modal;
         let dialog = self.dialog_mode();
         let theme = cx.md3().clone();
         let pill = theme.corner(tokens::ACTIVE_INDICATOR_SHAPE);

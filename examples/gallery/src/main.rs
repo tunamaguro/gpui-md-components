@@ -286,17 +286,8 @@ impl Render for Gallery {
                 .into_any_element(),
             Page::Overlays => {
                 let note = self.fields.get("dialog-note", "", cx);
-                let sample_note = self.fields.get("dialog-sample-note", "", cx);
-                stories::overlays::page(
-                    &self.demo,
-                    &note,
-                    &sample_note,
-                    &self.snackbar,
-                    view,
-                    window,
-                    cx,
-                )
-                .into_any_element()
+                stories::overlays::page(&self.demo, &note, &self.snackbar, view, window, cx)
+                    .into_any_element()
             }
             Page::Navigation => {
                 let search = self.fields.get("search-people", "", cx);

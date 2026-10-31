@@ -58,9 +58,7 @@ fn menu_items(view: &WeakEntity<Gallery>) -> Vec<MenuItem> {
     ]
 }
 
-/// ダイアログの見本（実物と、その場に描く見本で共有）。
-/// 見本とモーダルで ID と入力欄の状態を分ける（同じだとフォーカスハンドルを 2 つの要素が共有する）。
-fn dialog(id: &str, view: &WeakEntity<Gallery>, note: &TextFieldState) -> Dialog {
+fn dialog(view: &WeakEntity<Gallery>, note: &TextFieldState) -> Dialog {
     let close = |action: &'static str| {
         let view = view.clone();
         move |_: &mut Window, cx: &mut App| {
@@ -70,14 +68,14 @@ fn dialog(id: &str, view: &WeakEntity<Gallery>, note: &TextFieldState) -> Dialog
             })
         }
     };
-    Dialog::new(id.to_owned())
+    Dialog::new("dialog")
         .headline("下書きを破棄しますか？")
         .icon(IconName::Delete)
         .supporting_text("保存していない変更は失われます。理由を書き残せます。")
         .child(
             div()
                 .pt_4()
-                .child(TextField::new(format!("{id}-note"), note).label("メモ")),
+                .child(TextField::new("dialog-note", note).label("メモ")),
         )
         .action(DialogAction::new("キャンセル", close("キャンセル")))
         .action(DialogAction::new("破棄", close("破棄")))
@@ -88,7 +86,6 @@ fn dialog(id: &str, view: &WeakEntity<Gallery>, note: &TextFieldState) -> Dialog
 pub fn page(
     demo: &Demo,
     note: &TextFieldState,
-    sample_note: &TextFieldState,
     snackbar: &Entity<SnackbarHost>,
     view: WeakEntity<Gallery>,
     _window: &mut Window,
@@ -144,15 +141,6 @@ pub fn page(
                     }),
             )
         });
-    let menu_states = sample(
-        "Enabled / Disabled",
-        div().w(px(240.0)).child(
-            Menu::new("menu-sample-Enabled / Disabled")
-                .aria_label("編集")
-                .items(menu_items(&view))
-                .inline(),
-        ),
-    );
     let menus = Section::new("Menu（↑↓ で移動、Enter で選択、Esc / Tab で閉じる）")
         .heading_id("overlays-menu-heading")
         .child(
@@ -163,8 +151,7 @@ pub fn page(
                 .child(menu_anchor)
                 .child(icon_menu_anchor)
                 .child(last),
-        )
-        .child(menu_states);
+        );
 
     let dialogs = Section::new("Dialog（中で Tab が回り、Esc で閉じ、閉じると開いたボタンに戻る）")
         .child(
@@ -173,13 +160,7 @@ pub fn page(
                     .on_click(set(|demo| demo.dialog_open = true)),
             ),
         )
-        .child(sample(
-            "見本（その場に描画）",
-            dialog("dialog-sample", &view, sample_note).inline(),
-        ))
-        .when(demo.dialog_open, |this| {
-            this.child(dialog("dialog", &view, note))
-        });
+        .when(demo.dialog_open, |this| this.child(dialog(&view, note)));
 
     let tooltips = Section::new("Tooltip（ポインタを重ねる、Tab でフォーカスする）")
         .child(
@@ -329,33 +310,6 @@ pub fn page(
                         .variant(ButtonVariant::Outlined)
                         .on_click(set(|demo| demo.modal_side_sheet_open = true)),
                 ),
-        )
-        .child(
-            div()
-                .flex()
-                .items_start()
-                .gap_6()
-                .child(sample(
-                    "Bottom sheet（見本）",
-                    div().w(px(360.0)).child(
-                        BottomSheet::new("bottom-sheet-sample")
-                            .aria_label("共有")
-                            .handle_label("シートを閉じる")
-                            .inline()
-                            .child(share_items("bottom-sample")),
-                    ),
-                ))
-                .child(sample(
-                    "Side sheet Modal（見本）",
-                    div().h(px(240.0)).child(
-                        SideSheet::new("side-sheet-sample")
-                            .headline("フィルタ")
-                            .kind(SideSheetKind::Modal)
-                            .close_button("閉じる")
-                            .inline()
-                            .child(Text::new(TypeScale::BodyMedium, "条件を選ぶ")),
-                    ),
-                )),
         )
         .when(demo.bottom_sheet_open, |this| {
             this.child(
