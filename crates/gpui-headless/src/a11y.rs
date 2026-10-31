@@ -7,8 +7,26 @@
 //! `a11y_synthetic_children` で渡される要素自身の AccessKit のノード（`gpui::accesskit`）に直接書く。
 
 use gpui::{
-    A11ySubtreeBuilder, Role, SharedString, StatefulInteractiveElement, Toggled, accesskit,
+    A11ySubtreeBuilder, ElementId, Role, SharedString, StatefulInteractiveElement, Toggled,
+    accesskit,
 };
+
+/// 補助テキストの状態ノードを作る。エラー時は live region にする。
+pub fn supporting_status(
+    parent: &ElementId,
+    text: impl Into<SharedString>,
+    live: bool,
+) -> (ElementId, A11yNode) {
+    let text = text.into();
+    (
+        ElementId::NamedChild(parent.clone().into(), "supporting-text".into()),
+        // macOS の AccessKit は live の読み上げに value を使う。
+        A11yNode::new(Role::Status)
+            .label(text.clone())
+            .value(text)
+            .live(live),
+    )
+}
 
 /// 範囲を持つ値（Slider、Progress）。
 #[derive(Clone, Copy, Debug, PartialEq)]

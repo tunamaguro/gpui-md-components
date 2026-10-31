@@ -21,57 +21,33 @@ type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App)>;
 pub struct Select {
     scrollbar: bool,
     id: ElementId,
+    inner: gpui_headless::Select,
     label: Option<SharedString>,
-    aria_label: Option<SharedString>,
     options: Vec<SharedString>,
     selected: Option<usize>,
     variant: TextFieldVariant,
     supporting_text: Option<SharedString>,
-    error: bool,
-    required: bool,
     leading_icon: Option<IconName>,
-    disabled: bool,
     on_change: Option<ChangeHandler>,
 }
 
 impl Select {
     /// アクセシビリティ情報。
     pub fn a11y_node(&self) -> gpui_headless::A11yNode {
-        self.headless().a11y_node()
+        self.inner.a11y_node()
     }
 
     /// 補助テキストのアクセシビリティ情報。
     pub fn supporting_a11y_node(&self) -> Option<(gpui::ElementId, gpui_headless::A11yNode)> {
         self.supporting_text.as_ref().map(|text| {
-            (
-                ElementId::NamedChild(self.id.clone().into(), "supporting-text".into()),
-                // macOS の AccessKit は live の読み上げに value を使う。
-                gpui_headless::A11yNode::new(gpui::Role::Status)
-                    .label(text.clone())
-                    .value(text.clone())
-                    .live(self.error),
-            )
+            gpui_headless::supporting_status(&self.id, text.clone(), self.inner.a11y_node().invalid)
         })
     }
 
     /// 必須の入力か指定する。
     pub fn required(mut self, required: bool) -> Self {
-        self.required = required;
+        self.inner = self.inner.required(required);
         self
-    }
-
-    fn headless(&self) -> gpui_headless::Select {
-        let mut field = gpui_headless::Select::new(self.id.clone())
-            .error(self.error)
-            .disabled(self.disabled)
-            .required(self.required);
-        if let Some(label) = self.aria_label.clone().or_else(|| self.label.clone()) {
-            field = field.aria_label(label);
-        }
-        if let Some(text) = &self.supporting_text {
-            field = field.description(text.clone());
-        }
-        field
     }
 
     /// スクロールバーの表示を切り替える（既定は表示）。
@@ -86,32 +62,32 @@ impl Select {
         options: impl IntoIterator<Item = impl Into<SharedString>>,
         selected: Option<usize>,
     ) -> Self {
+        let id = id.into();
         Self {
+            inner: gpui_headless::Select::new(id.clone()),
             scrollbar: true,
-            id: id.into(),
+            id,
             label: None,
-            aria_label: None,
             options: options.into_iter().map(Into::into).collect(),
             selected,
             variant: TextFieldVariant::default(),
             supporting_text: None,
-            error: false,
-            required: false,
             leading_icon: None,
-            disabled: false,
             on_change: None,
         }
     }
 
     /// 表示するラベルを設定し、既定の名前にする。
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
-        self.label = Some(text.into());
+        let text = text.into();
+        self.inner = self.inner.label(text.clone());
+        self.label = Some(text);
         self
     }
 
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        self.aria_label = Some(label.into());
+        self.inner = self.inner.aria_label(label);
         self
     }
 
@@ -123,13 +99,15 @@ impl Select {
 
     /// 下に出す補助テキスト。
     pub fn supporting_text(mut self, text: impl Into<SharedString>) -> Self {
-        self.supporting_text = Some(text.into());
+        let text = text.into();
+        self.inner = self.inner.description(text.clone());
+        self.supporting_text = Some(text);
         self
     }
 
     /// エラー状態にする。
     pub fn error(mut self, error: bool) -> Self {
-        self.error = error;
+        self.inner = self.inner.error(error);
         self
     }
 
@@ -141,7 +119,7 @@ impl Select {
 
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
-        self.disabled = disabled;
+        self.inner = self.inner.disabled(disabled);
         self
     }
 
@@ -161,11 +139,11 @@ impl RenderOnce for Select {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let value = self.value();
         let parent = Arc::new(self.id.clone());
-        let headless = self.headless();
-        let (base, select_state) = headless
+        let node = self.inner.a11y_node();
+        let supporting_a11y = self.supporting_a11y_node();
+        let (base, select_state) = self
+            .inner
             .value(value.clone())
-            .disabled(self.disabled)
-            .error(self.error)
             .reveal_margin(crate::focus::reveal_margin())
             .group_prefix("md3")
             .build(window, cx);
@@ -174,8 +152,8 @@ impl RenderOnce for Select {
         let state = FieldState {
             focused,
             hovered: select_state.hovered,
-            error: self.error,
-            disabled: self.disabled,
+            error: node.invalid,
+            disabled: select_state.disabled,
         };
         let theme = &cx.md3().clone();
         let colors = FieldColors::of(self.variant, state);
@@ -203,7 +181,7 @@ impl RenderOnce for Select {
                 .children(value.clone())
                 .into_any_element(),
             supporting_text: self.supporting_text.clone(),
-            supporting_a11y: self.supporting_a11y_node(),
+            supporting_a11y,
             counter: None,
         }
         .render(cx);
@@ -212,10 +190,7 @@ impl RenderOnce for Select {
             let on_change = self.on_change.clone();
             let close = select_state.dismiss_handler();
             let menu = Menu::new(ElementId::NamedChild(parent.clone(), "menu".into()))
-                .when_some(
-                    self.aria_label.clone().or_else(|| self.label.clone()),
-                    |menu, label| menu.aria_label(label),
-                )
+                .when_some(node.label, |menu, label| menu.aria_label(label))
                 .scrollbar(self.scrollbar)
                 .kind(MenuKind::Options)
                 .selected(self.selected)

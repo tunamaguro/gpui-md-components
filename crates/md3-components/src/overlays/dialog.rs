@@ -55,34 +55,19 @@ impl DialogAction {
 pub struct Dialog {
     scrollbar: bool,
     id: ElementId,
+    inner: gpui_headless::Dialog,
     headline: Option<SharedString>,
-    aria_label: Option<SharedString>,
     icon: Option<IconName>,
     supporting_text: Option<SharedString>,
     children: Vec<AnyElement>,
     actions: Vec<DialogAction>,
     on_dismiss: Option<DismissHandler>,
-    alert: bool,
-    inline: bool,
 }
 
 impl Dialog {
     /// アクセシビリティ情報。
     pub fn a11y_node(&self) -> gpui_headless::A11yNode {
-        self.headless().a11y_node()
-    }
-
-    fn headless(&self) -> gpui_headless::Dialog {
-        let mut dialog = gpui_headless::Dialog::new(self.id.clone())
-            .alert(self.alert)
-            .modal(!self.inline);
-        if let Some(label) = self.aria_label.clone().or_else(|| self.headline.clone()) {
-            dialog = dialog.aria_label(label);
-        }
-        if let Some(text) = &self.supporting_text {
-            dialog = dialog.description(text.clone());
-        }
-        dialog
+        self.inner.a11y_node()
     }
 
     /// スクロールバーの表示を切り替える（既定は表示）。
@@ -93,30 +78,31 @@ impl Dialog {
 
     /// ID から作る。
     pub fn new(id: impl Into<ElementId>) -> Self {
+        let id = id.into();
         Self {
+            inner: gpui_headless::Dialog::new(id.clone()),
             scrollbar: true,
-            id: id.into(),
+            id,
             headline: None,
-            aria_label: None,
             icon: None,
             supporting_text: None,
             children: Vec::new(),
             actions: Vec::new(),
             on_dismiss: None,
-            alert: false,
-            inline: false,
         }
     }
 
     /// 表示する見出しを設定し、既定の名前にする。
     pub fn headline(mut self, text: impl Into<SharedString>) -> Self {
-        self.headline = Some(text.into());
+        let text = text.into();
+        self.inner = self.inner.headline(text.clone());
+        self.headline = Some(text);
         self
     }
 
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        self.aria_label = Some(label.into());
+        self.inner = self.inner.aria_label(label);
         self
     }
 
@@ -128,7 +114,9 @@ impl Dialog {
 
     /// 本文。
     pub fn supporting_text(mut self, text: impl Into<SharedString>) -> Self {
-        self.supporting_text = Some(text.into());
+        let text = text.into();
+        self.inner = self.inner.description(text.clone());
+        self.supporting_text = Some(text);
         self
     }
 
@@ -146,14 +134,14 @@ impl Dialog {
 
     /// 確認・警告のダイアログにする（役割が `AlertDialog` になる）。
     pub fn alert(mut self, alert: bool) -> Self {
-        self.alert = alert;
+        self.inner = self.inner.alert(alert);
         self
     }
 
     /// 見本用に、スクリムなしでその場に描く（フォーカスは動かさない）。
     #[doc(hidden)]
     pub fn inline(mut self) -> Self {
-        self.inline = true;
+        self.inner = self.inner.modal(false);
         self
     }
 }
@@ -166,7 +154,7 @@ impl ParentElement for Dialog {
 
 impl RenderOnce for Dialog {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let (base, focus) = self.headless().build(window, cx);
+        let (base, focus) = self.inner.build(window, cx);
         let theme = &cx.md3().clone();
         let centered = self.icon.is_some();
         let has_body = self.supporting_text.is_some() || !self.children.is_empty();

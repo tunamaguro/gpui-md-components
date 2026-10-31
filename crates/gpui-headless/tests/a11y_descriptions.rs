@@ -120,3 +120,51 @@ fn descriptions_flow_through_headless_nodes() {
         None
     );
 }
+
+#[test]
+fn supporting_status_uses_parent_id_and_live_state() {
+    let parent = gpui::ElementId::from("field");
+    for live in [false, true] {
+        let (id, node) = gpui_headless::supporting_status(&parent, "補足", live);
+        assert!(
+            matches!(id, gpui::ElementId::NamedChild(ref p, ref name) if **p == parent && name.as_ref() == "supporting-text")
+        );
+        assert_eq!(node.role, Role::Status);
+        assert_eq!(node.label.as_deref(), Some("補足"));
+        assert_eq!(node.value.as_deref(), Some("補足"));
+        assert_eq!(node.live, live);
+    }
+}
+
+#[gpui::test]
+fn text_field_default_label_and_override_are_order_independent(cx: &mut TestAppContext) {
+    let state = cx.new(TextFieldState::new);
+    for name in ["氏名", ""] {
+        let first = TextField::new("field", &state)
+            .label("名前")
+            .aria_label(name)
+            .a11y_node();
+        let second = TextField::new("field", &state)
+            .aria_label(name)
+            .label("名前")
+            .a11y_node();
+        assert_eq!(first, second);
+        assert_eq!(first.label.as_deref(), (!name.is_empty()).then_some(name));
+    }
+}
+
+#[test]
+fn select_default_label_and_override_are_order_independent() {
+    for name in ["色を選択", ""] {
+        let first = Select::new("field")
+            .label("色")
+            .aria_label(name)
+            .a11y_node();
+        let second = Select::new("field")
+            .aria_label(name)
+            .label("色")
+            .a11y_node();
+        assert_eq!(first, second);
+        assert_eq!(first.label.as_deref(), (!name.is_empty()).then_some(name));
+    }
+}

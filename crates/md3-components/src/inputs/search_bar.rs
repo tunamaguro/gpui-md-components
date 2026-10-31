@@ -18,10 +18,8 @@ use gpui_headless::{SearchField, TextFieldState, TextPaint};
 /// 先頭は検索のアイコン（[`SearchBar::leading`] で戻るボタンなどに置き換えられる）。
 #[derive(IntoElement)]
 pub struct SearchBar {
-    id: ElementId,
-    state: Entity<TextFieldState>,
+    inner: SearchField,
     placeholder: SharedString,
-    aria_label: Option<SharedString>,
     leading: Option<IconButton>,
     trailing: Vec<IconButton>,
 }
@@ -33,11 +31,12 @@ impl SearchBar {
         state: &Entity<TextFieldState>,
         placeholder: impl Into<SharedString>,
     ) -> Self {
+        let placeholder = placeholder.into();
         Self {
-            id: id.into(),
-            state: state.clone(),
-            placeholder: placeholder.into(),
-            aria_label: None,
+            inner: SearchField::new(id, state)
+                .aria_label(placeholder.clone())
+                .placeholder(placeholder.clone()),
+            placeholder,
             leading: None,
             trailing: Vec::new(),
         }
@@ -45,7 +44,7 @@ impl SearchBar {
 
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        self.aria_label = Some(label.into());
+        self.inner = self.inner.aria_label(label);
         self
     }
 
@@ -64,9 +63,8 @@ impl SearchBar {
 
 impl RenderOnce for SearchBar {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let (base, control) = SearchField::new(self.id, &self.state)
-            .aria_label(self.aria_label.unwrap_or_else(|| self.placeholder.clone()))
-            .placeholder(self.placeholder.clone())
+        let (base, control) = self
+            .inner
             .reveal_margin(crate::focus::reveal_margin())
             .build(window, cx);
         let theme = cx.md3();

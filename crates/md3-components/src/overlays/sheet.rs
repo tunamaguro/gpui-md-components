@@ -34,11 +34,10 @@ fn radius(corner: CornerRadius) -> gpui::Pixels {
 pub struct BottomSheet {
     scrollbar: bool,
     id: ElementId,
-    label: Option<SharedString>,
+    inner: gpui_headless::Dialog,
     handle_label: Option<SharedString>,
     children: Vec<AnyElement>,
     on_dismiss: Option<DismissHandler>,
-    inline: bool,
 }
 
 impl BottomSheet {
@@ -50,21 +49,20 @@ impl BottomSheet {
 
     /// ID から作る。
     pub fn new(id: impl Into<ElementId>) -> Self {
+        let id = id.into();
         Self {
+            inner: gpui_headless::Dialog::new(id.clone()),
             scrollbar: true,
-            id: id.into(),
-            label: None,
+            id,
             handle_label: None,
             children: Vec::new(),
             on_dismiss: None,
-            inline: false,
         }
     }
 
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
+        self.inner = self.inner.aria_label(label);
         self
     }
 
@@ -83,14 +81,8 @@ impl BottomSheet {
     /// 見本用に、スクリムなしでその場に描く（フォーカスは動かさない）。
     #[doc(hidden)]
     pub fn inline(mut self) -> Self {
-        self.inline = true;
+        self.inner = self.inner.modal(false);
         self
-    }
-
-    fn headless(&self) -> gpui_headless::Dialog {
-        gpui_headless::Dialog::new(self.id.clone())
-            .aria_label(self.label.clone().unwrap_or_default())
-            .modal(!self.inline)
     }
 }
 
@@ -102,7 +94,7 @@ impl ParentElement for BottomSheet {
 
 impl RenderOnce for BottomSheet {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let (base, focus) = self.headless().build(window, cx);
+        let (base, focus) = self.inner.build(window, cx);
         let dismiss = focus
             .as_ref()
             .and_then(|focus| dismiss_and_restore(self.on_dismiss.clone(), focus));
@@ -368,11 +360,11 @@ mod tests {
 
     #[test]
     fn bottom_sheet_name_is_optional() {
-        assert_eq!(BottomSheet::new("sheet").headless().a11y_node().label, None);
+        assert_eq!(BottomSheet::new("sheet").inner.a11y_node().label, None);
         assert_eq!(
             BottomSheet::new("sheet")
                 .aria_label("共有")
-                .headless()
+                .inner
                 .a11y_node()
                 .label
                 .as_deref(),
@@ -381,7 +373,7 @@ mod tests {
         assert_eq!(
             BottomSheet::new("sheet")
                 .aria_label("")
-                .headless()
+                .inner
                 .a11y_node()
                 .label,
             None
@@ -411,7 +403,7 @@ mod tests {
         assert_eq!(
             BottomSheet::new("b")
                 .aria_label("共有")
-                .headless()
+                .inner
                 .a11y_node()
                 .role,
             Role::Dialog
@@ -427,7 +419,7 @@ mod tests {
         assert!(
             BottomSheet::new("b")
                 .aria_label("共有")
-                .headless()
+                .inner
                 .a11y_node()
                 .modal
         );
@@ -435,7 +427,7 @@ mod tests {
             !BottomSheet::new("b")
                 .aria_label("共有")
                 .inline()
-                .headless()
+                .inner
                 .a11y_node()
                 .modal
         );

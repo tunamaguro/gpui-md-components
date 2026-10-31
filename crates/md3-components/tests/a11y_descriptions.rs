@@ -266,3 +266,99 @@ fn icon_button_configuration_order_preserves_accessibility() {
         None
     );
 }
+
+#[gpui::test]
+fn text_field_name_is_independent_of_setter_order(cx: &mut TestAppContext) {
+    let state = cx.new(TextFieldState::new);
+    for name in ["氏名", ""] {
+        let first = TextField::new("name", &state)
+            .label("名前")
+            .aria_label(name)
+            .supporting_text("説明")
+            .error(true)
+            .required(true)
+            .disabled(true)
+            .a11y_node();
+        let second = TextField::new("name", &state)
+            .disabled(true)
+            .required(true)
+            .error(true)
+            .supporting_text("説明")
+            .aria_label(name)
+            .label("名前")
+            .a11y_node();
+        assert_eq!(first, second);
+        assert_eq!(first.label.as_deref(), (!name.is_empty()).then_some(name));
+    }
+}
+
+#[test]
+fn select_name_is_independent_of_setter_order() {
+    for name in ["色を選択", ""] {
+        let first = Select::new("choice", ["一"], None)
+            .label("色")
+            .aria_label(name)
+            .supporting_text("説明")
+            .error(true)
+            .required(true)
+            .disabled(true)
+            .a11y_node();
+        let second = Select::new("choice", ["一"], None)
+            .disabled(true)
+            .required(true)
+            .error(true)
+            .supporting_text("説明")
+            .aria_label(name)
+            .label("色")
+            .a11y_node();
+        assert_eq!(first, second);
+        assert_eq!(first.label.as_deref(), (!name.is_empty()).then_some(name));
+    }
+}
+
+#[test]
+fn dialog_name_is_independent_of_setter_order() {
+    for name in ["削除の確認", ""] {
+        let first = Dialog::new("dialog")
+            .headline("確認")
+            .aria_label(name)
+            .supporting_text("説明")
+            .alert(true)
+            .a11y_node();
+        let second = Dialog::new("dialog")
+            .alert(true)
+            .supporting_text("説明")
+            .aria_label(name)
+            .headline("確認")
+            .a11y_node();
+        assert_eq!(first, second);
+        assert_eq!(first.label.as_deref(), (!name.is_empty()).then_some(name));
+    }
+}
+
+#[gpui::test]
+fn supporting_status_tracks_error_regardless_of_setter_order(cx: &mut TestAppContext) {
+    let state = cx.new(TextFieldState::new);
+    for error in [false, true] {
+        let first = TextField::new("field", &state)
+            .error(error)
+            .supporting_text("補足")
+            .supporting_a11y_node();
+        let second = TextField::new("field", &state)
+            .supporting_text("補足")
+            .error(error)
+            .supporting_a11y_node();
+        assert_eq!(first, second);
+        assert_eq!(first.unwrap().1.live, error);
+        let first = Select::new("select", ["一"], None)
+            .error(error)
+            .supporting_text("補足")
+            .supporting_a11y_node();
+        let second = Select::new("select", ["一"], None)
+            .supporting_text("補足")
+            .error(error)
+            .supporting_a11y_node();
+        assert_eq!(first, second);
+        assert_eq!(first.unwrap().1.live, error);
+    }
+}
