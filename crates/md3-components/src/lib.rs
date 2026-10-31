@@ -11,6 +11,26 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+#[allow(unused_macros)]
+macro_rules! accessible_name {
+    ($(#[$extra:meta])*) => {
+        gpui_headless::accessible_name_setter!(self, label, {
+            self.name.set_aria_label(label);
+            self
+        } $(; #[$extra])*);
+    };
+}
+
+#[allow(unused_macros)]
+macro_rules! delegate_accessible_name {
+    ($($field:tt).+ $(; #[$extra:meta])*) => {
+        gpui_headless::accessible_name_setter!(self, label, {
+            self.$($field).+ = self.$($field).+.aria_label(label);
+            self
+        } $(; #[$extra])*);
+    };
+}
+
 #[cfg(feature = "buttons")]
 pub mod buttons;
 #[cfg(feature = "containment")]

@@ -197,11 +197,7 @@ impl Chip {
         self.inner.remove_a11y_node()
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        self.inner = self.inner.aria_label(label);
-        self
-    }
+    delegate_accessible_name!(inner);
 
     /// ラベルの前にアイコンを置く（Filter の選択中はチェックに置き換わる）。
     pub fn icon(mut self, icon: IconName) -> Self {

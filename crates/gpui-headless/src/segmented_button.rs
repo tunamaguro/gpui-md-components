@@ -10,25 +10,18 @@ use std::rc::Rc;
 #[derive(Clone, Debug)]
 /// 表示文字と操作状態を持つ選択肢。
 pub struct SegmentOption {
-    label: SharedString,
-    aria_label: Option<Option<SharedString>>,
+    name: crate::AccessibleName,
     disabled: bool,
 }
 impl SegmentOption {
     /// 表示文字と無効状態から作る。
     pub fn new(label: impl Into<SharedString>, disabled: bool) -> Self {
         Self {
-            label: label.into(),
-            aria_label: None,
+            name: crate::AccessibleName::new(label),
             disabled,
         }
     }
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.aria_label = Some((!label.is_empty()).then_some(label));
-        self
-    }
+    accessible_name!();
 }
 
 type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App) + 'static>;
@@ -39,7 +32,7 @@ type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App) + 'static>;
 /// 複数選択（[`Self::multi_select`]）は各項目がトグルボタンで、矢印キーでフォーカスだけが移る。
 pub struct SegmentedButton {
     id: ElementId,
-    label: Option<SharedString>,
+    name: crate::AccessibleName,
     segments: Vec<SegmentOption>,
     selected: Vec<usize>,
     multi: bool,
@@ -53,7 +46,7 @@ impl SegmentedButton {
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: None,
+            name: crate::AccessibleName::default(),
             segments: Vec::new(),
             selected: Vec::new(),
             multi: false,
@@ -63,18 +56,12 @@ impl SegmentedButton {
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// 項目を加える。
     pub fn segment(mut self, label: impl Into<SharedString>, disabled: bool) -> Self {
         self.segments.push(SegmentOption {
-            label: label.into(),
-            aria_label: None,
+            name: crate::AccessibleName::new(label),
             disabled,
         });
         self
@@ -88,8 +75,7 @@ impl SegmentedButton {
     /// 項目の読み上げ名を指定する。表示文字を優先し、表示ラベルを名前に含める（WCAG 2.5.3）。
     pub fn segment_aria_label(mut self, index: usize, label: impl Into<SharedString>) -> Self {
         if let Some(item) = self.segments.get_mut(index) {
-            let label = label.into();
-            item.aria_label = Some((!label.is_empty()).then_some(label));
+            item.name.set_aria_label(label);
         }
         self
     }
@@ -131,7 +117,7 @@ impl SegmentedButton {
         } else {
             Role::RadioGroup
         };
-        A11yNode::new(role).with_label(self.label.clone())
+        A11yNode::new(role).with_name(&self.name)
     }
 
     /// 項目のアクセシビリティ情報。
@@ -144,14 +130,9 @@ impl SegmentedButton {
             A11yNode::new(Role::RadioButton).toggled(toggled(selected))
         };
         Some(
-            node.with_label(
-                segment
-                    .aria_label
-                    .clone()
-                    .unwrap_or_else(|| Some(segment.label.clone())),
-            )
-            .position(index, self.segments.len())
-            .disabled(segment.disabled),
+            node.with_name(&segment.name)
+                .position(index, self.segments.len())
+                .disabled(segment.disabled),
         )
     }
 

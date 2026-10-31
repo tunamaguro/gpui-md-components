@@ -13,7 +13,7 @@ use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
 #[derive(Clone, Debug)]
 pub struct Segment {
     label: SharedString,
-    aria_label: Option<Option<SharedString>>,
+    name: gpui_headless::AccessibleName,
     icon: Option<IconName>,
     disabled: bool,
 }
@@ -21,20 +21,16 @@ pub struct Segment {
 impl Segment {
     /// ラベルから作る。
     pub fn new(label: impl Into<SharedString>) -> Self {
+        let label = label.into();
         Self {
-            label: label.into(),
-            aria_label: None,
+            name: gpui_headless::AccessibleName::new(label.clone()),
+            label,
             icon: None,
             disabled: false,
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.aria_label = Some((!label.is_empty()).then_some(label));
-        self
-    }
+    accessible_name!();
 
     /// アイコンを付ける（選択中はチェックに置き換わる）。
     pub fn icon(mut self, icon: IconName) -> Self {
@@ -68,20 +64,14 @@ impl SegmentedButton {
             segments: Vec::new(),
         }
     }
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        self.inner = self.inner.aria_label(label);
-        self
-    }
+    delegate_accessible_name!(inner);
 
     /// 項目を加える。
     pub fn segment(mut self, segment: Segment) -> Self {
-        self.inner = self.inner.segment(segment.label.clone(), segment.disabled);
-        if let Some(label) = segment.aria_label.clone() {
-            self.inner = self
-                .inner
-                .segment_aria_label(self.segments.len(), label.unwrap_or_default());
-        }
+        self.inner = self.inner.segment_item(
+            gpui_headless::SegmentOption::new(segment.label.clone(), segment.disabled)
+                .name(segment.name.clone()),
+        );
         self.segments.push(segment);
         self
     }

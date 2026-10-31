@@ -1,6 +1,6 @@
 //! 進み具合のアクセシビリティ情報。
 
-use gpui::{Div, ElementId, Role, SharedString, Stateful, div, prelude::*};
+use gpui::{Div, ElementId, Role, Stateful, div, prelude::*};
 
 use crate::{A11yExt, A11yNode, RangeValue};
 
@@ -8,7 +8,7 @@ use crate::{A11yExt, A11yNode, RangeValue};
 pub struct Progress {
     id: ElementId,
     value: Option<f32>,
-    label: Option<SharedString>,
+    name: crate::AccessibleName,
 }
 
 impl Progress {
@@ -17,21 +17,16 @@ impl Progress {
         Self {
             id: id.into(),
             value,
-            label: None,
+            name: crate::AccessibleName::default(),
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// アクセシビリティ情報。値は 0〜1 に収める。
     pub fn a11y_node(&self) -> A11yNode {
         let mut node = A11yNode::new(Role::ProgressIndicator);
-        node.label = self.label.clone();
+        node = node.with_name(&self.name);
         match self.value {
             Some(value) => node.range(RangeValue {
                 value: f64::from(value.clamp(0.0, 1.0)),

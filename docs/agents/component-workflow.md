@@ -20,6 +20,7 @@
 - architecture.md の設計規約に従う（`ElementId` 必須、enum バリアント、ビルダー、`RenderOnce`）。
 - 状態色は `StateLayer` で合成する。直接 hover 色を計算しない。角が不揃いなら `.corners()` を渡す。フォーカスは `FocusRing`。
 - 名前は表示文字を既定とし、任意の `.aria_label()` で指定・上書きできるようにする。
+- 名前 setter は headless の `accessible_name!()`、MD3 の委譲には `delegate_accessible_name!(inner)`、MD3 の項目自身が名前を持つ場合は `accessible_name!()` を使う。追加の説明は `#[doc = "..."]` をマクロに渡す。詳細は `headless.md`。
 - a11y とキー操作は a11y.md の表に従い `gpui-headless` に実装し、`A11yExt` 経由で付与する。無効なら Tab で止まらない。MD3 側は headless の部品を `inner` に持って設定を委譲し、返された要素に見た目を付ける（`headless.md`）。
 - GPUI の API はその都度、固定 rev のソースで確認する。既知の落とし穴は `gpui-notes.md`。
 - スクロール領域を持つなら `NestedScroll` と `Scrollbar` を付ける（`architecture.md` の「共有部品」）。

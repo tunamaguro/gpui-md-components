@@ -24,7 +24,7 @@ pub enum TabsVariant {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Tab {
     label: SharedString,
-    aria_label: Option<Option<SharedString>>,
+    name: gpui_headless::AccessibleName,
     icon: Option<IconName>,
     disabled: bool,
 }
@@ -32,20 +32,16 @@ pub struct Tab {
 impl Tab {
     /// ラベルから作る。
     pub fn new(label: impl Into<SharedString>) -> Self {
+        let label = label.into();
         Self {
-            label: label.into(),
-            aria_label: None,
+            name: gpui_headless::AccessibleName::new(label.clone()),
+            label,
             icon: None,
             disabled: false,
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.aria_label = Some((!label.is_empty()).then_some(label));
-        self
-    }
+    accessible_name!();
 
     /// アイコンを付ける。
     pub fn icon(mut self, icon: IconName) -> Self {
@@ -117,11 +113,7 @@ impl Tabs {
             tabs: Vec::new(),
         }
     }
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        self.inner = self.inner.aria_label(label);
-        self
-    }
+    delegate_accessible_name!(inner);
 
     /// 種類を変える。
     pub fn variant(mut self, variant: TabsVariant) -> Self {
@@ -130,12 +122,9 @@ impl Tabs {
     }
     /// タブを足す。
     pub fn tab(mut self, tab: Tab) -> Self {
-        self.inner = self.inner.tab(tab.label.clone(), tab.disabled);
-        if let Some(label) = tab.aria_label.clone() {
-            self.inner = self
-                .inner
-                .tab_aria_label(self.tabs.len(), label.unwrap_or_default());
-        }
+        self.inner = self.inner.tab_item(
+            gpui_headless::TabOption::new(tab.label.clone(), tab.disabled).name(tab.name.clone()),
+        );
         self.tabs.push(tab);
         self
     }

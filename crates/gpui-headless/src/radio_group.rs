@@ -14,25 +14,21 @@ use std::rc::Rc;
 #[derive(Clone, Debug)]
 pub struct RadioOption {
     label: SharedString,
-    aria_label: Option<Option<SharedString>>,
+    name: crate::AccessibleName,
     disabled: bool,
 }
 
 impl RadioOption {
     /// 表示する文字から選択肢を作る。
     pub fn new(label: impl Into<SharedString>) -> Self {
+        let label = label.into();
         Self {
-            label: label.into(),
-            aria_label: None,
+            name: crate::AccessibleName::new(label.clone()),
+            label,
             disabled: false,
         }
     }
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.aria_label = Some((!label.is_empty()).then_some(label));
-        self
-    }
+    accessible_name!();
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
@@ -48,7 +44,7 @@ type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App) + 'static>;
 /// 矢印キーでグループ内を移ると同時に選択する。
 pub struct RadioGroup {
     id: ElementId,
-    label: Option<SharedString>,
+    name: crate::AccessibleName,
     options: Vec<RadioOption>,
     selected: Option<usize>,
     reveal_margin: Pixels,
@@ -61,7 +57,7 @@ impl RadioGroup {
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: None,
+            name: crate::AccessibleName::default(),
             options: Vec::new(),
             selected: None,
             reveal_margin: px(0.0),
@@ -70,12 +66,7 @@ impl RadioGroup {
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// 選択肢を加える。
     pub fn option(mut self, label: impl Into<SharedString>) -> Self {
@@ -121,7 +112,7 @@ impl RadioGroup {
 
     /// グループのアクセシビリティ情報。
     pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::RadioGroup).with_label(self.label.clone())
+        A11yNode::new(Role::RadioGroup).with_name(&self.name)
     }
 
     /// 選択肢のアクセシビリティ情報。
@@ -129,12 +120,7 @@ impl RadioGroup {
         let option = self.options.get(index)?;
         Some(
             A11yNode::new(Role::RadioButton)
-                .with_label(
-                    option
-                        .aria_label
-                        .clone()
-                        .unwrap_or_else(|| Some(option.label.clone())),
-                )
+                .with_name(&option.name)
                 .toggled(toggled(self.selected == Some(index)))
                 .position(index, self.options.len())
                 .disabled(option.disabled),

@@ -19,7 +19,7 @@ pub enum CardBase {
 #[derive(Default)]
 pub struct Card {
     clickable: Option<(ElementId, ClickHandler)>,
-    label: Option<SharedString>,
+    name: crate::AccessibleName,
     disabled: bool,
     reveal_margin: Pixels,
     group: Option<SharedString>,
@@ -38,12 +38,7 @@ impl Card {
         self.clickable = Some((id.into(), Box::new(handler)));
         self
     }
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// 押せるカードを無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
@@ -64,7 +59,7 @@ impl Card {
     pub fn a11y_node(&self) -> Option<A11yNode> {
         self.clickable.as_ref().map(|_| {
             A11yNode::new(Role::Button)
-                .with_label(self.label.clone())
+                .with_name(&self.name)
                 .disabled(self.disabled)
         })
     }

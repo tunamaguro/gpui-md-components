@@ -41,7 +41,7 @@ pub enum ListTrailing {
 #[derive(Clone)]
 pub struct ListItem {
     headline: SharedString,
-    aria_label: Option<Option<SharedString>>,
+    name: gpui_headless::AccessibleName,
     overline: Option<SharedString>,
     supporting_text: Option<SharedString>,
     leading: Option<ListLeading>,
@@ -61,9 +61,10 @@ impl ListItem {
 
     /// 見出しから作る。
     pub fn new(headline: impl Into<SharedString>) -> Self {
+        let headline = headline.into();
         Self {
-            headline: headline.into(),
-            aria_label: None,
+            name: gpui_headless::AccessibleName::new(headline.clone()),
+            headline,
             overline: None,
             supporting_text: None,
             leading: None,
@@ -75,12 +76,7 @@ impl ListItem {
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.aria_label = Some((!label.is_empty()).then_some(label));
-        self
-    }
+    accessible_name!();
 
     /// 見出しの上の小さな文字。
     pub fn overline(mut self, text: impl Into<SharedString>) -> Self {
@@ -144,9 +140,7 @@ impl ListItem {
             .description(description)
             .selected(self.selected)
             .disabled(self.disabled);
-        if let Some(label) = self.aria_label.clone() {
-            item = item.aria_label(label.unwrap_or_default());
-        }
+        item = item.name(self.name.clone());
         if let Some(on_select) = self.on_select.clone() {
             item = item.on_select(move |window, cx| on_select(window, cx));
         }
@@ -339,7 +333,7 @@ pub struct List {
     max_height: Option<gpui::Pixels>,
     scrollbar: bool,
     id: ElementId,
-    label: Option<SharedString>,
+    name: gpui_headless::AccessibleName,
     items: Vec<(SharedString, ListItem)>,
 }
 impl List {
@@ -347,18 +341,13 @@ impl List {
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: None,
+            name: gpui_headless::AccessibleName::default(),
             items: Vec::new(),
             max_height: None,
             scrollbar: true,
         }
     }
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// 高さを制限し、超過する項目をスクロール可能にする。
     pub fn max_height(mut self, height: gpui::Pixels) -> Self {
@@ -381,7 +370,7 @@ impl RenderOnce for List {
         let mut list = gpui_headless::List::new(self.id.clone())
             .reveal_margin(crate::focus::reveal_margin())
             .group_prefix("md3");
-        if let Some(label) = self.label {
+        if let Some(label) = self.name.resolve() {
             list = list.aria_label(label);
         }
         if let Some(height) = self.max_height {
@@ -428,7 +417,7 @@ type ItemBuilder = Rc<dyn Fn(usize, &mut App) -> (SharedString, ListItem)>;
 pub struct LazyList {
     scrollbar: bool,
     id: ElementId,
-    label: Option<SharedString>,
+    name: gpui_headless::AccessibleName,
     count: usize,
     scroll: UniformListScrollHandle,
     build: ItemBuilder,
@@ -447,19 +436,14 @@ impl LazyList {
         Self {
             scrollbar: true,
             id: id.into(),
-            label: None,
+            name: gpui_headless::AccessibleName::default(),
             count,
             scroll: scroll.clone(),
             build: Rc::new(build),
             base: div(),
         }
     }
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// スクロールバーの表示を切り替える（既定は表示）。
     pub fn scrollbar(mut self, visible: bool) -> Self {
@@ -488,7 +472,7 @@ impl RenderOnce for LazyList {
         )
         .reveal_margin(crate::focus::reveal_margin())
         .group_prefix("md3");
-        if let Some(label) = self.label {
+        if let Some(label) = self.name.resolve() {
             list = list.aria_label(label);
         }
         let mut base = list.build(window, cx, |row, item, _, cx| {

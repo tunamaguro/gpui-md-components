@@ -18,9 +18,8 @@ use std::sync::Arc;
 
 /// メニューの項目。
 pub struct MenuItem {
-    label: SharedString,
+    name: crate::AccessibleName,
     description: Option<SharedString>,
-    aria_label: Option<Option<SharedString>>,
     disabled: bool,
     on_select: Option<DismissHandler>,
 }
@@ -29,9 +28,8 @@ impl MenuItem {
     /// ラベルから作る。
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
-            label: label.into(),
+            name: crate::AccessibleName::new(label),
             description: None,
-            aria_label: None,
             disabled: false,
             on_select: None,
         }
@@ -43,12 +41,7 @@ impl MenuItem {
         self
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.aria_label = Some((!label.is_empty()).then_some(label));
-        self
-    }
+    accessible_name!();
 
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
@@ -79,7 +72,7 @@ pub enum MenuKind {
 /// Esc・Tab・外側の押下で閉じる。キーボードで閉じたときは、開く前の要素にフォーカスを戻す。
 pub struct Menu {
     id: ElementId,
-    label: Option<SharedString>,
+    name: crate::AccessibleName,
     items: Vec<MenuItem>,
     selected: Option<usize>,
     on_dismiss: Option<DismissHandler>,
@@ -171,7 +164,7 @@ impl Menu {
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: None,
+            name: crate::AccessibleName::default(),
             items: Vec::new(),
             selected: None,
             on_dismiss: None,
@@ -184,12 +177,7 @@ impl Menu {
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// 項目を足す。
     pub fn item(mut self, item: MenuItem) -> Self {
@@ -251,7 +239,7 @@ impl Menu {
             MenuKind::Actions => Role::Menu,
             MenuKind::Options => Role::ListBox,
         };
-        A11yNode::new(role).with_label(self.label.clone())
+        A11yNode::new(role).with_name(&self.name)
     }
 
     /// 項目のアクセシビリティツリーに出す情報。
@@ -267,13 +255,9 @@ impl Menu {
             node = node.description(description.clone());
         }
         Some(
-            node.with_label(
-                item.aria_label
-                    .clone()
-                    .unwrap_or_else(|| Some(item.label.clone())),
-            )
-            .position(index, self.items.len())
-            .disabled(item.disabled),
+            node.with_name(&item.name)
+                .position(index, self.items.len())
+                .disabled(item.disabled),
         )
     }
 

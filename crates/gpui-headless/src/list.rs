@@ -14,9 +14,8 @@ type Handler = Rc<dyn Fn(&mut Window, &mut App)>;
 /// リストの項目の名前と操作。
 #[derive(Clone)]
 pub struct ListItem {
-    label: SharedString,
+    name: crate::AccessibleName,
     description: Option<SharedString>,
-    aria_label: Option<Option<SharedString>>,
     selected: bool,
     disabled: bool,
     on_select: Option<Handler>,
@@ -25,9 +24,8 @@ impl ListItem {
     /// 読み上げる名前から作る。
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
-            label: label.into(),
+            name: crate::AccessibleName::new(label),
             description: None,
-            aria_label: None,
             selected: false,
             disabled: false,
             on_select: None,
@@ -39,12 +37,7 @@ impl ListItem {
         self
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.aria_label = Some((!label.is_empty()).then_some(label));
-        self
-    }
+    accessible_name!();
 
     /// 選択状態を指定する。
     pub fn selected(mut self, selected: bool) -> Self {
@@ -67,11 +60,7 @@ impl ListItem {
     /// 項目のアクセシビリティ情報。
     pub fn a11y_node(&self, index: usize, count: usize) -> A11yNode {
         let mut node = A11yNode::new(Role::ListItem)
-            .with_label(
-                self.aria_label
-                    .clone()
-                    .unwrap_or_else(|| Some(self.label.clone())),
-            )
+            .with_name(&self.name)
             .selected(self.selected)
             .position(index, count)
             .disabled(self.disabled);
@@ -163,7 +152,7 @@ fn row(
 /// 全項目を描くリスト。
 pub struct List {
     id: ElementId,
-    label: Option<SharedString>,
+    name: crate::AccessibleName,
     items: Vec<(SharedString, ListItem)>,
     max_height: Option<Pixels>,
     reveal_margin: Pixels,
@@ -174,19 +163,14 @@ impl List {
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: None,
+            name: crate::AccessibleName::default(),
             items: Vec::new(),
             max_height: None,
             reveal_margin: px(0.),
             group_prefix: "control".into(),
         }
     }
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// 安定したキーと項目を加える。
     pub fn item(mut self, key: impl Into<SharedString>, item: ListItem) -> Self {
@@ -210,7 +194,7 @@ impl List {
     }
     /// リストのアクセシビリティ情報。
     pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::List).with_label(self.label.clone())
+        A11yNode::new(Role::List).with_name(&self.name)
     }
     /// 項目の描画を受け取り、スクロール可能なリストを組み立てる。
     pub fn build(
@@ -313,7 +297,7 @@ type ItemBuilder<T> = Rc<dyn Fn(usize, &mut App) -> (SharedString, ListItem, T)>
 /// 表示範囲だけを描く、均一な高さの項目のリスト。
 pub struct LazyList<T> {
     id: ElementId,
-    label: Option<SharedString>,
+    name: crate::AccessibleName,
     count: usize,
     scroll: UniformListScrollHandle,
     build: ItemBuilder<T>,
@@ -334,7 +318,7 @@ impl<T: 'static> LazyList<T> {
     ) -> Self {
         Self {
             id: id.into(),
-            label: None,
+            name: crate::AccessibleName::default(),
             count,
             scroll: scroll.clone(),
             build: Rc::new(build),
@@ -342,12 +326,7 @@ impl<T: 'static> LazyList<T> {
             group_prefix: "control".into(),
         }
     }
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// フォーカス位置を表示する際の余白。
     pub fn reveal_margin(mut self, margin: Pixels) -> Self {
@@ -361,7 +340,7 @@ impl<T: 'static> LazyList<T> {
     }
     /// リストのアクセシビリティ情報。
     pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::List).with_label(self.label.clone())
+        A11yNode::new(Role::List).with_name(&self.name)
     }
     /// 項目の描画を受け取り、仮想リストを組み立てる。
     pub fn build(

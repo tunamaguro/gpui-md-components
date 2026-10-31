@@ -14,27 +14,23 @@ use std::time::Duration;
 pub struct Snackbar {
     id: ElementId,
     message: SharedString,
-    aria_label: Option<Option<SharedString>>,
+    name: crate::AccessibleName,
     active: bool,
 }
 
 impl Snackbar {
     /// ID と文から作る。
     pub fn new(id: impl Into<ElementId>, message: impl Into<SharedString>) -> Self {
+        let message = message.into();
         Self {
             id: id.into(),
-            message: message.into(),
-            aria_label: None,
+            name: crate::AccessibleName::new(message.clone()),
+            message,
             active: true,
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.aria_label = Some((!label.is_empty()).then_some(label));
-        self
-    }
+    accessible_name!();
 
     /// 表示中か（退場中は `false`）。
     pub fn active(mut self, active: bool) -> Self {
@@ -45,11 +41,7 @@ impl Snackbar {
     /// アクセシビリティツリーに出す情報。
     pub fn a11y_node(&self) -> A11yNode {
         A11yNode::new(Role::Status)
-            .with_label(
-                self.aria_label
-                    .clone()
-                    .unwrap_or_else(|| Some(self.message.clone())),
-            )
+            .with_name(&self.name)
             // macOS の AccessKit は live の読み上げに value を使う。
             .value(self.message.clone())
             .live(self.active)

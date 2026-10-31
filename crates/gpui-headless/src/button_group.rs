@@ -1,14 +1,12 @@
 //! 独立したボタンをまとめるグループ。
 
 use crate::{A11yExt, A11yNode, Button, ControlState};
-use gpui::{
-    AnyElement, App, Div, ElementId, Role, SharedString, Stateful, Window, div, prelude::*,
-};
+use gpui::{AnyElement, App, Div, ElementId, Role, Stateful, Window, div, prelude::*};
 
 /// 各ボタンがそれぞれ Tab で止まるグループ。
 pub struct ButtonGroup {
     id: ElementId,
-    label: Option<SharedString>,
+    name: crate::AccessibleName,
     items: Vec<Button>,
 }
 
@@ -17,21 +15,16 @@ impl ButtonGroup {
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: None,
+            name: crate::AccessibleName::default(),
             items: Vec::new(),
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// グループのアクセシビリティ情報。
     pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::Group).with_label(self.label.clone())
+        A11yNode::new(Role::Group).with_name(&self.name)
     }
 
     /// ボタンを追加する。

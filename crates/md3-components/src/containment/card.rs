@@ -93,7 +93,7 @@ pub struct Card {
     variant: CardVariant,
     base: Div,
     clickable: Option<Clickable>,
-    label: Option<SharedString>,
+    name: gpui_headless::AccessibleName,
     disabled: bool,
 }
 
@@ -104,7 +104,7 @@ impl Card {
             variant,
             base: div(),
             clickable: None,
-            label: None,
+            name: gpui_headless::AccessibleName::default(),
             disabled: false,
         }
     }
@@ -122,12 +122,7 @@ impl Card {
         self
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// 無効にする（押せるカードだけに効く）。
     pub fn disabled(mut self, disabled: bool) -> Self {
@@ -186,7 +181,7 @@ impl RenderOnce for Card {
         let mut behaviour = gpui_headless::Card::new()
             .disabled(disabled)
             .reveal_margin(crate::focus::reveal_margin());
-        if let Some(label) = self.label {
+        if let Some(label) = self.name.resolve() {
             behaviour = behaviour.aria_label(label);
         }
         if let Some(clickable) = self.clickable {

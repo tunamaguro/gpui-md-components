@@ -32,7 +32,7 @@ pub struct SwitchState {
 pub struct Switch {
     id: ElementId,
     selected: bool,
-    label: Option<SharedString>,
+    name: crate::AccessibleName,
     disabled: bool,
     on_change: Option<ChangeHandler>,
     reveal_margin: Pixels,
@@ -46,18 +46,13 @@ impl Switch {
             group: format!("control-{id}").into(),
             id,
             selected,
-            label: None,
+            name: crate::AccessibleName::default(),
             disabled: false,
             on_change: None,
             reveal_margin: px(0.0),
         }
     }
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
-        self
-    }
+    accessible_name!();
 
     /// 現在の状態を返す。
     pub fn is_selected(&self) -> bool {
@@ -89,7 +84,7 @@ impl Switch {
         let mut node = A11yNode::new(Role::Switch)
             .toggled(toggled(self.selected))
             .disabled(self.disabled);
-        node.label = self.label.clone();
+        node = node.with_name(&self.name);
         node
     }
     /// 操作を付けた要素と描画用の状態を返す。

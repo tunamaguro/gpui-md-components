@@ -1,8 +1,8 @@
 //! Slider（連続値・離散値）。
 
 use gpui::{
-    App, Bounds, Corners, ElementId, Hsla, IntoElement, Pixels, RenderOnce, SharedString, Window,
-    canvas, fill, point, prelude::*, px, size,
+    App, Bounds, Corners, ElementId, Hsla, IntoElement, Pixels, RenderOnce, Window, canvas, fill,
+    point, prelude::*, px, size,
 };
 use md3_theme::md3_tokens::component::slider as tokens;
 use md3_theme::md3_tokens::layout;
@@ -30,11 +30,7 @@ impl Slider {
                 .group(format!("md3-{id}")),
         }
     }
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        self.inner = self.inner.aria_label(label);
-        self
-    }
+    delegate_accessible_name!(inner);
     /// 範囲を変える。
     pub fn range(mut self, min: f32, max: f32) -> Self {
         self.inner = self.inner.range(min, max);

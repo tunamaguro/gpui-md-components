@@ -1048,8 +1048,7 @@ pub fn grapheme_count(text: &str) -> usize {
 pub struct TextField {
     id: ElementId,
     state: Entity<TextFieldState>,
-    label: Option<SharedString>,
-    aria_label: Option<SharedString>,
+    name: crate::AccessibleName,
     placeholder: Option<SharedString>,
     error: bool,
     required: bool,
@@ -1078,8 +1077,7 @@ impl TextField {
         Self {
             id: id.into(),
             state: state.clone(),
-            label: None,
-            aria_label: None,
+            name: crate::AccessibleName::default(),
             placeholder: None,
             error: false,
             required: false,
@@ -1092,15 +1090,11 @@ impl TextField {
     }
     /// 表示するラベルを既定の名前にする。
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
-        self.label = Some(label.into());
+        self.name.set_visible(label);
         self
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        self.aria_label = Some(label.into());
-        self
-    }
+    accessible_name!();
 
     /// プレースホルダーを設定する。
     pub fn placeholder(mut self, placeholder: impl Into<SharedString>) -> Self {
@@ -1130,7 +1124,7 @@ impl TextField {
     /// アクセシビリティ情報。
     pub fn a11y_node(&self) -> A11yNode {
         let mut node = A11yNode::new(self.role)
-            .with_label(self.aria_label.clone().or_else(|| self.label.clone()))
+            .with_name(&self.name)
             .disabled(self.disabled)
             .invalid(self.error)
             .required(self.required);
@@ -1292,11 +1286,7 @@ impl SearchField {
         field.role = Role::SearchInput;
         Self(field)
     }
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        self.0 = self.0.aria_label(label);
-        self
-    }
+    delegate_accessible_name!(0);
     /// プレースホルダーを設定する。
     pub fn placeholder(mut self, placeholder: impl Into<SharedString>) -> Self {
         self.0 = self.0.placeholder(placeholder);

@@ -60,11 +60,7 @@ impl BottomSheet {
         }
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        self.inner = self.inner.aria_label(label);
-        self
-    }
+    delegate_accessible_name!(inner);
 
     /// つまみを閉じるボタンにする。`label` は読み上げ用の名前。
     pub fn handle_label(mut self, label: impl Into<SharedString>) -> Self {
@@ -179,7 +175,7 @@ pub struct SideSheet {
     scrollbar: bool,
     id: ElementId,
     headline: Option<SharedString>,
-    aria_label: Option<SharedString>,
+    name: gpui_headless::AccessibleName,
     kind: SideSheetKind,
     close_label: Option<SharedString>,
     children: Vec<AnyElement>,
@@ -200,7 +196,7 @@ impl SideSheet {
             scrollbar: true,
             id: id.into(),
             headline: None,
-            aria_label: None,
+            name: gpui_headless::AccessibleName::default(),
             kind: SideSheetKind::default(),
             close_label: None,
             children: Vec::new(),
@@ -211,15 +207,13 @@ impl SideSheet {
 
     /// 表示する見出しを設定し、既定の名前にする。
     pub fn headline(mut self, text: impl Into<SharedString>) -> Self {
-        self.headline = Some(text.into());
+        let text = text.into();
+        self.name.set_visible(text.clone());
+        self.headline = Some(text);
         self
     }
 
-    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
-    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        self.aria_label = Some(label.into());
-        self
-    }
+    accessible_name!();
 
     /// 種類を変える。
     pub fn kind(mut self, kind: SideSheetKind) -> Self {
@@ -247,10 +241,7 @@ impl SideSheet {
     }
 
     fn headless(&self) -> gpui_headless::Dialog {
-        let mut dialog = gpui_headless::Dialog::new(self.id.clone());
-        if let Some(label) = self.aria_label.clone().or_else(|| self.headline.clone()) {
-            dialog = dialog.aria_label(label);
-        }
+        let dialog = gpui_headless::Dialog::new(self.id.clone()).name(self.name.clone());
         match self.kind {
             SideSheetKind::Standard => dialog.complementary(),
             SideSheetKind::Modal => dialog.modal(!self.inline),
