@@ -204,9 +204,8 @@ impl TextFieldState {
                     }
                     cx.notify();
                     if ENDS_IME_WITH_HANDLER {
-                        // blur は移動先を描いた後で届く。移動先が `.cached()` のビューでも
-                        // もう一度描かれるよう、ウィンドウ全体を描き直す。
-                        window.refresh();
+                        // blur は描画中に届くため、その場の refresh は無視される。
+                        // 次の描画前に refresh し、`.cached()` の移動先も描き直す。
                         // 移動先の描画が済んだ次のフレームで取り下げる。入力欄以外へ移ったときに
                         // 依頼が残り、次にフォーカスした欄で入力を止めないようにする。
                         let pending = cx.default_global::<PendingImeFinish>();
@@ -214,6 +213,7 @@ impl TextFieldState {
                         pending.window = Some(window.window_handle().window_id());
                         let generation = pending.generation;
                         window.on_next_frame(move |window, _| {
+                            window.refresh();
                             window.on_next_frame(move |_, cx| {
                                 let pending = cx.default_global::<PendingImeFinish>();
                                 if pending.generation == generation {
@@ -1243,8 +1243,48 @@ mod tests {
 mod ime_focus_tests {
     use super::*;
     use gpui::{
-        AppContext, InputEvent, Modifiers, Render, TestAppContext, VisualTestContext, black,
+        AnyView, AppContext, InputEvent, Modifiers, Render, StyleRefinement, TestAppContext,
+        VisualTestContext, black,
     };
+
+    struct CachedField {
+        id: &'static str,
+        state: Entity<TextFieldState>,
+    }
+
+    impl Render for CachedField {
+        fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            let color = black();
+            let (base, control) = TextField::new(self.id, &self.state, "入力").build(window, cx);
+            base.size_full().child(control.input(
+                TextPaint {
+                    text: color,
+                    placeholder: color,
+                    caret: color,
+                    selection: color,
+                    caret_width: px(2.0),
+                },
+                None,
+            ))
+        }
+    }
+
+    struct CachedHarness {
+        a: Entity<CachedField>,
+        b: Entity<CachedField>,
+    }
+
+    impl Render for CachedHarness {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            let style = StyleRefinement::default().w(px(300.0)).h(px(40.0));
+            div()
+                .size_full()
+                .flex()
+                .flex_col()
+                .child(AnyView::from(self.a.clone()).cached(style.clone()))
+                .child(AnyView::from(self.b.clone()).cached(style))
+        }
+    }
 
     struct Harness {
         a: Entity<TextFieldState>,
@@ -1398,6 +1438,57 @@ mod ime_focus_tests {
         assert_eq!(b.read_with(cx, |state, _| state.text().to_owned()), "");
         next_frame(cx);
         draw(cx);
+        assert!(accepts(cx, &b));
+        insert(cx, &b, "a");
+        assert_eq!(b.read_with(cx, |state, _| state.text().to_owned()), "a");
+    }
+
+    #[gpui::test]
+    fn focus_move_reaches_field_in_cached_view(cx: &mut TestAppContext) {
+        let a = cx.new(TextFieldState::new);
+        let b = cx.new(TextFieldState::new);
+        let view_a = cx.new(|_| CachedField {
+            id: "a",
+            state: a.clone(),
+        });
+        let view_b = cx.new(|_| CachedField {
+            id: "b",
+            state: b.clone(),
+        });
+        let (_, cx) = cx.add_window_view(move |_, _| CachedHarness {
+            a: view_a,
+            b: view_b,
+        });
+        cx.simulate_resize(size(px(400.0), px(300.0)));
+        cx.update(|window, _| window.activate_window());
+        cx.run_until_parked();
+        let draw_without_refresh = |cx: &mut VisualTestContext| {
+            cx.update(|window, cx| window.draw(cx).clear(cx));
+        };
+        draw_without_refresh(cx);
+        next_frame(cx);
+        focus(cx, &a);
+        draw_without_refresh(cx);
+        next_frame(cx);
+        cx.update(|window, cx| {
+            a.update(cx, |state, cx| {
+                state.replace_and_mark_text_in_range(None, "にほん", None, window, cx);
+            });
+        });
+        draw_without_refresh(cx);
+        next_frame(cx);
+        assert!(a.read_with(cx, |state, _| state.marked_range().is_some()));
+
+        focus(cx, &b);
+        draw_without_refresh(cx);
+        assert_eq!(a.read_with(cx, |state, _| state.marked_range()), None);
+        next_frame(cx);
+        draw_without_refresh(cx);
+        assert!(!accepts(cx, &b), "移動先で変換終了のフレームを描く");
+        insert(cx, &b, "にほん");
+        assert_eq!(b.read_with(cx, |state, _| state.text().to_owned()), "");
+        next_frame(cx);
+        draw_without_refresh(cx);
         assert!(accepts(cx, &b));
         insert(cx, &b, "a");
         assert_eq!(b.read_with(cx, |state, _| state.text().to_owned()), "a");
