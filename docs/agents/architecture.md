@@ -26,7 +26,7 @@ md-components/
     ├── TOKENS_SOURCE.md    # 転記した値と出典の対応表
     ├── guide.md            # 利用者向けガイド
     ├── headless-guide.md   # 独自テーマの作り方
-    ├── references/         # 参照用の資料（androidx と aria-practices は submodule）
+    ├── references/         # 参照用の資料（androidx、aria-practices、material-web は submodule）
     └── a11y-audit.md       # アクセシビリティの監査記録
 ```
 

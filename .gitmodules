@@ -6,3 +6,7 @@
 	path = docs/references/aria-practices
 	url = https://github.com/w3c/aria-practices.git
 	branch = main
+[submodule "docs/references/material-web"]
+	path = docs/references/material-web
+	url = https://github.com/material-components/material-web.git
+	branch = main
