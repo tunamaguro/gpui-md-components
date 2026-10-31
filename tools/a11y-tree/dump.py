@@ -40,6 +40,11 @@ def walk(node, depth):
         line += f" value={node.queryValue().currentValue}"
     except NotImplementedError:
         pass
+    try:
+        text = node.queryText()
+        line += f" text={text.getText(0, -1)!r} caret={text.caretOffset}"
+    except NotImplementedError:
+        pass
     print("  " * depth + line)
     for index in range(node.childCount):
         walk(node.getChildAtIndex(index), depth + 1)

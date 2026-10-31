@@ -315,3 +315,105 @@ fn field_names_are_optional_and_overridable(cx: &mut TestAppContext) {
         None
     );
 }
+
+fn with_text(state: &Entity<TextFieldState>, text: &str, cx: &mut VisualTestContext) {
+    cx.update(|_, cx| state.update(cx, |state, cx| state.set_text(text, cx)));
+}
+
+#[gpui::test]
+fn assistive_technology_sets_the_whole_value(cx: &mut TestAppContext) {
+    let (state, cx) = open(cx);
+    with_text(&state, "古い", cx);
+    cx.update(|window, cx| {
+        state.update(cx, |state, cx| state.a11y_set_value("新しい", window, cx))
+    });
+    cx.read_entity(&state, |state, _| {
+        assert_eq!(state.text(), "新しい");
+        assert_eq!(state.selected_range(), 9..9, "カーソルは末尾");
+    });
+}
+
+#[gpui::test]
+fn assistive_technology_replaces_the_selection(cx: &mut TestAppContext) {
+    let (state, cx) = open(cx);
+    with_text(&state, "a😀b", cx);
+    cx.update(|window, cx| {
+        state.update(cx, |state, cx| {
+            state.a11y_set_selection(1, 2, window, cx);
+            state.a11y_replace_selection("x\ny", window, cx);
+        })
+    });
+    cx.read_entity(&state, |state, _| {
+        assert_eq!(state.text(), "ax yb", "1 行の入力欄なので改行は空白にする");
+    });
+}
+
+#[gpui::test]
+fn assistive_technology_ends_the_composition(cx: &mut TestAppContext) {
+    let (state, cx) = open(cx);
+    cx.update(|window, cx| {
+        state.update(cx, |state, cx| {
+            state.replace_and_mark_text_in_range(None, "か", None, window, cx);
+            state.a11y_set_value("確定", window, cx);
+        })
+    });
+    cx.read_entity(&state, |state, _| {
+        assert_eq!(state.text(), "確定");
+        assert_eq!(state.marked_range(), None);
+    });
+}
+
+#[gpui::test]
+fn selection_is_reported_and_set_in_graphemes(cx: &mut TestAppContext) {
+    let (state, cx) = open(cx);
+    let family = "👨‍👩‍👧";
+    with_text(&state, &format!("a{family}b"), cx);
+    cx.read_entity(&state, |state, _| {
+        assert_eq!(state.a11y_selection(), (3, 3), "カーソルは 3 文字の末尾");
+    });
+    cx.update(|window, cx| {
+        state.update(cx, |state, cx| state.a11y_set_selection(2, 1, window, cx))
+    });
+    cx.read_entity(&state, |state, _| {
+        assert_eq!(state.selected_range(), 1..1 + family.len());
+        assert_eq!(state.a11y_selection(), (2, 1), "逆向きの選択を保つ");
+    });
+    cx.update(|window, cx| {
+        state.update(cx, |state, cx| state.a11y_set_selection(0, 99, window, cx))
+    });
+    cx.read_entity(&state, |state, _| {
+        assert_eq!(
+            state.selected_range(),
+            0..state.text().len(),
+            "範囲外は末尾に収める"
+        );
+        assert_eq!(state.a11y_selection(), (0, 3));
+    });
+}
+
+#[gpui::test]
+fn character_lengths_follow_graphemes(cx: &mut TestAppContext) {
+    let (state, cx) = open(cx);
+    with_text(&state, "aあ😀👨‍👩‍👧", cx);
+    cx.read_entity(&state, |state, _| {
+        let lengths = state.a11y_character_lengths();
+        assert_eq!(&lengths[..3], &[1, 3, 4]);
+        assert_eq!(lengths.len(), 4);
+        let total: usize = lengths.iter().map(|length| *length as usize).sum();
+        assert_eq!(total, state.text().len());
+    });
+}
+
+#[gpui::test]
+fn character_lengths_split_a_grapheme_longer_than_a_byte_can_hold(cx: &mut TestAppContext) {
+    let (state, cx) = open(cx);
+    let long = format!("e{}", "\u{301}".repeat(200));
+    with_text(&state, &long, cx);
+    cx.read_entity(&state, |state, _| {
+        let lengths = state.a11y_character_lengths();
+        assert!(lengths.len() > 1);
+        let total: usize = lengths.iter().map(|length| *length as usize).sum();
+        assert_eq!(total, long.len());
+        assert!(lengths.iter().all(|length| *length > 0));
+    });
+}

@@ -177,3 +177,7 @@ Tab でのフォーカス移動とフォーカスリングを確認した。
 TextField / Select の補助テキストを description と Status に出し、エラー時の live（polite）と必須状態を追加した。Dialog、ListItem、MenuItem の補足も description に含め、メニューボタンと Select にポップアップの状態を付けた。ID を指定した Text は Label として出る。純関数のテストで値を検証する。画面、OS のアクセシビリティツリー、スクリーンリーダーでの通知は未確認。
 
 レビュー修正: メニューボタンの Expand / Collapse に対応し、Select の has-popup を Listbox にした。Text の文字は Label の value にも設定する。修正後に gallery を作り直し、Linux の AT-SPI ツリーで全 9 ページの名前のない要素が 0 であること、description、Status、Label が出ることを確認した。Status は macOS の AccessKit が live の読み上げに value を使うため、label と value の両方に文字を入れる（Snackbar も同じ）。Windows / macOS のツリーと、全 OS の読み上げは未確認。
+
+## 2026-10-31: Chip の削除ボタンと TextField の編集
+
+Input の Chip の削除アイコンを Button にし、名前を `.remove_label()` で付けられるようにした。押せる範囲は描画を変えずに 24 × 24 に広げた（WCAG 2.5.8）。TextField は文字とカーソルを TextRun で渡し、SetValue / ReplaceSelectedText / SetTextSelection を受ける（WCAG 4.1.2）。Linux の AT-SPI ツリーで全 9 ページの名前のない要素が 0 であること、入力欄の文字とカーソル、削除ボタンの名前を確認した。gallery で、広げた範囲のクリックで削除できることも確認した。AT-SPI には EditableText がないので、Linux で届くのは SetTextSelection だけ。Windows / macOS のツリーと、全 OS の読み上げは未確認。
