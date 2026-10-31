@@ -61,5 +61,9 @@
 - フォーカス追従: `.hidden()` の下でフォーカスを持ったまま隠れた部品は prepaint されず、再表示と同時にフォーカスを戻すと `reveal_on_focus` が移動に気付かない（Codex レビューの P2。今の部品には該当する使い方がない）。
 - Scrollbar: RTL での左右反転、タッチでのドラッグ（`docs/specs/scrollbar.md` の「制限」）。
 - Snackbar: 入場の拡大は幅による近似（`docs/specs/snackbar.md`）。
+- TextField / Select のエラーの通知: Linux はエラーになっても文字が変わらないと読み上げず（AT-SPI は名前の変更だけを通知する）、ページを開いた時点のエラーは全 OS で読み上げられ、補助テキストは description と Status で二重にツリーに出る（レビューの P3）。
+- Select: Windows の UI Automation の Expand / Collapse で開閉できない。Button の `.menu_expanded()` と同じ処理が要る（レビューの P3）。
+- `.menu_expanded()` の Expand / Collapse は `ClickEvent::default()` を渡すので位置が (0, 0) になる。位置でメニューを開くアプリは左上に開く（レビューの P3）。
+- `MenuItem::a11y_node` と `ListItem::a11y_node` は実際の描画と役割・位置が違い、使えるのは description だけ。`docs/specs/menu.md` の expanded の記述も古い（レビューの P3）。
 - M3 Expressive: 多角形の形のモーフ（`MaterialShapes`、LoadingIndicator）、FAB メニュー、ツールバーなどは未実装。
 - gpui の rev を上げるときは専用 PR にする。`gpui-notes.md` の各項目と gallery の全ページを確認し直す。

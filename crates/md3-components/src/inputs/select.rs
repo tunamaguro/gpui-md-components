@@ -45,8 +45,10 @@ impl Select {
         self.supporting_text.as_ref().map(|text| {
             (
                 ElementId::NamedChild(self.id.clone().into(), "supporting-text".into()),
+                // macOS の AccessKit は live の読み上げに value を使う。
                 gpui_headless::A11yNode::new(gpui::Role::Status)
                     .label(text.clone())
+                    .value(text.clone())
                     .live(self.error),
             )
         })

@@ -97,6 +97,7 @@ fn text_field_supporting_status_is_live_only_on_error(cx: &mut TestAppContext) {
             .supporting_a11y_node()
             .expect("補助テキストのノード");
         assert_eq!(node.role, Role::Status);
+        assert_eq!(node.value, node.label);
         assert_eq!(node.label.as_deref(), Some("入力してください"));
         assert_eq!(node.live, error);
     }
@@ -117,6 +118,7 @@ fn select_supporting_status_is_live_only_on_error() {
             .supporting_a11y_node()
             .expect("補助テキストのノード");
         assert_eq!(node.role, Role::Status);
+        assert_eq!(node.value, node.label);
         assert_eq!(node.label.as_deref(), Some("選択してください"));
         assert_eq!(node.live, error);
     }

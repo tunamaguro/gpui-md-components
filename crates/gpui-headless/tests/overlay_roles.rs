@@ -15,6 +15,7 @@ fn snackbar_is_a_status() {
     let node = Snackbar::new("s", "保存しました").a11y_node();
     assert_eq!(node.role, Role::Status);
     assert_eq!(node.label.as_deref(), Some("保存しました"));
+    assert_eq!(node.value.as_deref(), Some("保存しました"));
     assert!(node.live, "表示されたら読み上げる");
     assert!(!Snackbar::new("s", "x").active(false).a11y_node().live);
 }
