@@ -271,6 +271,7 @@ impl ListItem {
                     div()
                         .type_style(&theme.text_style(tokens::ITEM_OVERLINE_FONT))
                         .text_color(secondary_color(tokens::ITEM_OVERLINE_COLOR))
+                        .when(self.fixed_height, single_line)
                         .child(overline),
                 )
             })
@@ -278,9 +279,7 @@ impl ListItem {
                 div()
                     .type_style(&theme.text_style(tokens::ITEM_LABEL_TEXT_FONT))
                     .text_color(headline_color)
-                    .when(self.fixed_height, |this| {
-                        this.whitespace_nowrap().overflow_hidden().text_ellipsis()
-                    })
+                    .when(self.fixed_height, single_line)
                     .child(self.headline),
             )
             .when_some(self.supporting_text, |this, text| {
@@ -288,9 +287,7 @@ impl ListItem {
                     div()
                         .type_style(&theme.text_style(tokens::ITEM_SUPPORTING_TEXT_FONT))
                         .text_color(secondary_color(tokens::ITEM_SUPPORTING_TEXT_COLOR))
-                        .when(self.fixed_height && lines < 3, |this| {
-                            this.whitespace_nowrap().overflow_hidden().text_ellipsis()
-                        })
+                        .when(self.fixed_height, single_line)
                         .child(text),
                 )
             });
@@ -419,6 +416,10 @@ impl RenderOnce for List {
             )
         })
     }
+}
+
+fn single_line(text: Div) -> Div {
+    text.whitespace_nowrap().overflow_hidden().text_ellipsis()
 }
 
 type ItemBuilder = Rc<dyn Fn(usize, &mut App) -> (SharedString, ListItem)>;

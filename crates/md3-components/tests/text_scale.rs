@@ -99,21 +99,21 @@ fn tab_labels_wrap_instead_of_overlapping(cx: &mut TestAppContext) {
     assert!(height(cx) > base, "折り返して伸びる");
 }
 
-#[gpui::test]
-fn lazy_list_rows_stay_the_same_height(cx: &mut TestAppContext) {
+/// 1 行目を短く、2 行目を長くした LazyList の行の高さを比べる。`uniform_list` は 1 行目の高さを全行に使う。
+fn assert_lazy_rows_match(cx: &mut TestAppContext, item: fn(String) -> ListItem) {
     let scroll = gpui::UniformListScrollHandle::new();
     let cx = support::open(cx, move |_, _| {
         div()
             .w(px(200.0))
             .h(px(400.0))
             .child(
-                LazyList::new("list", 2, &scroll, |index, _| {
-                    let headline = if index == 0 {
+                LazyList::new("list", 2, &scroll, move |index, _| {
+                    let text = if index == 0 {
                         "短い".to_owned()
                     } else {
-                        "とても長い見出しの例".repeat(8)
+                        "とても長い文の例".repeat(8)
                     };
-                    (index.to_string().into(), ListItem::new(headline))
+                    (index.to_string().into(), item(text))
                 })
                 .size_full(),
             )
@@ -123,4 +123,28 @@ fn lazy_list_rows_stay_the_same_height(cx: &mut TestAppContext) {
     let first = cx.debug_bounds("md3-list-item-list-0").expect("1 行目");
     let second = cx.debug_bounds("md3-list-item-list-1").expect("2 行目");
     assert_eq!(first.size.height, second.size.height);
+}
+
+#[gpui::test]
+fn lazy_list_headline_stays_on_one_line(cx: &mut TestAppContext) {
+    assert_lazy_rows_match(cx, ListItem::new);
+}
+
+#[gpui::test]
+fn lazy_list_supporting_text_stays_on_one_line(cx: &mut TestAppContext) {
+    assert_lazy_rows_match(cx, |text| ListItem::new("見出し").supporting_text(text));
+}
+
+#[gpui::test]
+fn lazy_list_overline_stays_on_one_line(cx: &mut TestAppContext) {
+    assert_lazy_rows_match(cx, |text| ListItem::new("見出し").overline(text));
+}
+
+#[gpui::test]
+fn lazy_list_three_line_text_stays_on_one_line(cx: &mut TestAppContext) {
+    assert_lazy_rows_match(cx, |text| {
+        ListItem::new("見出し")
+            .overline("上書き")
+            .supporting_text(text)
+    });
 }
