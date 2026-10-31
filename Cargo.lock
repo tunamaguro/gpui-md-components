@@ -2823,6 +2823,7 @@ name = "mail-sample"
 version = "0.1.0"
 dependencies = [
  "md3-components",
+ "wasm-bindgen",
 ]
 
 [[package]]

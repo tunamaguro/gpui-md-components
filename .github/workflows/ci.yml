@@ -138,8 +138,8 @@ jobs:
       - name: Build md3-components
         run: cargo build -p md3-components --target wasm32-unknown-unknown --locked
 
-      - name: Build gallery
-        run: cargo build -p gallery --target wasm32-unknown-unknown --locked
+      - name: Build examples
+        run: cargo build -p gallery -p mail-sample --target wasm32-unknown-unknown --locked
 
   # ブランチ保護の必須チェックにはこのジョブだけを指定する。
   ci:

@@ -13,8 +13,8 @@
     {
       devShells.default = app.passthru.craneLib.devShell (
         {
-          # `cargo xtask web` が wasm 版ギャラリーに添えるフォント（gpui の既定の候補に含まれる Noto Sans と、
-          # ギャラリーの日本語の字を持つ Noto Sans CJK）。ブラウザでは gpui がシステムフォントを読めないため。
+          # `cargo xtask web` が wasm 版の見本に添えるフォント（gpui の既定の候補に含まれる Noto Sans と、
+          # 見本の日本語の字を持つ Noto Sans CJK）。ブラウザでは gpui がシステムフォントを読めないため。
           # リポジトリには置かない。
           MD3_WEB_FONTS = lib.concatStringsSep ":" [
             "${pkgs.noto-fonts}/share/fonts/noto/NotoSans.ttf"
@@ -24,7 +24,7 @@
           inputsFrom = [ app ];
           packages = [
             config.treefmt.build.wrapper
-            # `cargo xtask web` で wasm 版ギャラリーの JS バインディングを作る。
+            # `cargo xtask web` で wasm 版の見本の JS バインディングを作る。
             (pkgs.callPackage ../wasm-bindgen-cli.nix { })
           ]
           # `vulkaninfo --summary` で Vulkan ドライバが見えているか確認できるようにする。

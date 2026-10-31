@@ -16,8 +16,9 @@ md-components/
 │   ├── md3-icons/          # 使うアイコンの SVG バイト列と IconName enum（純 Rust）
 │   ├── md3-theme/          # Theme（gpui Global）、gpui 型への変換、OS 外観追従
 │   └── md3-components/     # StateLayer / FocusRing / 各コンポーネント
-├── examples/mail/          # ライブラリ利用者向けメールアプリ（デスクトップ）
-├── gallery/                # 全部品の見本アプリ（gpui_platform を起動に使い、wasm-bindgen を使うのはここだけ）
+├── examples/               # 見本アプリ。wasm-bindgen を使うのはここだけ
+│   ├── gallery/            # 全部品の見本（gpui_platform を起動に使う）
+│   └── mail/               # ライブラリ利用者向けメールアプリ
 ├── xtask/                  # 開発用コマンド（std のみ）: check-tokens、web
 ├── tools/a11y-tree/        # Linux の AT-SPI ツリーを書き出すスクリプト（nixpkgs の道具を使う。依存ではない）
 ├── nix/                    # flake のモジュール（devshell、パッケージ）
@@ -35,6 +36,7 @@ md-components/
 
 ```
 mail-sample ──────────> md3-components（platform feature）
+        └─> wasm-bindgen（wasm32 のみ）
 gallery ─────────────> md3-components ──> md3-theme ──> md3-tokens ──> md3-color
         │                   │   │              │
         │                   ├──> gpui-headless ──> gpui

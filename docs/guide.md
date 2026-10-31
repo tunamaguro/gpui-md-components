@@ -62,7 +62,7 @@ cx.set_reduce_motion(user_prefers_reduced_motion); // 起動時と、設定が�
 ```
 
 - Web では `matchMedia("(prefers-reduced-motion: reduce)").matches` の値を wasm に渡して同じように呼ぶ
-  （gallery の `xtask/web/index.html` と `start` が例）。
+  （gallery の `xtask/web/example.html` と `start` が例）。
 
 ## 4. 部品の使い方の共通ルール
 
@@ -100,7 +100,7 @@ cx.set_reduce_motion(user_prefers_reduced_motion); // 起動時と、設定が�
 - ブラウザでは gpui がシステムフォントを読めない。起動時に `cx.text_system().add_fonts(..)` でフォントの
   データを渡す。日本語などを表示するなら、その字を持つフォントも渡す
   （gpui の既定の候補に入っている「Noto Sans」などを選ぶと、テーマでフォント名を指定しなくてよい）。
-  gallery の実装（`gallery/src/main.rs` の `start` と `xtask/web/index.html`）が例になる。
+  見本の実装（`examples/gallery/src/main.rs` の `start` と `xtask/web/example.html`）が例になる。
 - 描画は WebGPU、使えなければ WebGL2。`gpui_platform::application_with_web_backend` で指定できる。
 - 共有メモリ（atomics）を使わない通常のビルドなら、配信に COOP / COEP ヘッダーは要らない。
 - 編集のショートカットは OS を区別できないため Ctrl（macOS のブラウザでも Ctrl）。

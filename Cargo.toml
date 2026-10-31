@@ -7,7 +7,7 @@ members = [
   "crates/md3-icons",
   "crates/md3-theme",
   "crates/md3-components",
-  "gallery",
+  "examples/gallery",
   "examples/mail",
   "xtask",
 ]
@@ -45,7 +45,7 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "37faef81
   "wayland",
   "x11",
 ] }
-# wasm 版 gallery / examples のエントリポイント（#[wasm_bindgen(start)]）用。上流 zed と同じ要求版。
+# wasm 版 examples のエントリポイント（#[wasm_bindgen(start)]）用。上流 zed と同じ要求版。
 wasm-bindgen = "0.2.120"
 
 # 上流 zed の [patch.crates-io] のうち gpui の依存グラフに入るもの。上流と同じ rev に揃える。

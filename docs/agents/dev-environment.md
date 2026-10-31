@@ -5,7 +5,7 @@
 - `nix develop`（または direnv。`.envrc` は `use flake` だけにする。ほかの設定を足さない）。
 - ツールチェーンは `rust-toolchain.toml`（上流 zed の固定 rev と同じ版）。CI もこの版を使う。
 - devshell（`nix/modules/devshells.nix`）が用意するもの:
-  - `MD3_WEB_FONTS`（`cargo xtask web` が wasm 版に添えるフォント。Linux / Darwin）
+  - `MD3_WEB_FONTS`（`cargo xtask web` が Web 版に添えるフォント。Linux / Darwin）
   - wasm-bindgen CLI（Cargo.lock と同じ版）
   - Linux: `LD_LIBRARY_PATH`（wayland / vulkan / xkbcommon）、mesa lavapipe（GPU が無い環境の CPU 描画）、
     フォント（`FONTCONFIG_FILE`）
@@ -31,14 +31,14 @@ nix develop -c bash -c '
 
 ## CI（GitHub Actions）
 
-| ワークフロー               | ジョブ                                   | 内容                                                                                                                                                 |
-| -------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ci.yml`                   | Format / tokens                          | fmt と `xtask check-tokens`（ubuntu）                                                                                                                |
-|                            | Check (ubuntu / macos-15 / windows-2025) | clippy と test                                                                                                                                       |
-|                            | Build (wasm32)                           | md3-components と gallery の wasm ビルド                                                                                                             |
-|                            | CI                                       | 上の全ジョブの集約。ブランチ保護の必須チェックにはこれだけを指定する想定（2026-10-29 時点で main は未保護）                                          |
-| `gallery.yml`              | Desktop (3 OS) / Web                     | gallery のリリースビルドを Artifacts に置く（動作確認用、保存 3 日）。main への push では Web 版を GitHub Pages に公開する（Deploy to GitHub Pages） |
-| `dependabot-automerge.yml` |                                          | Dependabot の PR の自動マージ                                                                                                                        |
+| ワークフロー               | ジョブ                                   | 内容                                                                                                                                                                  |
+| -------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci.yml`                   | Format / tokens                          | fmt と `xtask check-tokens`（ubuntu）                                                                                                                                 |
+|                            | Check (ubuntu / macos-15 / windows-2025) | clippy と test                                                                                                                                                        |
+|                            | Build (wasm32)                           | md3-components と examples の wasm ビルド                                                                                                                             |
+|                            | CI                                       | 上の全ジョブの集約。ブランチ保護の必須チェックにはこれだけを指定する想定（2026-10-29 時点で main は未保護）                                                           |
+| `gallery.yml`              | Desktop (3 OS) / Web                     | gallery のリリースビルドと全見本の Web 版を Artifacts に置く（動作確認用、保存 3 日）。main への push では Web 版を GitHub Pages に公開する（Deploy to GitHub Pages） |
+| `dependabot-automerge.yml` |                                          | Dependabot の PR の自動マージ                                                                                                                                         |
 
 - 「Pin toolchain」の手順で `RUSTUP_TOOLCHAIN` を `rust-toolchain.toml` の版に固定している（消さない。消すと毎回ツールチェーンを落とし直す）。
 - キャッシュは `Swatinem/rust-cache`（`moonrepo/setup-rust` は `cache: false`）。ジョブごとに `shared-key` を分け、
@@ -62,9 +62,19 @@ nix develop -c bash -c '
 - 実装後は Codex にレビューさせ、指摘を Codex に直させて再レビューする。**レビューの完了を待ってからマージする**（skill `ship-pr`）。
 - Codex には使用量の上限がある。上限に達したら、回復時刻まで待つか、残りを Claude が行い PR に明記する。ユーザーが待たないと言ったら Claude が実装する。レビューはサブエージェントに任せる。
 
+## 見本を追加する
+
+`examples/<名前>/` に置くと、2 と 3 が揃うまで xtask のテストが落ちる。実行ファイルの名前はパッケージ名と同じにする（`cargo xtask web` が `<パッケージ名>.wasm` を読む）。
+
+1. ワークスペースの `members` に足す。
+1. `src/main.rs` に wasm のエントリポイント `start` を書く（`no_main` と `wasm-bindgen` を含め `examples/mail` と同じ形）。
+1. `xtask/src/web.rs` の `EXAMPLES` に足す。Web 版の選択ページに並び、`<名前>/` で配信される。
+
+`.github/workflows/ci.yml` の wasm ビルドの `-p` にも足す。
+
 ## gallery のページを追加する
 
-`gallery/src/main.rs` の `Page` と `PAGES` に追加し、render の `match` とテスト内の全 variant の `match` を更新する。
+`examples/gallery/src/main.rs` の `Page` と `PAGES` に追加し、render の `match` とテスト内の全 variant の `match` を更新する。
 ビルド後のページキーの一覧は `MD3_GALLERY_LIST_PAGES=1 target/debug/gallery` で確認できる。
 
 ## 画面の確認

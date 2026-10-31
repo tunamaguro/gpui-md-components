@@ -38,7 +38,7 @@ let
 
   commonArgs = {
     # Cargo のソースに加えて、`include_bytes!` / `include_str!` で埋め込むファイル
-    # （md3-icons の SVG、xtask web の index.html）を含める。
+    # （md3-icons の SVG、xtask web の HTML）を含める。
     src = lib.fileset.toSource {
       root = ../.;
       fileset = lib.fileset.unions [

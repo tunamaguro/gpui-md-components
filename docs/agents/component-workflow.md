@@ -31,7 +31,7 @@
 
 ## 4. gallery に見本を追加する
 
-- `gallery/src/stories/<component>.rs` を追加し、全バリアントの操作できる見本と disabled、該当すれば selected / error の見本を並べる。
+- `examples/gallery/src/stories/<component>.rs` を追加し、全バリアントの操作できる見本と disabled、該当すれば selected / error の見本を並べる。
 - 状態を固定する見本や、そのための指定は作らない。
 
 ## 5. テストを書く
