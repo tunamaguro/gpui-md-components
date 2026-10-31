@@ -35,15 +35,15 @@ pub fn page(
             IconButton::new(
                 format!("icon-button-{variant:?}-Enabled"),
                 IconName::Settings,
-                "設定",
             )
+            .aria_label("設定")
             .variant(variant)
             .into_any_element(),
             IconButton::new(
                 format!("icon-button-{variant:?}-disabled"),
                 IconName::Settings,
-                "設定",
             )
+            .aria_label("設定")
             .variant(variant)
             .disabled(true)
             .into_any_element(),
@@ -57,40 +57,32 @@ pub fn page(
             .flex()
             .gap_2()
             .child(
-                IconButton::new(
-                    format!("toggle-{variant:?}"),
-                    IconName::Favorite,
-                    "お気に入り",
-                )
-                .variant(variant)
-                .selected(favorite)
-                .on_click(move |_, _, cx| {
-                    Gallery::update_demo(&view, cx, |demo| demo.favorite = !demo.favorite)
-                }),
+                IconButton::new(format!("toggle-{variant:?}"), IconName::Favorite)
+                    .aria_label("お気に入り")
+                    .variant(variant)
+                    .selected(favorite)
+                    .on_click(move |_, _, cx| {
+                        Gallery::update_demo(&view, cx, |demo| demo.favorite = !demo.favorite)
+                    }),
             )
             .child(
-                IconButton::new(
-                    format!("toggle-{variant:?}-on"),
-                    IconName::Favorite,
-                    "お気に入り",
-                )
-                .variant(variant)
-                .selected(true),
+                IconButton::new(format!("toggle-{variant:?}-on"), IconName::Favorite)
+                    .aria_label("お気に入り")
+                    .variant(variant)
+                    .selected(true),
             )
             .child(
-                IconButton::new(
-                    format!("toggle-{variant:?}-off"),
-                    IconName::Favorite,
-                    "お気に入り",
-                )
-                .variant(variant)
-                .selected(false),
+                IconButton::new(format!("toggle-{variant:?}-off"), IconName::Favorite)
+                    .aria_label("お気に入り")
+                    .variant(variant)
+                    .selected(false),
             )
     });
     let fabs = FabColor::ALL.map(|color| {
         let mut cells: Vec<_> = FabSize::ALL
             .map(|size| {
-                Fab::new(format!("fab-{color:?}-{size:?}"), IconName::Edit, "作成")
+                Fab::new(format!("fab-{color:?}-{size:?}"), IconName::Edit)
+                    .aria_label("作成")
                     .size(size)
                     .color(color)
                     .into_any_element()
@@ -156,7 +148,8 @@ pub fn page(
         .child(
             Section::new("Segmented button")
                 .child(
-                    SegmentedButton::new("segmented-single", "期間")
+                    SegmentedButton::new("segmented-single")
+                        .aria_label("期間")
                         .segment(Segment::new("日"))
                         .segment(Segment::new("週"))
                         .segment(Segment::new("月"))
@@ -170,7 +163,8 @@ pub fn page(
                         }),
                 )
                 .child(
-                    SegmentedButton::new("segmented-multi", "サイズ")
+                    SegmentedButton::new("segmented-multi")
+                        .aria_label("サイズ")
                         .multi_select(true)
                         .segment(Segment::new("S"))
                         .segment(Segment::new("M"))

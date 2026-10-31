@@ -65,7 +65,14 @@ impl A11yNode {
 
     /// 名前を付ける。
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
-        self.label = Some(label.into());
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
+    }
+
+    /// 任意の名前を付ける。
+    pub fn with_label(mut self, label: Option<SharedString>) -> Self {
+        self.label = label.filter(|label| !label.is_empty());
         self
     }
 

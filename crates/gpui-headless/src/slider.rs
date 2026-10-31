@@ -20,7 +20,7 @@ struct DragState {
 
 type ChangeHandler = Rc<dyn Fn(f32, &mut Window, &mut App) + 'static>;
 
-/// スライダー。ラベル（読み上げ用の名前）が必須。
+/// スライダー。
 ///
 /// キー操作（APG の Slider）: 矢印で 1 ステップ、Page Up / Page Down で 10 ステップ、Home / End で端。
 /// 支援技術からの増減（Increment / Decrement）と値の設定（SetValue）も受ける（WCAG 2.2 の 4.1.2）。
@@ -32,7 +32,7 @@ pub struct Slider {
     min: f32,
     max: f32,
     step: Option<f32>,
-    label: SharedString,
+    label: Option<SharedString>,
     disabled: bool,
     on_change: Option<ChangeHandler>,
     reveal_margin: Pixels,
@@ -41,8 +41,8 @@ pub struct Slider {
 }
 
 impl Slider {
-    /// ID、値、ラベルから作る。範囲は 0〜1。
-    pub fn new(id: impl Into<ElementId>, value: f32, label: impl Into<SharedString>) -> Self {
+    /// ID と値から作る。範囲は 0〜1。
+    pub fn new(id: impl Into<ElementId>, value: f32) -> Self {
         let id = id.into();
         Self {
             group: format!("control-{id}").into(),
@@ -51,12 +51,19 @@ impl Slider {
             min: 0.0,
             max: 1.0,
             step: None,
-            label: label.into(),
+            label: None,
             disabled: false,
             on_change: None,
             reveal_margin: px(0.0),
             minimum_drag_width: px(0.0),
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
     }
 
     /// 範囲を変える。
@@ -104,8 +111,7 @@ impl Slider {
 
     /// アクセシビリティツリーに出す情報。
     pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::Slider)
-            .label(self.label.clone())
+        let mut node = A11yNode::new(Role::Slider)
             .range(RangeValue {
                 // 描画と同じく、範囲に収めて刻みに丸めた値を読ませる。
                 value: f64::from(self.slider_range().clamp(self.value)),
@@ -113,7 +119,9 @@ impl Slider {
                 max: f64::from(self.max),
                 step: Some(f64::from(self.key_step())),
             })
-            .disabled(self.disabled)
+            .disabled(self.disabled);
+        node.label = self.label.clone();
+        node
     }
 
     /// キー操作 1 回の変化量。離散値ならその刻み、連続値なら範囲の 1%。
@@ -427,7 +435,8 @@ mod tests {
 
     #[test]
     fn reported_value_matches_the_drawn_value() {
-        let node = Slider::new("s", 3.1, "評価")
+        let node = Slider::new("s", 3.1)
+            .aria_label("評価")
             .range(0.0, 10.0)
             .step(2.0)
             .a11y_node();
@@ -436,7 +445,7 @@ mod tests {
 
     #[test]
     fn slider_reports_range() {
-        let node = Slider::new("s", 0.5, "音量").a11y_node();
+        let node = Slider::new("s", 0.5).aria_label("音量").a11y_node();
         assert_eq!(node.role, Role::Slider);
         let range = node.range.expect("range");
         assert_eq!(range.value, 0.5);

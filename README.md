@@ -2,7 +2,7 @@
 
 [GPUI](https://github.com/zed-industries/zed/tree/main/crates/gpui)（Zed の UI フレームワーク）で使う、
 Material Design 3（ベースライン）の UI 部品集。Windows / macOS / Linux / Web（wasm32）で同じ見た目と操作で動き、
-キーボード操作とスクリーンリーダー向けの情報（役割・名前・状態）を全部品に付けている。
+キーボード操作とスクリーンリーダー向けの役割・状態を備え、表示文字や `.aria_label()` で名前を付けられる。
 
 - モーション: Standard / Expressive のモーションスキーム（バネ）。OS の「視差効果を減らす」相当の設定
   （gpui の `App::reduce_motion`）で動きを止められる。
@@ -101,7 +101,7 @@ impl Render for Root {
             .on_action(|_: &FocusNext, window, cx| window.focus_next(cx))
             .on_action(|_: &FocusPrev, window, cx| window.focus_prev(cx))
             .child(
-                // 操作できる部品は ID（ElementId）と、読み上げられる名前を必ず取る。
+                // 操作できる部品には ID（ElementId）を指定する。表示文字を名前とし、必要なら `.aria_label()` を使う。
                 Button::new("save", "保存")
                     .variant(ButtonVariant::Filled)
                     .on_click(|_, _, _| println!("saved")),

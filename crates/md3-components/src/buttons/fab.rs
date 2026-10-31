@@ -90,6 +90,7 @@ struct FabParts {
     id: ElementId,
     color: FabColor,
     on_click: Option<ClickHandler>,
+    aria_label: Option<Option<SharedString>>,
 }
 
 impl FabParts {
@@ -98,6 +99,7 @@ impl FabParts {
             id,
             color: FabColor::default(),
             on_click: None,
+            aria_label: None,
         }
     }
 
@@ -113,6 +115,9 @@ impl FabParts {
         let mut behaviour = gpui_headless::Button::new(self.id.clone(), label)
             .group(format!("md3-{}", self.id))
             .reveal_margin(crate::focus::reveal_margin());
+        if let Some(label) = self.aria_label {
+            behaviour = behaviour.aria_label(label.unwrap_or_default());
+        }
         if let Some(handler) = self.on_click {
             behaviour = behaviour.on_click(handler);
         }
@@ -150,26 +155,33 @@ impl FabParts {
     }
 }
 
-/// FAB。画面の主要な操作を 1 つだけ置く。アイコンだけなのでラベル（読み上げ用の名前）が必須。
+/// FAB。画面の主要な操作を 1 つだけ置く。
 ///
 /// MD3 の FAB には無効状態がないため、`disabled` は持たない。
 #[derive(IntoElement)]
 pub struct Fab {
     parts: FabParts,
     icon: IconName,
-    label: SharedString,
+    label: Option<SharedString>,
     size: FabSize,
 }
 
 impl Fab {
-    /// ID、アイコン、ラベルから作る。
-    pub fn new(id: impl Into<ElementId>, icon: IconName, label: impl Into<SharedString>) -> Self {
+    /// ID とアイコンから作る。
+    pub fn new(id: impl Into<ElementId>, icon: IconName) -> Self {
         Self {
             parts: FabParts::new(id.into()),
             icon,
-            label: label.into(),
+            label: None,
             size: FabSize::default(),
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.parts.aria_label = Some((!label.is_empty()).then_some(label));
+        self
     }
 
     /// 大きさを変える。
@@ -198,11 +210,16 @@ impl RenderOnce for Fab {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let size = self.size;
         let icon = self.icon;
-        self.parts
-            .render(self.label, size.shape(), window, cx, |fab, content| {
+        self.parts.render(
+            self.label.unwrap_or_default(),
+            size.shape(),
+            window,
+            cx,
+            |fab, content| {
                 fab.size(px(size.container()))
                     .child(Icon::new(icon).size(px(size.icon())).color(content))
-            })
+            },
+        )
     }
 }
 
@@ -222,6 +239,13 @@ impl ExtendedFab {
             icon: None,
             label: label.into(),
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.parts.aria_label = Some((!label.is_empty()).then_some(label));
+        self
     }
 
     /// ラベルの前にアイコンを置く。

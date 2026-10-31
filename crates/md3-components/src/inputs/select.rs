@@ -14,14 +14,15 @@ use crate::{Icon, IconName};
 
 type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App)>;
 
-/// 選択肢から 1 つを選ぶ入力。ラベル（読み上げ用の名前を兼ねる）が必須。
+/// 選択肢から 1 つを選ぶ入力。ラベルは読み上げ用の名前も兼ねる。
 ///
 /// 押すか、Enter / Space / ↓ で選択肢のメニューを開く。開閉の状態は部品が持つ。
 #[derive(IntoElement)]
 pub struct Select {
     scrollbar: bool,
     id: ElementId,
-    label: SharedString,
+    label: Option<SharedString>,
+    aria_label: Option<SharedString>,
     options: Vec<SharedString>,
     selected: Option<usize>,
     variant: TextFieldVariant,
@@ -39,17 +40,17 @@ impl Select {
         self
     }
 
-    /// ID、ラベル、選択肢、選ばれている位置から作る。
+    /// ID、選択肢、選ばれている位置から作る。
     pub fn new(
         id: impl Into<ElementId>,
-        label: impl Into<SharedString>,
         options: impl IntoIterator<Item = impl Into<SharedString>>,
         selected: Option<usize>,
     ) -> Self {
         Self {
             scrollbar: true,
             id: id.into(),
-            label: label.into(),
+            label: None,
+            aria_label: None,
             options: options.into_iter().map(Into::into).collect(),
             selected,
             variant: TextFieldVariant::default(),
@@ -59,6 +60,18 @@ impl Select {
             disabled: false,
             on_change: None,
         }
+    }
+
+    /// 表示するラベルを設定し、既定の名前にする。
+    pub fn label(mut self, text: impl Into<SharedString>) -> Self {
+        self.label = Some(text.into());
+        self
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
+        self
     }
 
     /// 種類を変える。
@@ -107,7 +120,11 @@ impl RenderOnce for Select {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let value = self.value();
         let parent = Arc::new(self.id.clone());
-        let (base, select_state) = gpui_headless::Select::new(self.id.clone(), self.label.clone())
+        let mut headless = gpui_headless::Select::new(self.id.clone());
+        if let Some(label) = self.aria_label.clone().or_else(|| self.label.clone()) {
+            headless = headless.aria_label(label);
+        }
+        let (base, select_state) = headless
             .value(value.clone())
             .disabled(self.disabled)
             .error(self.error)
@@ -132,7 +149,7 @@ impl RenderOnce for Select {
         let (mut container, supporting) = FieldFrame {
             variant: self.variant,
             state,
-            label: Some(self.label.clone()),
+            label: self.label.clone(),
             floated: value.is_some() || focused,
             leading_icon: self.leading_icon,
             trailing: Some(
@@ -155,23 +172,24 @@ impl RenderOnce for Select {
         if is_open {
             let on_change = self.on_change.clone();
             let close = select_state.dismiss_handler();
-            let menu = Menu::new(
-                ElementId::NamedChild(parent.clone(), "menu".into()),
-                self.label.clone(),
-            )
-            .scrollbar(self.scrollbar)
-            .kind(MenuKind::Options)
-            .selected(self.selected)
-            .match_anchor_width()
-            .items(self.options.iter().enumerate().map(|(index, option)| {
-                let on_change = on_change.clone();
-                MenuItem::new(option.clone()).on_select(move |window, cx| {
-                    if let Some(on_change) = &on_change {
-                        on_change(index, window, cx);
-                    }
-                })
-            }))
-            .on_dismiss(move |window, cx| close(window, cx));
+            let menu = Menu::new(ElementId::NamedChild(parent.clone(), "menu".into()))
+                .when_some(
+                    self.aria_label.clone().or_else(|| self.label.clone()),
+                    |menu, label| menu.aria_label(label),
+                )
+                .scrollbar(self.scrollbar)
+                .kind(MenuKind::Options)
+                .selected(self.selected)
+                .match_anchor_width()
+                .items(self.options.iter().enumerate().map(|(index, option)| {
+                    let on_change = on_change.clone();
+                    MenuItem::new(option.clone()).on_select(move |window, cx| {
+                        if let Some(on_change) = &on_change {
+                            on_change(index, window, cx);
+                        }
+                    })
+                }))
+                .on_dismiss(move |window, cx| close(window, cx));
             container = container.child(menu);
         }
         // テキストフィールドと同じく、フォーカスはフォーカスリングではなく下線・枠線とラベルの色で示す。
@@ -191,8 +209,8 @@ mod tests {
 
     #[test]
     fn select_shows_the_selected_option() {
-        let select = Select::new("s", "色", ["赤", "青"], Some(1));
+        let select = Select::new("s", ["赤", "青"], Some(1)).label("色");
         assert_eq!(select.value().as_deref(), Some("青"));
-        assert_eq!(Select::new("s", "色", ["赤"], Some(3)).value(), None);
+        assert_eq!(Select::new("s", ["赤"], Some(3)).label("色").value(), None);
     }
 }

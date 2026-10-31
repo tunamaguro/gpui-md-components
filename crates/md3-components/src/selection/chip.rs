@@ -163,6 +163,7 @@ pub struct Chip {
     id: ElementId,
     kind: ChipKind,
     label: SharedString,
+    aria_label: Option<Option<SharedString>>,
     icon: Option<IconName>,
     selected: bool,
     elevated: bool,
@@ -178,6 +179,7 @@ impl Chip {
             id: id.into(),
             kind,
             label: label.into(),
+            aria_label: None,
             icon: None,
             selected: false,
             elevated: false,
@@ -185,6 +187,13 @@ impl Chip {
             on_click: None,
             on_remove: None,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
     }
 
     /// ラベルの前にアイコンを置く（Filter の選択中はチェックに置き換わる）。
@@ -238,6 +247,9 @@ impl RenderOnce for Chip {
             .disabled(self.disabled)
             .group(format!("md3-{}", self.id))
             .reveal_margin(crate::focus::reveal_margin());
+        if let Some(label) = self.aria_label {
+            behaviour = behaviour.aria_label(label.unwrap_or_default());
+        }
         if let Some(handler) = self.on_click {
             behaviour = behaviour.on_click(handler);
         }

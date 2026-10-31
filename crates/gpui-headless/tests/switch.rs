@@ -13,7 +13,8 @@ fn space_toggles_a_switch(cx: &mut TestAppContext) {
         let on = on.clone();
         move |window, cx| {
             let set = on.clone();
-            Switch::new("wifi", on.get(), "Wi-Fi")
+            Switch::new("wifi", on.get())
+                .aria_label("Wi-Fi")
                 .on_change(move |next, _, _| set.set(next))
                 .build(window, cx)
                 .0
@@ -30,14 +31,14 @@ fn space_toggles_a_switch(cx: &mut TestAppContext) {
 
 #[test]
 fn switch_exposes_toggled_state() {
-    let switch = Switch::new("s", false, "通知").a11y_node();
+    let switch = Switch::new("s", false).aria_label("通知").a11y_node();
     assert_eq!(switch.role, Role::Switch);
     assert_eq!(switch.toggled, Some(Toggled::False));
 }
 
 #[test]
 fn selected_switch_reports_toggled() {
-    let node = Switch::new("s", true, "Wi-Fi").a11y_node();
+    let node = Switch::new("s", true).aria_label("Wi-Fi").a11y_node();
     assert_eq!(node.role, Role::Switch);
     assert_eq!(node.toggled, Some(Toggled::True));
 }
@@ -52,10 +53,14 @@ fn switch_releases_press_when_focus_moves(cx: &mut TestAppContext) {
         let changed = changed.clone();
         move |window, cx| {
             let changed = changed.clone();
-            let (base, state) = Switch::new("wifi", false, "Wi-Fi")
+            let (base, state) = Switch::new("wifi", false)
+                .aria_label("Wi-Fi")
                 .on_change(move |_, _, _| changed.set(true))
                 .build(window, cx);
-            let next = Switch::new("next", false, "次").build(window, cx).0;
+            let next = Switch::new("next", false)
+                .aria_label("次")
+                .build(window, cx)
+                .0;
             div()
                 .child(
                     base.size(px(if state.pressed { 40.0 } else { 20.0 }))
@@ -97,4 +102,21 @@ fn switch_releases_press_when_focus_moves(cx: &mut TestAppContext) {
         support::draw(cx);
         assert!(!changed.get());
     }
+}
+
+#[test]
+fn switch_name_is_optional() {
+    assert_eq!(Switch::new("test", false).a11y_node().label, None);
+    assert_eq!(
+        Switch::new("test", false).aria_label("").a11y_node().label,
+        None
+    );
+    assert_eq!(
+        Switch::new("test", false)
+            .aria_label("名前")
+            .a11y_node()
+            .label
+            .as_deref(),
+        Some("名前")
+    );
 }

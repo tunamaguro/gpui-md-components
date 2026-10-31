@@ -36,7 +36,7 @@
 ## アクセシビリティ
 
 - 役割: Button
-- 名前: ラベル引数（必須）
+- 名前: `.aria_label()` で指定（API 上は任意）
 - 状態: トグルなら toggled
 - キー操作: Enter / Space
 

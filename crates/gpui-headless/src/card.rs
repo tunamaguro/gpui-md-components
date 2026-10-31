@@ -22,7 +22,8 @@ pub enum CardBase {
 /// 見た目を持たないカード。
 #[derive(Default)]
 pub struct Card {
-    clickable: Option<(ElementId, SharedString, ClickHandler)>,
+    clickable: Option<(ElementId, ClickHandler)>,
+    label: Option<SharedString>,
     disabled: bool,
     reveal_margin: Pixels,
     group: Option<SharedString>,
@@ -36,12 +37,18 @@ impl Card {
     pub fn on_click(
         mut self,
         id: impl Into<ElementId>,
-        label: impl Into<SharedString>,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.clickable = Some((id.into(), label.into(), Box::new(handler)));
+        self.clickable = Some((id.into(), Box::new(handler)));
         self
     }
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
+    }
+
     /// 押せるカードを無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
@@ -59,16 +66,16 @@ impl Card {
     }
     /// アクセシビリティツリーに出す情報。装飾のカードは出さない。
     pub fn a11y_node(&self) -> Option<A11yNode> {
-        self.clickable.as_ref().map(|(_, label, _)| {
+        self.clickable.as_ref().map(|_| {
             A11yNode::new(Role::Button)
-                .label(label.clone())
+                .with_label(self.label.clone())
                 .disabled(self.disabled)
         })
     }
     /// 利用者の要素に操作を付け、描画用の状態とともに返す。
     pub fn build(self, base: Div, window: &mut Window, cx: &mut App) -> CardBase {
         let node = self.a11y_node();
-        let (Some((id, _, handler)), Some(node)) = (self.clickable, node) else {
+        let (Some((id, handler)), Some(node)) = (self.clickable, node) else {
             return CardBase::Plain(base);
         };
         let group = self.group.unwrap_or_else(|| format!("control-{id}").into());

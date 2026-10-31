@@ -34,7 +34,7 @@ fn radius(corner: CornerRadius) -> gpui::Pixels {
 pub struct BottomSheet {
     scrollbar: bool,
     id: ElementId,
-    label: SharedString,
+    label: Option<SharedString>,
     handle_label: Option<SharedString>,
     children: Vec<AnyElement>,
     on_dismiss: Option<DismissHandler>,
@@ -48,17 +48,24 @@ impl BottomSheet {
         self
     }
 
-    /// ID とラベル（読み上げ用の名前）から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             scrollbar: true,
             id: id.into(),
-            label: label.into(),
+            label: None,
             handle_label: None,
             children: Vec::new(),
             on_dismiss: None,
             inline: false,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
     }
 
     /// つまみを閉じるボタンにする。`label` は読み上げ用の名前。
@@ -81,7 +88,9 @@ impl BottomSheet {
     }
 
     fn headless(&self) -> gpui_headless::Dialog {
-        gpui_headless::Dialog::new(self.id.clone(), self.label.clone()).modal(!self.inline)
+        gpui_headless::Dialog::new(self.id.clone())
+            .aria_label(self.label.clone().unwrap_or_default())
+            .modal(!self.inline)
     }
 }
 
@@ -177,7 +186,8 @@ pub enum SideSheetKind {
 pub struct SideSheet {
     scrollbar: bool,
     id: ElementId,
-    headline: SharedString,
+    headline: Option<SharedString>,
+    aria_label: Option<SharedString>,
     kind: SideSheetKind,
     close_label: Option<SharedString>,
     children: Vec<AnyElement>,
@@ -192,18 +202,31 @@ impl SideSheet {
         self
     }
 
-    /// ID と見出し（読み上げ用の名前を兼ねる）から作る。
-    pub fn new(id: impl Into<ElementId>, headline: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             scrollbar: true,
             id: id.into(),
-            headline: headline.into(),
+            headline: None,
+            aria_label: None,
             kind: SideSheetKind::default(),
             close_label: None,
             children: Vec::new(),
             on_dismiss: None,
             inline: false,
         }
+    }
+
+    /// 表示する見出しを設定し、既定の名前にする。
+    pub fn headline(mut self, text: impl Into<SharedString>) -> Self {
+        self.headline = Some(text.into());
+        self
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
+        self
     }
 
     /// 種類を変える。
@@ -232,7 +255,10 @@ impl SideSheet {
     }
 
     fn headless(&self) -> gpui_headless::Dialog {
-        let dialog = gpui_headless::Dialog::new(self.id.clone(), self.headline.clone());
+        let mut dialog = gpui_headless::Dialog::new(self.id.clone());
+        if let Some(label) = self.aria_label.clone().or_else(|| self.headline.clone()) {
+            dialog = dialog.aria_label(label);
+        }
         match self.kind {
             SideSheetKind::Standard => dialog.complementary(),
             SideSheetKind::Modal => dialog.modal(!self.inline),
@@ -257,6 +283,7 @@ impl RenderOnce for SideSheet {
         let parent = Arc::new(self.id.clone());
         let space = px(layout::SIDE_SHEET_CONTENT_SPACE);
 
+        let has_header = self.headline.is_some() || self.close_label.is_some();
         let header = div()
             .flex_none()
             .flex()
@@ -266,10 +293,12 @@ impl RenderOnce for SideSheet {
                 div()
                     .flex_1()
                     .min_w_0()
-                    .pb(px(layout::SIDE_SHEET_HEADLINE_BOTTOM_SPACE))
-                    .type_style(&theme.text_style(side_sheet::DOCKED_HEADLINE_FONT))
-                    .text_color(theme.color(side_sheet::DOCKED_HEADLINE_COLOR))
-                    .child(self.headline),
+                    .when_some(self.headline, |this, headline| {
+                        this.pb(px(layout::SIDE_SHEET_HEADLINE_BOTTOM_SPACE))
+                            .type_style(&theme.text_style(side_sheet::DOCKED_HEADLINE_FONT))
+                            .text_color(theme.color(side_sheet::DOCKED_HEADLINE_COLOR))
+                            .child(headline)
+                    }),
             )
             .when_some(self.close_label, |this, label| {
                 let close = dismiss.clone();
@@ -277,8 +306,8 @@ impl RenderOnce for SideSheet {
                     IconButton::new(
                         ElementId::NamedChild(parent.clone(), "close".into()),
                         IconName::Close,
-                        label,
                     )
+                    .aria_label(label)
                     .when_some(close, |button, close| {
                         button.on_click(move |_, window, cx| close(window, cx))
                     }),
@@ -293,7 +322,7 @@ impl RenderOnce for SideSheet {
             .flex()
             .flex_col()
             .p(space)
-            .child(header)
+            .when(has_header, |sheet| sheet.child(header))
             .child(crate::scroll::content(
                 &self.id,
                 self.children,
@@ -338,20 +367,73 @@ mod tests {
     use gpui::Role;
 
     #[test]
+    fn bottom_sheet_name_is_optional() {
+        assert_eq!(BottomSheet::new("sheet").headless().a11y_node().label, None);
+        assert_eq!(
+            BottomSheet::new("sheet")
+                .aria_label("共有")
+                .headless()
+                .a11y_node()
+                .label
+                .as_deref(),
+            Some("共有")
+        );
+        assert_eq!(
+            BottomSheet::new("sheet")
+                .aria_label("")
+                .headless()
+                .a11y_node()
+                .label,
+            None
+        );
+    }
+
+    #[test]
+    fn side_sheet_name_follows_headline_and_override() {
+        let name = |sheet: SideSheet| sheet.headless().a11y_node().label;
+        assert_eq!(name(SideSheet::new("s")), None);
+        assert_eq!(
+            name(SideSheet::new("s").headline("詳細")).as_deref(),
+            Some("詳細")
+        );
+        assert_eq!(
+            name(SideSheet::new("s").headline("詳細").aria_label("詳細情報")).as_deref(),
+            Some("詳細情報")
+        );
+        assert_eq!(
+            name(SideSheet::new("s").headline("詳細").aria_label("")),
+            None
+        );
+    }
+
+    #[test]
     fn modal_sheets_are_dialogs() {
         assert_eq!(
-            BottomSheet::new("b", "共有").headless().a11y_node().role,
+            BottomSheet::new("b")
+                .aria_label("共有")
+                .headless()
+                .a11y_node()
+                .role,
             Role::Dialog
         );
-        let side = SideSheet::new("s", "フィルタ");
+        let side = SideSheet::new("s").headline("フィルタ");
         assert_eq!(side.headless().a11y_node().role, Role::Complementary);
-        let modal = SideSheet::new("s", "フィルタ").kind(SideSheetKind::Modal);
+        let modal = SideSheet::new("s")
+            .headline("フィルタ")
+            .kind(SideSheetKind::Modal);
         assert_eq!(modal.headless().a11y_node().role, Role::Dialog);
         assert!(modal.headless().a11y_node().modal);
         assert!(!side.headless().a11y_node().modal);
-        assert!(BottomSheet::new("b", "共有").headless().a11y_node().modal);
         assert!(
-            !BottomSheet::new("b", "共有")
+            BottomSheet::new("b")
+                .aria_label("共有")
+                .headless()
+                .a11y_node()
+                .modal
+        );
+        assert!(
+            !BottomSheet::new("b")
+                .aria_label("共有")
                 .inline()
                 .headless()
                 .a11y_node()

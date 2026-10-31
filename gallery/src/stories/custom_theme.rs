@@ -174,8 +174,8 @@ impl Render for Custom {
                 } else {
                     CheckboxState::Unchecked
                 },
-                "チェック",
             )
+            .aria_label("チェック")
             .disabled(disabled)
             .on_change({
                 let view = view.clone();
@@ -191,8 +191,8 @@ impl Render for Custom {
             let (switch, ss) = Switch::new(
                 if disabled { "switch-off" } else { "switch-on" },
                 self.switched,
-                "スイッチ",
             )
+            .aria_label("スイッチ")
             .disabled(disabled)
             .on_change({
                 let view = view.clone();
@@ -223,7 +223,8 @@ impl Render for Custom {
                     ),
             );
         }
-        let radio = RadioGroup::new("custom-radio", "選択肢")
+        let radio = RadioGroup::new("custom-radio")
+            .aria_label("選択肢")
             .option("赤")
             .option("青")
             .disabled_option("無効")
@@ -248,7 +249,8 @@ impl Render for Custom {
                     .into_any_element()
             });
         page = page.child(radio.flex().gap(px(Look::GAP)));
-        let tabs = Tabs::new("custom-tabs", "タブ", self.tab)
+        let tabs = Tabs::new("custom-tabs", self.tab)
+            .aria_label("タブ")
             .tab("概要", false)
             .tab("詳細", false)
             .tab("無効", true)
@@ -276,8 +278,8 @@ impl Render for Custom {
             let (base, state) = Slider::new(
                 if disabled { "slider-off" } else { "slider-on" },
                 self.value,
-                "音量",
             )
+            .aria_label("音量")
             .disabled(disabled)
             .on_change({
                 let view = view.clone();
@@ -339,8 +341,8 @@ impl Render for Custom {
                 } else {
                     &self.field
                 },
-                "名前",
             )
+            .label("名前")
             .placeholder("名前を入力")
             .disabled(disabled)
             .build(window, cx);
@@ -363,11 +365,11 @@ impl Render for Custom {
         }
         let labels = ["春", "夏", "秋", "無効"];
         for disabled in [false, true] {
-            let (base, state) =
-                Select::new(if disabled { "select-off" } else { "select-on" }, "季節")
-                    .value(Some(labels[self.selected].into()))
-                    .disabled(disabled)
-                    .build(window, cx);
+            let (base, state) = Select::new(if disabled { "select-off" } else { "select-on" })
+                .label("季節")
+                .value(Some(labels[self.selected].into()))
+                .disabled(disabled)
+                .build(window, cx);
             let mut base = frame(
                 base.w(px(Look::WIDTH)).relative(),
                 state.focus_visible,
@@ -380,7 +382,8 @@ impl Render for Custom {
             ));
             if state.open {
                 let dismiss = state.dismiss_handler();
-                let mut menu = Menu::new("custom-menu", "季節")
+                let mut menu = Menu::new("custom-menu")
+                    .aria_label("季節")
                     .kind(MenuKind::Options)
                     .selected(Some(self.selected))
                     .on_dismiss({
@@ -418,7 +421,7 @@ impl Render for Custom {
             }
             page = page.child(base);
         }
-        let mut list = List::new("custom-list", "項目");
+        let mut list = List::new("custom-list").aria_label("項目");
         for (i, label) in ["項目 A", "項目 B", "無効"].iter().enumerate() {
             let view = view.clone();
             list = list.item(
@@ -491,7 +494,9 @@ impl Render for Custom {
                 ),
         );
         if self.dialog {
-            let (base, focus) = Dialog::new("custom-dialog", "確認").build(window, cx);
+            let (base, focus) = Dialog::new("custom-dialog")
+                .headline("確認")
+                .build(window, cx);
             if let Some(focus) = focus {
                 let close = Rc::new({
                     let view = view.clone();

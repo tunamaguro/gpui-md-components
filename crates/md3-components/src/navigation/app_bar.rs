@@ -51,6 +51,7 @@ impl TopAppBarVariant {
 pub struct TopAppBar {
     id: ElementId,
     title: SharedString,
+    aria_label: Option<Option<SharedString>>,
     variant: TopAppBarVariant,
     navigation_icon: Option<IconButton>,
     actions: Vec<IconButton>,
@@ -63,11 +64,19 @@ impl TopAppBar {
         Self {
             id: id.into(),
             title: title.into(),
+            aria_label: None,
             variant: TopAppBarVariant::default(),
             navigation_icon: None,
             actions: Vec::new(),
             scrolled: false,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
     }
 
     /// 種類を変える。
@@ -97,7 +106,10 @@ impl TopAppBar {
 
 impl RenderOnce for TopAppBar {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let headless = AppBar::new(self.id, self.title.clone());
+        let mut headless = AppBar::new(self.id, self.title.clone());
+        if let Some(label) = self.aria_label {
+            headless = headless.aria_label(label.unwrap_or_default());
+        }
         let theme = cx.md3();
         let container = if self.scrolled {
             app_bar::ON_SCROLL_CONTAINER_COLOR

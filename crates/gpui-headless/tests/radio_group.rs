@@ -6,7 +6,8 @@ use std::{cell::Cell, rc::Rc};
 
 fn radio(selected: &Rc<Cell<Option<usize>>>) -> RadioGroup {
     let set = selected.clone();
-    RadioGroup::new("size", "サイズ")
+    RadioGroup::new("size")
+        .aria_label("サイズ")
         .option("小")
         .disabled_option("中")
         .option("大")
@@ -74,6 +75,22 @@ fn radio_group_exposes_roles_and_selection() {
 
 #[test]
 fn disabled_option_is_reported() {
-    let group = RadioGroup::new("g", "サイズ").disabled_option("大");
+    let group = RadioGroup::new("g")
+        .aria_label("サイズ")
+        .disabled_option("大");
     assert!(group.option_a11y_node(0).expect("option").disabled);
+}
+
+#[test]
+fn group_name_is_optional_and_can_be_cleared() {
+    assert_eq!(RadioGroup::new("g").a11y_node().label, None);
+    assert_eq!(
+        RadioGroup::new("g")
+            .aria_label("サイズ")
+            .a11y_node()
+            .label
+            .as_deref(),
+        Some("サイズ")
+    );
+    assert_eq!(RadioGroup::new("g").aria_label("").a11y_node().label, None);
 }

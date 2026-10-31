@@ -155,3 +155,20 @@ fn toggle_button_flips_with_space_and_enter(cx: &mut TestAppContext) {
     support::press(cx, "enter");
     assert!(!on.get());
 }
+
+#[test]
+fn button_name_override() {
+    assert_eq!(
+        Button::new("b", "保存")
+            .aria_label("保存する")
+            .a11y_node()
+            .label
+            .as_deref(),
+        Some("保存する")
+    );
+    assert_eq!(
+        Button::new("b", "保存").aria_label("").a11y_node().label,
+        None
+    );
+    assert_eq!(Button::new("b", "").a11y_node().label, None);
+}

@@ -48,7 +48,7 @@ Compose の `ToggleButtonDefaults.colors()` と同じく、ラベルには `Fill
 ## アクセシビリティ
 
 - 役割: Button（toggled）。Toggle の IconButton と同じ。Compose は Checkbox の役割だが、押すボタンとして読ませる。
-- 名前: ラベル
+- 名前: 表示ラベルが既定。`.aria_label()` で上書き可能
 - 状態: toggled（pressed）、disabled
 - キー操作: Tab で止まる。Enter / Space で反転。
 

@@ -66,8 +66,9 @@ cx.set_reduce_motion(user_prefers_reduced_motion); // 起動時と、設定が�
 
 ## 4. 部品の使い方の共通ルール
 
-- **操作できる部品は ID と名前を必ず取る。** `Button::new("save", "保存")` の第 1 引数が `ElementId`、
-  第 2 引数が見た目のラベル兼スクリーンリーダーが読む名前。アイコンだけの部品（`IconButton` など）も名前が必須。
+- **操作できる部品には ID を指定する。** `Button::new("save", "保存")` の第 1 引数が `ElementId`、
+  第 2 引数が見た目のラベル兼スクリーンリーダーが読む既定の名前。名前は API 上任意で、表示文字を優先し `.aria_label()` で指定・上書きできる。表示ラベルがある場合、名前にその文字を含める（WCAG 2.5.3）。実行時に必要な名前はアプリの責任で付ける（[名前の規約](agents/a11y.md#%E5%90%8D%E5%89%8D)）。
+- **入力欄と見出しは任意。** `TextField::new(id, &state).label("名前")`、`Select::new(id, options, selected).label("色")`、`Dialog::new(id).headline("確認")` の表示文字は既定の名前にもなる。SideSheet も `.headline()` を使う。
 - **ID はフレームをまたいで安定させる。** リストの項目はデータのキーから ID を作る（index にしない）。
   ID が変わるとフォーカスと状態（開閉・押下など）が失われ、読み上げ位置も飛ぶ。
 - **同じ ID・同じ `TextFieldState` を同時に 2 か所に描かない。** フォーカスハンドルを 2 つの要素が共有し、

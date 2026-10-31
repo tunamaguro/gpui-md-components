@@ -37,7 +37,7 @@ GPUI（Zed の UI フレームワーク）上に Material Design 3（ベース�
 - 移植・転記した Apache 2.0 のコードやデータには、ファイル先頭に出典コメント（移植元・コミット・著作権表示）を書く。`NOTICE` ファイルは置かない。
 - 公開 crate 名・型名に "Material" の語を使わない（Google の商標）。`md3` を使う。
 - フォントは同梱しない。既定はシステムフォント、利用者が `Theme` で指定する。
-- 操作できる要素は `ElementId` を必須引数にし、a11y の役割・名前・状態を必ず付ける。a11y は Material Design 3 のアクセシビリティ指針・WCAG 2.2・WAI-ARIA APG に従う（`docs/agents/a11y.md` の「従う資料」）。
+- 操作できる要素は `ElementId` を必須引数にし、a11y の役割と状態を必ず付ける。名前は Compose に合わせて任意で、表示する文字か `.aria_label()` で付ける。a11y は Material Design 3 のアクセシビリティ指針・WCAG 2.2・WAI-ARIA APG に従う（`docs/agents/a11y.md` の「従う資料」）。
 
 ## コードコメント
 

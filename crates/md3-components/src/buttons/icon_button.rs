@@ -110,12 +110,12 @@ impl IconButtonColors {
 
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
-/// アイコンだけのボタン。アイコンだけでは意味が伝わらないため、ラベル（読み上げ用の名前）が必須。
+/// アイコンだけのボタン。
 #[derive(IntoElement)]
 pub struct IconButton {
     id: ElementId,
     icon: IconName,
-    label: SharedString,
+    label: Option<SharedString>,
     variant: IconButtonVariant,
     selected: Option<bool>,
     disabled: bool,
@@ -126,12 +126,12 @@ pub struct IconButton {
 }
 
 impl IconButton {
-    /// ID、アイコン、ラベルから作る。
-    pub fn new(id: impl Into<ElementId>, icon: IconName, label: impl Into<SharedString>) -> Self {
+    /// ID とアイコンから作る。
+    pub fn new(id: impl Into<ElementId>, icon: IconName) -> Self {
         Self {
             id: id.into(),
             icon,
-            label: label.into(),
+            label: None,
             variant: IconButtonVariant::default(),
             selected: None,
             disabled: false,
@@ -139,6 +139,13 @@ impl IconButton {
             content_role: None,
             tooltip: None,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
     }
 
     /// 種類を変える。
@@ -185,11 +192,12 @@ impl IconButton {
 
 impl RenderOnce for IconButton {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut behaviour = gpui_headless::Button::new(self.id.clone(), self.label.clone())
-            .disabled(self.disabled)
-            .toggled(self.selected)
-            .group(format!("md3-{}", self.id))
-            .reveal_margin(crate::focus::reveal_margin());
+        let mut behaviour =
+            gpui_headless::Button::new(self.id.clone(), self.label.clone().unwrap_or_default())
+                .disabled(self.disabled)
+                .toggled(self.selected)
+                .group(format!("md3-{}", self.id))
+                .reveal_margin(crate::focus::reveal_margin());
         if let Some(handler) = self.on_click {
             behaviour = behaviour.on_click(handler);
         }

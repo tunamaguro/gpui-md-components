@@ -17,6 +17,7 @@ use gpui_headless::overlay::DismissHandler;
 /// メニューの項目。
 pub struct MenuItem {
     label: SharedString,
+    aria_label: Option<Option<SharedString>>,
     leading_icon: Option<IconName>,
     trailing_icon: Option<IconName>,
     trailing_text: Option<SharedString>,
@@ -29,12 +30,20 @@ impl MenuItem {
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
             label: label.into(),
+            aria_label: None,
             leading_icon: None,
             trailing_icon: None,
             trailing_text: None,
             disabled: false,
             on_select: None,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
     }
 
     /// 先頭のアイコン。
@@ -79,7 +88,7 @@ impl MenuItem {
 pub struct Menu {
     scrollbar: bool,
     id: ElementId,
-    label: SharedString,
+    label: Option<SharedString>,
     items: Vec<MenuItem>,
     selected: Option<usize>,
     on_dismiss: Option<DismissHandler>,
@@ -95,12 +104,12 @@ impl Menu {
         self
     }
 
-    /// ID とラベル（読み上げ用の名前）から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             scrollbar: true,
             id: id.into(),
-            label: label.into(),
+            label: None,
             items: Vec::new(),
             selected: None,
             on_dismiss: None,
@@ -108,6 +117,13 @@ impl Menu {
             match_anchor_width: false,
             inline: false,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
     }
 
     /// 項目を足す。
@@ -167,7 +183,7 @@ impl RenderOnce for Menu {
         let margin_y = px(layout::MENU_VERTICAL_MARGIN);
         let margin_x = px(layout::MENU_HORIZONTAL_MARGIN);
 
-        let mut menu = gpui_headless::Menu::new(self.id.clone(), self.label)
+        let mut menu = gpui_headless::Menu::new(self.id.clone())
             .kind(self.kind)
             .selected(self.selected)
             .match_anchor_width(self.match_anchor_width)
@@ -183,9 +199,15 @@ impl RenderOnce for Menu {
         if let Some(on_dismiss) = self.on_dismiss {
             menu = menu.on_dismiss(move |window, cx| on_dismiss(window, cx));
         }
+        if let Some(label) = self.label {
+            menu = menu.aria_label(label);
+        }
         let mut looks = Vec::with_capacity(self.items.len());
         for item in self.items {
             let mut row = gpui_headless::MenuItem::new(item.label.clone()).disabled(item.disabled);
+            if let Some(label) = item.aria_label.clone() {
+                row = row.aria_label(label.unwrap_or_default());
+            }
             if let Some(on_select) = item.on_select.clone() {
                 row = row.on_select(move |window, cx| on_select(window, cx));
             }

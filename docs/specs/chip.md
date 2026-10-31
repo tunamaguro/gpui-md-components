@@ -39,7 +39,7 @@
 ## アクセシビリティ
 
 - 役割: Filter は CheckBox（toggled）、他は Button
-- 名前: ラベル
+- 名前: 表示ラベルが既定。`.aria_label()` で上書き可能
 - キー操作: Enter / Space、Input は Backspace / Delete で削除
 
 ## デスクトップ向け調整（密度など）

@@ -36,7 +36,7 @@
 ## アクセシビリティ
 
 - 役割: Switch
-- 名前: ラベル引数（必須）
+- 名前: `.aria_label()`（任意）
 - 状態: toggled
 - キー操作: Space（gpui の仕様で Enter でも切り替わる）
 

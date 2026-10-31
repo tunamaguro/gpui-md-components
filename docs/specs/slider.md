@@ -38,7 +38,7 @@
 ## アクセシビリティ
 
 - 役割: Slider
-- 名前: ラベル引数（必須）
+- 名前: `.aria_label()`（任意）
 - 状態: value / min / max / step。value は描画と同じく、範囲に収めて刻みに丸めた値
 - キー操作: APG の Slider（矢印で 1 ステップ、Page Up / Down で 10 ステップ、Home / End で端）
 - 支援技術からの操作: Increment / Decrement（矢印と同じ 1 ステップ）と SetValue（範囲と刻みに丸める）を `on_a11y_action` で受ける。

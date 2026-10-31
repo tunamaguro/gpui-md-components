@@ -41,7 +41,7 @@ impl NavigationSuiteType {
 #[derive(IntoElement)]
 pub struct NavigationSuite {
     id: ElementId,
-    label: SharedString,
+    label: Option<SharedString>,
     items: Vec<NavigationItem>,
     selected: Option<usize>,
     on_change: Option<ChangeHandler>,
@@ -51,11 +51,11 @@ pub struct NavigationSuite {
 }
 
 impl NavigationSuite {
-    /// ID と名前（読み上げられる）から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: label.into(),
+            label: None,
             items: Vec::new(),
             selected: None,
             on_change: None,
@@ -63,6 +63,13 @@ impl NavigationSuite {
             header: None,
             content: Vec::new(),
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
     }
 
     /// 形を固定する（ウィンドウの幅で決めない）。
@@ -103,18 +110,24 @@ impl RenderOnce for NavigationSuite {
         let container = div().id(self.id).size_full().flex();
         match layout {
             NavigationSuiteType::Bar => {
-                let mut bar = NavigationBar::new(nav_id, self.label)
+                let mut bar = NavigationBar::new(nav_id)
                     .items(self.items)
                     .selected(self.selected);
+                if let Some(label) = self.label {
+                    bar = bar.aria_label(label);
+                }
                 if let Some(on_change) = self.on_change {
                     bar = bar.on_change(move |index, window, cx| on_change(index, window, cx));
                 }
                 container.flex_col().child(content).child(bar)
             }
             NavigationSuiteType::Rail => {
-                let mut rail = NavigationRail::new(nav_id, self.label)
+                let mut rail = NavigationRail::new(nav_id)
                     .items(self.items)
                     .selected(self.selected);
+                if let Some(label) = self.label {
+                    rail = rail.aria_label(label);
+                }
                 if let Some(on_change) = self.on_change {
                     rail = rail.on_change(move |index, window, cx| on_change(index, window, cx));
                 }
@@ -124,9 +137,12 @@ impl RenderOnce for NavigationSuite {
                 container.child(rail).child(content)
             }
             NavigationSuiteType::Drawer => {
-                let mut drawer = NavigationDrawer::new(nav_id, self.label)
+                let mut drawer = NavigationDrawer::new(nav_id)
                     .items(self.items)
                     .selected(self.selected);
+                if let Some(label) = self.label {
+                    drawer = drawer.aria_label(label);
+                }
                 if let Some(on_change) = self.on_change {
                     drawer =
                         drawer.on_change(move |index, window, cx| on_change(index, window, cx));

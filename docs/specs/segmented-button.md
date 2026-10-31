@@ -40,7 +40,7 @@
 ## アクセシビリティ
 
 - 役割: RadioGroup + RadioButton（単一）、Group + Button（toggled、複数）
-- 名前: グループのラベル、各項目のラベル
+- 名前: グループは任意の `.aria_label()`、各項目は表示ラベルが既定で `.aria_label()` で上書き可能
 - 状態: checked（単一。AccessKit の `toggled`、APG Radio Group に合わせる）/ toggled（複数。pressed として出る）、位置（n / 全体）
 - キー操作: 矢印で移動（端で反対側へ回る）
 

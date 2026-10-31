@@ -27,7 +27,7 @@
 - キーボードでフォーカスが移ると、祖先の `ScrollScope` の表示領域へ移す（WCAG 2.2 の 2.4.11）。
   `reveal_on_focus` を共有し、マウスクリックやフォーカスが変わらないホイール操作では引き戻さない。
 
-- 役割: SearchInput、名前は placeholder、value は入力文字
+- 役割: SearchInput、名前は既定で placeholder（`.aria_label()` で上書き可能）、value は入力文字
 
 ## 既知の制限・仕様からの逸脱
 

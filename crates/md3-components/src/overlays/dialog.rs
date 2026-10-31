@@ -45,7 +45,7 @@ impl DialogAction {
 /// 開く前にフォーカスしていた要素にフォーカスを戻す。
 ///
 /// ```ignore
-/// Dialog::new("delete", "削除しますか？")
+/// Dialog::new("delete").headline("削除しますか？")
 ///     .supporting_text("この操作は取り消せません。")
 ///     .action(DialogAction::new("キャンセル", close))
 ///     .action(DialogAction::new("削除", delete))
@@ -55,7 +55,8 @@ impl DialogAction {
 pub struct Dialog {
     scrollbar: bool,
     id: ElementId,
-    headline: SharedString,
+    headline: Option<SharedString>,
+    aria_label: Option<SharedString>,
     icon: Option<IconName>,
     supporting_text: Option<SharedString>,
     children: Vec<AnyElement>,
@@ -72,12 +73,13 @@ impl Dialog {
         self
     }
 
-    /// ID と見出し（読み上げ用の名前を兼ねる）から作る。
-    pub fn new(id: impl Into<ElementId>, headline: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             scrollbar: true,
             id: id.into(),
-            headline: headline.into(),
+            headline: None,
+            aria_label: None,
             icon: None,
             supporting_text: None,
             children: Vec::new(),
@@ -86,6 +88,18 @@ impl Dialog {
             alert: false,
             inline: false,
         }
+    }
+
+    /// 表示する見出しを設定し、既定の名前にする。
+    pub fn headline(mut self, text: impl Into<SharedString>) -> Self {
+        self.headline = Some(text.into());
+        self
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
+        self
     }
 
     /// 見出しの上にアイコンを出す（見出しは中央揃えになる）。
@@ -134,7 +148,11 @@ impl ParentElement for Dialog {
 
 impl RenderOnce for Dialog {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let (base, focus) = gpui_headless::Dialog::new(self.id.clone(), self.headline.clone())
+        let mut headless = gpui_headless::Dialog::new(self.id.clone());
+        if let Some(label) = self.aria_label.clone().or_else(|| self.headline.clone()) {
+            headless = headless.aria_label(label);
+        }
+        let (base, focus) = headless
             .alert(self.alert)
             .modal(!self.inline)
             .build(window, cx);
@@ -189,17 +207,19 @@ impl RenderOnce for Dialog {
                         ),
                 )
             })
-            .child(
-                div()
-                    .flex_none()
-                    .when(centered, |this| this.flex().justify_center().text_center())
-                    .when(has_body, |this| {
-                        this.pb(px(layout::DIALOG_TITLE_BOTTOM_SPACE))
-                    })
-                    .type_style(&theme.text_style(tokens::HEADLINE_FONT))
-                    .text_color(theme.color(tokens::HEADLINE_COLOR))
-                    .child(self.headline),
-            )
+            .when_some(self.headline, |this, headline| {
+                this.child(
+                    div()
+                        .flex_none()
+                        .when(centered, |this| this.flex().justify_center().text_center())
+                        .when(has_body, |this| {
+                            this.pb(px(layout::DIALOG_TITLE_BOTTOM_SPACE))
+                        })
+                        .type_style(&theme.text_style(tokens::HEADLINE_FONT))
+                        .text_color(theme.color(tokens::HEADLINE_COLOR))
+                        .child(headline),
+                )
+            })
             .child(crate::scroll::content(
                 &self.id,
                 self.supporting_text

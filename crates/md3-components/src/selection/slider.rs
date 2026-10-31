@@ -10,7 +10,7 @@ use md3_theme::{CornerRadius, Md3ThemeExt};
 
 use crate::FocusRing;
 
-/// スライダー。ラベル（読み上げ用の名前）が必須。
+/// スライダー。
 ///
 /// 矢印で 1 ステップ、Page Up / Page Down で 10 ステップ、Home / End で端に移る。
 /// 支援技術からの増減と値の設定も受ける。離散値は最小から刻みごとの値と最大値を選べる。
@@ -21,16 +21,21 @@ pub struct Slider {
 }
 
 impl Slider {
-    /// ID、値、ラベルから作る。範囲は 0〜1。
-    pub fn new(id: impl Into<ElementId>, value: f32, label: impl Into<SharedString>) -> Self {
+    /// ID と値から作る。範囲は 0〜1。
+    pub fn new(id: impl Into<ElementId>, value: f32) -> Self {
         let id = id.into();
         Self {
-            inner: gpui_headless::Slider::new(id.clone(), value, label)
+            inner: gpui_headless::Slider::new(id.clone(), value)
                 .reveal_margin(crate::focus::reveal_margin())
                 .minimum_drag_width(px(1.0))
                 .group(format!("md3-{id}")),
             disabled: false,
         }
+    }
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.inner = self.inner.aria_label(label);
+        self
     }
     /// 範囲を変える。
     pub fn range(mut self, min: f32, max: f32) -> Self {

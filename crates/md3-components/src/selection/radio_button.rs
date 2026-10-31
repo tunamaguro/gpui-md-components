@@ -14,6 +14,9 @@ use md3_theme::{CornerRadius, Md3ThemeExt, MotionToken, TypeScale};
 
 use crate::{FocusRing, StateLayer, Text};
 
+/// ラジオグループの選択肢。
+pub use gpui_headless::RadioOption;
+
 /// ラジオボタンのグループ。選択肢ごとにラジオボタンとラベルを縦に並べる。
 ///
 /// APG の Radio Group に従い、Tab で止まるのは選択中の項目（無ければ最初の項目）だけで、
@@ -24,18 +27,29 @@ pub struct RadioGroup {
     horizontal: bool,
 }
 impl RadioGroup {
-    /// ID とグループのラベル（読み上げ用の名前）から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
-            inner: gpui_headless::RadioGroup::new(id, label)
+            inner: gpui_headless::RadioGroup::new(id)
                 .reveal_margin(crate::focus::reveal_margin())
                 .group_prefix("md3"),
             horizontal: false,
         }
     }
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.inner = self.inner.aria_label(label);
+        self
+    }
+
     /// 選択肢を加える。
     pub fn option(mut self, label: impl Into<SharedString>) -> Self {
         self.inner = self.inner.option(label);
+        self
+    }
+    /// 名前を上書きできる選択肢を加える。
+    pub fn option_item(mut self, option: RadioOption) -> Self {
+        self.inner = self.inner.option_item(option);
         self
     }
     /// 無効な選択肢を加える。

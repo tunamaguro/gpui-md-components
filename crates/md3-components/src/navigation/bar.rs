@@ -167,22 +167,29 @@ pub(crate) use destination_builders;
 #[derive(IntoElement)]
 pub struct NavigationBar {
     id: ElementId,
-    label: SharedString,
+    label: Option<SharedString>,
     items: Vec<NavigationItem>,
     selected: Option<usize>,
     on_change: Option<ChangeHandler>,
 }
 
 impl NavigationBar {
-    /// ID と名前（読み上げられる）から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: label.into(),
+            label: None,
             items: Vec::new(),
             selected: None,
             on_change: None,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
     }
 
     destination_builders!();
@@ -236,7 +243,7 @@ impl RenderOnce for NavigationBar {
 #[derive(IntoElement)]
 pub struct NavigationRail {
     id: ElementId,
-    label: SharedString,
+    label: Option<SharedString>,
     items: Vec<NavigationItem>,
     selected: Option<usize>,
     on_change: Option<ChangeHandler>,
@@ -244,16 +251,23 @@ pub struct NavigationRail {
 }
 
 impl NavigationRail {
-    /// ID と名前（読み上げられる）から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: label.into(),
+            label: None,
             items: Vec::new(),
             selected: None,
             on_change: None,
             header: None,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
     }
 
     /// 項目の上に置く要素（FAB、メニューボタンなど）。

@@ -11,9 +11,32 @@ use std::rc::Rc;
 
 /// ラジオボタンの選択肢。
 #[derive(Clone, Debug)]
-struct RadioOption {
+pub struct RadioOption {
     label: SharedString,
+    aria_label: Option<Option<SharedString>>,
     disabled: bool,
+}
+
+impl RadioOption {
+    /// 表示する文字から選択肢を作る。
+    pub fn new(label: impl Into<SharedString>) -> Self {
+        Self {
+            label: label.into(),
+            aria_label: None,
+            disabled: false,
+        }
+    }
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
+    }
+    /// 無効にする。
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self
+    }
 }
 
 type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App) + 'static>;
@@ -24,7 +47,7 @@ type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App) + 'static>;
 /// 矢印キーでグループ内を移ると同時に選択する。
 pub struct RadioGroup {
     id: ElementId,
-    label: SharedString,
+    label: Option<SharedString>,
     options: Vec<RadioOption>,
     selected: Option<usize>,
     reveal_margin: Pixels,
@@ -33,11 +56,11 @@ pub struct RadioGroup {
 }
 
 impl RadioGroup {
-    /// ID とグループのラベル（読み上げ用の名前）から作る。
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+    /// ID から作る。
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            label: label.into(),
+            label: None,
             options: Vec::new(),
             selected: None,
             reveal_margin: px(0.0),
@@ -46,21 +69,28 @@ impl RadioGroup {
         }
     }
 
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.label = (!label.is_empty()).then_some(label);
+        self
+    }
+
     /// 選択肢を加える。
     pub fn option(mut self, label: impl Into<SharedString>) -> Self {
-        self.options.push(RadioOption {
-            label: label.into(),
-            disabled: false,
-        });
+        self.options.push(RadioOption::new(label));
         self
     }
 
     /// 無効な選択肢を加える。
     pub fn disabled_option(mut self, label: impl Into<SharedString>) -> Self {
-        self.options.push(RadioOption {
-            label: label.into(),
-            disabled: true,
-        });
+        self.options.push(RadioOption::new(label).disabled(true));
+        self
+    }
+
+    /// 選択肢を加える。
+    pub fn option_item(mut self, option: RadioOption) -> Self {
+        self.options.push(option);
         self
     }
 
@@ -90,7 +120,7 @@ impl RadioGroup {
 
     /// グループのアクセシビリティ情報。
     pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(Role::RadioGroup).label(self.label.clone())
+        A11yNode::new(Role::RadioGroup).with_label(self.label.clone())
     }
 
     /// 選択肢のアクセシビリティ情報。
@@ -98,7 +128,12 @@ impl RadioGroup {
         let option = self.options.get(index)?;
         Some(
             A11yNode::new(Role::RadioButton)
-                .label(option.label.clone())
+                .with_label(
+                    option
+                        .aria_label
+                        .clone()
+                        .unwrap_or_else(|| Some(option.label.clone())),
+                )
                 .toggled(toggled(self.selected == Some(index)))
                 .position(index, self.options.len())
                 .disabled(option.disabled),

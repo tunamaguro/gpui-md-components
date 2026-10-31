@@ -30,7 +30,7 @@
 ## アクセシビリティ
 
 - 役割: ComboBox（選択肢は ListBox / ListBoxOption）
-- 名前: ラベル
+- 名前: 任意の `.label()` が既定。`.aria_label()` で上書きできる
 - 状態: expanded、value（選択中の項目）、選択肢の selected
 - キー操作: Enter / Space / ↓ で開く、↑↓ / Home / End で移動、Enter で選ぶ、Esc で閉じる
 

@@ -37,7 +37,7 @@
 ## アクセシビリティ
 
 - 役割: RadioGroup + RadioButton
-- 名前: グループのラベル、各項目のラベル
+- 名前: グループは任意の `.aria_label()`、各項目は表示ラベルが既定で `.aria_label()` で上書き可能
 - 状態: checked（AccessKit の `toggled`）、位置（n / 全体）。APG Radio Group は `aria-checked` で選択を伝える。`selected` だと Windows（UIA の SelectionItem）・Linux（AT-SPI の checked）に選択が伝わらない
 - キー操作: 矢印で移動と選択、Tab でグループ外へ
 

@@ -86,21 +86,11 @@ pub fn page(
         TopAppBar::new(id.to_owned(), "受信トレイ")
             .variant(variant)
             .scrolled(scrolled)
-            .navigation_icon(IconButton::new(
-                format!("{id}-menu"),
-                IconName::Menu,
-                "メニュー",
-            ))
-            .action(IconButton::new(
-                format!("{id}-search"),
-                IconName::Search,
-                "検索",
-            ))
-            .action(IconButton::new(
-                format!("{id}-more"),
-                IconName::MoreVert,
-                "その他",
-            ))
+            .navigation_icon(
+                IconButton::new(format!("{id}-menu"), IconName::Menu).aria_label("メニュー"),
+            )
+            .action(IconButton::new(format!("{id}-search"), IconName::Search).aria_label("検索"))
+            .action(IconButton::new(format!("{id}-more"), IconName::MoreVert).aria_label("その他"))
     };
     let app_bars = Section::new("TopAppBar").child(
         div()
@@ -145,14 +135,14 @@ pub fn page(
                         "プロジェクトの共有受信トレイと未読メッセージの一覧・詳細設定",
                     )
                     .variant(TopAppBarVariant::CenterAligned)
-                    .navigation_icon(IconButton::new("bar-long-menu", IconName::Menu, "メニュー"))
-                    .action(IconButton::new("bar-long-search", IconName::Search, "検索"))
-                    .action(IconButton::new("bar-long-add", IconName::Add, "追加"))
-                    .action(IconButton::new(
-                        "bar-long-more",
-                        IconName::MoreVert,
-                        "その他",
-                    )),
+                    .navigation_icon(
+                        IconButton::new("bar-long-menu", IconName::Menu).aria_label("メニュー"),
+                    )
+                    .action(IconButton::new("bar-long-search", IconName::Search).aria_label("検索"))
+                    .action(IconButton::new("bar-long-add", IconName::Add).aria_label("追加"))
+                    .action(
+                        IconButton::new("bar-long-more", IconName::MoreVert).aria_label("その他"),
+                    ),
                 ),
             ))
             .child(sample(
@@ -178,7 +168,8 @@ pub fn page(
     // タブ
     let tabs = |id: &str, variant: TabsVariant, icons: bool, selected: usize| {
         let icon = |tab: Tab, icon: IconName| if icons { tab.icon(icon) } else { tab };
-        Tabs::new(id.to_owned(), "表示", selected)
+        Tabs::new(id.to_owned(), selected)
+            .aria_label("表示")
             .variant(variant)
             .tab(icon(Tab::new("写真"), IconName::Image))
             .tab(icon(Tab::new("アルバム"), IconName::Star))
@@ -254,7 +245,8 @@ pub fn page(
         400.0,
         80.0,
         cx,
-        NavigationBar::new("nav-bar", "メイン")
+        NavigationBar::new("nav-bar")
+            .aria_label("メイン")
             .items(destinations())
             .selected(Some(demo.destination))
             .on_change(select_nav(&view)),
@@ -267,8 +259,9 @@ pub fn page(
                 80.0,
                 420.0,
                 cx,
-                NavigationRail::new("nav-rail", "メイン")
-                    .header(Fab::new("rail-fab", IconName::Edit, "作成"))
+                NavigationRail::new("nav-rail")
+                    .aria_label("メイン")
+                    .header(Fab::new("rail-fab", IconName::Edit).aria_label("作成"))
                     .items(destinations())
                     .selected(Some(demo.destination))
                     .on_change(select_nav(&view)),
@@ -306,7 +299,8 @@ pub fn page(
                         360.0,
                         360.0,
                         cx,
-                        NavigationDrawer::new("nav-drawer", "メイン")
+                        NavigationDrawer::new("nav-drawer")
+                            .aria_label("メイン")
                             .child(drawer_header())
                             .items(destinations())
                             .selected(Some(demo.destination))
@@ -319,7 +313,8 @@ pub fn page(
                         360.0,
                         360.0,
                         cx,
-                        NavigationDrawer::new("nav-drawer-modal-sample", "メイン")
+                        NavigationDrawer::new("nav-drawer-modal-sample")
+                            .aria_label("メイン")
                             .kind(NavigationDrawerKind::Modal)
                             .inline()
                             .child(drawer_header())
@@ -333,7 +328,8 @@ pub fn page(
             let view = view.clone();
             let close = view.clone();
             this.child(
-                NavigationDrawer::new("nav-drawer-modal", "メイン")
+                NavigationDrawer::new("nav-drawer-modal")
+                    .aria_label("メイン")
                     .kind(NavigationDrawerKind::Modal)
                     .child(drawer_header())
                     .items(destinations())
@@ -353,7 +349,8 @@ pub fn page(
     // ウィンドウの幅で切り替わるナビゲーション
     let suite = |id: &str, layout: Option<NavigationSuiteType>| {
         let mut suite =
-            NavigationSuite::new(id.to_owned(), "メイン")
+            NavigationSuite::new(id.to_owned())
+                .aria_label("メイン")
                 .items(destinations())
                 .selected(Some(demo.destination))
                 .on_change(select_nav(&view))
@@ -413,25 +410,32 @@ pub fn page(
     let results = PEOPLE
         .iter()
         .filter(|name| !query.is_empty() && name.to_lowercase().contains(&query))
-        .fold(List::new("search-results", "検索結果"), |list, name| {
-            let initial: String = name.chars().take(1).collect();
-            list.item(
-                *name,
-                ListItem::new(*name).leading(ListLeading::Avatar(initial.into())),
-            )
-        });
+        .fold(
+            List::new("search-results").aria_label("検索結果"),
+            |list, name| {
+                let initial: String = name.chars().take(1).collect();
+                list.item(
+                    *name,
+                    ListItem::new(*name).leading(ListLeading::Avatar(initial.into())),
+                )
+            },
+        );
     let search_section = Section::new("SearchBar").child(
         div()
             .w(px(480.0))
             .flex()
             .flex_col()
             .gap_2()
-            .child(SearchBar::new("search", search, "連絡先を検索").trailing(
-                IconButton::new("search-clear", IconName::Close, "検索の文字を消す").on_click({
-                    let search = search.clone();
-                    move |_, _, cx| search.update(cx, |state, cx| state.set_text("", cx))
-                }),
-            ))
+            .child(
+                SearchBar::new("search", search, "連絡先を検索").trailing(
+                    IconButton::new("search-clear", IconName::Close)
+                        .aria_label("検索の文字を消す")
+                        .on_click({
+                            let search = search.clone();
+                            move |_, _, cx| search.update(cx, |state, cx| state.set_text("", cx))
+                        }),
+                ),
+            )
             .child(results),
     );
 

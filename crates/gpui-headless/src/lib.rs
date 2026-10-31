@@ -47,14 +47,14 @@ pub use focus::{VisibleFocus, clear_focus_visible, focus_handle, is_focus_visibl
 pub use keys::init;
 pub use list::{LazyList, List, ListBase, ListItem, ListRow};
 pub use menu::{Menu, MenuItem, MenuKind, MenuPopup, MenuRow};
-pub use navigation::{Navigation, NavigationBase, NavigationItem};
+pub use navigation::{Navigation, NavigationBase, NavigationItem, NavigationOption};
 pub use progress::Progress;
-pub use radio_group::{RadioGroup, RadioItem};
+pub use radio_group::{RadioGroup, RadioItem, RadioOption};
 pub use scroll::{NestedScroll, ScrollScope, reveal_offset, reveal_on_focus, scroll_handle};
 pub use scrollbar::{
     Scrollbar, ScrollbarGeometry, ScrollbarInteraction, ScrollbarSource, ScrollbarState,
 };
-pub use segmented_button::{SegmentItem, SegmentedButton};
+pub use segmented_button::{SegmentItem, SegmentOption, SegmentedButton};
 pub use select::{Select, SelectState};
 pub use slider::{Slider, SliderState};
 pub use snackbar::{
@@ -62,7 +62,7 @@ pub use snackbar::{
     SnackbarResult,
 };
 pub use switch::{Switch, SwitchState};
-pub use tabs::{TabItem, Tabs};
+pub use tabs::{TabItem, TabOption, Tabs};
 pub use text_field::{
     SearchField, TextField, TextFieldControl, TextFieldEvent, TextFieldState, TextPaint,
     grapheme_count,

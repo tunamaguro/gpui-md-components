@@ -237,7 +237,8 @@ impl Gallery {
 }
 
 fn page_selector(page: Page, view: gpui::WeakEntity<Gallery>) -> SegmentedButton {
-    SegmentedButton::new("pages", "ページ")
+    SegmentedButton::new("pages")
+        .aria_label("ページ")
         .segment(Segment::new("Foundations").icon(IconName::Palette))
         .segment(Segment::new("Buttons").icon(IconName::Add))
         .segment(Segment::new("Selection").icon(IconName::Star))

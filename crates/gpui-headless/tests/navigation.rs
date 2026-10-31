@@ -11,7 +11,8 @@ fn navigation_bar_moves_focus_and_selects_on_enter(cx: &mut TestAppContext) {
         let selected = selected.clone();
         move |window, cx| {
             let on_change = selected.clone();
-            let nav = Navigation::new("nav", "メイン")
+            let nav = Navigation::new("nav")
+                .aria_label("メイン")
                 .item("ホーム", false)
                 .item("検索", false)
                 .item("設定", false)
@@ -39,18 +40,19 @@ fn navigation_bar_moves_focus_and_selects_on_enter(cx: &mut TestAppContext) {
 
 #[test]
 fn landmarks_and_modal_dialogs_expose_roles() {
-    let nav = Navigation::new("n", "メイン");
+    let nav = Navigation::new("n").aria_label("メイン");
     assert_eq!(nav.a11y_node().role, Role::Navigation);
     assert_eq!(nav.a11y_node().label.as_deref(), Some("メイン"));
     assert!(!nav.a11y_node().modal);
-    let modal = Navigation::new("d", "メイン").dialog(true);
+    let modal = Navigation::new("d").aria_label("メイン").dialog(true);
     assert_eq!(modal.a11y_node().role, Role::Dialog);
     assert!(modal.a11y_node().modal);
 }
 
 #[test]
 fn items_expose_position_selection_and_disabled_state() {
-    let nav = Navigation::new("n", "メイン")
+    let nav = Navigation::new("n")
+        .aria_label("メイン")
         .item("受信トレイ", false)
         .item("設定", true)
         .selected(Some(0));

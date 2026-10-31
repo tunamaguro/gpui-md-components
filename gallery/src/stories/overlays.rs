@@ -70,13 +70,14 @@ fn dialog(id: &str, view: &WeakEntity<Gallery>, note: &Entity<TextFieldState>) -
             })
         }
     };
-    Dialog::new(id.to_owned(), "下書きを破棄しますか？")
+    Dialog::new(id.to_owned())
+        .headline("下書きを破棄しますか？")
         .icon(IconName::Delete)
         .supporting_text("保存していない変更は失われます。理由を書き残せます。")
         .child(
             div()
                 .pt_4()
-                .child(TextField::new(format!("{id}-note"), note, "メモ")),
+                .child(TextField::new(format!("{id}-note"), note).label("メモ")),
         )
         .action(DialogAction::new("キャンセル", close("キャンセル")))
         .action(DialogAction::new("破棄", close("破棄")))
@@ -115,7 +116,8 @@ pub fn page(
         .when(demo.menu_open, |this| {
             let view = view.clone();
             this.child(
-                Menu::new("menu", "編集")
+                Menu::new("menu")
+                    .aria_label("編集")
                     .items(menu_items(&view))
                     .on_dismiss(move |_, cx| {
                         Gallery::update_demo(&view, cx, |demo| demo.menu_open = false)
@@ -125,7 +127,8 @@ pub fn page(
     let menu_states = sample(
         "Enabled / Disabled",
         div().w(px(240.0)).child(
-            Menu::new("menu-sample-Enabled / Disabled", "編集")
+            Menu::new("menu-sample-Enabled / Disabled")
+                .aria_label("編集")
                 .items(menu_items(&view))
                 .inline(),
         ),
@@ -163,11 +166,13 @@ pub fn page(
                 .items_center()
                 .gap_4()
                 .child(
-                    IconButton::new("tooltip-favorite", IconName::Favorite, "お気に入り")
+                    IconButton::new("tooltip-favorite", IconName::Favorite)
+                        .aria_label("お気に入り")
                         .tooltip("お気に入りに追加"),
                 )
                 .child(
-                    IconButton::new("tooltip-share", IconName::Share, "共有")
+                    IconButton::new("tooltip-share", IconName::Share)
+                        .aria_label("共有")
                         .tooltip("リンクをコピーして共有"),
                 )
                 .child(
@@ -311,7 +316,8 @@ pub fn page(
                 .child(sample(
                     "Bottom sheet（見本）",
                     div().w(px(360.0)).child(
-                        BottomSheet::new("bottom-sheet-sample", "共有")
+                        BottomSheet::new("bottom-sheet-sample")
+                            .aria_label("共有")
                             .handle_label("シートを閉じる")
                             .inline()
                             .child(share_items("bottom-sample")),
@@ -320,7 +326,8 @@ pub fn page(
                 .child(sample(
                     "Side sheet Modal（見本）",
                     div().h(px(240.0)).child(
-                        SideSheet::new("side-sheet-sample", "フィルタ")
+                        SideSheet::new("side-sheet-sample")
+                            .headline("フィルタ")
                             .kind(SideSheetKind::Modal)
                             .close_button("閉じる")
                             .inline()
@@ -330,7 +337,8 @@ pub fn page(
         )
         .when(demo.bottom_sheet_open, |this| {
             this.child(
-                BottomSheet::new("bottom-sheet", "共有")
+                BottomSheet::new("bottom-sheet")
+                    .aria_label("共有")
                     .handle_label("シートを閉じる")
                     .on_dismiss(close_sheet(|demo| demo.bottom_sheet_open = false))
                     .child(share_items("bottom")),
@@ -338,7 +346,8 @@ pub fn page(
         })
         .when(demo.modal_side_sheet_open, |this| {
             this.child(
-                SideSheet::new("modal-side-sheet", "フィルタ")
+                SideSheet::new("modal-side-sheet")
+                    .headline("フィルタ")
                     .kind(SideSheetKind::Modal)
                     .close_button("閉じる")
                     .on_dismiss(close_sheet(|demo| demo.modal_side_sheet_open = false))
@@ -365,7 +374,8 @@ pub fn page(
         .when(demo.side_sheet_open, |this| {
             this.child(
                 div().h(px(480.0)).child(
-                    SideSheet::new("side-sheet", "詳細")
+                    SideSheet::new("side-sheet")
+                        .headline("詳細")
                         .close_button("閉じる")
                         .on_dismiss(close_sheet(|demo| demo.side_sheet_open = false))
                         .child(Text::new(
@@ -411,7 +421,8 @@ fn snackbar_policy_toggle(host: Entity<SnackbarHost>, queue: bool) -> impl IntoE
         .items_center()
         .gap_3()
         .child(
-            md3_components::selection::Switch::new("snackbar-policy", queue, "順番を待つ（Queue）")
+            md3_components::selection::Switch::new("snackbar-policy", queue)
+                .aria_label("順番を待つ（Queue）")
                 .on_change(move |queue, _, cx| {
                     host.update(cx, |host, cx| {
                         host.set_policy(

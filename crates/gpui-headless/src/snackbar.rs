@@ -14,6 +14,7 @@ use std::time::Duration;
 pub struct Snackbar {
     id: ElementId,
     message: SharedString,
+    aria_label: Option<Option<SharedString>>,
     active: bool,
 }
 
@@ -23,8 +24,16 @@ impl Snackbar {
         Self {
             id: id.into(),
             message: message.into(),
+            aria_label: None,
             active: true,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
     }
 
     /// 表示中か（退場中は `false`）。
@@ -36,7 +45,11 @@ impl Snackbar {
     /// アクセシビリティツリーに出す情報。
     pub fn a11y_node(&self) -> A11yNode {
         A11yNode::new(Role::Status)
-            .label(self.message.clone())
+            .with_label(
+                self.aria_label
+                    .clone()
+                    .unwrap_or_else(|| Some(self.message.clone())),
+            )
             .live(self.active)
     }
 

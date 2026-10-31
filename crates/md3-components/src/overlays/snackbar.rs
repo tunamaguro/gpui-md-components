@@ -28,6 +28,7 @@ pub use gpui_headless::{SnackbarPolicy, SnackbarResult};
 pub struct Snackbar {
     id: ElementId,
     message: SharedString,
+    aria_label: Option<Option<SharedString>>,
     action: Option<(SharedString, DismissHandler)>,
     dismiss: Option<(SharedString, DismissHandler)>,
     active: bool,
@@ -39,10 +40,18 @@ impl Snackbar {
         Self {
             id: id.into(),
             message: message.into(),
+            aria_label: None,
             action: None,
             dismiss: None,
             active: true,
         }
+    }
+
+    /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self
     }
 
     /// 操作（Text ボタン）を付ける。
@@ -67,7 +76,12 @@ impl Snackbar {
 
     /// 役割と読み上げを受け持つ部品。
     fn headless(&self) -> gpui_headless::Snackbar {
-        gpui_headless::Snackbar::new(self.id.clone(), self.message.clone()).active(self.active)
+        let mut snackbar =
+            gpui_headless::Snackbar::new(self.id.clone(), self.message.clone()).active(self.active);
+        if let Some(label) = self.aria_label.clone() {
+            snackbar = snackbar.aria_label(label.unwrap_or_default());
+        }
+        snackbar
     }
 }
 
@@ -122,8 +136,8 @@ impl RenderOnce for Snackbar {
                     IconButton::new(
                         ElementId::NamedChild(parent.clone(), "dismiss".into()),
                         IconName::Close,
-                        label,
                     )
+                    .aria_label(label)
                     .disabled(disabled)
                     .content_color(tokens::ICON_COLOR)
                     .on_click(move |_, window, cx| handler(window, cx)),

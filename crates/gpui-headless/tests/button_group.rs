@@ -3,7 +3,7 @@ use gpui::Role;
 use gpui_headless::ButtonGroup;
 #[test]
 fn button_group_is_a_labelled_group() {
-    let node = ButtonGroup::new("g", "配置").a11y_node();
+    let node = ButtonGroup::new("g").aria_label("配置").a11y_node();
     assert_eq!(node.role, Role::Group);
     assert_eq!(node.label.as_deref(), Some("配置"));
 }
@@ -19,7 +19,7 @@ fn items_are_tab_stops_and_skip_disabled(cx: &mut TestAppContext) {
     let cx = support::open(cx, {
         let checked = checked.clone();
         move |window, cx| {
-            let mut group = ButtonGroup::new("range", "期間");
+            let mut group = ButtonGroup::new("range").aria_label("期間");
             for (index, label) in ["日", "週", "月"].into_iter().enumerate() {
                 let checked = checked.clone();
                 let selected = checked.get()[index];
@@ -55,7 +55,7 @@ fn independent_buttons_can_implement_single_selection(cx: &mut TestAppContext) {
     let cx = support::open(cx, {
         let checked = checked.clone();
         move |window, cx| {
-            let mut group = ButtonGroup::new("range", "期間");
+            let mut group = ButtonGroup::new("range").aria_label("期間");
             for (index, label) in ["日", "週", "月"].into_iter().enumerate() {
                 let checked = checked.clone();
                 group = group.item(
@@ -92,7 +92,7 @@ fn groups_with_reused_child_ids_have_independent_focus_and_callbacks(cx: &mut Te
         move |window, cx| {
             let mut root = div().flex();
             for (group_index, group_id) in ["first-group", "second-group"].into_iter().enumerate() {
-                let mut group = ButtonGroup::new(group_id, group_id);
+                let mut group = ButtonGroup::new(group_id).aria_label(group_id);
                 for child_id in ["first-button", "second-button"] {
                     let clicked = clicked.clone();
                     group = group.item(Button::new(child_id, child_id).on_click(move |_, _, _| {
@@ -128,4 +128,18 @@ fn groups_with_reused_child_ids_have_independent_focus_and_callbacks(cx: &mut Te
         ([true, false], 4),
         "最初のグループだけが呼ばれ、Tab は 4 つの異なる要素で止まる"
     );
+}
+
+#[test]
+fn group_name_is_optional_and_can_be_cleared() {
+    assert_eq!(ButtonGroup::new("g").a11y_node().label, None);
+    assert_eq!(
+        ButtonGroup::new("g")
+            .aria_label("配置")
+            .a11y_node()
+            .label
+            .as_deref(),
+        Some("配置")
+    );
+    assert_eq!(ButtonGroup::new("g").aria_label("").a11y_node().label, None);
 }
