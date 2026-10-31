@@ -1039,7 +1039,7 @@ fn scrollbar_position_survives_redraw_until_the_caret_moves(cx: &mut TestAppCont
         max / 2.0 + px(24.0),
         "ホイールは同じ位置から動く"
     );
-    support::press(cx, "ctrl-home");
+    support::press(cx, DOCUMENT_START);
     assert_eq!(cursor(&state, cx), 0);
     assert_eq!(
         offset(&scroll),
