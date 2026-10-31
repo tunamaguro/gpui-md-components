@@ -4,9 +4,9 @@ use crate::{
     scroll_handle,
 };
 use gpui::{
-    AnyElement, App, Div, ElementId, Entity, FocusHandle, KeyDownEvent, Pixels, Role, ScrollHandle,
-    ScrollStrategy, SharedString, Stateful, UniformListScrollHandle, Window, div, prelude::*, px,
-    uniform_list,
+    AnyElement, App, Div, Edges, ElementId, Entity, FocusHandle, KeyDownEvent, Pixels, Role,
+    ScrollHandle, ScrollStrategy, SharedString, Stateful, UniformListScrollHandle, Window, div,
+    prelude::*, px, uniform_list,
 };
 use std::{ops::Range, rc::Rc};
 
@@ -155,6 +155,7 @@ pub struct List {
     name: crate::AccessibleName,
     items: Vec<(SharedString, ListItem)>,
     max_height: Option<Pixels>,
+    content_padding: Edges<Pixels>,
     reveal_margin: Pixels,
     group_prefix: SharedString,
 }
@@ -166,6 +167,7 @@ impl List {
             name: crate::AccessibleName::default(),
             items: Vec::new(),
             max_height: None,
+            content_padding: Edges::default(),
             reveal_margin: px(0.),
             group_prefix: "control".into(),
         }
@@ -180,6 +182,11 @@ impl List {
     /// スクロール領域の最大の高さ。
     pub fn max_height(mut self, height: Pixels) -> Self {
         self.max_height = Some(height.max(px(0.)));
+        self
+    }
+    /// スクロールする内容の内側の余白。
+    pub fn content_padding(mut self, padding: Edges<Pixels>) -> Self {
+        self.content_padding = padding;
         self
     }
     /// フォーカス位置を表示する際の余白。
@@ -226,6 +233,14 @@ impl List {
                 .a11y(self.a11y_node())
                 .flex()
                 .flex_col();
+            let padding = self.content_padding;
+            let mut contents = div()
+                .flex()
+                .flex_col()
+                .pt(padding.top)
+                .pr(padding.right)
+                .pb(padding.bottom)
+                .pl(padding.left);
             for (index, (key, item)) in self.items.into_iter().enumerate() {
                 let handles = handles.clone();
                 let focusable = focusable.clone();
@@ -257,9 +272,10 @@ impl List {
                     window,
                     cx,
                 );
-                base =
-                    base.child(window.with_element_namespace(id, |window| render(row, window, cx)));
+                contents = contents
+                    .child(window.with_element_namespace(id, |window| render(row, window, cx)));
             }
+            base = base.child(contents);
             if let (Some(height), Some(scroll)) = (self.max_height, &scroll) {
                 let wheel = NestedScroll::new(&self.id, scroll.clone(), window, cx);
                 base = base

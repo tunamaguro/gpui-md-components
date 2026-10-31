@@ -32,10 +32,6 @@
 
 `examples/mail` を作って分かったこと。先頭の印は優先度で、P1 は操作不能・入力の喪失・WCAG 違反、P2 は機能の不足、P3 は整理や未確認の項目。
 
-- [P1] Compose の `Scaffold` に当たる部品がなく、Snackbar が FAB に重なる。FAB にキーボードフォーカスがあっても隠れる（WCAG 2.2 の 2.4.11 Focus Not Obscured）。Compose の `Scaffold` は Snackbar を FAB の上に出す（`Scaffold.kt` の `snackbarOffsetFromBottom`。1200×900 と 500 幅の `examples/mail` で確認）。
-
-- [P1] `List` に末尾の余白（Compose の `contentPadding`）を指定できず、スクロールの終端でも最後の行が FAB に隠れる（`examples/mail/src/main.rs`）。
-
 - [P2] `NavigationItem` にバッジを渡せず、受信トレイの未読数はラベルに含めた（`examples/mail/src/main.rs`）。
 
 - [P2] `ListItem` の末尾は文字または静的アイコンに限られ、行内のスター切り替えを置けない。詳細のメニューで切り替える（`examples/mail/src/main.rs`）。
@@ -53,6 +49,10 @@
 - [P3] サンプルは画面のテストがなく、`model.rs` の単体テストだけ。`gpui` の test-support を dev-dependencies に足せば `MailView` を実際のキー割り当てで動かせる（`a11y.md` が認めている。レビューの検証用コピーで動作を確認）。
 
 - [P3] 入力欄（TextField / SearchBar）はフォーカスリングを描かず、キーボードでの位置は点滅するカーソルと下線でしか分からない。`a11y.md` の「必ず描く」との関係を整理する。
+
+- [P3] Scaffold をクリップされる領域の中に置くと、Snackbar はクリップされず、隠れた操作も Tab で止まる（`docs/specs/scaffold.md`）。`defer_draw` のマスクで描画は切れるが、退場の完了とフォーカスの追従も別に要るので、画面の根に置く前提にした。
+
+- [P3] `LazyList` の内容の余白: gpui の `uniform_list` の padding は表示領域を縮めて固定されるため、スクロールする contentPadding として使えない。
 
 ### Tooltip
 

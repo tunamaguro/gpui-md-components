@@ -1658,3 +1658,9 @@
 L21（outer-offset）・L23（thickness）。転記元は material-web@86cb0d48（Google LLC、Apache-2.0）。
 
 テキスト入力のキャレット幅 2px は既存実装を維持する。出典: Zed `crates/gpui/examples/input.rs` @ `37faef81` のキャレット描画（`size(px(2.), …)`）。
+
+## Scaffold
+
+| Rust の定数                            | 値   | 出典ファイル                                | 箇所               | 取得したコミット     |
+| -------------------------------------- | ---- | ------------------------------------------- | ------------------ | -------------------- |
+| md3_tokens::layout::SCAFFOLD_FAB_SPACE | 16.0 | compose/material3/.../material3/Scaffold.kt | FabSpacing = 16.dp | androidx@2a941dd11aa |
