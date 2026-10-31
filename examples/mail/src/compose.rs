@@ -1,6 +1,6 @@
 //! メール作成ダイアログ。
 
-use md3_components::gpui::{App, Context, Focusable, WeakEntity, div, prelude::*};
+use md3_components::gpui::{Context, Focusable, WeakEntity, div, prelude::*};
 use md3_components::inputs::TextField;
 use md3_components::overlays::{Dialog, DialogAction, SnackbarMessage};
 
@@ -46,7 +46,7 @@ impl MailView {
             .action(DialogAction::new("Cancel", move |_, cx| {
                 Self::update(&close_view, cx, |this| this.compose_open = false);
             }))
-            .action(DialogAction::new("Send", move |window, cx| {
+            .action(DialogAction::validating("Send", move |window, cx| {
                 send_view
                     .update(cx, |this, cx| {
                         let draft = Draft {
@@ -54,7 +54,8 @@ impl MailView {
                             subject: this.subject.text(cx).to_owned(),
                             body: this.body.text(cx).to_owned(),
                         };
-                        if this.mail.send(draft) {
+                        let sent = this.mail.send(draft);
+                        if sent {
                             this.to.set_text("", cx);
                             this.subject.set_text("", cx);
                             this.body.set_text("", cx);
@@ -66,13 +67,12 @@ impl MailView {
                         } else {
                             this.to_error = true;
                             let focus = this.to.focus_handle(cx);
-                            window.on_next_frame(move |window, cx: &mut App| {
-                                window.focus(&focus, cx);
-                            });
+                            window.focus(&focus, cx);
                         }
                         cx.notify();
+                        sent
                     })
-                    .ok();
+                    .unwrap_or(false)
             }))
             .on_dismiss(move |_, cx| {
                 Self::update(&dismiss_view, cx, |this| this.compose_open = false);

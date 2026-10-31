@@ -92,6 +92,8 @@ cx.set_reduce_motion(user_prefers_reduced_motion); // 起動時と、設定が�
 | Menu・Select                                         | 開くと最初の項目にフォーカス、矢印で移動、Enter で選ぶ、Esc で閉じて元に戻る           |
 | Dialog・モーダルな Sheet / Drawer                    | 開くと中にフォーカスし、Tab は中に閉じ込める。Esc で閉じ、開いた要素にフォーカスを戻す |
 
+Dialog の操作で入力を検証するには `DialogAction::validating` を使います。handler は閉じたときに `true`、エラーで開いたままにするときに `false` を返します。`false` のときはフォーカスを戻さず、handler 内でエラーの入力欄へ移すこともできます。通常の `DialogAction::new` は操作後にフォーカスを戻します。
+
 ## 6. Web（wasm32）
 
 - ブラウザでは gpui がシステムフォントを読めない。起動時に `cx.text_system().add_fonts(..)` でフォントの

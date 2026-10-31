@@ -7,7 +7,7 @@ mod support;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use gpui::{TestAppContext, div, prelude::*};
+use gpui::{Focusable, TestAppContext, div, prelude::*};
 use md3_components::IconName;
 use md3_components::buttons::{Button, IconButton};
 use md3_components::inputs::{TextField, TextFieldState};
@@ -121,6 +121,93 @@ fn escape_closes_the_dialog_and_restores_focus(cx: &mut TestAppContext) {
     assert!(!log.open.get());
     support::press(cx, "enter");
     assert_eq!(log.take(), ["opener"], "フォーカスは開いたボタンに戻る");
+}
+
+fn validating_dialog<'a>(
+    cx: &'a mut TestAppContext,
+    log: &Log,
+    move_focus: bool,
+    closes: bool,
+) -> (&'a mut gpui::VisualTestContext, gpui::FocusHandle) {
+    let state = cx.update(TextFieldState::new);
+    let focus = cx.update(|cx| state.focus_handle(cx));
+    let field_focus = focus.clone();
+    let log = log.clone();
+    let cx = support::open(cx, move |_, _| {
+        let action_log = log.clone();
+        let field_focus = field_focus.clone();
+        div()
+            .child(opener(&log))
+            .when(log.open.get(), |this| {
+                this.child(
+                    Dialog::new("validating")
+                        .headline("入力")
+                        .child(TextField::new("required", &state).label("必須"))
+                        .action(DialogAction::validating("送信", move |window, cx| {
+                            action_log.pressed.borrow_mut().push("send");
+                            if move_focus {
+                                window.focus(&field_focus, cx);
+                            }
+                            if closes {
+                                action_log.open.set(false);
+                            }
+                            closes
+                        })),
+                )
+            })
+            .into_any_element()
+    });
+    (cx, focus)
+}
+
+#[gpui::test]
+fn validation_failure_keeps_handler_focus_and_traps_tab(cx: &mut TestAppContext) {
+    let log = Log::default();
+    let (cx, focus) = validating_dialog(cx, &log, true, false);
+    support::tab(cx);
+    support::press(cx, "enter");
+    assert_eq!(log.take(), ["opener"]);
+    support::press(cx, "tab");
+    support::press(cx, "enter");
+    assert_eq!(log.take(), ["send"]);
+    assert!(log.open.get());
+    cx.update(|window, _| assert!(focus.is_focused(window), "入力欄にフォーカスが残る"));
+    support::press(cx, "tab");
+    support::press(cx, "enter");
+    assert_eq!(log.take(), ["send"], "Tab はダイアログの操作に移る");
+    assert!(log.open.get());
+}
+
+#[gpui::test]
+fn validation_failure_keeps_action_focus(cx: &mut TestAppContext) {
+    let log = Log::default();
+    let (cx, focus) = validating_dialog(cx, &log, false, false);
+    support::tab(cx);
+    support::press(cx, "enter");
+    assert_eq!(log.take(), ["opener"]);
+    support::press(cx, "tab");
+    support::press(cx, "enter");
+    assert_eq!(log.take(), ["send"]);
+    assert!(log.open.get());
+    cx.update(|window, _| assert!(!focus.is_focused(window)));
+    support::press(cx, "enter");
+    assert_eq!(log.take(), ["send"], "操作ボタンにフォーカスが残る");
+}
+
+#[gpui::test]
+fn validation_success_restores_opener_focus(cx: &mut TestAppContext) {
+    let log = Log::default();
+    let (cx, _) = validating_dialog(cx, &log, false, true);
+    support::tab(cx);
+    support::press(cx, "enter");
+    assert_eq!(log.take(), ["opener"]);
+    support::press(cx, "tab");
+    support::press(cx, "enter");
+    assert_eq!(log.take(), ["send"]);
+    assert!(!log.open.get());
+    support::press(cx, "enter");
+    assert_eq!(log.take(), ["opener"]);
+    assert!(log.open.get());
 }
 
 fn menu(

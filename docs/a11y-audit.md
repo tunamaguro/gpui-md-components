@@ -29,6 +29,7 @@
 - **キー操作**（`crates/md3-components/tests/` と `crates/gpui-headless/tests/`）: Button / Checkbox / RadioGroup / Slider / TextField / Menu / Dialog /
   Snackbar / Tabs / NavigationBar / List / LazyList / モーダルな Drawer で、Tab での到達、Enter / Space / 矢印 / Home / End、
   Esc で閉じてフォーカスが戻ることを確認する。
+- Dialog の検証付き操作は、失敗時に入力欄または操作ボタンにフォーカスが残り、Tab がダイアログ内を移動することと、成功時に開いたボタンへ戻ることを確認する。
 - **コントラスト**（`crates/md3-theme/tests/contrast.rs`）: シード色 22 色（色相 30° ごとの 12 色、既定の紫、黒・白・灰、
   RGB の原色と補色）× バリアント 7 × コントラスト 3 × ライト / ダーク = 924 配色で、前景と背景の 37 組が
   WCAG 2.2 の基準（文字 4.5:1、UI 部品 3:1）を満たす。不合格 0。
