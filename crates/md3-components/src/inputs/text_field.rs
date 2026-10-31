@@ -32,6 +32,7 @@ pub struct TextField {
     placeholder: Option<SharedString>,
     supporting_text: Option<SharedString>,
     error: bool,
+    required: bool,
     max_length: Option<usize>,
     leading_icon: Option<IconName>,
     trailing_icon: Option<IconName>,
@@ -41,6 +42,43 @@ pub struct TextField {
 }
 
 impl TextField {
+    /// アクセシビリティ情報。
+    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
+        self.headless().a11y_node()
+    }
+
+    /// 補助テキストのアクセシビリティ情報。
+    pub fn supporting_a11y_node(&self) -> Option<(gpui::ElementId, gpui_headless::A11yNode)> {
+        self.supporting_text.as_ref().map(|text| {
+            (
+                ElementId::NamedChild(self.id.clone().into(), "supporting-text".into()),
+                gpui_headless::A11yNode::new(gpui::Role::Status)
+                    .label(text.clone())
+                    .live(self.error),
+            )
+        })
+    }
+
+    /// 必須の入力か指定する。
+    pub fn required(mut self, required: bool) -> Self {
+        self.required = required;
+        self
+    }
+
+    fn headless(&self) -> gpui_headless::TextField {
+        let mut field = gpui_headless::TextField::new(self.id.clone(), &self.state)
+            .error(self.error)
+            .disabled(self.disabled)
+            .required(self.required);
+        if let Some(label) = self.aria_label.clone().or_else(|| self.label.clone()) {
+            field = field.aria_label(label);
+        }
+        if let Some(text) = &self.supporting_text {
+            field = field.description(text.clone());
+        }
+        field
+    }
+
     /// ID と中身から作る。
     pub fn new(id: impl Into<ElementId>, state: &Entity<TextFieldState>) -> Self {
         Self {
@@ -52,6 +90,7 @@ impl TextField {
             placeholder: None,
             supporting_text: None,
             error: false,
+            required: false,
             max_length: None,
             leading_icon: None,
             trailing_icon: None,
@@ -136,13 +175,7 @@ impl TextField {
 
 impl RenderOnce for TextField {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut headless = gpui_headless::TextField::new(self.id, &self.state)
-            .error(self.error)
-            .disabled(self.disabled)
-            .reveal_margin(crate::focus::reveal_margin());
-        if let Some(label) = self.aria_label.clone().or_else(|| self.label.clone()) {
-            headless = headless.aria_label(label);
-        }
+        let mut headless = self.headless().reveal_margin(crate::focus::reveal_margin());
         if let Some(placeholder) = self.placeholder.clone() {
             headless = headless.placeholder(placeholder);
         }
@@ -226,6 +259,7 @@ impl RenderOnce for TextField {
             }),
             content,
             supporting_text: self.supporting_text.clone(),
+            supporting_a11y: self.supporting_a11y_node(),
             counter,
         }
         .render(cx);

@@ -104,59 +104,64 @@ pub fn page(
     let email_text = email.read(cx).text().to_owned();
     let email_invalid = !email_text.is_empty() && !email_text.contains('.');
     let bio_len = bio.read(cx).text().chars().count();
-    let examples = Section::new("使ってみる（Tab で移動、日本語 IME で入力できる）").child(
-        div()
-            .flex()
-            .flex_wrap()
-            .gap_6()
-            .child(labeled(
-                "Filled",
-                TextField::new("name", &name)
-                    .label("名前")
-                    .placeholder("山田 太郎"),
-            ))
-            .child(labeled(
-                "Outlined・入力の検証",
-                TextField::new("email", &email)
-                    .label("メールアドレス")
-                    .variant(TextFieldVariant::Outlined)
-                    .error(email_invalid)
-                    .supporting_text(if email_invalid {
-                        "ドメインに . がありません"
-                    } else {
-                        "user@example.com の形式"
-                    }),
-            ))
-            .child(labeled(
-                "接頭辞・接尾辞",
-                TextField::new("price", &price)
-                    .label("価格")
-                    .variant(TextFieldVariant::Outlined)
-                    .prefix("¥")
-                    .suffix("円（税込）"),
-            ))
-            .child(labeled(
-                "文字数カウンタ",
-                TextField::new("bio", &bio)
-                    .label("自己紹介")
-                    .max_length(40)
-                    .error(bio_len > 40)
-                    .supporting_text("40 文字まで"),
-            ))
-            .child(labeled(
-                "アイコン",
-                TextField::new("search", &search)
-                    .label("検索")
-                    .leading_icon(IconName::Search)
-                    .trailing_icon(IconName::Mail),
-            )),
-    );
+    let examples = Section::new("使ってみる（Tab で移動、日本語 IME で入力できる）")
+        .heading_id("inputs-examples-heading")
+        .child(
+            div()
+                .flex()
+                .flex_wrap()
+                .gap_6()
+                .child(labeled(
+                    "Filled",
+                    TextField::new("name", &name)
+                        .label("名前（必須）")
+                        .required(true)
+                        .supporting_text("氏名を入力してください")
+                        .placeholder("山田 太郎"),
+                ))
+                .child(labeled(
+                    "Outlined・入力の検証",
+                    TextField::new("email", &email)
+                        .label("メールアドレス")
+                        .variant(TextFieldVariant::Outlined)
+                        .error(email_invalid)
+                        .supporting_text(if email_invalid {
+                            "ドメインに . がありません"
+                        } else {
+                            "user@example.com の形式"
+                        }),
+                ))
+                .child(labeled(
+                    "接頭辞・接尾辞",
+                    TextField::new("price", &price)
+                        .label("価格")
+                        .variant(TextFieldVariant::Outlined)
+                        .prefix("¥")
+                        .suffix("円（税込）"),
+                ))
+                .child(labeled(
+                    "文字数カウンタ",
+                    TextField::new("bio", &bio)
+                        .label("自己紹介")
+                        .max_length(40)
+                        .error(bio_len > 40)
+                        .supporting_text("40 文字まで"),
+                ))
+                .child(labeled(
+                    "アイコン",
+                    TextField::new("search", &search)
+                        .label("検索")
+                        .leading_icon(IconName::Search)
+                        .trailing_icon(IconName::Mail),
+                )),
+        );
 
     const COLORS: [&str; 5] = ["赤", "緑", "青", "黄", "紫"];
     let select = |id: &str, variant: TextFieldVariant, selected: Option<usize>| {
         let view = view.clone();
         Select::new(id.to_owned(), COLORS, selected)
-            .label("色")
+            .label("色（必須）")
+            .required(true)
             .variant(variant)
             .supporting_text("↓ / Enter で開く")
             .on_change(move |index, _, cx| {
@@ -181,6 +186,7 @@ pub fn page(
         div().flex().flex_wrap().gap_6().children(cells)
     };
     let selects = Section::new("Select")
+        .heading_id("inputs-select-heading")
         .child(
             div()
                 .flex()

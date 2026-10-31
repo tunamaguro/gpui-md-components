@@ -13,6 +13,7 @@ pub struct Button {
     label: SharedString,
     aria_label: Option<Option<SharedString>>,
     toggled: Option<bool>,
+    menu_expanded: Option<bool>,
     disabled: bool,
     on_click: Option<ClickHandler>,
     reveal_margin: Pixels,
@@ -29,6 +30,7 @@ impl Button {
             label: label.into(),
             aria_label: None,
             toggled: None,
+            menu_expanded: None,
             disabled: false,
             on_click: None,
             reveal_margin: px(0.0),
@@ -45,6 +47,12 @@ impl Button {
         self.toggled = value;
         self
     }
+    /// メニューの開閉状態を指定する。
+    pub fn menu_expanded(mut self, expanded: bool) -> Self {
+        self.menu_expanded = Some(expanded);
+        self
+    }
+
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
@@ -75,6 +83,9 @@ impl Button {
             .disabled(self.disabled);
         if let Some(label) = &self.aria_label {
             node.label = label.clone();
+        }
+        if let Some(expanded) = self.menu_expanded {
+            node = node.expanded(expanded).has_popup_menu(true);
         }
         match self.toggled {
             Some(value) => node.toggled(toggled(value)),

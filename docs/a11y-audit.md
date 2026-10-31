@@ -171,3 +171,7 @@ Tab でのフォーカス移動とフォーカスリングを確認した。
   `cargo build -p md3-components --target wasm32-unknown-unknown`、`cargo xtask check-tokens`（1597 定数一致）が通過。
 
 独自テーマの `custom` ページは今回追加したため、上の 8 ページの実測には含まれない。画面と AT-SPI ツリー、読み上げは未確認。
+
+## 2026-10-31: 説明と状態の追加
+
+TextField / Select の補助テキストを description と Status に出し、エラー時の live（polite）と必須状態を追加した。Dialog、ListItem、MenuItem の補足も description に含め、メニューボタンと Select にポップアップの状態を付けた。ID を指定した Text は Label として出る。純関数のテストで値を検証する。画面、OS のアクセシビリティツリー、スクリーンリーダーでの通知は未確認。

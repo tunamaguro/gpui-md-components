@@ -198,7 +198,9 @@ Switch は Space / Enter を押したまま Tab で移動した場合も、フ�
   Checkbox・RadioButton・Switch・Slider・TextField・Select では伝わる。
 - Snackbar は live region（polite）として出すが、表示時に読み上げられるかはスクリーンリーダー次第。
 - ツールチップはポインタを重ねたときだけ出る。`md3_tooltip` は同じ文を基準の要素の説明（description）にも入れる。
-- TextField の入力エラーは invalid として出すが、gpui に「入力必須」の印はない。エラーの理由は補助テキストに書く。
+- TextField / Select は `.required(true)` で必須状態を伝える。見える必須表示はラベルに付ける。補助テキストは description に入り、エラー時は invalid と Status の live region で伝える。
+- Menu を開く Button / IconButton には `.menu_expanded(open)` を渡す。ListItem、MenuItem、Dialog の補足も description で伝える。
+- 静的な `Text` をツリーに出すには `.id()` に一意で安定した ID を指定する。省略時は従来どおりツリーに出ない。
 - Dialog・モーダルな Sheet / Drawer には modal の印を付けるが、後ろの要素はツリーに残る（フォーカスとポインタは届かない）。
 - gpui はフォーカスされた要素で Enter と Space の両方をクリックとして扱うため、Checkbox / Switch は Enter でも切り替わる。
 

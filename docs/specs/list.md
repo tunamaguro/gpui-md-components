@@ -38,6 +38,8 @@
 
 ## アクセシビリティ
 
+- 上書きと補助テキストを `、` で連結し description として伝える（Compose `ListItem.kt` の mergeDescendants、WCAG 1.3.1）。
+
 - 役割: List / ListItem（selected、位置）
 
 - 名前: リストは任意の `.aria_label()`、項目は表示見出しが既定で `.aria_label()` で上書き可能

@@ -35,9 +35,14 @@
 
 ## アクセシビリティ
 
+- メニューのトリガーには `.menu_expanded(open)` を指定し、has-popup と expanded を伝える（APG Menu Button）。
+
 - 役割: Button
+
 - 名前: `.aria_label()` で指定（API 上は任意）
+
 - 状態: トグルなら toggled
+
 - キー操作: Enter / Space
 
 ## デスクトップ向け調整（密度など）

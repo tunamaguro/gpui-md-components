@@ -211,7 +211,7 @@ fn keyboard_sample(window: &mut Window, cx: &mut App) -> impl IntoElement {
             ),
     );
     Section::new("キーボードフォーカスに追従")
-        .child(Text::new(TypeScale::BodyMedium, "Tab / Shift+Tab でボタン・カード・入力欄を移動。リスト内は ↑↓ / Home / End。横の列もフォーカスに追従します。クリックではスクロールせず、フォーカスしたままホイールで離しても引き戻しません。"))
+        .child(Text::new(TypeScale::BodyMedium, "Tab / Shift+Tab でボタン・カード・入力欄を移動。リスト内は ↑↓ / Home / End。横の列もフォーカスに追従します。クリックではスクロールせず、フォーカスしたままホイールで離しても引き戻しません。").id("scrollbar-instructions"))
         .child(Text::new(TypeScale::BodySmall, format!("実行回数: {}", count.read(cx))))
         .child(scroller)
         .child(row)

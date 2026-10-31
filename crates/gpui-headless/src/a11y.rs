@@ -28,6 +28,14 @@ pub struct A11yNode {
     pub role: Role,
     /// 名前（読み上げられるラベル）。
     pub label: Option<SharedString>,
+    /// 補足の説明。
+    pub description: Option<SharedString>,
+    /// 必須の入力か。
+    pub required: bool,
+    /// 開閉の状態。
+    pub expanded: Option<bool>,
+    /// メニューを開くか。
+    pub has_popup_menu: bool,
     /// 切り替えの状態（Checkbox、Switch、トグルボタン）。
     pub toggled: Option<Toggled>,
     /// 選択の状態（RadioButton、SegmentedButton の項目）。
@@ -52,6 +60,10 @@ impl A11yNode {
         Self {
             role,
             label: None,
+            description: None,
+            required: false,
+            expanded: None,
+            has_popup_menu: false,
             toggled: None,
             selected: None,
             range: None,
@@ -73,6 +85,31 @@ impl A11yNode {
     /// 任意の名前を付ける。
     pub fn with_label(mut self, label: Option<SharedString>) -> Self {
         self.label = label.filter(|label| !label.is_empty());
+        self
+    }
+
+    /// 補足の説明を指定する。
+    pub fn description(mut self, description: impl Into<SharedString>) -> Self {
+        let description = description.into();
+        self.description = (!description.is_empty()).then_some(description);
+        self
+    }
+
+    /// 必須の入力か指定する。
+    pub fn required(mut self, required: bool) -> Self {
+        self.required = required;
+        self
+    }
+
+    /// 開閉の状態を指定する。
+    pub fn expanded(mut self, expanded: bool) -> Self {
+        self.expanded = Some(expanded);
+        self
+    }
+
+    /// メニューを開くか指定する。
+    pub fn has_popup_menu(mut self, has_popup_menu: bool) -> Self {
+        self.has_popup_menu = has_popup_menu;
         self
     }
 
@@ -138,6 +175,12 @@ pub trait A11yExt: StatefulInteractiveElement + Sized {
         if let Some(label) = node.label {
             this = this.aria_label(label);
         }
+        if let Some(description) = node.description {
+            this = this.aria_description(description);
+        }
+        if let Some(expanded) = node.expanded {
+            this = this.aria_expanded(expanded);
+        }
         if let Some(toggled) = node.toggled {
             this = this.aria_toggled(toggled);
         }
@@ -156,7 +199,13 @@ pub trait A11yExt: StatefulInteractiveElement + Sized {
         if let Some((position, size)) = node.position {
             this = this.aria_position_in_set(position).aria_size_of_set(size);
         }
-        if node.disabled || node.modal || node.invalid || node.live {
+        if node.disabled
+            || node.modal
+            || node.invalid
+            || node.live
+            || node.required
+            || node.has_popup_menu
+        {
             this = this.a11y_synthetic_children(move |builder| {
                 let raw = builder.parent_node();
                 if node.disabled {
@@ -167,6 +216,12 @@ pub trait A11yExt: StatefulInteractiveElement + Sized {
                 }
                 if node.invalid {
                     raw.set_invalid(accesskit::Invalid::True);
+                }
+                if node.required {
+                    raw.set_required();
+                }
+                if node.has_popup_menu {
+                    raw.set_has_popup(accesskit::HasPopup::Menu);
                 }
                 if node.live {
                     raw.set_live(accesskit::Live::Polite);

@@ -28,12 +28,50 @@ pub struct Select {
     variant: TextFieldVariant,
     supporting_text: Option<SharedString>,
     error: bool,
+    required: bool,
     leading_icon: Option<IconName>,
     disabled: bool,
     on_change: Option<ChangeHandler>,
 }
 
 impl Select {
+    /// アクセシビリティ情報。
+    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
+        self.headless().a11y_node()
+    }
+
+    /// 補助テキストのアクセシビリティ情報。
+    pub fn supporting_a11y_node(&self) -> Option<(gpui::ElementId, gpui_headless::A11yNode)> {
+        self.supporting_text.as_ref().map(|text| {
+            (
+                ElementId::NamedChild(self.id.clone().into(), "supporting-text".into()),
+                gpui_headless::A11yNode::new(gpui::Role::Status)
+                    .label(text.clone())
+                    .live(self.error),
+            )
+        })
+    }
+
+    /// 必須の入力か指定する。
+    pub fn required(mut self, required: bool) -> Self {
+        self.required = required;
+        self
+    }
+
+    fn headless(&self) -> gpui_headless::Select {
+        let mut field = gpui_headless::Select::new(self.id.clone())
+            .error(self.error)
+            .disabled(self.disabled)
+            .required(self.required);
+        if let Some(label) = self.aria_label.clone().or_else(|| self.label.clone()) {
+            field = field.aria_label(label);
+        }
+        if let Some(text) = &self.supporting_text {
+            field = field.description(text.clone());
+        }
+        field
+    }
+
     /// スクロールバーの表示を切り替える（既定は表示）。
     pub fn scrollbar(mut self, visible: bool) -> Self {
         self.scrollbar = visible;
@@ -56,6 +94,7 @@ impl Select {
             variant: TextFieldVariant::default(),
             supporting_text: None,
             error: false,
+            required: false,
             leading_icon: None,
             disabled: false,
             on_change: None,
@@ -120,10 +159,7 @@ impl RenderOnce for Select {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let value = self.value();
         let parent = Arc::new(self.id.clone());
-        let mut headless = gpui_headless::Select::new(self.id.clone());
-        if let Some(label) = self.aria_label.clone().or_else(|| self.label.clone()) {
-            headless = headless.aria_label(label);
-        }
+        let headless = self.headless();
         let (base, select_state) = headless
             .value(value.clone())
             .disabled(self.disabled)
@@ -165,6 +201,7 @@ impl RenderOnce for Select {
                 .children(value.clone())
                 .into_any_element(),
             supporting_text: self.supporting_text.clone(),
+            supporting_a11y: self.supporting_a11y_node(),
             counter: None,
         }
         .render(cx);

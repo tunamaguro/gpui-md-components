@@ -950,6 +950,8 @@ pub struct TextField {
     aria_label: Option<SharedString>,
     placeholder: Option<SharedString>,
     error: bool,
+    required: bool,
+    description: Option<SharedString>,
     disabled: bool,
     max_length: Option<usize>,
     reveal_margin: Pixels,
@@ -957,6 +959,18 @@ pub struct TextField {
 }
 
 impl TextField {
+    /// 必須の入力か指定する。
+    pub fn required(mut self, required: bool) -> Self {
+        self.required = required;
+        self
+    }
+
+    /// 入力の補足説明を指定する。
+    pub fn description(mut self, description: impl Into<SharedString>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
     /// ID と中身から作る。
     pub fn new(id: impl Into<ElementId>, state: &Entity<TextFieldState>) -> Self {
         Self {
@@ -966,6 +980,8 @@ impl TextField {
             aria_label: None,
             placeholder: None,
             error: false,
+            required: false,
+            description: None,
             disabled: false,
             max_length: None,
             reveal_margin: px(0.0),
@@ -1011,10 +1027,15 @@ impl TextField {
     }
     /// アクセシビリティ情報。
     pub fn a11y_node(&self) -> A11yNode {
-        A11yNode::new(self.role)
+        let mut node = A11yNode::new(self.role)
             .with_label(self.aria_label.clone().or_else(|| self.label.clone()))
             .disabled(self.disabled)
             .invalid(self.error)
+            .required(self.required);
+        if let Some(description) = &self.description {
+            node = node.description(description.clone());
+        }
+        node
     }
     /// 入力欄の土台と、描画用の状態を作る。
     pub fn build(self, window: &mut Window, cx: &mut App) -> (Stateful<Div>, TextFieldControl) {
