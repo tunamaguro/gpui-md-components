@@ -15,9 +15,8 @@
 mod stories;
 
 use gpui::{
-    App, Bounds, Context, Entity, FocusHandle, KeyBinding, TitlebarOptions,
-    UniformListScrollHandle, Window, WindowBounds, WindowOptions, actions, div, prelude::*, px,
-    size,
+    App, Bounds, Context, Entity, FocusHandle, TitlebarOptions, UniformListScrollHandle, Window,
+    WindowBounds, WindowOptions, div, prelude::*, px, size,
 };
 use md3_components::buttons::{Segment, SegmentedButton};
 use md3_components::overlays::SnackbarHost;
@@ -25,16 +24,6 @@ use md3_components::selection::CheckboxState;
 use md3_components::theme::md3_color::ColorRole;
 use md3_components::theme::{self, Md3ThemeExt, TypeScale};
 use md3_components::{IconName, StyledExt, Text};
-
-actions!(
-    gallery,
-    [
-        /// 次の要素にフォーカスを移す（Tab）。
-        FocusNext,
-        /// 前の要素にフォーカスを移す（Shift-Tab）。
-        FocusPrev
-    ]
-);
 
 /// gallery のページ。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -233,14 +222,6 @@ impl Gallery {
         })
         .ok();
     }
-
-    fn focus_next(&mut self, _: &FocusNext, window: &mut Window, cx: &mut Context<Self>) {
-        window.focus_next(cx);
-    }
-
-    fn focus_prev(&mut self, _: &FocusPrev, window: &mut Window, cx: &mut Context<Self>) {
-        window.focus_prev(cx);
-    }
 }
 
 fn page_selector(page: Page, view: gpui::WeakEntity<Gallery>) -> SegmentedButton {
@@ -316,8 +297,6 @@ impl Render for Gallery {
             .id("gallery")
             .key_context("Gallery")
             .track_focus(&self.focus_handle)
-            .on_action(cx.listener(Self::focus_next))
-            .on_action(cx.listener(Self::focus_prev))
             .size_full()
             .child(
                 md3_components::ScrollArea::new("gallery-scroll")
@@ -360,11 +339,6 @@ fn run(app: gpui::Application, probe: bool, fonts: Vec<Vec<u8>>, reduce_motion: 
                 eprintln!("failed to load the fonts: {error:#}");
             }
         }
-        cx.bind_keys([
-            KeyBinding::new("tab", FocusNext, None),
-            KeyBinding::new("shift-tab", FocusPrev, None),
-        ]);
-        // 部品の割り当て（ダイアログの中の Tab など）がアプリの Tab より優先されるよう、後から足す。
         md3_components::init(cx);
         let bounds = Bounds::centered(None, size(px(1200.), px(900.)), cx);
         let opened = cx.open_window(
@@ -550,17 +524,13 @@ mod tests {
             div()
                 .id("selector-test")
                 .track_focus(&self.root)
-                .on_action(|_: &FocusNext, window, cx| window.focus_next(cx))
                 .child(page_selector(Page::Foundations, self.gallery.downgrade()))
         }
     }
 
     #[gpui::test]
     fn tab_reaches_every_page_selector_segment(cx: &mut TestAppContext) {
-        cx.update(|cx| {
-            cx.bind_keys([KeyBinding::new("tab", FocusNext, None)]);
-            md3_components::init(cx);
-        });
+        cx.update(md3_components::init);
         let (_, cx) = cx.add_window_view(|window, cx| {
             let gallery = cx.new(|cx| Gallery::new(window, cx));
             let root = cx.focus_handle();
@@ -568,6 +538,7 @@ mod tests {
             SelectorTest { root, gallery }
         });
         cx.update(|window, cx| {
+            window.activate_window();
             window.refresh();
             window.draw(cx).clear(cx);
         });
@@ -575,6 +546,7 @@ mod tests {
         let mut focused = Vec::new();
         for _ in 0..PAGES.len() {
             cx.simulate_keystrokes("tab");
+            cx.run_until_parked();
             cx.update(|window, cx| {
                 window.refresh();
                 window.draw(cx).clear(cx);

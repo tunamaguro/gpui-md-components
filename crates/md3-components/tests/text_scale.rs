@@ -64,7 +64,6 @@ fn filled_field_height_does_not_change_on_focus(cx: &mut TestAppContext) {
     set_scale(cx, 2.0);
     let before = height(cx);
     support::press(cx, "tab");
-    support::tab(cx);
     assert_eq!(height(cx), before, "ラベルが浮いても高さは変わらない");
 }
 

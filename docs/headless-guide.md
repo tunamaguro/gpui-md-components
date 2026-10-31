@@ -2,7 +2,7 @@
 
 `gpui-headless` は役割・名前・状態、キーボード操作、フォーカス管理、値の計算と入力・開閉の状態を持ちます。色、寸法、角、フォント、アイコン、影、モーションはテーマ側の責務です。依存は同じ rev の `gpui` と `gpui-headless` だけです。動く例は [custom_theme.rs](../examples/gallery/src/stories/custom_theme.rs)（gallery の Custom ページ）にあります。
 
-起動時にアプリ自身の Tab / Shift-Tab を割り当てた後、`gpui_headless::init(cx)` で部品内のキー操作を登録します。モーションを使うテーマでは `cx.reduce_motion()` に従ってください。
+起動時に `gpui_headless::init(cx)` で Tab / Shift-Tab によるフォーカス移動と部品内のキー操作を登録します。Tab の動作を変更する場合はその後で割り当てます。モーションを使うテーマでは `cx.reduce_motion()` に従ってください。
 
 ## 単体の部品
 

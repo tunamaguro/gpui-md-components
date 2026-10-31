@@ -1,17 +1,17 @@
 //! 部品が使うキー操作（gpui のアクション）と、その割り当て。
 //!
-//! 部品の中だけで効くように、割り当てにはキーコンテキストを付ける。
+//! Tab / Shift-Tab でフォーカスを移し、部品内の操作にはキーコンテキストを付ける。
 //! - テキストフィールドの編集操作（[`TEXT_FIELD_CONTEXT`]）
 //! - Dialog / モーダルなシートの Esc と Tab。フォーカスを中に閉じ込める（[`MODAL_CONTEXT`]）
 //! - メニューの Esc と Tab。メニューを閉じる（[`MENU_CONTEXT`]）
 //! - フォーカスで出たツールチップの Esc（[`FOCUS_TOOLTIP_CONTEXT`]）
 //!
 //! gpui はコンテキストのない割り当てを「最も深いコンテキスト」と同じ優先度として扱い、同じ優先度では
-//! 後から足した割り当てが勝つ。アプリが Tab などをコンテキストなしで割り当てる場合は、その後で
-//! [`init`] を呼ぶこと。モーダルの中にさらに内側のコンテキストがあると、モーダルだけの割り当ては
-//! 浅くなってアプリの割り当てに負けるので、モーダルの Esc と Tab は最も内側のコンテキストでも効かせる。
+//! 後から足した割り当てが勝つ。Tab を変更するアプリは [`init`] の後で割り当てる。
+//! モーダルの中にさらに内側のコンテキストがあると、モーダルだけの割り当ては浅くなるので、
+//! モーダルの Esc と Tab は最も内側のコンテキストでも効かせる。
 
-use gpui::{App, KeyBinding, actions};
+use gpui::{App, KeyBinding, Window, actions};
 
 /// テキストフィールドのキーコンテキスト。
 pub const TEXT_FIELD_CONTEXT: &str = "HeadlessTextField";
@@ -29,6 +29,10 @@ actions!(
         Dismiss,
         /// フォーカスで出たツールチップを閉じる。
         DismissTooltip,
+        /// 次の要素にフォーカスを移す。
+        FocusNext,
+        /// 前の要素にフォーカスを移す。
+        FocusPrev,
         /// オーバーレイの中で次の要素にフォーカスを移す。
         FocusNextWithin,
         /// オーバーレイの中で前の要素にフォーカスを移す。
@@ -75,14 +79,27 @@ macro_rules! shortcut {
     };
 }
 
-/// 部品のキー操作を割り当てる。アプリの起動時に 1 回呼ぶ。
+fn with_active_window(cx: &mut App, f: impl FnOnce(&mut Window, &mut App) + 'static) {
+    // キー入力の処理中はウィンドウを借りているので、終わってから更新する。
+    cx.defer(|cx| {
+        if let Some(window) = cx.active_window() {
+            window.update(cx, |_, window, cx| f(window, cx)).ok();
+        }
+    });
+}
+
+/// 部品のキー操作を割り当てる。アプリごとに起動時に 1 回だけ呼ぶ。
 pub fn init(cx: &mut App) {
+    cx.on_action(|_: &FocusNext, cx| with_active_window(cx, |window, cx| window.focus_next(cx)));
+    cx.on_action(|_: &FocusPrev, cx| with_active_window(cx, |window, cx| window.focus_prev(cx)));
     let text = Some(TEXT_FIELD_CONTEXT);
     let modal = Some(MODAL_CONTEXT);
     let menu = Some(MENU_CONTEXT);
     let inside_modal = format!("{MODAL_CONTEXT} > !{MENU_CONTEXT}");
     let inside_modal = Some(inside_modal.as_str());
     cx.bind_keys([
+        KeyBinding::new("tab", FocusNext, None),
+        KeyBinding::new("shift-tab", FocusPrev, None),
         KeyBinding::new("backspace", Backspace, text),
         KeyBinding::new("delete", Delete, text),
         KeyBinding::new("left", Left, text),

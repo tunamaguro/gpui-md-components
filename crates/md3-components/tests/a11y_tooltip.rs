@@ -30,7 +30,6 @@ fn buttons(cx: &mut TestAppContext) -> &mut VisualTestContext {
 /// キーボードで次へ移す。gpui は実際のキー入力がないとキーボード操作と判定しない。
 fn key_tab(cx: &mut VisualTestContext) {
     support::press(cx, "tab");
-    support::tab(cx);
 }
 
 fn shown(cx: &mut VisualTestContext) -> bool {
@@ -58,8 +57,7 @@ fn escape_hides_the_tooltip_until_focus_returns(cx: &mut TestAppContext) {
     support::draw(cx);
     assert!(!shown(cx), "フォーカスがある間は閉じたまま");
     key_tab(cx);
-    cx.update(|window, cx| window.focus_prev(cx));
-    support::draw(cx);
+    support::press(cx, "shift-tab");
     assert!(shown(cx), "フォーカスが戻るとまた出る");
 }
 

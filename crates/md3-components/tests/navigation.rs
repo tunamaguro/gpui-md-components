@@ -356,7 +356,7 @@ fn queue_reveal_frames(cx: &mut gpui::VisualTestContext) {
         .detach();
 }
 
-/// gallery と同じく、実際のキー入力と focus_next / focus_prev を組み合わせる。
+/// 実際のキー入力と reveal のフレームを処理する。
 fn reveal_key(cx: &mut gpui::VisualTestContext, key: &'static str) {
     use gpui::{InputEvent, KeyDownEvent, KeyUpEvent, Keystroke};
     queue_reveal_frames(cx);
@@ -371,11 +371,6 @@ fn reveal_key(cx: &mut gpui::VisualTestContext, key: &'static str) {
             .to_platform_input(),
             cx,
         );
-        match key {
-            "tab" => window.focus_next(cx),
-            "shift-tab" => window.focus_prev(cx),
-            _ => {}
-        }
         window.dispatch_event(KeyUpEvent { keystroke }.to_platform_input(), cx);
     });
     cx.run_until_parked();

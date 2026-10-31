@@ -198,7 +198,7 @@ gpui::actions!(
     ]
 );
 
-/// アプリと同じく Tab をコンテキストなしで割り当て、ルートで受ける。
+/// init より前のアプリの Tab はライブラリの割り当てに上書きされる。Esc はルートで受ける。
 fn dialog_with_inner<'a>(
     cx: &'a mut TestAppContext,
     log: &Log,

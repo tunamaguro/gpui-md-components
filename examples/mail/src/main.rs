@@ -14,8 +14,8 @@ use md3_components::buttons::{Button, ExtendedFab, IconButton, Segment, Segmente
 use md3_components::containment::{List, ListItem, ListTrailing};
 use md3_components::gpui;
 use md3_components::gpui::{
-    App, Bounds, Context, Entity, FocusHandle, KeyBinding, ScrollHandle, TitlebarOptions, Window,
-    WindowBounds, WindowOptions, actions, div, point, prelude::*, px, size,
+    App, Bounds, Context, Entity, FocusHandle, ScrollHandle, TitlebarOptions, Window, WindowBounds,
+    WindowOptions, div, point, prelude::*, px, size,
 };
 use md3_components::gpui_platform;
 use md3_components::inputs::{SearchBar, TextFieldState};
@@ -27,16 +27,6 @@ use md3_components::theme::md3_color::ColorRole;
 use md3_components::theme::{self, Appearance, Md3ThemeExt, SetMd3ThemeExt, TypeScale};
 use md3_components::{IconName, StyledExt, Text, WindowSizeClass};
 use model::{Folder, Mail};
-
-actions!(
-    mail_sample,
-    [
-        /// 次の要素にフォーカスを移す。
-        FocusNext,
-        /// 前の要素にフォーカスを移す。
-        FocusPrev
-    ]
-);
 
 struct MailView {
     focus: FocusHandle,
@@ -463,15 +453,6 @@ impl Render for MailView {
     }
 }
 
-fn with_active_window(cx: &mut App, f: impl FnOnce(&mut Window, &mut App) + 'static) {
-    // キー入力の処理中はウィンドウを借りているので、終わってから更新する。
-    cx.defer(|cx| {
-        if let Some(window) = cx.active_window() {
-            window.update(cx, |_, window, cx| f(window, cx)).ok();
-        }
-    });
-}
-
 /// `fonts` は起動時に読み込むフォントのデータ（デスクトップではシステムフォントを使うので空）。
 /// `reduce_motion` は OS・ブラウザの「視差効果を減らす」相当の設定（gpui は OS の設定を読まないので、起動側が渡す）。
 fn run(app: gpui::Application, fonts: Vec<Vec<u8>>, reduce_motion: bool) {
@@ -483,18 +464,6 @@ fn run(app: gpui::Application, fonts: Vec<Vec<u8>>, reduce_motion: bool) {
                 eprintln!("failed to load the fonts: {error:#}");
             }
         }
-        // ペインや Snackbar が消えてフォーカスの行き先がなくなると、要素の on_action には
-        // 届かない。どの状態でも Tab が効くよう、グローバルに受ける。
-        cx.on_action(|_: &FocusNext, cx| {
-            with_active_window(cx, |window, cx| window.focus_next(cx))
-        });
-        cx.on_action(|_: &FocusPrev, cx| {
-            with_active_window(cx, |window, cx| window.focus_prev(cx))
-        });
-        cx.bind_keys([
-            KeyBinding::new("tab", FocusNext, None),
-            KeyBinding::new("shift-tab", FocusPrev, None),
-        ]);
         md3_components::init(cx);
         let bounds = Bounds::centered(None, size(px(1200.), px(900.)), cx);
         let result = cx.open_window(

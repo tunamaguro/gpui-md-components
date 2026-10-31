@@ -58,6 +58,7 @@ API はいつも固定 rev のソース（`~/.cargo/git/checkouts/zed-*/37faef8/
 - **マウス移動で入力方法が Mouse に変わる。** `Window::dispatch_event` は座標が変わらない `MouseMove` でも切り替え、Windows は移動がなくても WM_MOUSEMOVE を送る。`is_focus_visible` はキーボードフォーカスの表示を保持し、フォーカス喪失で解除する。共通の操作要素と Card はクリックでも解除する。gpui は `FocusHandle` の ID を公開しないため、寿命を延ばさない `WeakFocusHandle` を識別に使う。
 - **キーの解決の前に描き直される。** `dispatch_event` は KeyDown で入力方法を Keyboard にして refresh し、`dispatch_key_event` はキーを解決する前に描く。そのため `focus_visible` で付けた key context が、その前のフレームで見えていなかったのに同じキーを受ける。ポインタで得たフォーカスは離れるまで状態で覚える（`FocusTooltip`）。
 - **キーの割り当ては `on_key_down` より先に動く。** 親のコンテキストの割り当てに勝つには、より深い要素に `key_context` を付ける（ツールチップの Esc と Dialog）。
+- **フォーカス中の要素が消えると、キーアクションはルートの dispatch node から配送される。** ルート要素の `on_action` には届かないが、グローバルな `cx.on_action` には届く。
 - テストで `window.focus_next` だけを呼んでも入力方法は Keyboard にならない。`support::press` で実際のキーを送る。
 - `defer_draw(.., None)` はクリップされない。基準の要素がスクロールで隠れても描かれるので、prepaint で `window.content_mask().bounds` との交差を確かめる。
 - `a11y_synthetic_children` は 1 要素に 1 つのクロージャしか持てない。状態と子を両方書くときは `A11yExt::a11y_with_children` を使う。

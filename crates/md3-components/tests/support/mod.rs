@@ -32,6 +32,7 @@ pub fn open(
     let (_, cx) = cx.add_window_view(|_, _| Harness {
         render: Box::new(render),
     });
+    cx.update(|window, _| window.activate_window());
     draw(cx);
     cx
 }
@@ -68,8 +69,7 @@ pub fn press(cx: &mut VisualTestContext, key: &'static str) {
     draw(cx);
 }
 
-/// 次の要素へフォーカスを移す（アプリが Tab に割り当てる処理の代わり。gpui は Tab を既定で割り当てない）。
+/// Tab キーで次の要素へフォーカスを移す。
 pub fn tab(cx: &mut VisualTestContext) {
-    cx.update(|window, cx| window.focus_next(cx));
-    draw(cx);
+    press(cx, "tab");
 }

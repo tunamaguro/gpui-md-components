@@ -104,8 +104,8 @@ pub use window_size::WindowSizeClass;
 
 /// テーマを初期化し、部品のキー操作を割り当てる。
 ///
-/// コンテキストなしの同じ優先度の割り当ては後から追加したものが勝つため、
-/// アプリが Tab などを割り当てる場合はその後に呼ぶ。
+/// アプリごとに起動時に 1 回呼ぶ。Tab の動作を変更する場合は、この後で割り当てる。
+/// 後からの割り当てはモーダル内の Tab の閉じ込めも上書きしうる。
 pub fn init(cx: &mut gpui::App) {
     md3_theme::init(cx);
     gpui_headless::init(cx);
