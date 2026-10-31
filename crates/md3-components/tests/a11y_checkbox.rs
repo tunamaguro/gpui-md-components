@@ -5,7 +5,7 @@ mod support;
 use std::{cell::Cell, rc::Rc};
 
 use gpui::{TestAppContext, prelude::*};
-use gpui_headless::CheckboxState;
+use md3_components::selection::CheckboxState;
 use md3_components::selection::{Checkbox, Switch};
 
 #[cfg(debug_assertions)]

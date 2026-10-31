@@ -44,8 +44,6 @@
 
 - `DialogAction` は操作後に必ずフォーカスを戻すため、入力エラーでダイアログを閉じない場合も直前の要素に移る。次フレームで宛先欄に戻している（`examples/mail/src/compose.rs`）。
 
-- 再公開は `TextFieldState` / `TextFieldEvent` / `CheckboxState` / `ScrollbarInteraction` / `ScrollScope` だけを足した。`NestedScroll`、`reveal_on_focus`、`ScrollbarSource` はまだ `gpui-headless` への依存が要り、`a11y_node()` の戻り値の `A11yNode` も `md3-components` から名前を呼べない。公開 API に出る型の方針を決める。
-
 - 内容の上に重ねる部品は、下の要素にクリックを渡さない処理（`block_mouse_except_scroll`）を部品ごとに持つ必要がある。FAB は直したが、ほかの部品やアプリが重ねる要素には同じ問題が残りうる。
 
 - Tab の `focus_next` / `focus_prev` をルート要素の `on_action` で受けると、フォーカスしていた要素が消えた時点でイベントがルートに届かず、Tab が効かなくなる（Compact で開く、戻る、幅の変更、Snackbar の Undo など）。`examples/mail` はグローバルなアクションで受けて回避した。gallery は要素の `on_action` のままで（`examples/gallery/src/main.rs`）、`docs/guide.md` と `a11y.md` は受ける場所を書いていない。`md3_components::init` が Tab まで受け持つかを含めて見直す。

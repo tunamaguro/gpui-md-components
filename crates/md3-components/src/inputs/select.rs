@@ -33,12 +33,15 @@ pub struct Select {
 
 impl Select {
     /// アクセシビリティ情報。
-    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
+    #[cfg(test)]
+    pub(crate) fn a11y_node(&self) -> gpui_headless::A11yNode {
         self.inner.a11y_node()
     }
 
     /// 補助テキストのアクセシビリティ情報。
-    pub fn supporting_a11y_node(&self) -> Option<(gpui::ElementId, gpui_headless::A11yNode)> {
+    pub(crate) fn supporting_a11y_node(
+        &self,
+    ) -> Option<(gpui::ElementId, gpui_headless::A11yNode)> {
         self.supporting_text.as_ref().map(|text| {
             gpui_headless::supporting_status(&self.id, text.clone(), self.inner.a11y_node().invalid)
         })

@@ -90,17 +90,18 @@ pub struct Menu {
     on_dismiss: Option<DismissHandler>,
     kind: MenuKind,
     match_anchor_width: bool,
-    inline: bool,
 }
 
 impl Menu {
     /// メニューのアクセシビリティ情報。
-    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
+    #[cfg(test)]
+    pub(crate) fn a11y_node(&self) -> gpui_headless::A11yNode {
         self.headless().a11y_node()
     }
 
     /// 指定した項目のアクセシビリティ情報。`index` は 0 始まり。
-    pub fn item_a11y_node(&self, index: usize) -> Option<gpui_headless::A11yNode> {
+    #[cfg(test)]
+    pub(crate) fn item_a11y_node(&self, index: usize) -> Option<gpui_headless::A11yNode> {
         self.headless().item_a11y_node(index)
     }
 
@@ -111,7 +112,6 @@ impl Menu {
             .kind(self.kind)
             .selected(self.selected)
             .match_anchor_width(self.match_anchor_width)
-            .inline(self.inline)
             .window_margin(Edges {
                 top: margin_y,
                 bottom: margin_y,
@@ -158,7 +158,6 @@ impl Menu {
             on_dismiss: None,
             kind: MenuKind::Actions,
             match_anchor_width: false,
-            inline: false,
         }
     }
 
@@ -209,13 +208,6 @@ impl Menu {
     )]
     pub(crate) fn match_anchor_width(mut self) -> Self {
         self.match_anchor_width = true;
-        self
-    }
-
-    /// 見本用に、その場に描く（フォーカスは動かさない）。
-    #[doc(hidden)]
-    pub fn inline(mut self) -> Self {
-        self.inline = true;
         self
     }
 }
@@ -325,7 +317,7 @@ impl RenderOnce for Menu {
                 )
                 .into_any_element()
         });
-        let scrollbar = (self.scrollbar && popup.is_floating()).then(|| popup.scroll.clone());
+        let scrollbar = self.scrollbar.then(|| popup.scroll.clone());
         let width = popup.anchor_width;
         let id = self.id;
         popup.place(|container| {

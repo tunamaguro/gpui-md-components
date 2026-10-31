@@ -7,7 +7,45 @@ use md3_theme::md3_tokens::layout;
 use md3_theme::{CornerRadius, Md3ThemeExt};
 
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
-use gpui_headless::CheckboxState;
+
+/// チェックの状態。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum CheckboxState {
+    /// 未チェック。
+    #[default]
+    Unchecked,
+    /// チェック済み。
+    Checked,
+    /// 一部だけ選ばれている。
+    Indeterminate,
+}
+
+impl CheckboxState {
+    /// 押したときの次の状態。不定はチェック済みになる。
+    pub fn next(self) -> Self {
+        gpui_headless::CheckboxState::from(self).next().into()
+    }
+}
+
+impl From<CheckboxState> for gpui_headless::CheckboxState {
+    fn from(state: CheckboxState) -> Self {
+        match state {
+            CheckboxState::Unchecked => Self::Unchecked,
+            CheckboxState::Checked => Self::Checked,
+            CheckboxState::Indeterminate => Self::Indeterminate,
+        }
+    }
+}
+
+impl From<gpui_headless::CheckboxState> for CheckboxState {
+    fn from(state: gpui_headless::CheckboxState) -> Self {
+        match state {
+            gpui_headless::CheckboxState::Unchecked => Self::Unchecked,
+            gpui_headless::CheckboxState::Checked => Self::Checked,
+            gpui_headless::CheckboxState::Indeterminate => Self::Indeterminate,
+        }
+    }
+}
 
 /// 状態ごとの色（トークンの値）。
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -66,7 +104,7 @@ impl Checkbox {
     pub fn new(id: impl Into<ElementId>, state: CheckboxState) -> Self {
         let id = id.into();
         Self {
-            inner: gpui_headless::Checkbox::new(id.clone(), state)
+            inner: gpui_headless::Checkbox::new(id.clone(), state.into())
                 .group(format!("md3-{id}"))
                 .reveal_margin(crate::focus::reveal_margin()),
             error: false,
@@ -92,14 +130,16 @@ impl Checkbox {
         mut self,
         handler: impl Fn(CheckboxState, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.inner = self.inner.on_change(handler);
+        self.inner = self
+            .inner
+            .on_change(move |state, window, cx| handler(state.into(), window, cx));
         self
     }
 }
 
 impl RenderOnce for Checkbox {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let checked_state = self.inner.state();
+        let checked_state = CheckboxState::from(self.inner.state());
         let (base, control) = self.inner.build(window, cx);
         let theme = cx.md3();
         let colors = CheckboxColors::of(checked_state, self.error);

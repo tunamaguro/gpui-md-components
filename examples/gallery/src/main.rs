@@ -286,17 +286,8 @@ impl Render for Gallery {
                 .into_any_element(),
             Page::Overlays => {
                 let note = self.fields.get("dialog-note", "", cx);
-                let sample_note = self.fields.get("dialog-sample-note", "", cx);
-                stories::overlays::page(
-                    &self.demo,
-                    &note,
-                    &sample_note,
-                    &self.snackbar,
-                    view,
-                    window,
-                    cx,
-                )
-                .into_any_element()
+                stories::overlays::page(&self.demo, &note, &self.snackbar, view, window, cx)
+                    .into_any_element()
             }
             Page::Navigation => {
                 let search = self.fields.get("search-people", "", cx);
@@ -321,49 +312,40 @@ impl Render for Gallery {
             Page::Custom => self.custom.clone().into_any_element(),
         };
 
-        let root_scroll = window
-            .use_keyed_state("gallery-scroll", cx, |_, _| gpui::ScrollHandle::new())
-            .read(cx)
-            .clone();
-        gpui_headless::ScrollScope::new(
-            root_scroll.clone(),
-            div()
-                .id("gallery")
-                .key_context("Gallery")
-                .track_focus(&self.focus_handle)
-                .on_action(cx.listener(Self::focus_next))
-                .on_action(cx.listener(Self::focus_prev))
-                .size_full()
-                .overflow_y_scroll()
-                .track_scroll(&root_scroll)
-                .bg(current.color(ColorRole::Surface))
-                .text_color(current.color(ColorRole::OnSurface))
-                .type_style(&current.text_style(TypeScale::BodyMedium))
-                .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .gap_6()
-                        .p_6()
-                        .child(
-                            Text::new(TypeScale::HeadlineMedium, "md3 gallery")
-                                .id("gallery-heading"),
-                        )
-                        .child(
-                            Text::new(TypeScale::BodySmall, gpu_description(window))
-                                .id("gallery-gpu-description")
-                                .color(ColorRole::OnSurfaceVariant),
-                        )
-                        .child(stories::theme::controls(window, cx))
-                        .child(div().w(px(1150.0)).child(pages))
-                        .child(content),
-                )
-                .child(self.snackbar.clone())
-                .child(md3_components::Scrollbar::new(
-                    "gallery-scrollbar",
-                    root_scroll,
-                )),
-        )
+        div()
+            .id("gallery")
+            .key_context("Gallery")
+            .track_focus(&self.focus_handle)
+            .on_action(cx.listener(Self::focus_next))
+            .on_action(cx.listener(Self::focus_prev))
+            .size_full()
+            .child(
+                md3_components::ScrollArea::new("gallery-scroll")
+                    .size_full()
+                    .bg(current.color(ColorRole::Surface))
+                    .text_color(current.color(ColorRole::OnSurface))
+                    .type_style(&current.text_style(TypeScale::BodyMedium))
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap_6()
+                            .p_6()
+                            .child(
+                                Text::new(TypeScale::HeadlineMedium, "md3 gallery")
+                                    .id("gallery-heading"),
+                            )
+                            .child(
+                                Text::new(TypeScale::BodySmall, gpu_description(window))
+                                    .id("gallery-gpu-description")
+                                    .color(ColorRole::OnSurfaceVariant),
+                            )
+                            .child(stories::theme::controls(window, cx))
+                            .child(div().w(px(1150.0)).child(pages))
+                            .child(content),
+                    )
+                    .child(self.snackbar.clone()),
+            )
     }
 }
 

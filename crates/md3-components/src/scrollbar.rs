@@ -4,12 +4,65 @@
 // Copyright 2026 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //! スクロール領域の末尾の子として置く、装飾用スクロールバー。
 
-use gpui::{App, Axis, ElementId, IntoElement, Pixels, RenderOnce, Window, fill, px};
+use gpui::{
+    App, Axis, ElementId, IntoElement, ListState, Pixels, RenderOnce, ScrollHandle,
+    UniformListScrollHandle, Window, fill, px,
+};
 use gpui_headless::{ScrollbarGeometry, ScrollbarSource};
 use md3_theme::{Md3ThemeExt, md3_tokens::component::scrollbar as tokens};
 use std::time::Duration;
 
-pub use gpui_headless::{ScrollScope, ScrollbarInteraction};
+pub use crate::scroll::ScrollArea;
+
+/// ポインタでの操作。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ScrollbarInteraction {
+    /// 位置を表示するだけ。
+    Passive,
+    /// つまみのドラッグとトラックのページ移動（Web でも有効）。
+    #[default]
+    Draggable,
+}
+
+impl From<ScrollbarInteraction> for gpui_headless::ScrollbarInteraction {
+    fn from(interaction: ScrollbarInteraction) -> Self {
+        match interaction {
+            ScrollbarInteraction::Passive => Self::Passive,
+            ScrollbarInteraction::Draggable => Self::Draggable,
+        }
+    }
+}
+
+/// スクロールバーが位置を読む先。`ScrollHandle`、`UniformListScrollHandle`、`ListState` から作る。
+pub struct ScrollbarTarget(
+    Box<dyn FnOnce(ElementId, ScrollbarGeometry) -> gpui_headless::Scrollbar>,
+);
+
+impl ScrollbarTarget {
+    fn new(source: impl ScrollbarSource) -> Self {
+        Self(Box::new(move |id, geometry| {
+            gpui_headless::Scrollbar::new(id, source, geometry)
+        }))
+    }
+}
+
+impl From<ScrollHandle> for ScrollbarTarget {
+    fn from(handle: ScrollHandle) -> Self {
+        Self::new(handle)
+    }
+}
+
+impl From<UniformListScrollHandle> for ScrollbarTarget {
+    fn from(handle: UniformListScrollHandle) -> Self {
+        Self::new(handle)
+    }
+}
+
+impl From<ListState> for ScrollbarTarget {
+    fn from(state: ListState) -> Self {
+        Self::new(state)
+    }
+}
 
 /// スクロールバー。供給元の領域内に最後の子として追加する。
 ///
@@ -19,21 +72,17 @@ pub use gpui_headless::{ScrollScope, ScrollbarInteraction};
 #[derive(IntoElement)]
 pub struct Scrollbar {
     id: ElementId,
-    source: Box<dyn FnOnce(ScrollbarGeometry) -> gpui_headless::Scrollbar>,
+    target: ScrollbarTarget,
     axis: Axis,
     interaction: ScrollbarInteraction,
     fade: bool,
 }
 impl Scrollbar {
     /// 安定 ID とスクロール位置の供給元から縦バーを作る。
-    pub fn new(id: impl Into<ElementId>, source: impl ScrollbarSource) -> Self {
-        let id = id.into();
-        let source_id = id.clone();
+    pub fn new(id: impl Into<ElementId>, target: impl Into<ScrollbarTarget>) -> Self {
         Self {
-            id,
-            source: Box::new(move |geometry| {
-                gpui_headless::Scrollbar::new(source_id, source, geometry)
-            }),
+            id: id.into(),
+            target: target.into(),
             axis: Axis::Vertical,
             interaction: ScrollbarInteraction::default(),
             fade: true,
@@ -78,7 +127,7 @@ fn opacity(elapsed: Duration, held: bool, fade: bool, reduced: bool) -> f32 {
 impl RenderOnce for Scrollbar {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let state = window.use_keyed_state(
-            ElementId::NamedChild(self.id.into(), "fade".into()),
+            ElementId::NamedChild(self.id.clone().into(), "fade".into()),
             cx,
             |_, cx| {
                 let start = cx.background_executor().now();
@@ -101,9 +150,9 @@ impl RenderOnce for Scrollbar {
             hit_width: px(12.0),
         };
         let color = cx.md3().color(tokens::THUMB_COLOR);
-        (self.source)(geometry)
+        (self.target.0)(self.id, geometry)
             .axis(self.axis)
-            .interaction(self.interaction)
+            .interaction(self.interaction.into())
             .build(window, cx, move |bar, window, cx| {
                 let alpha = state.update(cx, |state, cx| {
                     let now = (state.clock)(cx);

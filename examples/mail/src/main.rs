@@ -18,14 +18,14 @@ use md3_components::gpui::{
     WindowBounds, WindowOptions, actions, div, point, prelude::*, px, size,
 };
 use md3_components::gpui_platform;
-use md3_components::inputs::{SearchBar, TextFieldEvent, TextFieldState};
+use md3_components::inputs::{SearchBar, TextFieldState};
 use md3_components::navigation::{NavigationItem, NavigationSuite, TopAppBar};
 use md3_components::overlays::{Menu, MenuItem, SnackbarHost, SnackbarMessage};
-use md3_components::scrollbar::ScrollScope;
+use md3_components::scrollbar::ScrollArea;
 use md3_components::selection::{Chip, ChipKind, Switch};
 use md3_components::theme::md3_color::ColorRole;
 use md3_components::theme::{self, Appearance, Md3ThemeExt, SetMd3ThemeExt, TypeScale};
-use md3_components::{IconName, Scrollbar, StyledExt, Text, WindowSizeClass};
+use md3_components::{IconName, StyledExt, Text, WindowSizeClass};
 use model::{Folder, Mail};
 
 actions!(
@@ -47,10 +47,10 @@ struct MailView {
     unread: bool,
     starred: bool,
     menu: bool,
-    search: Entity<TextFieldState>,
-    to: Entity<TextFieldState>,
-    subject: Entity<TextFieldState>,
-    body: Entity<TextFieldState>,
+    search: TextFieldState,
+    to: TextFieldState,
+    subject: TextFieldState,
+    body: TextFieldState,
     compose_open: bool,
     to_error: bool,
     snackbar: Entity<SnackbarHost>,
@@ -60,9 +60,8 @@ impl MailView {
     fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
-        let search = cx.new(TextFieldState::new);
-        cx.subscribe(&search, |_, _, _: &TextFieldEvent, cx| cx.notify())
-            .detach();
+        let search = TextFieldState::new(cx);
+        search.on_change(cx, |_, cx| cx.notify()).detach();
         Self {
             focus,
             detail_scroll: ScrollHandle::new(),
@@ -73,9 +72,9 @@ impl MailView {
             starred: false,
             menu: false,
             search,
-            to: cx.new(TextFieldState::new),
-            subject: cx.new(TextFieldState::new),
-            body: cx.new(TextFieldState::new),
+            to: TextFieldState::new(cx),
+            subject: TextFieldState::new(cx),
+            body: TextFieldState::new(cx),
             compose_open: false,
             to_error: false,
             snackbar: cx.new(|_| SnackbarHost::new("Dismiss")),
@@ -147,7 +146,7 @@ impl Render for MailView {
         };
         let messages = self.mail.filtered(
             folder,
-            self.search.read(cx).text(),
+            self.search.text(cx),
             self.unread,
             self.starred || self.destination == 1,
         );
@@ -300,15 +299,11 @@ impl Render for MailView {
             let archive_view = view.clone();
             let delete_view = view.clone();
             let reply_view = view.clone();
-            let scroll = self.detail_scroll.clone();
-            detail = detail.child(top).child(ScrollScope::new(
-                scroll.clone(),
-                div()
-                    .id("detail-scroll")
+            detail = detail.child(top).child(
+                ScrollArea::new("detail-scroll")
+                    .handle(self.detail_scroll.clone())
                     .flex_1()
                     .min_h_0()
-                    .overflow_y_scroll()
-                    .track_scroll(&scroll)
                     .child(
                         div()
                             .p_4()
@@ -371,9 +366,8 @@ impl Render for MailView {
                                     ))
                                     .child(menu),
                             ),
-                    )
-                    .child(Scrollbar::new("detail-scrollbar", scroll)),
-            ));
+                    ),
+            );
         } else {
             detail = detail.child(div().p_6().child(
                 Text::new(TypeScale::BodyLarge, "Select a message to read it.").id("no-selection"),

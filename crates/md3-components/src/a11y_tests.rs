@@ -1,19 +1,18 @@
 //! 補足テキストと追加の状態のアクセシビリティ契約。
 
-use gpui::{AppContext, Role, TestAppContext, accesskit::HasPopup};
-use gpui_headless::TextFieldState;
-use md3_components::{
+use crate::{
     IconName, Text,
     buttons::{Button, IconButton},
     containment::ListItem,
-    inputs::{Select, TextField},
+    inputs::{Select, TextField, TextFieldState},
     overlays::{Dialog, Menu, MenuItem},
     theme::TypeScale,
 };
+use gpui::{Role, TestAppContext, accesskit::HasPopup};
 
 #[gpui::test]
 fn text_field_exposes_supporting_description_and_required(cx: &mut TestAppContext) {
-    let state = cx.new(TextFieldState::new);
+    let state = cx.update(TextFieldState::new);
     let node = TextField::new("name", &state)
         .label("名前")
         .supporting_text("姓と名")
@@ -105,6 +104,7 @@ fn direct_aria_descriptions_are_limited_to_focus_tooltip() {
             if path.is_dir() {
                 visit(&path, root, found);
             } else if path.extension().is_some_and(|ext| ext == "rs")
+                && !path.ends_with("a11y_tests.rs")
                 && std::fs::read_to_string(&path)
                     .unwrap()
                     .contains(".aria_description(")
@@ -121,7 +121,7 @@ fn direct_aria_descriptions_are_limited_to_focus_tooltip() {
 
 #[gpui::test]
 fn text_field_supporting_status_is_live_only_on_error(cx: &mut TestAppContext) {
-    let state = cx.new(TextFieldState::new);
+    let state = cx.update(TextFieldState::new);
     assert!(
         TextField::new("name", &state)
             .error(true)
@@ -269,7 +269,7 @@ fn icon_button_configuration_order_preserves_accessibility() {
 
 #[gpui::test]
 fn text_field_name_is_independent_of_setter_order(cx: &mut TestAppContext) {
-    let state = cx.new(TextFieldState::new);
+    let state = cx.update(TextFieldState::new);
     for name in ["氏名", ""] {
         let first = TextField::new("name", &state)
             .label("名前")
@@ -338,7 +338,7 @@ fn dialog_name_is_independent_of_setter_order() {
 
 #[gpui::test]
 fn supporting_status_tracks_error_regardless_of_setter_order(cx: &mut TestAppContext) {
-    let state = cx.new(TextFieldState::new);
+    let state = cx.update(TextFieldState::new);
     for error in [false, true] {
         let first = TextField::new("field", &state)
             .error(error)
@@ -361,4 +361,13 @@ fn supporting_status_tracks_error_regardless_of_setter_order(cx: &mut TestAppCon
         assert_eq!(first, second);
         assert_eq!(first.unwrap().1.live, error);
     }
+}
+
+#[test]
+fn remove_label_reaches_the_node() {
+    let node = crate::selection::Chip::new("tag", crate::selection::ChipKind::Input, "rust")
+        .remove_label("rust を削除")
+        .remove_a11y_node();
+    assert_eq!(node.role, Role::Button);
+    assert_eq!(node.label.as_deref(), Some("rust を削除"));
 }

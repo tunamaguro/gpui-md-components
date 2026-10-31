@@ -4,9 +4,9 @@
 // Copyright 2026 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //! スクロールバーの位置計算とポインタ操作。
 use gpui::{
-    App, Axis, Bounds, ElementId, HitboxBehavior, IntoElement, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, Pixels, Point, ScrollHandle, UniformListScrollHandle, Window,
-    canvas, point, prelude::*, px, size,
+    App, Axis, Bounds, ElementId, HitboxBehavior, IntoElement, ListState, MouseButton,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, ScrollHandle,
+    UniformListScrollHandle, Window, canvas, point, prelude::*, px, size,
 };
 use std::rc::Rc;
 
@@ -22,6 +22,23 @@ pub trait ScrollbarSource: 'static {
     fn offset(&self, axis: Axis) -> Pixels;
     /// 軸方向の位置を更新する。他方の軸は保持する。
     fn set_offset(&self, axis: Axis, offset: Pixels);
+    /// つまみのドラッグが始まった。
+    fn drag_started(&self) {}
+    /// つまみのドラッグが終わった。
+    fn drag_ended(&self) {}
+}
+
+/// つまみのドラッグ。バーが描かれなくなっても `drag_ended` が呼ばれるよう、終わりを Drop に任せる。
+struct Drag {
+    source: Rc<dyn ScrollbarSource>,
+    start: Pixels,
+    offset: Pixels,
+}
+
+impl Drop for Drag {
+    fn drop(&mut self) {
+        self.source.drag_ended();
+    }
 }
 
 fn coordinate(point: Point<Pixels>, axis: Axis) -> Pixels {
@@ -57,6 +74,30 @@ impl ScrollbarSource for ScrollHandle {
             Axis::Horizontal => position.x = offset,
         }
         self.set_offset(position);
+    }
+}
+impl ScrollbarSource for ListState {
+    fn viewport(&self) -> Bounds<Pixels> {
+        self.viewport_bounds()
+    }
+    fn max_offset(&self, axis: Axis) -> Pixels {
+        coordinate(self.max_offset_for_scrollbar(), axis)
+    }
+    fn offset(&self, axis: Axis) -> Pixels {
+        -coordinate(self.scroll_px_offset_for_scrollbar(), axis)
+    }
+    fn set_offset(&self, axis: Axis, offset: Pixels) {
+        // list は縦にしか動かない。
+        if axis == Axis::Vertical {
+            self.set_offset_from_scrollbar(Point::new(px(0.0), -offset));
+        }
+    }
+    // ドラッグ中に行の高さが変わっても位置が飛ばないよう、list に範囲を固定させる。
+    fn drag_started(&self) {
+        self.scrollbar_drag_started();
+    }
+    fn drag_ended(&self) {
+        self.scrollbar_drag_ended();
     }
 }
 impl ScrollbarSource for UniformListScrollHandle {
@@ -292,7 +333,11 @@ impl Scrollbar {
                     if !phase.capture() {
                         return;
                     }
-                    let active = move_state.read(cx).drag;
+                    let active = move_state
+                        .read(cx)
+                        .drag
+                        .as_ref()
+                        .map(|drag| (drag.start, drag.offset));
                     if let Some((start, offset)) = active {
                         if event.dragging() {
                             move_source.set_offset(
@@ -326,7 +371,13 @@ impl Scrollbar {
                     let local = f32::from(position - coordinate(viewport.origin, axis));
                     let offset = source.offset(axis);
                     if local >= geometry.start && local <= geometry.start + geometry.thumb {
-                        down_state.update(cx, |state, _| state.drag = Some((position, offset)));
+                        source.drag_started();
+                        let drag = Drag {
+                            source: source.clone(),
+                            start: position,
+                            offset,
+                        };
+                        down_state.update(cx, |state, _| state.drag = Some(drag));
                     } else {
                         let direction = if local < geometry.start { -1.0 } else { 1.0 };
                         source.set_offset(axis, offset + length(viewport, axis) * direction);
@@ -353,7 +404,7 @@ impl Scrollbar {
 }
 struct State {
     hover: bool,
-    drag: Option<(Pixels, Pixels)>,
+    drag: Option<Drag>,
 }
 
 #[cfg(test)]

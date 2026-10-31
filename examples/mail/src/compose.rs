@@ -13,11 +13,9 @@ impl MailView {
             subject: String::new(),
             body: String::new(),
         });
-        self.to.update(cx, |state, cx| state.set_text(draft.to, cx));
-        self.subject
-            .update(cx, |state, cx| state.set_text(draft.subject, cx));
-        self.body
-            .update(cx, |state, cx| state.set_text(draft.body, cx));
+        self.to.set_text(draft.to, cx);
+        self.subject.set_text(draft.subject, cx);
+        self.body.set_text(draft.body, cx);
         self.to_error = false;
         self.compose_open = true;
         cx.notify();
@@ -52,14 +50,14 @@ impl MailView {
                 send_view
                     .update(cx, |this, cx| {
                         let draft = Draft {
-                            to: this.to.read(cx).text().to_owned(),
-                            subject: this.subject.read(cx).text().to_owned(),
-                            body: this.body.read(cx).text().to_owned(),
+                            to: this.to.text(cx).to_owned(),
+                            subject: this.subject.text(cx).to_owned(),
+                            body: this.body.text(cx).to_owned(),
                         };
                         if this.mail.send(draft) {
-                            this.to.update(cx, |state, cx| state.set_text("", cx));
-                            this.subject.update(cx, |state, cx| state.set_text("", cx));
-                            this.body.update(cx, |state, cx| state.set_text("", cx));
+                            this.to.set_text("", cx);
+                            this.subject.set_text("", cx);
+                            this.body.set_text("", cx);
                             this.compose_open = false;
                             this.to_error = false;
                             this.snackbar.update(cx, |host, cx| {
@@ -67,7 +65,7 @@ impl MailView {
                             });
                         } else {
                             this.to_error = true;
-                            let focus = this.to.read(cx).focus_handle(cx);
+                            let focus = this.to.focus_handle(cx);
                             window.on_next_frame(move |window, cx: &mut App| {
                                 window.focus(&focus, cx);
                             });

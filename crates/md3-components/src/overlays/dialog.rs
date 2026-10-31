@@ -66,7 +66,8 @@ pub struct Dialog {
 
 impl Dialog {
     /// アクセシビリティ情報。
-    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
+    #[cfg(test)]
+    pub(crate) fn a11y_node(&self) -> gpui_headless::A11yNode {
         self.inner.a11y_node()
     }
 
@@ -131,13 +132,6 @@ impl Dialog {
     /// 確認・警告のダイアログにする（役割が `AlertDialog` になる）。
     pub fn alert(mut self, alert: bool) -> Self {
         self.inner = self.inner.alert(alert);
-        self
-    }
-
-    /// 見本用に、スクリムなしでその場に描く（フォーカスは動かさない）。
-    #[doc(hidden)]
-    pub fn inline(mut self) -> Self {
-        self.inner = self.inner.modal(false);
         self
     }
 }
@@ -229,8 +223,6 @@ impl RenderOnce for Dialog {
                     .chain(self.children)
                     .collect(),
                 self.scrollbar,
-                window,
-                cx,
             ))
             .when_some(actions, |this, actions| {
                 this.child(

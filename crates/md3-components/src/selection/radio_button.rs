@@ -15,7 +15,22 @@ use md3_theme::{CornerRadius, Md3ThemeExt, MotionToken, TypeScale};
 use crate::{FocusRing, StateLayer, Text};
 
 /// ラジオグループの選択肢。
-pub use gpui_headless::RadioOption;
+pub struct RadioOption(gpui_headless::RadioOption);
+
+impl RadioOption {
+    /// 表示する文字から選択肢を作る。
+    pub fn new(label: impl Into<SharedString>) -> Self {
+        Self(gpui_headless::RadioOption::new(label))
+    }
+
+    delegate_accessible_name!(0);
+
+    /// 無効にする。
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.0 = self.0.disabled(disabled);
+        self
+    }
+}
 
 /// ラジオボタンのグループ。選択肢ごとにラジオボタンとラベルを縦に並べる。
 ///
@@ -45,7 +60,7 @@ impl RadioGroup {
     }
     /// 名前を上書きできる選択肢を加える。
     pub fn option_item(mut self, option: RadioOption) -> Self {
-        self.inner = self.inner.option_item(option);
+        self.inner = self.inner.option_item(option.0);
         self
     }
     /// 無効な選択肢を加える。

@@ -63,7 +63,7 @@
 - 無効な Checkbox / Slider / TextField / Select は enabled・focusable が外れる（read only）。
 - 各オーバーレイを AT-SPI でフォーカスして Enter で開くと、Dialog・BottomSheet・モーダルな SideSheet / Drawer は
   `modal` 付きの dialog として現れ、初期フォーカスが中に入る（Dialog は入力欄、Menu / Select は最初の項目、
-  Drawer は選択中の項目）。見本用の `inline()` のものには `modal` が付かない。
+  Drawer は選択中の項目）。
 
 ### 監査中に見つけて直したもの
 

@@ -102,7 +102,7 @@ gallery ─────────────> md3-components ──> md3-them
 | `gpui-headless` の `press`                      | 押下の状態機械（押下・解除）。最短時間は呼び出し側から渡す                                                         |
 
 `control()` と Card は共通の操作処理で、有効な要素に `reveal_on_focus` を付ける。TextField / SearchBar にも付ける。
-List（高さ制限あり）・Drawer・Menu・オーバーレイ本文は `ScrollScope` で領域を包む。アプリ側のスクロール領域も同じように包む。
+List（高さ制限あり）・Drawer・Menu・オーバーレイ本文は `ScrollScope` で領域を包む。アプリ側のスクロール領域は `md3-components` の `ScrollArea` を使う。
 スコープはレイアウトを増やさず、同期的な prepaint の間だけ Global のスタックに存在する。内側から順に両軸を調整し、
 実際の移動量を外側へ反映する。フォーカスリングの外周を含め、最大オフセットまでに制限する。
 遅延描画するオーバーレイには背後の領域を渡さない。LazyList の仮想化領域は `scroll_to_item` を維持する。

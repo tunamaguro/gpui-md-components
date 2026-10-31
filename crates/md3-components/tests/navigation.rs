@@ -2,7 +2,7 @@
 //!
 //! どの項目にフォーカスがあるかは、Enter で選ばれた項目の記録で確かめる。
 
-use gpui_headless::TextFieldState;
+use md3_components::inputs::TextFieldState;
 mod support;
 
 use std::cell::{Cell, RefCell};
@@ -478,7 +478,7 @@ fn page_reveals_card_and_text_field(cx: &mut TestAppContext) {
         inputs::TextField,
     };
     let scroll = gpui::ScrollHandle::new();
-    let state = cx.new(TextFieldState::new);
+    let state = cx.update(TextFieldState::new);
     let cx = support::open(cx, {
         let scroll = scroll.clone();
         move |_, _| {

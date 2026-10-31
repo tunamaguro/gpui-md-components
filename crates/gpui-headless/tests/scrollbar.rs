@@ -1,10 +1,12 @@
 //! 装飾スクロールバーのポインタ操作とフォーカス非介入。
 mod support;
 use gpui::{
-    Axis, InputEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ScrollHandle,
-    TestAppContext, VisualTestContext, div, point, prelude::*, px,
+    Axis, InputEvent, ListAlignment, ListState, MouseButton, MouseDownEvent, MouseMoveEvent,
+    MouseUpEvent, ScrollHandle, TestAppContext, VisualTestContext, div, list, point, prelude::*,
+    px,
 };
 use gpui_headless::{Scrollbar, ScrollbarGeometry, ScrollbarInteraction, ScrollbarSource};
+use std::{cell::Cell, rc::Rc};
 
 fn send(cx: &mut VisualTestContext, event: impl InputEvent) {
     cx.update(|window, cx| {
@@ -164,4 +166,144 @@ fn horizontal_page_and_passive(cx: &mut TestAppContext) {
     ScrollbarSource::set_offset(&scroll, Axis::Horizontal, px(9000.0));
     assert_eq!(scroll.offset().x, -scroll.max_offset().x);
     assert_eq!(scroll.offset().y, px(0.0));
+}
+
+#[gpui::test]
+fn list_state_reports_positive_offsets(cx: &mut TestAppContext) {
+    let state = ListState::new(20, ListAlignment::Top, px(100.0)).measure_all();
+    let cx = support::open(cx, {
+        let state = state.clone();
+        move |_, _| {
+            div()
+                .w(px(200.0))
+                .h(px(200.0))
+                .child(
+                    list(state.clone(), |_, _, _| {
+                        div().h(px(50.0)).into_any_element()
+                    })
+                    .size_full(),
+                )
+                .into_any_element()
+        }
+    });
+    assert_eq!(ScrollbarSource::viewport(&state).size.height, px(200.0));
+    assert_eq!(
+        ScrollbarSource::max_offset(&state, Axis::Vertical),
+        px(800.0)
+    );
+
+    ScrollbarSource::set_offset(&state, Axis::Vertical, px(300.0));
+    support::draw(cx);
+    assert_eq!(ScrollbarSource::offset(&state, Axis::Vertical), px(300.0));
+
+    ScrollbarSource::set_offset(&state, Axis::Horizontal, px(100.0));
+    support::draw(cx);
+    assert_eq!(ScrollbarSource::offset(&state, Axis::Vertical), px(300.0));
+    assert_eq!(ScrollbarSource::offset(&state, Axis::Horizontal), px(0.0));
+}
+
+#[gpui::test]
+fn list_state_keeps_its_range_while_dragging(cx: &mut TestAppContext) {
+    let state = ListState::new(20, ListAlignment::Top, px(100.0)).measure_all();
+    let cx = support::open(cx, {
+        let state = state.clone();
+        move |window, cx| {
+            div()
+                .relative()
+                .w(px(200.0))
+                .h(px(200.0))
+                .child(
+                    list(state.clone(), |_, _, _| {
+                        div().h(px(50.0)).into_any_element()
+                    })
+                    .size_full(),
+                )
+                .child(Scrollbar::new("bar", state.clone(), geometry()).build(
+                    window,
+                    cx,
+                    |_, _, _| {},
+                ))
+                .into_any_element()
+        }
+    });
+    let bounds = state.viewport_bounds();
+    let start = point(bounds.right() - px(2.0), bounds.top() + px(10.0));
+    send(
+        cx,
+        MouseMoveEvent {
+            position: start,
+            ..Default::default()
+        },
+    );
+    send(
+        cx,
+        MouseDownEvent {
+            position: start,
+            button: MouseButton::Left,
+            ..Default::default()
+        },
+    );
+    assert!(state.is_scrollbar_dragging());
+    send(
+        cx,
+        MouseUpEvent {
+            position: start,
+            button: MouseButton::Left,
+            ..Default::default()
+        },
+    );
+    assert!(!state.is_scrollbar_dragging());
+}
+
+#[gpui::test]
+fn list_state_is_released_when_the_bar_goes_away(cx: &mut TestAppContext) {
+    let state = ListState::new(20, ListAlignment::Top, px(100.0)).measure_all();
+    let visible = Rc::new(Cell::new(true));
+    let cx = support::open(cx, {
+        let state = state.clone();
+        let visible = visible.clone();
+        move |window, cx| {
+            let bar = visible.get().then(|| {
+                Scrollbar::new("bar", state.clone(), geometry()).build(window, cx, |_, _, _| {})
+            });
+            div()
+                .relative()
+                .w(px(200.0))
+                .h(px(200.0))
+                .child(
+                    list(state.clone(), |_, _, _| {
+                        div().h(px(50.0)).into_any_element()
+                    })
+                    .size_full(),
+                )
+                .children(bar)
+                .into_any_element()
+        }
+    });
+    let bounds = state.viewport_bounds();
+    let start = point(bounds.right() - px(2.0), bounds.top() + px(10.0));
+    send(
+        cx,
+        MouseMoveEvent {
+            position: start,
+            ..Default::default()
+        },
+    );
+    send(
+        cx,
+        MouseDownEvent {
+            position: start,
+            button: MouseButton::Left,
+            ..Default::default()
+        },
+    );
+    assert!(state.is_scrollbar_dragging());
+
+    visible.set(false);
+    support::draw(cx);
+    support::draw(cx);
+    assert!(
+        !state.is_scrollbar_dragging(),
+        "バーが消えたら範囲の固定を解く"
+    );
 }

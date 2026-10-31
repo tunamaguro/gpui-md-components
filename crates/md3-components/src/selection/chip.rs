@@ -193,7 +193,8 @@ impl Chip {
     }
 
     /// 削除ボタンのアクセシビリティ情報。
-    pub fn remove_a11y_node(&self) -> gpui_headless::A11yNode {
+    #[cfg(test)]
+    pub(crate) fn remove_a11y_node(&self) -> gpui_headless::A11yNode {
         self.inner.remove_a11y_node()
     }
 

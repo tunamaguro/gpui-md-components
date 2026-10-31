@@ -74,10 +74,9 @@ cx.set_reduce_motion(user_prefers_reduced_motion); // 起動時と、設定が�
 - **同じ ID・同じ `TextFieldState` を同時に 2 か所に描かない。** フォーカスハンドルを 2 つの要素が共有し、
   アクセシビリティが有効なときに gpui のデバッグビルドの検査で panic する（リリースビルドでは警告）。
 - 部品は値を持たない。選択・入力値・開閉は利用者が持ち、`selected(..)` などで渡して `on_change` などで受け取る。
-  例外は TextField（`md3_components::inputs::TextFieldState` を `Entity` で持つ）と、フォーカスや一時的な表示状態（部品が内部で保持）。
+  例外は TextField（`md3_components::inputs::TextFieldState` を持つ）と、フォーカスや一時的な表示状態（部品が内部で保持）。
   Checkbox の値には `md3_components::selection::CheckboxState` を使う。
 - 無効な部品（`.disabled(true)`）は Tab で止まらず、操作できない。
-- 見本用の `inline()` は gallery 向けで、アプリでは使わない（`#[doc(hidden)]`）。
 - gallery には各バリアントの操作できる見本と disabled、該当すれば selected / error の見本を並べる。hover / focused / pressed はマウスやキーボードで実際に操作して確かめる。
 
 ## 5. キーボード操作
@@ -119,30 +118,28 @@ Dialog / BottomSheet / SideSheet の本文は、内側が動ける方向の
 
 ### キーボードフォーカスを見える位置へ移す
 
-アプリのスクロール領域を、同じ `ScrollHandle` を渡した `md3_components::scrollbar::ScrollScope` で包みます。
+アプリのスクロール領域には `md3_components::ScrollArea` を使います。
 Button・Checkbox などの操作部品、押せる Card、TextField / SearchBar は、Tab / Shift+Tab や矢印キーで
 フォーカスが移ると、自動的に見える位置までスクロールします（[WCAG 2.2 の 2.4.11](https://www.w3.org/WAI/WCAG22/Understanding/focus-not-obscured-minimum.html)）。
 
 ```rust,ignore
-let scroll = gpui::ScrollHandle::new(); // ビューまたは use_keyed_state で保持する
-let page = md3_components::scrollbar::ScrollScope::new(scroll.clone(),
-    gpui::div().id("page").h(gpui::px(240.0))
-        .overflow_y_scroll().track_scroll(&scroll)
-        .child(content)
-        .child(md3_components::Scrollbar::new("page-scrollbar", scroll.clone())));
+let page = md3_components::ScrollArea::new("page")
+    .h(gpui::px(240.0))
+    .child(content);
 ```
 
-独自のフォーカス可能要素には `gpui-headless` を依存に追加し、`reveal_on_focus` を子として付けます。ID はその要素と同じものを使い、
-親を `.relative()` にします。役割・名前・状態とキー操作も要素側で用意します。
+位置を読み書きするときは `.handle(scroll)` で `gpui::ScrollHandle` を渡します。
+
+独自のフォーカス可能要素には `md3_components::control` を使います。フォーカス、Tab の止まり場所、見える位置への移動を付けた要素を返します。
+役割・名前・状態とキー操作は要素側で用意します。
 
 ```rust,ignore
-let focus = gpui_headless::focus_handle(id.clone(), window, cx);
-let margin = gpui::px(md3_components::theme::md3_tokens::state::FOCUS_INDICATOR_THICKNESS
-    + md3_components::theme::md3_tokens::state::FOCUS_INDICATOR_OUTER_OFFSET);
-let reveal = gpui_headless::reveal_on_focus(&id, focus.clone(), window, cx, margin);
-let element = gpui::div().id(id).relative().track_focus(&focus)
+let (base, control) = md3_components::control("save", false, window, cx);
+let element = base
     .role(gpui::Role::Button).aria_label("保存")
-    .child(label).child(reveal).on_click(save);
+    .child(label)
+    .child(md3_components::FocusRing::new(radius).visible(control.focus_visible))
+    .on_click(save);
 ```
 
 List の `max_height`、Drawer、Menu / Select、Dialog / Sheet の本文にはスコープが付いています。
@@ -157,16 +154,14 @@ List の `max_height`、Drawer、Menu / Select、Dialog / Sheet の本文には�
 位置の供給元を表示領域として描くため、バーのための高さや幅を確保する必要はありません。
 
 ```rust,ignore
-let scroll = gpui::ScrollHandle::new(); // ビューまたは use_keyed_state で保持する
-let area = gpui::div().id("content").h(gpui::px(240.0))
-    .overflow_y_scroll().track_scroll(&scroll)
-    .child(content)
-    .child(md3_components::Scrollbar::new("content-scrollbar", scroll.clone()));
+let area = md3_components::ScrollArea::new("content")
+    .h(gpui::px(240.0))
+    .child(content);
 ```
 
 既定は縦・ドラッグ可能・静止後にフェードです。`.axis(gpui::Axis::Horizontal)` で横、
-`.interaction(md3_components::scrollbar::ScrollbarInteraction::Passive)` で表示のみ、`.fade(false)` で常時表示にできます。
-独自の仮想リストには `gpui_headless::ScrollbarSource` を実装します。位置は先頭を 0 とした正の距離です。
+`.scrollbar_interaction(md3_components::scrollbar::ScrollbarInteraction::Passive)` で表示のみ、`.scrollbar_fade(false)` で常時表示、`.scrollbar(false)` で非表示にできます。
+`gpui::uniform_list` や `gpui::list` には、外側のコンテナに `md3_components::Scrollbar::new(id, handle)` を置きます。`UniformListScrollHandle` と `ListState` を渡せます。
 キーボード操作とアクセシビリティはコンテナ側で用意します。バー自体は Tab 順に入りません。
 
 LazyList、Menu / Select、Dialog、BottomSheet / SideSheet、NavigationDrawer は既定でバーを表示します。

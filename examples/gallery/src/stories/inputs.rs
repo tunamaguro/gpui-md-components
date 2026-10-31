@@ -3,7 +3,7 @@
 use md3_components::inputs::TextFieldState;
 use std::collections::HashMap;
 
-use gpui::{AnyElement, App, Entity, IntoElement, WeakEntity, Window, div, prelude::*, px};
+use gpui::{AnyElement, App, IntoElement, WeakEntity, Window, div, prelude::*, px};
 use md3_components::inputs::{Select, TextField, TextFieldVariant};
 use md3_components::theme::TypeScale;
 use md3_components::theme::md3_color::ColorRole;
@@ -15,17 +15,17 @@ use crate::{Demo, Gallery};
 /// テキストフィールドの中身（描画をまたいで残す）。
 #[derive(Default)]
 pub struct Fields {
-    states: HashMap<String, Entity<TextFieldState>>,
+    states: HashMap<String, TextFieldState>,
 }
 
 impl Fields {
     /// `key` の中身を返す。なければ `initial` を入れて作る。
-    pub fn get(&mut self, key: &str, initial: &str, cx: &mut App) -> Entity<TextFieldState> {
+    pub fn get(&mut self, key: &str, initial: &str, cx: &mut App) -> TextFieldState {
         self.states
             .entry(key.to_owned())
             .or_insert_with(|| {
                 let initial = initial.to_owned();
-                cx.new(|cx| TextFieldState::new(cx).with_text(initial))
+                TextFieldState::with_text(initial, cx)
             })
             .clone()
     }
@@ -63,7 +63,7 @@ pub fn page(
                 let key = format!("{name}-{state}");
                 let empty = fields.get(&format!("{key}-empty"), "", cx);
                 let filled = fields.get(&format!("{key}-filled"), "入力した文字", cx);
-                let make = |id: String, entity: &Entity<TextFieldState>| {
+                let make = |id: String, entity: &TextFieldState| {
                     let field = TextField::new(id, entity)
                         .label("ラベル")
                         .variant(variant)
@@ -101,9 +101,9 @@ pub fn page(
     let price = fields.get("price", "1200", cx);
     let bio = fields.get("bio", "", cx);
     let search = fields.get("search", "", cx);
-    let email_text = email.read(cx).text().to_owned();
+    let email_text = email.text(cx).to_owned();
     let email_invalid = !email_text.is_empty() && !email_text.contains('.');
-    let bio_len = bio.read(cx).text().chars().count();
+    let bio_len = bio.text(cx).chars().count();
     let examples = Section::new("使ってみる（Tab で移動、日本語 IME で入力できる）")
         .heading_id("inputs-examples-heading")
         .child(

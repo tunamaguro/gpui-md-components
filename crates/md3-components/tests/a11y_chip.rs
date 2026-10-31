@@ -2,17 +2,8 @@
 
 mod support;
 
-use gpui::{Role, TestAppContext, prelude::*, px};
+use gpui::{TestAppContext, prelude::*, px};
 use md3_components::selection::{Chip, ChipKind};
-
-#[test]
-fn remove_label_reaches_the_node() {
-    let node = Chip::new("tag", ChipKind::Input, "rust")
-        .remove_label("rust を削除")
-        .remove_a11y_node();
-    assert_eq!(node.role, Role::Button);
-    assert_eq!(node.label.as_deref(), Some("rust を削除"));
-}
 
 /// 位置は `debug_selector` で測るため、デバッグビルドでだけ走る（gpui はリリースでは記録しない）。
 #[cfg(debug_assertions)]

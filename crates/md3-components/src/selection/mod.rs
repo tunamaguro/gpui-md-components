@@ -9,9 +9,8 @@ mod slider;
 mod switch;
 
 pub use badge::Badge;
-pub use checkbox::Checkbox;
+pub use checkbox::{Checkbox, CheckboxState};
 pub use chip::{Chip, ChipKind};
-pub use gpui_headless::CheckboxState;
 pub use progress::{CircularProgress, LinearProgress};
 pub use radio_button::{RadioGroup, RadioOption};
 pub use slider::Slider;

@@ -6,10 +6,10 @@
 mod support;
 
 use gpui::{AnyElement, Pixels, TestAppContext, div, prelude::*, px};
-use gpui_headless::TextFieldState;
 use md3_components::IconName;
 use md3_components::buttons::IconButton;
 use md3_components::containment::{LazyList, ListItem};
+use md3_components::inputs::TextFieldState;
 use md3_components::inputs::{TextField, TextFieldVariant};
 use md3_components::navigation::{
     NavigationItem, NavigationRail, Tab, Tabs, TopAppBar, TopAppBarVariant,
@@ -53,7 +53,7 @@ fn medium_app_bar_keeps_its_height_and_grows_with_the_title(cx: &mut TestAppCont
 
 #[gpui::test]
 fn filled_field_height_does_not_change_on_focus(cx: &mut TestAppContext) {
-    let state = cx.new(TextFieldState::new);
+    let state = cx.update(TextFieldState::new);
     let cx = support::open(cx, move |_, _| {
         target(
             TextField::new("name", &state)

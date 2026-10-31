@@ -19,7 +19,52 @@ use crate::buttons::{Button, ButtonVariant, IconButton};
 use crate::{IconName, StyledExt};
 use gpui_headless::overlay::{DismissHandler, SNACKBAR_PRIORITY, window_layer};
 use gpui_headless::{SnackbarEntry, SnackbarOwner, SnackbarQueue};
-pub use gpui_headless::{SnackbarPolicy, SnackbarResult};
+
+/// 知らせを追加するときの方針。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SnackbarPolicy {
+    /// 現在の知らせを退場させ、最新の知らせに置き換える（既定）。
+    #[default]
+    Replace,
+    /// 現在の知らせが閉じるまで順番を待つ。
+    Queue,
+}
+
+impl From<SnackbarPolicy> for gpui_headless::SnackbarPolicy {
+    fn from(policy: SnackbarPolicy) -> Self {
+        match policy {
+            SnackbarPolicy::Replace => Self::Replace,
+            SnackbarPolicy::Queue => Self::Queue,
+        }
+    }
+}
+
+impl From<gpui_headless::SnackbarPolicy> for SnackbarPolicy {
+    fn from(policy: gpui_headless::SnackbarPolicy) -> Self {
+        match policy {
+            gpui_headless::SnackbarPolicy::Replace => Self::Replace,
+            gpui_headless::SnackbarPolicy::Queue => Self::Queue,
+        }
+    }
+}
+
+/// 知らせが閉じられた理由。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SnackbarResult {
+    /// 操作ボタンが押された。
+    ActionPerformed,
+    /// 時間切れ、閉じる操作、または新しい知らせによる置換。
+    Dismissed,
+}
+
+impl From<gpui_headless::SnackbarResult> for SnackbarResult {
+    fn from(result: gpui_headless::SnackbarResult) -> Self {
+        match result {
+            gpui_headless::SnackbarResult::ActionPerformed => Self::ActionPerformed,
+            gpui_headless::SnackbarResult::Dismissed => Self::Dismissed,
+        }
+    }
+}
 
 /// スナックバー（1 件）。通常は [`SnackbarHost`] が描く。
 ///
@@ -224,7 +269,7 @@ impl SnackbarMessage {
             entry = entry.action(label, handler);
         }
         if let Some(on_result) = self.on_result {
-            entry = entry.on_result(on_result);
+            entry = entry.on_result(move |result, cx| on_result(result.into(), cx));
         }
         entry
     }
@@ -256,18 +301,18 @@ impl SnackbarHost {
 
     /// 追加時の方針を指定する。既定は Replace。
     pub fn policy(mut self, policy: SnackbarPolicy) -> Self {
-        self.queue = self.queue.policy(policy);
+        self.queue = self.queue.policy(policy.into());
         self
     }
 
     /// 現在の追加方針。
     pub fn current_policy(&self) -> SnackbarPolicy {
-        self.queue.current_policy()
+        self.queue.current_policy().into()
     }
 
     /// 以後の追加方針を変える。すでに待機している知らせの順番は変えない。
     pub fn set_policy(&mut self, policy: SnackbarPolicy, cx: &mut Context<Self>) {
-        self.queue.set_policy(policy, cx);
+        self.queue.set_policy(policy.into(), cx);
     }
 
     /// 方針に従って知らせを出す。返り値は知らせの番号。
