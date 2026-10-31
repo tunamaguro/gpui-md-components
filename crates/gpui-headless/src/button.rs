@@ -13,6 +13,7 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 pub struct Button {
     id: ElementId,
     label: SharedString,
+    description: Option<SharedString>,
     aria_label: Option<Option<SharedString>>,
     toggled: Option<bool>,
     menu_expanded: Option<bool>,
@@ -30,6 +31,7 @@ impl Button {
             group: format!("control-{id}").into(),
             id,
             label: label.into(),
+            description: None,
             aria_label: None,
             toggled: None,
             menu_expanded: None,
@@ -38,6 +40,12 @@ impl Button {
             reveal_margin: px(0.0),
         }
     }
+    /// 補足の説明を指定する。
+    pub fn description(mut self, description: impl Into<SharedString>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
         let label = label.into();
@@ -83,6 +91,9 @@ impl Button {
         let mut node = A11yNode::new(Role::Button)
             .label(self.label.clone())
             .disabled(self.disabled);
+        if let Some(description) = &self.description {
+            node = node.description(description.clone());
+        }
         if let Some(label) = &self.aria_label {
             node.label = label.clone();
         }

@@ -9,6 +9,7 @@ use crate::{A11yExt, A11yNode};
 pub struct Dialog {
     id: ElementId,
     label: Option<SharedString>,
+    description: Option<SharedString>,
     aria_label: Option<SharedString>,
     alert: bool,
     modal: bool,
@@ -21,6 +22,7 @@ impl Dialog {
         Self {
             id: id.into(),
             label: None,
+            description: None,
             aria_label: None,
             alert: false,
             modal: true,
@@ -31,6 +33,12 @@ impl Dialog {
     /// 表示する見出しを既定の名前にする。
     pub fn headline(mut self, label: impl Into<SharedString>) -> Self {
         self.label = Some(label.into());
+        self
+    }
+
+    /// 補足の説明を指定する。
+    pub fn description(mut self, description: impl Into<SharedString>) -> Self {
+        self.description = Some(description.into());
         self
     }
 
@@ -68,9 +76,13 @@ impl Dialog {
         } else {
             Role::Dialog
         };
-        A11yNode::new(role)
+        let mut node = A11yNode::new(role)
             .with_label(self.aria_label.clone().or_else(|| self.label.clone()))
-            .modal(self.modal)
+            .modal(self.modal);
+        if let Some(description) = &self.description {
+            node = node.description(description.clone());
+        }
+        node
     }
 
     /// 役割を付けた土台と、モーダルならフォーカスの状態を返す。

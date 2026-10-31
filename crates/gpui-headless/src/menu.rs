@@ -19,6 +19,7 @@ use std::sync::Arc;
 /// メニューの項目。
 pub struct MenuItem {
     label: SharedString,
+    description: Option<SharedString>,
     aria_label: Option<Option<SharedString>>,
     disabled: bool,
     on_select: Option<DismissHandler>,
@@ -29,10 +30,17 @@ impl MenuItem {
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
             label: label.into(),
+            description: None,
             aria_label: None,
             disabled: false,
             on_select: None,
         }
+    }
+
+    /// 補足の説明を指定する。
+    pub fn description(mut self, description: impl Into<SharedString>) -> Self {
+        self.description = Some(description.into());
+        self
     }
 
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
@@ -249,12 +257,15 @@ impl Menu {
     /// 項目のアクセシビリティツリーに出す情報。
     pub fn item_a11y_node(&self, index: usize) -> Option<A11yNode> {
         let item = self.items.get(index)?;
-        let node = match self.kind {
+        let mut node = match self.kind {
             MenuKind::Actions => A11yNode::new(Role::MenuItem),
             MenuKind::Options => {
                 A11yNode::new(Role::ListBoxOption).selected(self.selected == Some(index))
             }
         };
+        if let Some(description) = &item.description {
+            node = node.description(description.clone());
+        }
         Some(
             node.with_label(
                 item.aria_label

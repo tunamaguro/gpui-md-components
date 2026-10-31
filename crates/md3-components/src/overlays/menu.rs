@@ -26,21 +26,6 @@ pub struct MenuItem {
 }
 
 impl MenuItem {
-    /// アクセシビリティ情報。
-    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
-        let mut node = gpui_headless::A11yNode::new(gpui::Role::MenuItem)
-            .with_label(
-                self.aria_label
-                    .clone()
-                    .unwrap_or_else(|| Some(self.label.clone())),
-            )
-            .disabled(self.disabled);
-        if let Some(text) = &self.trailing_text {
-            node = node.description(text.clone());
-        }
-        node
-    }
-
     /// ラベルから作る。
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
@@ -113,6 +98,55 @@ pub struct Menu {
 }
 
 impl Menu {
+    /// メニューのアクセシビリティ情報。
+    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
+        self.headless().a11y_node()
+    }
+
+    /// 指定した項目のアクセシビリティ情報。`index` は 0 始まり。
+    pub fn item_a11y_node(&self, index: usize) -> Option<gpui_headless::A11yNode> {
+        self.headless().item_a11y_node(index)
+    }
+
+    fn headless(&self) -> gpui_headless::Menu {
+        let margin_y = px(layout::MENU_VERTICAL_MARGIN);
+        let margin_x = px(layout::MENU_HORIZONTAL_MARGIN);
+        let mut menu = gpui_headless::Menu::new(self.id.clone())
+            .kind(self.kind)
+            .selected(self.selected)
+            .match_anchor_width(self.match_anchor_width)
+            .inline(self.inline)
+            .window_margin(Edges {
+                top: margin_y,
+                bottom: margin_y,
+                left: margin_x,
+                right: margin_x,
+            })
+            .reveal_margin(crate::focus::reveal_margin())
+            .group_prefix("md3");
+        if let Some(on_dismiss) = self.on_dismiss.clone() {
+            menu = menu.on_dismiss(move |window, cx| on_dismiss(window, cx));
+        }
+        if let Some(label) = self.label.clone() {
+            menu = menu.aria_label(label);
+        }
+        for item in &self.items {
+            let mut row = gpui_headless::MenuItem::new(item.label.clone()).disabled(item.disabled);
+            if let Some(label) = item.aria_label.clone() {
+                row = row.aria_label(label.unwrap_or_default());
+            }
+            if let Some(text) = &item.trailing_text {
+                row = row.description(text.clone());
+            }
+            if let Some(on_select) = item.on_select.clone() {
+                row = row.on_select(move |window, cx| on_select(window, cx));
+            }
+            menu = menu.item(row);
+        }
+
+        menu
+    }
+
     /// スクロールバーの表示を切り替える（既定は表示）。
     pub fn scrollbar(mut self, visible: bool) -> Self {
         self.scrollbar = visible;
@@ -195,51 +229,15 @@ impl RenderOnce for Menu {
         let label_style = theme.text_style(TypeScale::LabelLarge);
         let trailing_style = theme.text_style(list::ITEM_TRAILING_SUPPORTING_TEXT_FONT);
         let item_space = px(layout::MENU_ITEM_HORIZONTAL_SPACE);
-        let margin_y = px(layout::MENU_VERTICAL_MARGIN);
-        let margin_x = px(layout::MENU_HORIZONTAL_MARGIN);
-
-        let mut menu = gpui_headless::Menu::new(self.id.clone())
-            .kind(self.kind)
-            .selected(self.selected)
-            .match_anchor_width(self.match_anchor_width)
-            .inline(self.inline)
-            .window_margin(Edges {
-                top: margin_y,
-                bottom: margin_y,
-                left: margin_x,
-                right: margin_x,
-            })
-            .reveal_margin(crate::focus::reveal_margin())
-            .group_prefix("md3");
-        if let Some(on_dismiss) = self.on_dismiss {
-            menu = menu.on_dismiss(move |window, cx| on_dismiss(window, cx));
-        }
-        if let Some(label) = self.label {
-            menu = menu.aria_label(label);
-        }
-        let mut looks = Vec::with_capacity(self.items.len());
-        for item in self.items {
-            let mut row = gpui_headless::MenuItem::new(item.label.clone()).disabled(item.disabled);
-            if let Some(label) = item.aria_label.clone() {
-                row = row.aria_label(label.unwrap_or_default());
-            }
-            if let Some(on_select) = item.on_select.clone() {
-                row = row.on_select(move |window, cx| on_select(window, cx));
-            }
-            menu = menu.item(row);
-            looks.push(item);
-        }
+        let menu = self.headless();
+        let looks = self.items;
 
         let mut looks = looks.into_iter();
         let popup = menu.build(window, cx, |row, _, _| {
             let Some(item) = looks.next() else {
                 return row.base.into_any_element();
             };
-            let description = item.a11y_node().description;
             let (base, control, id, selected) = (row.base, row.state, row.id, row.selected);
-            let base = base.when_some(description, |base, description| {
-                base.aria_description(description)
-            });
             let (text, leading, trailing) = if item.disabled {
                 (
                     theme

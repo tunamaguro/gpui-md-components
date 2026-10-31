@@ -1,7 +1,9 @@
 //! 新しい説明と状態のアクセシビリティ契約。
 
 use gpui::{AppContext, Role, TestAppContext, accesskit::HasPopup};
-use gpui_headless::{A11yNode, Button, Select, TextField, TextFieldState};
+use gpui_headless::{
+    A11yNode, Button, Dialog, ListItem, Menu, MenuItem, MenuKind, Select, TextField, TextFieldState,
+};
 
 #[test]
 fn node_description_preserves_nonempty_text() {
@@ -83,5 +85,38 @@ fn select_exposes_popup_without_required() {
     assert_eq!(
         Select::new("select").a11y_node().has_popup,
         Some(HasPopup::Listbox)
+    );
+}
+
+#[test]
+fn descriptions_flow_through_headless_nodes() {
+    let nodes = [
+        Button::new("button", "操作")
+            .description("説明")
+            .a11y_node(),
+        Dialog::new("dialog").description("説明").a11y_node(),
+        Menu::new("menu")
+            .item(MenuItem::new("項目").description("説明"))
+            .item_a11y_node(0)
+            .unwrap(),
+        ListItem::new("項目").description("説明").a11y_node(2, 5),
+    ];
+    for node in nodes {
+        assert_eq!(node.description.as_deref(), Some("説明"));
+    }
+    let option = Menu::new("options")
+        .kind(MenuKind::Options)
+        .item(MenuItem::new("項目").description("説明"))
+        .item_a11y_node(0)
+        .unwrap();
+    assert_eq!(option.role, Role::ListBoxOption);
+    assert_eq!(option.description.as_deref(), Some("説明"));
+    assert_eq!(option.position, Some((1, 1)));
+    assert_eq!(
+        Button::new("button", "操作")
+            .description("")
+            .a11y_node()
+            .description,
+        None
     );
 }
