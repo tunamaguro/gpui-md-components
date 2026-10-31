@@ -53,13 +53,13 @@ nix develop -c bash -c '
 
 ## Codex との分担
 
-計画とレビュー・確認は Claude、実装は Codex に任せる運用をしている（skill `codex-delegate`）。
+計画/設計//レビュー/確認は Claude、実装は Codex に任せる運用をしている（skill `codex-delegate`）。
 
 - モデルとコマンドは skill `codex-delegate`。
 - Codex の sandbox からは Nix daemon に繋がらない。**`nix develop -c` の中で codex を起動する**と、
   Codex が cargo を直接実行できる。プロンプトにも「nix develop を呼ばず cargo を直接使う」と書く。
 - sandbox からは Wayland に繋がらず、Codex は gallery を目視できない。画面の確認は Claude が行う（skill `gallery-check`）。
-- 実装後は Codex にレビューさせ、指摘を Codex に直させて再レビューする。**レビューの完了を待ってからマージする**（skill `ship-pr`）。
+- 実装後は Claudeがレビューし、指摘を Codex に直させて再レビューする。**レビューの完了を待ってからマージする**（skill `ship-pr`）。
 - Codex には使用量の上限がある。上限に達したら、回復時刻まで待つか、残りを Claude が行い PR に明記する。ユーザーが待たないと言ったら Claude が実装する。レビューはサブエージェントに任せる。
 
 ## 見本を追加する

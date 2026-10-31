@@ -69,6 +69,7 @@ cx.set_reduce_motion(user_prefers_reduced_motion); // 起動時と、設定が�
 - **入力欄と見出しは任意。** `TextField::new(id, &state).label("名前")`、`Select::new(id, options, selected).label("色")`、`Dialog::new(id).headline("確認")` の表示文字は既定の名前にもなる。SideSheet も `.headline()` を使う。
 - **ID はフレームをまたいで安定させる。** リストの項目はデータのキーから ID を作る（index にしない）。
   ID が変わるとフォーカスと状態（開閉・押下など）が失われ、読み上げ位置も飛ぶ。
+- **複数行の入力は `.multi_line(min_lines, max_lines)`。** `TextField::new(id, &state).label("本文").multi_line(4, 10)` は 4 行から 10 行の間で伸び、上限を超えた分は欄の中でスクロールする。上限なしは `usize::MAX`。
 - **同じ ID・同じ `TextFieldState` を同時に 2 か所に描かない。** フォーカスハンドルを 2 つの要素が共有し、
   アクセシビリティが有効なときに gpui のデバッグビルドの検査で panic する（リリースビルドでは警告）。
 - 部品は値を持たない。選択・入力値・開閉は利用者が持ち、`selected(..)` などで渡して `on_change` などで受け取る。

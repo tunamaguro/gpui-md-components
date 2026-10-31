@@ -1,4 +1,4 @@
-//! TextField（Filled / Outlined）。1 行の入力欄。
+//! TextField（Filled / Outlined）。1 行と複数行の入力欄。
 
 use super::TextFieldState;
 use super::field::{FieldFrame, FieldState, TextFieldVariant, tint};
@@ -33,6 +33,7 @@ pub struct TextField {
     trailing_icon: Option<IconName>,
     prefix: Option<SharedString>,
     suffix: Option<SharedString>,
+    multi_line: bool,
 }
 
 impl TextField {
@@ -71,6 +72,7 @@ impl TextField {
             trailing_icon: None,
             prefix: None,
             suffix: None,
+            multi_line: false,
         }
     }
 
@@ -142,6 +144,21 @@ impl TextField {
         self
     }
 
+    /// 複数行の入力欄にする。文字は欄の幅で折り返し、Enter で改行する。
+    ///
+    /// 高さは `min_lines` 行から `max_lines` 行の間で内容に合わせて変わり、`max_lines` を超えた分は
+    /// 欄の中でスクロールする。上限なしは `usize::MAX`。`min_lines` は 1 以上に、`max_lines` は
+    /// `min_lines` 以上に直す。
+    ///
+    /// ```ignore
+    /// TextField::new("body", &state).label("本文").multi_line(4, 10)
+    /// ```
+    pub fn multi_line(mut self, min_lines: usize, max_lines: usize) -> Self {
+        self.inner = self.inner.multi_line(min_lines, max_lines);
+        self.multi_line = true;
+        self
+    }
+
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.inner = self.inner.disabled(disabled);
@@ -191,29 +208,38 @@ impl RenderOnce for TextField {
                 .filter(|_| focused || self.label.is_none()),
         );
         let affix_space = px(layout::TEXT_FIELD_PREFIX_SUFFIX_SPACE);
+        // 接頭辞・接尾辞はラベルが上に出ている間だけ描く（複数行は入力を常に置くので、ここで絞る）。
+        let shows_affix = floated || self.label.is_none();
         let content = div()
             .flex()
-            .items_center()
+            .when(self.multi_line, |this| this.items_start())
+            .when(!self.multi_line, |this| this.items_center())
             .w_full()
-            .when_some(self.prefix.clone(), |this, prefix| {
-                this.child(
-                    div()
-                        .flex_none()
-                        .pr(affix_space)
-                        .text_color(affix_color(tokens::INPUT_PREFIX_COLOR))
-                        .child(prefix),
-                )
-            })
+            .when_some(
+                self.prefix.clone().filter(|_| shows_affix),
+                |this, prefix| {
+                    this.child(
+                        div()
+                            .flex_none()
+                            .pr(affix_space)
+                            .text_color(affix_color(tokens::INPUT_PREFIX_COLOR))
+                            .child(prefix),
+                    )
+                },
+            )
             .child(div().flex_1().min_w_0().child(line))
-            .when_some(self.suffix.clone(), |this, suffix| {
-                this.child(
-                    div()
-                        .flex_none()
-                        .pl(affix_space)
-                        .text_color(affix_color(tokens::INPUT_SUFFIX_COLOR))
-                        .child(suffix),
-                )
-            })
+            .when_some(
+                self.suffix.clone().filter(|_| shows_affix),
+                |this, suffix| {
+                    this.child(
+                        div()
+                            .flex_none()
+                            .pl(affix_space)
+                            .text_color(affix_color(tokens::INPUT_SUFFIX_COLOR))
+                            .child(suffix),
+                    )
+                },
+            )
             .into_any_element();
 
         let counter = control
@@ -232,6 +258,7 @@ impl RenderOnce for TextField {
                     .into_any_element()
             }),
             content,
+            multi_line: self.multi_line,
             supporting_text: self.supporting_text.clone(),
             supporting_a11y,
             counter,

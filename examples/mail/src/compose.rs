@@ -41,7 +41,11 @@ impl MailView {
                     .gap_4()
                     .child(to)
                     .child(TextField::new("compose-subject", &self.subject).label("Subject"))
-                    .child(TextField::new("compose-body", &self.body).label("Body")),
+                    .child(
+                        TextField::new("compose-body", &self.body)
+                            .label("Body")
+                            .multi_line(4, 10),
+                    ),
             )
             .action(DialogAction::new("Cancel", move |_, cx| {
                 Self::update(&close_view, cx, |this| this.compose_open = false);

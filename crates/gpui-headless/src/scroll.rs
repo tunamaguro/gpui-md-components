@@ -210,7 +210,9 @@ fn can_scroll(offset: Pixels, max: Pixels, delta: Pixels) -> bool {
     max > px(0.0) && ((delta < px(0.0) && offset > -max) || (delta > px(0.0) && offset < px(0.0)))
 }
 
-fn gesture_step(
+/// ホイールの 1 回分を親に渡さないかどうかと、次の `(active, claimed)` を返す。
+/// 精密スクロールは開始から終了まで、最初に動いた領域が持つ。
+pub(crate) fn gesture_step(
     active: bool,
     claimed: bool,
     precise: bool,
@@ -247,33 +249,43 @@ pub fn reveal_on_focus(
         .read(cx)
         .clone();
     canvas(
-        move |mut bounds, window, cx| {
+        move |bounds, window, cx| {
             let focused = focus.is_focused(window);
             let previous = was_focused.replace(focused);
             if !focused || previous || !window.last_input_was_keyboard() {
                 return;
             }
-            let mut changed = false;
-            for scroll in cx.default_global::<ScopeStack>().0.iter().rev() {
-                let before = scroll.offset();
-                if let Some(offset) =
-                    reveal_offset(scroll.bounds(), bounds, before, scroll.max_offset(), margin)
-                {
-                    scroll.set_offset(offset);
-                    // 内側で実際に動いた量を外側の判定へ反映する（端での制限も含む）。
-                    bounds.origin += scroll.offset() - before;
-                    changed = true;
-                }
-            }
-            if changed {
-                // 描画中の refresh は無効。変更した位置は次のフレームで描く。
-                window.on_next_frame(|window, _| window.refresh());
-            }
+            reveal_in_scopes(bounds, margin, window, cx);
         },
         |_, _, _, _| {},
     )
     .absolute()
     .inset_0()
+}
+
+/// `bounds` を、祖先の [`ScrollScope`] の見える範囲に内側から順に入れる。prepaint の中で呼ぶ。
+pub(crate) fn reveal_in_scopes(
+    mut bounds: Bounds<Pixels>,
+    margin: Pixels,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let mut changed = false;
+    for scroll in cx.default_global::<ScopeStack>().0.iter().rev() {
+        let before = scroll.offset();
+        if let Some(offset) =
+            reveal_offset(scroll.bounds(), bounds, before, scroll.max_offset(), margin)
+        {
+            scroll.set_offset(offset);
+            // 内側で実際に動いた量を外側の判定へ反映する（端での制限も含む）。
+            bounds.origin += scroll.offset() - before;
+            changed = true;
+        }
+    }
+    if changed {
+        // 描画中の refresh は無効。変更した位置は次のフレームで描く。
+        window.on_next_frame(|window, _| window.refresh());
+    }
 }
 
 /// `item` を `viewport` に収める新しいオフセット。動かす必要がなければ `None`。

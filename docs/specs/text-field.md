@@ -18,15 +18,16 @@
 
 ## 寸法
 
-| 項目                   | 値                                                                  | トークン                                                   |
-| ---------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------- |
-| 高さ                   | 56dp（最小値。Outlined はラベルがあると上に行の高さの半分を空ける） | `outlined_text_field::CONTAINER_HEIGHT`                    |
-| 最小幅                 | 280dp                                                               | `layout::TEXT_FIELD_MIN_WIDTH`                             |
-| 左右の余白             | 16dp（アイコンがあれば 12dp + 48dp の枠）                           | `layout::TEXT_FIELD_HORIZONTAL_SPACE`                      |
-| 下線                   | 1dp、フォーカスで 2dp                                               | `ACTIVE_INDICATOR_HEIGHT`, `FOCUS_ACTIVE_INDICATOR_HEIGHT` |
-| 枠線                   | 1dp、フォーカスで 2dp                                               | `OUTLINE_WIDTH`, `FOCUS_OUTLINE_WIDTH`                     |
-| ラベルの切り欠きの余白 | 4dp                                                                 | `layout::OUTLINED_TEXT_FIELD_LABEL_GAP`                    |
-| 補助テキストの上       | 4dp                                                                 | `layout::TEXT_FIELD_SUPPORTING_TOP_SPACE`                  |
+| 項目                   | 値                                                                  | トークン                                                                              |
+| ---------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 高さ                   | 56dp（最小値。Outlined はラベルがあると上に行の高さの半分を空ける） | `outlined_text_field::CONTAINER_HEIGHT`                                               |
+| 複数行の上下の余白     | Filled + ラベルは 8dp、それ以外は 16dp                              | `layout::TEXT_FIELD_WITH_LABEL_VERTICAL_SPACE`, `layout::TEXT_FIELD_HORIZONTAL_SPACE` |
+| 最小幅                 | 280dp                                                               | `layout::TEXT_FIELD_MIN_WIDTH`                                                        |
+| 左右の余白             | 16dp（アイコンがあれば 12dp + 48dp の枠）                           | `layout::TEXT_FIELD_HORIZONTAL_SPACE`                                                 |
+| 下線                   | 1dp、フォーカスで 2dp                                               | `ACTIVE_INDICATOR_HEIGHT`, `FOCUS_ACTIVE_INDICATOR_HEIGHT`                            |
+| 枠線                   | 1dp、フォーカスで 2dp                                               | `OUTLINE_WIDTH`, `FOCUS_OUTLINE_WIDTH`                                                |
+| ラベルの切り欠きの余白 | 4dp                                                                 | `layout::OUTLINED_TEXT_FIELD_LABEL_GAP`                                               |
+| 補助テキストの上       | 4dp                                                                 | `layout::TEXT_FIELD_SUPPORTING_TOP_SPACE`                                             |
 
 ## 色（状態別）
 
@@ -41,13 +42,19 @@
 ## 振る舞い
 
 - 中身は `Entity<TextFieldState>` が持ち、変更は `gpui_headless::TextFieldEvent::Changed` で通知する。
-- 1 行入力。はみ出した分はキャレットが見えるように横にスクロールする。
-- 編集キー: ←→、Shift+←→、Home / End、Shift+Home / End、Backspace / Delete、Ctrl(⌘)+A / C / X / V。
+- 既定は 1 行入力。はみ出した分はキャレットが見えるように横にスクロールする。
+- `.multi_line(min_lines, max_lines)` で複数行入力にする（Compose の `TextFieldLineLimits.MultiLine`）。欄の幅で折り返し、高さは `min_lines` 行から `max_lines` 行の間で内容に合わせて変わる。`max_lines` を超えた分は欄の中で縦にスクロールする。上限なしは `usize::MAX`。
+  カーソルが動くと、欄の中と祖先の `ScrollScope` の中でカーソルが見える位置まで送る。ホイールで動かした位置は再描画で戻さない。端に達したホイールは祖先へ渡す（`NestedScroll` と同じ）。
+- 複数行の配置（Compose の `TextFieldMeasurePolicy`）: 入力とラベルは上に寄せ、先頭・末尾のアイコンは縦の中央に置く。空でフォーカスがないときも入力の行を確保するので、フォーカスで高さは変わらない（折り返す placeholder を除く）。
+- 改行は LF で持つ。貼り付けや `set_text` の CRLF / CR は LF にそろえる。1 行の欄では、入力された改行は空白にし、改行だけの入力は無視する。`set_text` / `with_text` は欄の種類を知らないので LF を残し、1 行の欄では空白として表示する。
+- 編集キー: ←→、Shift+←→、Home / End、Shift+Home / End（表示行の先頭・末尾）、Backspace / Delete、Ctrl(⌘)+A / C / X / V。
+- 複数行だけのキー: Enter / Shift+Enter（改行。変換中は何もしない）、↑↓、Shift+↑↓、PageUp / PageDown、Shift+PageUp / PageDown（見えている行数）、Ctrl+Home / End、Ctrl+Shift+Home / End（macOS は ⌘+↑↓、⌘+Shift+↑↓）。↑↓ は x を保ち、先頭より上は文字列の先頭、末尾より下は文字列の末尾へ移す（Compose の `jumpByLinesOffset`）。1 行の欄ではこれらのキーは親の要素へ渡る。
+- Tab は文字を入れずフォーカスを移す（WCAG 2.1.2）。
 - IME の変換中の文字は下線付きで表示し、確定で置き換える（`EntityInputHandler`）。
 - 入力欄からフォーカスが移ると変換範囲を解除し、文字を残す。ウィンドウの非アクティブ化だけでは解除しない。Windows では入力欄の内外をクリックしても文字を残して変換を終了し、欄内ならクリック位置にキャレットを移す。Linux のクリックは gpui の処理に委ねる。macOS / Web は未確認。
 - 参照: Compose foundation `TextFieldDecoratorModifier.kt` の `onFocusChange` @ b8256a52、および [Apple `NSTextInputClient.unmarkText()`](<https://developer.apple.com/documentation/appkit/nstextinputclient/unmarktext()>)。
 - Windows の変換終了処理中は一時的に入力を受け付けず、範囲を指定しない文字の置換を無視する。この間の通常の文字入力や Backspace / Delete / 貼り付けなどは反映されないことがある。Backspace / Delete は削除前に選択範囲を変える場合があり、切り取りはコピー後の削除が無視される場合がある。
-- フォーカス中は描画後に入力位置を IME に伝え、その位置や欄の範囲が変われば更新する。変換中は変換範囲の先頭、それ以外は選択の末端を使う。欄からはみ出す位置は左右の端に収め、空欄では入力行の左端を返す。
+- フォーカス中は描画後に入力位置を IME に伝え、その位置や欄の範囲が変われば更新する。変換中は変換範囲の先頭、それ以外は選択の末端を使う。欄からはみ出す位置は欄の中に収め、空欄では入力の左上を返す。複数行で範囲が複数の表示行にまたがるときは、開始行の右端までを返す。
 - `max_length` を指定すると「n/max」のカウンタを出す（入力は制限しない。超過時のエラー表示は呼び出し側）。
 
 ## アクセシビリティ
@@ -57,7 +64,7 @@
 - キーボードでフォーカスが移ると、祖先の `ScrollScope` の表示領域へ移す（WCAG 2.2 の 2.4.11）。
   `reveal_on_focus` を共有し、マウスクリックやフォーカスが変わらないホイール操作では引き戻さない。
 
-- 役割: TextInput
+- 役割: TextInput（複数行は MultilineTextInput）
 
 - 名前: 任意の `.label()` が既定。`.aria_label()` で上書きできる
 
@@ -65,7 +72,7 @@
 
 - キー操作: 通常の文字入力、IME
 
-- 支援技術: 文字とカーソルを TextRun で渡し、SetValue / ReplaceSelectedText / SetTextSelection を受ける（WCAG 4.1.2。Compose の `setText` など）。無効のときは受けない。OS から届く操作は AccessKit のアダプタ次第で、Linux（AT-SPI）は EditableText がないので SetTextSelection だけが届く。ReplaceSelectedText を送るアダプタは今はない
+- 支援技術: 文字とカーソルを段落ごとの TextRun で渡し（値は末尾の改行を含む）、SetValue / ReplaceSelectedText / SetTextSelection を受ける（WCAG 4.1.2。Compose の `setText` など）。無効のときは受けない。OS から届く操作は AccessKit のアダプタ次第で、Linux（AT-SPI）は EditableText がないので SetTextSelection だけが届く。ReplaceSelectedText を送るアダプタは今はない
 
 ## デスクトップ向け調整（密度など）
 
@@ -73,7 +80,10 @@
 
 ## 既知の制限・仕様からの逸脱
 
-- 複数行入力（textarea）は未実装。
+- 複数行で、ドラッグが欄の外に出ても時間で送り続けない（マウスが動いた分だけ送る）。
+- 複数行の支援技術の行は段落単位で、折り返しの位置を見ない。
+- 複数行のスクロールバーは描かない。`max_lines` を超えた内容があることは見た目で分からない。
+- ラベルのある欄の placeholder はフォーカス中だけ出るので、折り返すとフォーカスで高さが変わる。
 - Web の IME 候補ウィンドウは gpui_web の制限により左上に表示される。
 - 依存を増やせないため、書記素の境界は簡易判定（結合文字、異体字セレクタ、ZWJ、肌色修飾、地域指示子のペア）。Unicode の全規則は満たさない。
 - 単語単位の移動（Ctrl+←→）、取り消し（Undo）は未実装。
