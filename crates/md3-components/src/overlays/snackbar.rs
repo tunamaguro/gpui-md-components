@@ -287,7 +287,6 @@ pub struct SnackbarHost {
     queue: SnackbarQueue,
 }
 
-#[doc(hidden)]
 impl SnackbarOwner for SnackbarHost {
     fn snackbar_queue(&mut self) -> &mut SnackbarQueue {
         &mut self.queue
