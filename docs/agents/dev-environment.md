@@ -51,17 +51,6 @@ nix develop -c bash -c '
 - レビューが終わり、CI が緑になったら squash merge する（人間の確認は待たない運用）。ただし v1.0 のタグ付けは人間に確認する（Web 版は main へのマージで自動的に GitHub Pages に出る）。
 - 手順は skill `ship-pr`。
 
-## Codex との分担
-
-計画/設計//レビュー/確認は Claude、実装は Codex に任せる運用をしている（skill `codex-delegate`）。
-
-- モデルとコマンドは skill `codex-delegate`。
-- Codex の sandbox からは Nix daemon に繋がらない。**`nix develop -c` の中で codex を起動する**と、
-  Codex が cargo を直接実行できる。プロンプトにも「nix develop を呼ばず cargo を直接使う」と書く。
-- sandbox からは Wayland に繋がらず、Codex は gallery を目視できない。画面の確認は Claude が行う（skill `gallery-check`）。
-- 実装後は Claudeがレビューし、指摘を Codex に直させて再レビューする。**レビューの完了を待ってからマージする**（skill `ship-pr`）。
-- Codex には使用量の上限がある。上限に達したら、回復時刻まで待つか、残りを Claude が行い PR に明記する。ユーザーが待たないと言ったら Claude が実装する。レビューはサブエージェントに任せる。
-
 ## 見本を追加する
 
 `examples/<名前>/` に置くと、2 と 3 が揃うまで xtask のテストが落ちる。実行ファイルの名前はパッケージ名と同じにする（`cargo xtask web` が `<パッケージ名>.wasm` を読む）。
