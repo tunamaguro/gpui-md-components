@@ -53,7 +53,7 @@ impl fmt::Display for Report {
 pub fn run(workspace_root: &Path) -> Result<usize, String> {
     let table_path = workspace_root.join("docs/TOKENS_SOURCE.md");
     let table = fs::read_to_string(&table_path)
-        .map_err(|e| format!("{} を読めません: {e}", table_path.display()))?;
+        .map_err(|e| format!("cannot read {}: {e}", table_path.display()))?;
     let src_dir = workspace_root.join("crates/md3-tokens/src");
     let mut consts = BTreeMap::new();
     collect_consts(&src_dir, &src_dir, &mut consts)?;
@@ -65,7 +65,7 @@ pub fn run(workspace_root: &Path) -> Result<usize, String> {
         Ok(report.checked)
     } else {
         Err(format!(
-            "{} 件の不一致があります:\n{report}",
+            "{} mismatches found:\n{report}",
             report.errors.len()
         ))
     }
@@ -92,7 +92,7 @@ fn parse_table(table: &str, errors: &mut Vec<String>) -> BTreeMap<String, Row> {
         }
         if cells.len() != 5 || cells.iter().any(|c| c.is_empty()) {
             errors.push(format!(
-                "TOKENS_SOURCE.md:{line_no}: 列は 5 つ（定数・値・出典ファイル・行・コミット）で、空欄は不可"
+                "TOKENS_SOURCE.md:{line_no}: expected 5 nonempty columns (constant, value, source file, line, commit)"
             ));
             continue;
         }
@@ -102,7 +102,7 @@ fn parse_table(table: &str, errors: &mut Vec<String>) -> BTreeMap<String, Row> {
         };
         if let Some(previous) = rows.insert(name.to_string(), row) {
             errors.push(format!(
-                "TOKENS_SOURCE.md:{line_no}: {name} が重複している（{} 行目にもある）",
+                "TOKENS_SOURCE.md:{line_no}: duplicate {name} (also on line {})",
                 previous.line
             ));
         }
@@ -117,7 +117,7 @@ fn collect_consts(
     consts: &mut BTreeMap<String, Const>,
 ) -> Result<(), String> {
     let mut entries: Vec<PathBuf> = fs::read_dir(dir)
-        .map_err(|e| format!("{} を読めません: {e}", dir.display()))?
+        .map_err(|e| format!("cannot read {}: {e}", dir.display()))?
         .filter_map(|entry| entry.ok().map(|e| e.path()))
         .collect();
     entries.sort();
@@ -126,7 +126,7 @@ fn collect_consts(
             collect_consts(src_root, &path, consts)?;
         } else if path.extension().is_some_and(|ext| ext == "rs") {
             let source = fs::read_to_string(&path)
-                .map_err(|e| format!("{} を読めません: {e}", path.display()))?;
+                .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
             let module = module_path(src_root, &path);
             for (name, expr) in parse_consts(&source) {
                 let key = if module.is_empty() {
@@ -271,15 +271,15 @@ fn compare(rows: &BTreeMap<String, Row>, consts: &BTreeMap<String, Const>, repor
     for (name, row) in rows {
         match consts.get(name) {
             None => report.errors.push(format!(
-                "TOKENS_SOURCE.md:{}: {name} がソースにない",
+                "TOKENS_SOURCE.md:{}: {name} not found in source",
                 row.line
             )),
             Some(c) if is_composite(&c.expr) => report.errors.push(format!(
-                "TOKENS_SOURCE.md:{}: {name} は他の定数を組み合わせた定数なので表に載せない",
+                "TOKENS_SOURCE.md:{}: {name} combines other constants and should not be in the table",
                 row.line
             )),
             Some(c) if !values_match(&c.expr, &row.value) => report.errors.push(format!(
-                "TOKENS_SOURCE.md:{}: {name} の値が違う（表: {}、{}: {}）",
+                "TOKENS_SOURCE.md:{}: {name} has a different value (table: {}, {}: {})",
                 row.line,
                 row.value,
                 c.file.display(),
@@ -291,7 +291,7 @@ fn compare(rows: &BTreeMap<String, Row>, consts: &BTreeMap<String, Const>, repor
     for (name, c) in consts {
         if !is_composite(&c.expr) && !rows.contains_key(name) {
             report.errors.push(format!(
-                "{}: {name} の出典が TOKENS_SOURCE.md にない",
+                "{}: source for {name} is missing from TOKENS_SOURCE.md",
                 c.file.display()
             ));
         }

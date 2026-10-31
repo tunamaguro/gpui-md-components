@@ -12,12 +12,12 @@ use std::path::Path;
 use std::process::ExitCode;
 
 const USAGE: &str = "\
-使い方: cargo xtask <サブコマンド>
+Usage: cargo xtask <subcommand>
 
-サブコマンド:
-  web [--debug] wasm 版ギャラリーを target/web/ にビルドする
-  check-tokens  docs/TOKENS_SOURCE.md と md3-tokens の定数を突き合わせる
-  help          この説明を表示する";
+Subcommands:
+  web [--debug] build the wasm gallery in target/web/
+  check-tokens  check md3-tokens constants against docs/TOKENS_SOURCE.md
+  help          show this help";
 
 fn main() -> ExitCode {
     let mut args = std::env::args().skip(1);
@@ -29,7 +29,7 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Some(other) => {
-            eprintln!("不明なサブコマンド: {other}\n\n{USAGE}");
+            eprintln!("unknown subcommand: {other}\n\n{USAGE}");
             ExitCode::FAILURE
         }
         None => {
@@ -44,7 +44,7 @@ fn web(args: impl Iterator<Item = String>) -> ExitCode {
     match web::run(workspace_root(), args) {
         Ok(out_dir) => {
             println!(
-                "web: {out_dir} に出力した。静的ファイルとして配信する（例: python3 -m http.server -d {out_dir}）"
+                "web: output to {out_dir}. Serve as static files (e.g. python3 -m http.server -d {out_dir})"
             );
             ExitCode::SUCCESS
         }
@@ -66,7 +66,7 @@ fn workspace_root() -> &'static Path {
 fn check_tokens() -> ExitCode {
     match check_tokens::run(workspace_root()) {
         Ok(checked) => {
-            println!("check-tokens: {checked} 件の定数が TOKENS_SOURCE.md と一致");
+            println!("check-tokens: {checked} constants match TOKENS_SOURCE.md");
             ExitCode::SUCCESS
         }
         Err(message) => {
