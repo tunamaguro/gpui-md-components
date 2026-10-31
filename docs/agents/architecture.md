@@ -16,7 +16,7 @@ md-components/
 │   ├── md3-icons/          # 使うアイコンの SVG バイト列と IconName enum（純 Rust）
 │   ├── md3-theme/          # Theme（gpui Global）、gpui 型への変換、OS 外観追従
 │   └── md3-components/     # StateLayer / FocusRing / 各コンポーネント
-├── gallery/                # 全部品の見本アプリ（gpui_platform を起動に使い、wasm-bindgen を使うのはここだけ。examples/ は未作成）
+├── gallery/                # 全部品の見本アプリ（gpui_platform を起動に使い、wasm-bindgen を使うのはここだけ）
 ├── xtask/                  # 開発用コマンド（std のみ）: check-tokens、web
 ├── tools/a11y-tree/        # Linux の AT-SPI ツリーを書き出すスクリプト（nixpkgs の道具を使う。依存ではない）
 ├── nix/                    # flake のモジュール（devshell、パッケージ）
@@ -25,13 +25,15 @@ md-components/
     ├── specs/              # コンポーネントごとの仕様要約（component-workflow.md 参照）
     ├── TOKENS_SOURCE.md    # 転記した値と出典の対応表
     ├── guide.md            # 利用者向けガイド
+    ├── headless-guide.md   # 独自テーマの作り方
+    ├── references/         # 参照用の資料（androidx は submodule）
     └── a11y-audit.md       # アクセシビリティの監査記録
 ```
 
 ## 依存の向き
 
 ```
-gallery / examples ──> md3-components ──> md3-theme ──> md3-tokens ──> md3-color
+gallery ─────────────> md3-components ──> md3-theme ──> md3-tokens ──> md3-color
         │                   │   │              │
         │                   ├──> gpui-headless ──> gpui
         │                   │   └──> md3-icons │
@@ -47,18 +49,8 @@ gallery / examples ──> md3-components ──> md3-theme ──> md3-tokens �
 
 ## 依存方針
 
-- 外部 crate: `gpui` のみ（`md3-components` の feature `platform` は `gpui_platform` の再公開に限る。`gallery` / `examples` は `gpui_platform` と、wasm32 ターゲットに限り `wasm-bindgen` も可。`#[wasm_bindgen(start)]` のエントリポイントにだけ使う）。
-- `Cargo.toml` の例:
-
-```toml
-[workspace.dependencies]
-# default features は切る（gpui は windows-manifest で build 時に embed-resource を使い、
-# gpui_platform は multithreaded で wasm に nightly を要求するため）
-gpui = { git = "https://github.com/zed-industries/zed", rev = "<固定する rev>", default-features = false, features = ["font-kit", "wayland", "x11"] }
-gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "<同じ rev>", default-features = false, features = ["font-kit", "wayland", "x11"] }
-wasm-bindgen = "<上流 zed と同じ要求版>"
-```
-
+- 使ってよい外部 crate は `AGENTS.md` の「絶対に守るルール」のとおり。`wasm-bindgen` は `#[wasm_bindgen(start)]` のエントリポイントにだけ使う。
+- gpui の default features は切る（`Cargo.toml` のコメントを参照）。
 - rev の更新は専用 PR で行い、gallery の目視確認と全テスト通過を条件にする。
 - 自作するもの: HCT / CAM16 / 配色スキーム、トークン、状態レイヤー合成、フォーカスリング、cubic-bezier イージング、アイコン埋め込み、密度計算、コントラスト比計算。
 - コード生成は `xtask` で行い生成物をコミットする（`build.rs` 禁止）。
@@ -69,7 +61,7 @@ wasm-bindgen = "<上流 zed と同じ要求版>"
    - 操作可能な要素はコンストラクタで `ElementId` を必須にする（a11y の安定 ID になる）。
    - アイコンのみのボタンはラベル必須: `IconButton::new(id, icon, label)`。
 1. **バリアントは enum**
-   - `ButtonStyle::{Filled, Tonal, Elevated, Outlined, Text}` など。
+   - `ButtonVariant::{Filled, Tonal, Elevated, Outlined, Text}` など。
    - `ColorRole` は全ロールを列挙し、`Scheme::color(role)` を網羅 `match` で実装する（ワイルドカード `_` 禁止）。
 1. **単位は newtype**
    - `Tone(f32)`（0〜100 に丸め）、`Hue`、`Chroma`、`Dp`。生の `f32` を公開 API に出さない。
@@ -111,62 +103,7 @@ List（高さ制限あり）・Drawer・Menu・オーバーレイ本文は `Scro
 
 GPUI の挙動で注意する点は [`gpui-notes.md`](gpui-notes.md)。
 
-## コンポーネント実装例（API 名は固定 rev で要確認）
+## 部品の形とテーマ
 
-```rust
-/// ボタンの見た目の種類。
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum ButtonStyle { #[default] Filled, Tonal, Elevated, Outlined, Text }
-
-/// MD3 のボタン。
-#[derive(IntoElement)]
-pub struct Button {
-    id: ElementId,
-    label: SharedString,
-    style: ButtonStyle,
-    leading_icon: Option<IconName>,
-    disabled: bool,
-    on_click: Option<Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>>,
-}
-
-impl Button {
-    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self { /* 既定値 */ }
-    pub fn style(mut self, style: ButtonStyle) -> Self { self.style = style; self }
-    pub fn disabled(mut self, disabled: bool) -> Self { self.disabled = disabled; self }
-}
-
-impl RenderOnce for Button {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let colors = cx.md3().button(self.style); // 状態別の色をトークンから算出
-        div()
-            .id(self.id)
-            .role(Role::Button)
-            .aria_label(self.label.clone())
-            .h(cx.md3().density().button_height())
-            .rounded_full()
-            .bg(colors.container)
-            // hover / pressed / focus は StateLayer で合成
-    }
-}
-```
-
-## テーマとフォントのカスタマイズ
-
-テーマは「シード色から生成 → 利用者が部分的に上書き」の 2 段構え。フォントはライブラリが持たない。
-
-```rust
-let theme = Theme::from_seed(Argb::from_rgb(0x67, 0x50, 0xA4))
-    .variant(SchemeVariant::TonalSpot)
-    .contrast(Contrast::Standard)
-    .appearance(Appearance::System)          // OS のライト / ダークに追従
-    .font_family("Noto Sans JP")            // 未指定ならシステムフォント
-    .type_scale(|s| s.body_large.size(px(15.)))
-    .override_color(ColorRole::Primary, Argb::from_rgb(0x00, 0x5F, 0xAF))
-    .density(Density::Compact)               // -1 相当
-    .build();
-
-cx.set_md3_theme(theme); // 以後 cx.md3() で参照、変更時は再描画
-```
-
-上書き可能な項目: シード色、スキームのバリアント、コントラスト、外観、フォントファミリ、タイプスケール、個別ロール色、密度、角丸。
-`Theme::check_contrast()` は WCAG 比を下回るロールの組を返す（開発時の警告用）。
+部品の実装は `gpui-headless` の要素に見た目を足す形にする（`headless.md`）。例は `crates/md3-components/src/buttons/button.rs`。
+テーマの作り方と上書きできる項目は [`docs/guide.md`](../guide.md) の「テーマ」。

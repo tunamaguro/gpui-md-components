@@ -5,26 +5,11 @@ description: md3-components に部品を 1 つ追加する（または既存の�
 
 # 部品を追加する
 
-正の手順は `docs/agents/component-workflow.md`。この skill はそれを実行するときのチェックリスト。
+手順は `docs/agents/component-workflow.md` の 1〜7 に従う。この skill には進め方だけを書く。
 
-1. 読む: `docs/agents/component-workflow.md`、`architecture.md`（共有部品の表）、`a11y.md`（役割とキー操作の表）、
+1. 読む: `component-workflow.md`、`headless.md`（責務の分け方）、`architecture.md`（共有部品の表）、`a11y.md`（役割とキー操作の表）、
    `gpui-notes.md`、`resources.md`（転記ルール）。
-1. 一次資料を開く: Compose の `<Component>.kt` と `tokens/<Component>Tokens.kt`
-   （androidx の `compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/`）。
-   手元に無ければ scratchpad に sparse checkout する。値は推測しない。
-1. `docs/specs/<component>.md` を `_template.md` の形式で書く。
-1. トークンを `md3-tokens` に転記し、`docs/TOKENS_SOURCE.md` に出典（ファイル・行・androidx のコミット）を足す。
-   移植したコードにはファイル先頭に Apache-2.0 の出典コメント。
-1. 実装（Codex に任せるなら skill `codex-delegate`）。確認すること:
-   - `ElementId` 必須、a11y の役割・名前・状態、APG のキー操作、無効なら Tab で止まらない
-   - 状態色は `StateLayer`、角が不揃いなら `.corners()`、フォーカスは `FocusRing`
-   - スクロール領域があれば `NestedScroll` と `Scrollbar`
-   - Compose が既定で付けているモーションは `Theme::spring` で付け、`reduce_motion` で止まる
-   - コールバックを Entity の update の中から呼ばない、押下はフォーカス喪失でも解除する
-   - 描画経路に thread / Mutex / ブロッキングがない（wasm）
-1. gallery に全バリアントの操作できる見本と disabled、該当すれば selected / error の見本を並べる。状態を固定する見本や、そのための指定は作らない。
-1. テスト: `crates/gpui-headless/tests/`（役割・名前・状態・キー操作）と `md3-components` の見た目の単体テスト。
-   既存の部品のアクセシビリティの問題を直すときは、先に問題を再現するテストを足し、失敗を確かめてから修正する。
-1. 画面で見本を操作し、hover / focused / pressed を確かめる（skill `gallery-check`）。
-1. README の部品表、`docs/guide.md`（使い方が増えたら）、`docs/agents/a11y.md` の表を更新する。
+1. 一次資料を開く: `docs/references/androidx/compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/` の
+   `<Component>.kt` と `tokens/<Component>Tokens.kt`。値は推測しない。
+1. 手順を実行する。実装を Codex に任せるなら skill `codex-delegate`、画面の確認は skill `gallery-check`。
 1. skill `ship-pr` で出す。

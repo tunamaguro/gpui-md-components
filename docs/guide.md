@@ -74,6 +74,7 @@ cx.set_reduce_motion(user_prefers_reduced_motion); // 起動時と、設定が�
   アクセシビリティが有効なときに gpui のデバッグビルドの検査で panic する（リリースビルドでは警告）。
 - 部品は値を持たない。選択・入力値・開閉は利用者が持ち、`selected(..)` などで渡して `on_change` などで受け取る。
   例外は TextField（`gpui_headless::TextFieldState` を `Entity` で持つ）と、フォーカスや一時的な表示状態（部品が内部で保持）。
+  Checkbox の値には `gpui_headless::CheckboxState` を使う。
 - 無効な部品（`.disabled(true)`）は Tab で止まらず、操作できない。
 - 見本用の `inline()` は gallery 向けで、アプリでは使わない（`#[doc(hidden)]`）。
 - gallery には各バリアントの操作できる見本と disabled、該当すれば selected / error の見本を並べる。hover / focused / pressed はマウスやキーボードで実際に操作して確かめる。
@@ -205,6 +206,7 @@ Switch は Space / Enter を押したまま Tab で移動した場合も、フ�
 - テキストフィールドの書記素の境界は簡易判定（結合文字・絵文字の ZWJ 列・国旗は扱う。依存を増やさないため
   Unicode の全規則ではない）。
 - Web ではフォントをアプリが渡す必要がある（上記）。渡したフォントに無い字は描けない（豆腐になる）。
+- Web の IME の候補ウィンドウは画面の左上に出る（gpui_web が位置の更新に対応していない）。
 - M3 Expressive は ToggleButton・ButtonGroup と、バネ・角丸の形の変化だけ。多角形の形のモーフ（`MaterialShapes`、
   LoadingIndicator）、Expressive の大きさの段階・FAB メニュー・ツールバーなどは未実装。
 - gpui は OS の「視差効果を減らす」設定を読まない。アプリが `cx.set_reduce_motion(..)` で渡す（上記）。
@@ -216,8 +218,6 @@ Switch は Space / Enter を押したまま Tab で移動した場合も、フ�
 - Linux の描画は Vulkan（wgpu）。GPU ドライバが無い環境では mesa の lavapipe（CPU 描画）で動く（遅い）。
 - Web はブラウザの WebGPU / WebGL2 に依存する。ソフトウェア描画（SwiftShader）の WebGPU では
   描画デバイスが失われることがあり、その場合は `?renderer=webgl`（gallery）で WebGL2 を使う。
-
-Checkbox の値には `gpui_headless::CheckboxState` を使います。
 
 ## 見た目を持たない操作部品
 
