@@ -1,9 +1,31 @@
 //! メニューの役割とキー操作。
 mod support;
 
-use gpui::{Role, TestAppContext, div, prelude::*};
+use gpui::{Role, TestAppContext, accesskit::HasPopup, div, prelude::*};
 use gpui_headless::{Menu, MenuItem, MenuKind};
 use std::{cell::Cell, rc::Rc};
+
+#[test]
+fn menu_kind_maps_roles_and_popup() {
+    for (kind, role, item_role, popup) in [
+        (
+            MenuKind::Actions,
+            Role::Menu,
+            Role::MenuItem,
+            HasPopup::Menu,
+        ),
+        (
+            MenuKind::Options,
+            Role::ListBox,
+            Role::ListBoxOption,
+            HasPopup::Listbox,
+        ),
+    ] {
+        assert_eq!(kind.role(), role);
+        assert_eq!(kind.item_role(), item_role);
+        assert_eq!(kind.popup(), popup);
+    }
+}
 
 #[test]
 fn menu_items_are_menuitems_in_a_set() {

@@ -10,8 +10,8 @@ use crate::{
 };
 use gpui::{
     AnchoredPositionMode, AnyElement, App, Bounds, Div, Edges, ElementId, Entity, FocusHandle,
-    IntoElement, Pixels, Role, ScrollHandle, SharedString, Stateful, Window, anchored, canvas,
-    deferred, div, prelude::*, px,
+    IntoElement, Pixels, Role, ScrollHandle, SharedString, Stateful, Window, accesskit, anchored,
+    canvas, deferred, div, prelude::*, px,
 };
 use std::rc::Rc;
 use std::sync::Arc;
@@ -64,6 +64,32 @@ pub enum MenuKind {
     Actions,
     /// 値の選択肢（`listbox` / `option`）。
     Options,
+}
+
+impl MenuKind {
+    /// メニュー本体のアクセシビリティ上の役割。
+    pub fn role(self) -> Role {
+        match self {
+            Self::Actions => Role::Menu,
+            Self::Options => Role::ListBox,
+        }
+    }
+
+    /// 項目のアクセシビリティ上の役割。
+    pub fn item_role(self) -> Role {
+        match self {
+            Self::Actions => Role::MenuItem,
+            Self::Options => Role::ListBoxOption,
+        }
+    }
+
+    /// メニューを開く要素に付けるポップアップの種類。
+    pub fn popup(self) -> accesskit::HasPopup {
+        match self {
+            Self::Actions => accesskit::HasPopup::Menu,
+            Self::Options => accesskit::HasPopup::Listbox,
+        }
+    }
 }
 
 /// 開いている間だけ描くメニュー。
@@ -235,22 +261,16 @@ impl Menu {
 
     /// アクセシビリティツリーに出す情報。
     pub fn a11y_node(&self) -> A11yNode {
-        let role = match self.kind {
-            MenuKind::Actions => Role::Menu,
-            MenuKind::Options => Role::ListBox,
-        };
-        A11yNode::new(role).with_name(&self.name)
+        A11yNode::new(self.kind.role()).with_name(&self.name)
     }
 
     /// 項目のアクセシビリティツリーに出す情報。
     pub fn item_a11y_node(&self, index: usize) -> Option<A11yNode> {
         let item = self.items.get(index)?;
-        let mut node = match self.kind {
-            MenuKind::Actions => A11yNode::new(Role::MenuItem),
-            MenuKind::Options => {
-                A11yNode::new(Role::ListBoxOption).selected(self.selected == Some(index))
-            }
-        };
+        let mut node = A11yNode::new(self.kind.item_role());
+        if self.kind == MenuKind::Options {
+            node = node.selected(self.selected == Some(index));
+        }
         if let Some(description) = &item.description {
             node = node.description(description.clone());
         }

@@ -1,7 +1,7 @@
 //! 選択肢から 1 つを選ぶ入力の開閉と操作。
 
 use crate::overlay::DismissHandler;
-use crate::{A11yExt, A11yNode, control, focus_handle};
+use crate::{A11yExt, A11yNode, MenuKind, control, focus_handle};
 use gpui::{
     App, Div, ElementId, Entity, Pixels, Role, SharedString, Stateful, Window, prelude::*, px,
 };
@@ -126,7 +126,7 @@ impl Select {
             .disabled(self.disabled)
             .invalid(self.error)
             .required(self.required)
-            .has_popup(gpui::accesskit::HasPopup::Listbox);
+            .has_popup(MenuKind::Options.popup());
         if let Some(description) = &self.description {
             node = node.description(description.clone());
         }
