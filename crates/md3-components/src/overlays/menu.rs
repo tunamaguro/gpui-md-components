@@ -183,21 +183,30 @@ impl Menu {
     }
 
     /// Select が使う（選択肢のメニュー）。
-    #[cfg_attr(not(feature = "inputs"), allow(dead_code))]
+    #[cfg_attr(
+        not(feature = "inputs"),
+        expect(dead_code, reason = "Select が使うので、`inputs` が無効だと呼ばれない")
+    )]
     pub(crate) fn kind(mut self, kind: MenuKind) -> Self {
         self.kind = kind;
         self
     }
 
     /// Select が使う（選択肢のメニュー）。
-    #[cfg_attr(not(feature = "inputs"), allow(dead_code))]
+    #[cfg_attr(
+        not(feature = "inputs"),
+        expect(dead_code, reason = "Select が使うので、`inputs` が無効だと呼ばれない")
+    )]
     pub(crate) fn selected(mut self, selected: Option<usize>) -> Self {
         self.selected = selected;
         self
     }
 
     /// Select が使う（選択肢のメニュー）。
-    #[cfg_attr(not(feature = "inputs"), allow(dead_code))]
+    #[cfg_attr(
+        not(feature = "inputs"),
+        expect(dead_code, reason = "Select が使うので、`inputs` が無効だと呼ばれない")
+    )]
     pub(crate) fn match_anchor_width(mut self) -> Self {
         self.match_anchor_width = true;
         self

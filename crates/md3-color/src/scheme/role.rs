@@ -258,13 +258,13 @@ impl ColorRole {
 /// トーン差の向き。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TonePolarity {
-    // 2021 仕様の役割では使わないが、移植元の定義に合わせて持っておく。
-    #[allow(dead_code)]
     Darker,
     Lighter,
     Nearer,
-    // 2021 仕様の役割では使わないが、移植元の定義に合わせて持っておく。
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "2021 仕様の役割では使わないが、移植元の定義に合わせて持っておく"
+    )]
     Farther,
 }
 

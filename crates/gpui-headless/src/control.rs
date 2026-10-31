@@ -46,7 +46,10 @@ pub fn control(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "内部の共通処理で、部品ごとの設定をそのまま受け取る"
+)]
 pub(crate) fn control_on(
     base: Div,
     id: &ElementId,
