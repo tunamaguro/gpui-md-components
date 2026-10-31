@@ -200,7 +200,7 @@ Switch は Space / Enter を押したまま Tab で移動した場合も、フ�
 - 文字の拡大はテーマの `.text_scale(..)` で設定する。OS の文字サイズは自動では反映されないので、アプリが読み取って渡す。
 - `md3_tooltip` のツールチップはポインタを重ねたときだけ出る。`md3_focus_tooltip`（IconButton の `.tooltip()`）はキーボードフォーカスでも出し、Esc で閉じる。どちらも同じ文を基準の要素の説明（description）に入れる。
 - TextField / Select は `.required(true)` で必須状態を伝える。見える必須表示はラベルに付ける。補助テキストは description に入り、エラー時は invalid と Status の live region で伝える。
-- Menu を開く Button / IconButton には `.menu_expanded(open)` を渡す。支援技術の開閉操作も状態に応じてクリックを実行する。Select のポップアップは Listbox として伝える。ListItem、MenuItem、Dialog の補足も description で伝える。
+- Menu を開く Button / IconButton には `.menu_expanded(open)` を渡す。支援技術の開閉操作も状態に応じてクリックを実行する。Select のポップアップは Listbox として伝える。ListItem、MenuItem、Dialog の補足も description で伝える。項目の情報は `ListItem::a11y_node(index, count)` または `Menu::item_a11y_node(index)` で取得できる。
 - 静的な `Text` をツリーに出すには `.id()` に一意で安定した ID を指定する。省略時は従来どおりツリーに出ない。
 - Dialog・モーダルな Sheet / Drawer には modal の印を付けるが、後ろの要素はツリーに残る（フォーカスとポインタは届かない）。
 - gpui はフォーカスされた要素で Enter と Space の両方をクリックとして扱うため、Checkbox / Switch は Enter でも切り替わる。

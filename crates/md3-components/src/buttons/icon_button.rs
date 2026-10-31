@@ -129,11 +129,7 @@ pub struct IconButton {
 impl IconButton {
     /// アクセシビリティ情報。
     pub fn a11y_node(&self) -> gpui_headless::A11yNode {
-        let mut node = self.behaviour().a11y_node();
-        if let Some(text) = &self.tooltip {
-            node = node.description(text.clone());
-        }
-        node
+        self.behaviour().a11y_node()
     }
 
     fn behaviour(&self) -> gpui_headless::Button {
@@ -141,6 +137,9 @@ impl IconButton {
             gpui_headless::Button::new(self.id.clone(), self.label.clone().unwrap_or_default())
                 .disabled(self.disabled)
                 .toggled(self.selected);
+        if let Some(text) = &self.tooltip {
+            button = button.description(text.clone());
+        }
         if let Some(expanded) = self.menu_expanded {
             button = button.menu_expanded(expanded);
         }

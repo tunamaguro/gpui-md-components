@@ -54,17 +54,9 @@ pub struct ListItem {
 }
 
 impl ListItem {
-    /// アクセシビリティ情報。
-    pub fn a11y_node(&self) -> gpui_headless::A11yNode {
-        let mut node = self.headless().a11y_node(0, 1);
-        let description = [self.overline.as_deref(), self.supporting_text.as_deref()]
-            .into_iter()
-            .flatten()
-            .filter(|text| !text.is_empty())
-            .collect::<Vec<_>>()
-            .join("、");
-        node = node.description(description);
-        node
+    /// アクセシビリティ情報。`index` は 0 始まり、`count` はリスト内の項目数。
+    pub fn a11y_node(&self, index: usize, count: usize) -> gpui_headless::A11yNode {
+        self.headless().a11y_node(index, count)
     }
 
     /// 見出しから作る。
@@ -142,7 +134,14 @@ impl ListItem {
     }
 
     fn headless(&self) -> gpui_headless::ListItem {
+        let description = [self.overline.as_deref(), self.supporting_text.as_deref()]
+            .into_iter()
+            .flatten()
+            .filter(|text| !text.is_empty())
+            .collect::<Vec<_>>()
+            .join("、");
         let mut item = gpui_headless::ListItem::new(self.headline.clone())
+            .description(description)
             .selected(self.selected)
             .disabled(self.disabled);
         if let Some(label) = self.aria_label.clone() {
@@ -155,7 +154,6 @@ impl ListItem {
     }
 
     fn render(self, row: ListRow, cx: &mut App) -> Stateful<Div> {
-        let description = self.a11y_node().description;
         let ListRow {
             base,
             state: control,
@@ -293,9 +291,6 @@ impl ListItem {
             });
 
         let mut item = base
-            .when_some(description, |base, description| {
-                base.aria_description(description)
-            })
             .debug_selector(|| format!("md3-list-item-{id}"))
             .w_full()
             .min_h(px(height))

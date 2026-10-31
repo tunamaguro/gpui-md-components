@@ -32,7 +32,7 @@ let popup = menu.build(window, cx, |row, _, _| {
 let popup = popup.place(|base| base.flex().flex_col());
 ```
 
-通知のビューは `SnackbarOwner` を実装して `SnackbarQueue` を保持し、`show` で表示時間付きの `SnackbarEntry` を追加します。描画前に `prepare`、`front` で現在の内容を取得し、退場後に `finish_exit` を呼びます。Tooltip は `DescribedTooltip` で同じ説明を読み上げ対象にも付けます。
+通知のビューは `SnackbarOwner` を実装して `SnackbarQueue` を保持し、`show` で表示時間付きの `SnackbarEntry` を追加します。描画前に `prepare`、`front` で現在の内容を取得し、退場後に `finish_exit` を呼びます。Button、Dialog、MenuItem、ListItem は `.description()` で補足説明を指定でき、各ノードに反映されます。Tooltip は `DescribedTooltip` で同じ説明を読み上げ対象にも付けます。
 
 ## テキストとスクロール
 

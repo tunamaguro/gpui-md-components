@@ -15,6 +15,7 @@ type Handler = Rc<dyn Fn(&mut Window, &mut App)>;
 #[derive(Clone)]
 pub struct ListItem {
     label: SharedString,
+    description: Option<SharedString>,
     aria_label: Option<Option<SharedString>>,
     selected: bool,
     disabled: bool,
@@ -25,12 +26,19 @@ impl ListItem {
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
             label: label.into(),
+            description: None,
             aria_label: None,
             selected: false,
             disabled: false,
             on_select: None,
         }
     }
+    /// 補足の説明を指定する。
+    pub fn description(mut self, description: impl Into<SharedString>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
         let label = label.into();
@@ -58,7 +66,7 @@ impl ListItem {
     }
     /// 項目のアクセシビリティ情報。
     pub fn a11y_node(&self, index: usize, count: usize) -> A11yNode {
-        A11yNode::new(Role::ListItem)
+        let mut node = A11yNode::new(Role::ListItem)
             .with_label(
                 self.aria_label
                     .clone()
@@ -66,7 +74,11 @@ impl ListItem {
             )
             .selected(self.selected)
             .position(index, count)
-            .disabled(self.disabled)
+            .disabled(self.disabled);
+        if let Some(description) = &self.description {
+            node = node.description(description.clone());
+        }
+        node
     }
 }
 /// 操作を付けた項目と描画に使う状態。

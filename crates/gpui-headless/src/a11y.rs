@@ -40,9 +40,9 @@ pub struct A11yNode {
     pub expanded: Option<bool>,
     /// 開くポップアップの種類。
     pub has_popup: Option<accesskit::HasPopup>,
-    /// 切り替えの状態（Checkbox、Switch、トグルボタン）。
+    /// 切り替えの状態（Checkbox、Switch、RadioButton、SegmentedButton、トグルボタン、選択可能な Chip）。
     pub toggled: Option<Toggled>,
-    /// 選択の状態（RadioButton、SegmentedButton の項目）。
+    /// 選択の状態（ListItem、Menu の選択肢、Tabs、Navigation の項目）。
     pub selected: Option<bool>,
     /// 範囲を持つ値。
     pub range: Option<RangeValue>,

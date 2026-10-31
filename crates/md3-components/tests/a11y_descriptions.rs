@@ -7,7 +7,7 @@ use md3_components::{
     buttons::{Button, IconButton},
     containment::ListItem,
     inputs::{Select, TextField},
-    overlays::{Dialog, MenuItem},
+    overlays::{Dialog, Menu, MenuItem},
     theme::TypeScale,
 };
 
@@ -52,33 +52,71 @@ fn list_item_description_joins_overline_and_supporting_text() {
     let node = ListItem::new("見出し")
         .overline("上書き")
         .supporting_text("補足")
-        .a11y_node();
+        .a11y_node(2, 5);
     assert_eq!(node.description.as_deref(), Some("上書き、補足"));
+    assert_eq!(node.position, Some((3, 5)));
     assert_eq!(
         ListItem::new("見出し")
             .overline("上書き")
-            .a11y_node()
+            .supporting_text("")
+            .a11y_node(0, 1)
             .description
             .as_deref(),
         Some("上書き")
     );
     assert_eq!(
         ListItem::new("見出し")
+            .overline("")
             .supporting_text("補足")
-            .a11y_node()
+            .a11y_node(0, 1)
             .description
             .as_deref(),
         Some("補足")
     );
-    assert_eq!(ListItem::new("見出し").a11y_node().description, None);
+    assert_eq!(ListItem::new("見出し").a11y_node(0, 1).description, None);
 }
 
 #[test]
 fn menu_item_exposes_trailing_text_as_description() {
-    let node = MenuItem::new("コピー")
-        .trailing_text("利用可能")
-        .a11y_node();
+    let menu = Menu::new("menu").item(MenuItem::new("コピー").trailing_text("利用可能"));
+    assert_eq!(menu.a11y_node().role, Role::Menu);
+    let node = menu.item_a11y_node(0).unwrap();
     assert_eq!(node.description.as_deref(), Some("利用可能"));
+    assert_eq!(node.role, Role::MenuItem);
+    assert_eq!(node.position, Some((1, 1)));
+    assert!(menu.item_a11y_node(1).is_none());
+}
+
+#[cfg(feature = "overlays")]
+#[test]
+fn icon_button_exposes_tooltip_description() {
+    let node = IconButton::new("button", IconName::Menu)
+        .tooltip("メニューを開く")
+        .a11y_node();
+    assert_eq!(node.description.as_deref(), Some("メニューを開く"));
+}
+
+#[test]
+fn direct_aria_descriptions_are_limited_to_focus_tooltip() {
+    // 任意の要素に付けるツールチップ以外は headless のノードを通す。
+    fn visit(dir: &std::path::Path, root: &std::path::Path, found: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                visit(&path, root, found);
+            } else if path.extension().is_some_and(|ext| ext == "rs")
+                && std::fs::read_to_string(&path)
+                    .unwrap()
+                    .contains(".aria_description(")
+            {
+                found.push(path.strip_prefix(root).unwrap().to_path_buf());
+            }
+        }
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut found = Vec::new();
+    visit(&root, &root, &mut found);
+    assert_eq!(found, [std::path::PathBuf::from("overlays/tooltip.rs")]);
 }
 
 #[gpui::test]
