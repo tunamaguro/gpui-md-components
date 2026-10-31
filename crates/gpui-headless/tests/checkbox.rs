@@ -94,3 +94,14 @@ fn checkbox_name_is_optional() {
         Some("同意")
     );
 }
+
+#[test]
+fn state_accessor_returns_each_checkbox_state() {
+    for state in [
+        gpui_headless::CheckboxState::Unchecked,
+        gpui_headless::CheckboxState::Checked,
+        gpui_headless::CheckboxState::Indeterminate,
+    ] {
+        assert_eq!(gpui_headless::Checkbox::new("c", state).state(), state);
+    }
+}

@@ -219,3 +219,50 @@ fn text_only_exposes_a_label_node_with_an_explicit_id() {
     assert_eq!(node.label.as_deref(), Some("本文"));
     assert_eq!(node.value.as_deref(), Some("本文"));
 }
+
+#[test]
+fn button_configuration_order_preserves_accessibility() {
+    let first = Button::new("b", "保存")
+        .disabled(true)
+        .aria_label("保存する")
+        .menu_expanded(true)
+        .on_click(|_, _, _| {})
+        .a11y_node();
+    let second = Button::new("b", "保存")
+        .on_click(|_, _, _| {})
+        .menu_expanded(true)
+        .aria_label("保存する")
+        .disabled(true)
+        .a11y_node();
+    assert_eq!(first, second);
+    assert!(first.disabled);
+    assert_eq!(first.expanded, Some(true));
+}
+
+#[test]
+fn icon_button_configuration_order_preserves_accessibility() {
+    let first = IconButton::new("i", IconName::Menu)
+        .disabled(true)
+        .aria_label("メニュー")
+        .selected(true)
+        .menu_expanded(false)
+        .on_click(|_, _, _| {})
+        .a11y_node();
+    let second = IconButton::new("i", IconName::Menu)
+        .on_click(|_, _, _| {})
+        .menu_expanded(false)
+        .selected(true)
+        .aria_label("メニュー")
+        .disabled(true)
+        .a11y_node();
+    assert_eq!(first, second);
+    assert!(first.disabled);
+    assert_eq!(first.label.as_deref(), Some("メニュー"));
+    assert_eq!(
+        IconButton::new("i", IconName::Menu)
+            .aria_label("")
+            .a11y_node()
+            .label,
+        None
+    );
+}

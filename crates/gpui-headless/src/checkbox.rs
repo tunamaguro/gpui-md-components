@@ -62,6 +62,11 @@ impl Checkbox {
         self
     }
 
+    /// 現在の状態を返す。
+    pub fn state(&self) -> CheckboxState {
+        self.state
+    }
+
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;

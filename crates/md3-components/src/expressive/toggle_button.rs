@@ -1,7 +1,5 @@
 //! ToggleButton（押下と選択で形が変わるトグルボタン）。
 
-use std::rc::Rc;
-
 use gpui::{
     AnimationExt, App, ClickEvent, Corners, ElementId, Entity, IntoElement, Pixels, RenderOnce,
     SharedString, SpringAnimation, Window, prelude::*, px,
@@ -19,8 +17,6 @@ use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
 
 /// 押された項目が広がる割合（Compose の `ButtonGroupDefaults.ExpandedRatio`）。
 pub(crate) const EXPANDED_RATIO: f32 = 0.15;
-
-type ChangeHandler = Rc<dyn Fn(bool, &mut Window, &mut App) + 'static>;
 
 /// ButtonGroup の中での並び（角の形と幅の変化を決める）。
 #[derive(Clone, Copy, Debug)]
@@ -49,11 +45,8 @@ pub(crate) struct GroupSlot {
 pub struct ToggleButton {
     pub(crate) id: ElementId,
     pub(crate) label: SharedString,
-    aria_label: Option<Option<SharedString>>,
+    inner: gpui_headless::Button,
     pub(crate) icon: Option<IconName>,
-    checked: bool,
-    disabled: bool,
-    on_change: Option<ChangeHandler>,
     pub(crate) press: Option<Entity<Press>>,
     pub(crate) slot: Option<GroupSlot>,
 }
@@ -61,14 +54,16 @@ pub struct ToggleButton {
 impl ToggleButton {
     /// ID とラベルから作る。
     pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
+        let id = id.into();
+        let label = label.into();
         Self {
-            id: id.into(),
-            label: label.into(),
-            aria_label: None,
+            inner: gpui_headless::Button::new(id.clone(), label.clone())
+                .toggled(Some(false))
+                .group(format!("md3-{id}"))
+                .reveal_margin(crate::focus::reveal_margin()),
+            id,
+            label,
             icon: None,
-            checked: false,
-            disabled: false,
-            on_change: None,
             press: None,
             slot: None,
         }
@@ -76,14 +71,13 @@ impl ToggleButton {
 
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self.inner = self.inner.aria_label(label);
         self
     }
 
     /// 選択中か。
     pub fn checked(mut self, checked: bool) -> Self {
-        self.checked = checked;
+        self.inner = self.inner.toggled(Some(checked));
         self
     }
 
@@ -95,13 +89,13 @@ impl ToggleButton {
 
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
-        self.disabled = disabled;
+        self.inner = self.inner.disabled(disabled);
         self
     }
 
     /// 押されたときの処理（クリック、Enter、Space）。引数は押された後の選択の状態。
     pub fn on_change(mut self, handler: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
-        self.on_change = Some(Rc::new(handler));
+        self.inner = self.inner.on_toggle(handler);
         self
     }
 
@@ -175,30 +169,41 @@ fn corners_of(inner: Pixels, full: Pixels, connected: Option<(bool, bool)>) -> C
     }
 }
 
-impl ToggleButton {
-    pub(crate) fn behaviour(&self, press: &Entity<Press>) -> gpui_headless::Button {
-        let mut behaviour = gpui_headless::Button::new(self.id.clone(), self.label.clone())
-            .toggled(Some(self.checked))
-            .disabled(self.disabled)
-            .group(format!("md3-{}", self.id))
-            .reveal_margin(crate::focus::reveal_margin());
-        if let Some(label) = self.aria_label.clone() {
-            behaviour = behaviour.aria_label(label.unwrap_or_default());
-        }
-        if let Some(on_change) = self.on_change.clone() {
-            let checked = self.checked;
-            let press = press.clone();
-            behaviour = behaviour.on_click(move |event, window, cx| {
-                if matches!(event, ClickEvent::Keyboard(_)) {
-                    let hold = super::press::hold(cx);
-                    press.update(cx, |press, cx| press.pulse(hold, cx));
-                }
-                on_change(!checked, window, cx);
-            });
-        }
-        behaviour
-    }
+pub(crate) struct ToggleButtonPaint {
+    id: ElementId,
+    label: SharedString,
+    icon: Option<IconName>,
+    slot: Option<GroupSlot>,
+    checked: bool,
+}
 
+impl ToggleButton {
+    pub(crate) fn prepare(
+        self,
+        press: &Entity<Press>,
+    ) -> (gpui_headless::Button, ToggleButtonPaint) {
+        let checked = self.inner.toggled_state().unwrap_or(false);
+        let press = press.clone();
+        let inner = self.inner.before_click(move |event, _, cx| {
+            if matches!(event, ClickEvent::Keyboard(_)) {
+                let hold = super::press::hold(cx);
+                press.update(cx, |press, cx| press.pulse(hold, cx));
+            }
+        });
+        (
+            inner,
+            ToggleButtonPaint {
+                id: self.id,
+                label: self.label,
+                icon: self.icon,
+                slot: self.slot,
+                checked,
+            },
+        )
+    }
+}
+
+impl ToggleButtonPaint {
     pub(crate) fn paint(
         self,
         base: gpui::Stateful<gpui::Div>,
@@ -206,7 +211,7 @@ impl ToggleButton {
         press: Entity<Press>,
         cx: &mut App,
     ) -> gpui::AnyElement {
-        let pressed = !self.disabled && press.read(cx).is_pressed();
+        let pressed = !control.disabled && press.read(cx).is_pressed();
         let theme = cx.md3();
         let height = theme.dense(tokens::CONTAINER_HEIGHT);
         let full = height / 2.0;
@@ -225,7 +230,7 @@ impl ToggleButton {
                 filled_button::UNSELECTED_PRESSED_LABEL_TEXT_COLOR,
             )
         };
-        let (container, content) = if self.disabled {
+        let (container, content) = if control.disabled {
             (
                 theme
                     .color(filled_button::DISABLED_CONTAINER_COLOR)
@@ -254,14 +259,14 @@ impl ToggleButton {
                 this.child(Icon::new(icon).size(px(tokens::ICON_SIZE)).tint(content))
             })
             .child(self.label.clone());
-        if !self.disabled {
+        if !control.disabled {
             button = track_press(button, &press);
         }
 
         let layer_id = ElementId::from(SharedString::from(format!("{}-layer", control.group)));
         let group = control.group.clone();
         let focus_visible = control.focus_visible;
-        let disabled = self.disabled;
+        let disabled = control.disabled;
         let shape_id = ElementId::NamedChild(std::sync::Arc::new(self.id.clone()), "shape".into());
         let shaped = button.with_spring(
             shape_id,
@@ -316,8 +321,9 @@ impl RenderOnce for ToggleButton {
             .press
             .clone()
             .unwrap_or_else(|| press_state(&self.id, window, cx));
-        let (base, state) = self.behaviour(&press).build(window, cx);
-        self.paint(base, state, press, cx)
+        let (inner, paint) = self.prepare(&press);
+        let (base, state) = inner.build(window, cx);
+        paint.paint(base, state, press, cx)
     }
 }
 

@@ -120,3 +120,13 @@ fn switch_name_is_optional() {
         Some("名前")
     );
 }
+
+#[test]
+fn selected_accessor_returns_initial_state() {
+    for selected in [false, true] {
+        assert_eq!(
+            gpui_headless::Switch::new("s", selected).is_selected(),
+            selected
+        );
+    }
+}

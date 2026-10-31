@@ -154,10 +154,6 @@ impl ChipStyle {
 /// 削除ボタンの押せる範囲。WCAG 2.5.8 の下限（24 × 24 CSS px）。
 const REMOVE_TARGET_SIZE: f32 = 24.0;
 
-type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
-type RemoveHandler = Box<dyn Fn(&mut Window, &mut App) + 'static>;
-type SharedRemoveHandler = std::rc::Rc<dyn Fn(&mut Window, &mut App) + 'static>;
-
 /// チップ。
 ///
 /// Filter は押すたびに `on_click` で選択状態を反転させる（呼び出し側が状態を持つ）。
@@ -167,54 +163,43 @@ pub struct Chip {
     id: ElementId,
     kind: ChipKind,
     label: SharedString,
-    aria_label: Option<Option<SharedString>>,
+    inner: gpui_headless::Chip,
     icon: Option<IconName>,
-    selected: bool,
     elevated: bool,
-    disabled: bool,
-    on_click: Option<ClickHandler>,
-    on_remove: Option<RemoveHandler>,
-    remove_label: Option<SharedString>,
 }
 
 impl Chip {
     /// ID、種類、ラベルから作る。
     pub fn new(id: impl Into<ElementId>, kind: ChipKind, label: impl Into<SharedString>) -> Self {
+        let id = id.into();
+        let label = label.into();
         Self {
-            id: id.into(),
+            inner: gpui_headless::Chip::new(id.clone(), label.clone())
+                .selection(false, kind == ChipKind::Filter)
+                .group(format!("md3-{id}"))
+                .reveal_margin(crate::focus::reveal_margin()),
+            id,
             kind,
-            label: label.into(),
-            aria_label: None,
+            label,
             icon: None,
-            selected: false,
             elevated: false,
-            disabled: false,
-            on_click: None,
-            on_remove: None,
-            remove_label: None,
         }
     }
 
     /// 削除ボタンの読み上げる名前を指定する（Input）。
     pub fn remove_label(mut self, label: impl Into<SharedString>) -> Self {
-        self.remove_label = Some(label.into());
+        self.inner = self.inner.remove_label(label);
         self
     }
 
     /// 削除ボタンのアクセシビリティ情報。
     pub fn remove_a11y_node(&self) -> gpui_headless::A11yNode {
-        let mut chip =
-            gpui_headless::Chip::new(self.id.clone(), self.label.clone()).disabled(self.disabled);
-        if let Some(label) = self.remove_label.clone() {
-            chip = chip.remove_label(label);
-        }
-        chip.remove_a11y_node()
+        self.inner.remove_a11y_node()
     }
 
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.aria_label = Some((!label.is_empty()).then_some(label));
+        self.inner = self.inner.aria_label(label);
         self
     }
 
@@ -226,7 +211,9 @@ impl Chip {
 
     /// 選択状態（Filter、Input）。
     pub fn selected(mut self, selected: bool) -> Self {
-        self.selected = selected;
+        self.inner = self
+            .inner
+            .selection(selected, self.kind == ChipKind::Filter);
         self
     }
 
@@ -238,7 +225,7 @@ impl Chip {
 
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
-        self.disabled = disabled;
+        self.inner = self.inner.disabled(disabled);
         self
     }
 
@@ -247,43 +234,27 @@ impl Chip {
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.on_click = Some(Box::new(handler));
+        self.inner = self.inner.on_click(handler);
         self
     }
 
     /// 削除されたときの処理（Input）。
     pub fn on_remove(mut self, handler: impl Fn(&mut Window, &mut App) + 'static) -> Self {
-        self.on_remove = Some(Box::new(handler));
+        self.inner = self.inner.on_remove(handler);
         self
     }
 }
 
 impl RenderOnce for Chip {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let remove_node = self.remove_a11y_node();
-        let on_remove: Option<SharedRemoveHandler> = self
-            .on_remove
-            .filter(|_| !self.disabled)
-            .map(std::rc::Rc::from);
-        let mut behaviour = gpui_headless::Chip::new(self.id.clone(), self.label.clone())
-            .selected((self.kind == ChipKind::Filter).then_some(self.selected))
-            .disabled(self.disabled)
-            .group(format!("md3-{}", self.id))
-            .reveal_margin(crate::focus::reveal_margin());
-        if let Some(label) = self.aria_label {
-            behaviour = behaviour.aria_label(label.unwrap_or_default());
-        }
-        if let Some(handler) = self.on_click {
-            behaviour = behaviour.on_click(handler);
-        }
-        if let Some(handler) = on_remove.clone() {
-            behaviour = behaviour.on_remove(move |window, cx| handler(window, cx));
-        }
-        let (base, control) = behaviour.build(window, cx);
+        let remove_node = self.inner.remove_a11y_node();
+        let on_remove = self.inner.remove_handler();
+        let selected = self.inner.is_selected();
+        let (base, control) = self.inner.build(window, cx);
         let theme = cx.md3();
-        let style = ChipStyle::of(self.kind, self.selected, self.elevated);
+        let style = ChipStyle::of(self.kind, selected, self.elevated);
         let radius = theme.corner(assist_chip::CONTAINER_SHAPE);
-        let disabled = self.disabled;
+        let disabled = control.disabled;
         let tinted = |role: ColorRole, opacity: f32| {
             if disabled {
                 theme
@@ -296,7 +267,7 @@ impl RenderOnce for Chip {
         let label_color = tinted(style.label, assist_chip::DISABLED_LABEL_TEXT_OPACITY);
         let leading_color = tinted(style.leading_icon, assist_chip::DISABLED_ICON_OPACITY);
         let trailing_color = tinted(style.trailing_icon, assist_chip::DISABLED_ICON_OPACITY);
-        let leading = if self.kind == ChipKind::Filter && self.selected {
+        let leading = if self.kind == ChipKind::Filter && selected {
             Some(IconName::Check)
         } else {
             self.icon

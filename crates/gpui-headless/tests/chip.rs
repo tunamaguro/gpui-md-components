@@ -80,3 +80,45 @@ fn remove_control_name_is_optional_and_follows_disabled() {
     let empty = Chip::new("tag", "rust").remove_label("").remove_a11y_node();
     assert_eq!(empty.label, None);
 }
+
+#[test]
+fn selection_and_remove_handler_preserve_state_and_disabled_order() {
+    use gpui::Role;
+    for selected in [false, true] {
+        for selectable in [false, true] {
+            let chip = gpui_headless::Chip::new("c", "chip").selection(selected, selectable);
+            assert_eq!(chip.is_selected(), selected);
+            assert_eq!(
+                chip.a11y_node().role,
+                if selectable {
+                    Role::CheckBox
+                } else {
+                    Role::Button
+                }
+            );
+        }
+    }
+    let handler = |_: &mut gpui::Window, _: &mut gpui::App| {};
+    assert!(
+        gpui_headless::Chip::new("c", "")
+            .disabled(true)
+            .on_remove(handler)
+            .remove_handler()
+            .is_none()
+    );
+    assert!(
+        gpui_headless::Chip::new("c", "")
+            .on_remove(handler)
+            .disabled(true)
+            .remove_handler()
+            .is_none()
+    );
+    assert!(
+        gpui_headless::Chip::new("c", "")
+            .disabled(true)
+            .on_remove(handler)
+            .disabled(false)
+            .remove_handler()
+            .is_some()
+    );
+}

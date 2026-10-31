@@ -59,6 +59,11 @@ impl Switch {
         self
     }
 
+    /// 現在の状態を返す。
+    pub fn is_selected(&self) -> bool {
+        self.selected
+    }
+
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;

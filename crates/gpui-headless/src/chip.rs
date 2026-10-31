@@ -14,7 +14,8 @@ pub struct Chip {
     id: ElementId,
     label: SharedString,
     aria_label: Option<Option<SharedString>>,
-    selected: Option<bool>,
+    selected: bool,
+    selectable: bool,
     disabled: bool,
     on_click: Option<ClickHandler>,
     on_remove: Option<RemoveHandler>,
@@ -31,7 +32,8 @@ impl Chip {
             id,
             label: label.into(),
             aria_label: None,
-            selected: None,
+            selected: false,
+            selectable: false,
             disabled: false,
             on_click: None,
             on_remove: None,
@@ -48,8 +50,23 @@ impl Chip {
 
     /// チェックボックスとして扱い、選択状態を指定する。
     pub fn selected(mut self, selected: Option<bool>) -> Self {
-        self.selected = selected;
+        self.selected = selected.unwrap_or(false);
+        self.selectable = selected.is_some();
         self
+    }
+    /// 選択状態と、チェックボックスとして公開するかを指定する。
+    pub fn selection(mut self, selected: bool, selectable: bool) -> Self {
+        self.selected = selected;
+        self.selectable = selectable;
+        self
+    }
+    /// 選択状態を返す。
+    pub fn is_selected(&self) -> bool {
+        self.selected
+    }
+    /// 有効な削除処理を返す。
+    pub fn remove_handler(&self) -> Option<RemoveHandler> {
+        self.on_remove.as_ref().filter(|_| !self.disabled).cloned()
     }
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
@@ -93,9 +110,10 @@ impl Chip {
     }
     /// アクセシビリティツリーに出す情報。
     pub fn a11y_node(&self) -> A11yNode {
-        let node = match self.selected {
-            Some(value) => A11yNode::new(Role::CheckBox).toggled(toggled(value)),
-            None => A11yNode::new(Role::Button),
+        let node = if self.selectable {
+            A11yNode::new(Role::CheckBox).toggled(toggled(self.selected))
+        } else {
+            A11yNode::new(Role::Button)
         };
         node.with_label(
             self.aria_label

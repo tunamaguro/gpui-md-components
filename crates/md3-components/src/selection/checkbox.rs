@@ -54,36 +54,28 @@ impl CheckboxColors {
     }
 }
 
-type ChangeHandler = Box<dyn Fn(CheckboxState, &mut Window, &mut App) + 'static>;
-
 /// チェックボックス。見える文字は呼び出し側で隣に置く。
 #[derive(IntoElement)]
 pub struct Checkbox {
-    id: ElementId,
-    state: CheckboxState,
-    label: Option<SharedString>,
+    inner: gpui_headless::Checkbox,
     error: bool,
-    disabled: bool,
-    on_change: Option<ChangeHandler>,
 }
 
 impl Checkbox {
     /// ID と状態から作る。
     pub fn new(id: impl Into<ElementId>, state: CheckboxState) -> Self {
+        let id = id.into();
         Self {
-            id: id.into(),
-            state,
-            label: None,
+            inner: gpui_headless::Checkbox::new(id.clone(), state)
+                .group(format!("md3-{id}"))
+                .reveal_margin(crate::focus::reveal_margin()),
             error: false,
-            disabled: false,
-            on_change: None,
         }
     }
 
     /// 読み上げる名前を指定する。表示文字を優先し、表示ラベルがある場合は名前に含める（WCAG 2.5.3）。
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
-        let label = label.into();
-        self.label = (!label.is_empty()).then_some(label);
+        self.inner = self.inner.aria_label(label);
         self
     }
 
@@ -95,7 +87,7 @@ impl Checkbox {
 
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
-        self.disabled = disabled;
+        self.inner = self.inner.disabled(disabled);
         self
     }
 
@@ -104,26 +96,17 @@ impl Checkbox {
         mut self,
         handler: impl Fn(CheckboxState, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.on_change = Some(Box::new(handler));
+        self.inner = self.inner.on_change(handler);
         self
     }
 }
 
 impl RenderOnce for Checkbox {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut headless = gpui_headless::Checkbox::new(self.id.clone(), self.state)
-            .disabled(self.disabled)
-            .group(format!("md3-{}", self.id))
-            .reveal_margin(crate::focus::reveal_margin());
-        if let Some(label) = self.label {
-            headless = headless.aria_label(label);
-        }
-        if let Some(handler) = self.on_change {
-            headless = headless.on_change(handler);
-        }
-        let (base, control) = headless.build(window, cx);
+        let checked_state = self.inner.state();
+        let (base, control) = self.inner.build(window, cx);
         let theme = cx.md3();
-        let colors = CheckboxColors::of(self.state, self.error);
+        let colors = CheckboxColors::of(checked_state, self.error);
         let radius = theme.corner(tokens::STATE_LAYER_SHAPE);
         let box_radius = match tokens::CONTAINER_SHAPE {
             md3_theme::md3_tokens::shape::CornerSize::Fixed(r) => CornerRadius::Fixed(px(r)),
@@ -137,13 +120,13 @@ impl RenderOnce for Checkbox {
             .items_center()
             .justify_center()
             .corner_radius(box_radius);
-        let icon_color = if self.disabled {
+        let icon_color = if control.disabled {
             theme.color(tokens::SELECTED_DISABLED_ICON_COLOR)
         } else {
             theme.color(colors.icon)
         };
         if let Some(container) = colors.container {
-            mark = mark.bg(if self.disabled {
+            mark = mark.bg(if control.disabled {
                 theme
                     .color(tokens::SELECTED_DISABLED_CONTAINER_COLOR)
                     .opacity(tokens::SELECTED_DISABLED_CONTAINER_OPACITY)
@@ -152,7 +135,7 @@ impl RenderOnce for Checkbox {
             });
         }
         if let Some(outline) = colors.outline {
-            let color = if self.disabled {
+            let color = if control.disabled {
                 theme
                     .color(tokens::UNSELECTED_DISABLED_OUTLINE_COLOR)
                     .opacity(tokens::UNSELECTED_DISABLED_CONTAINER_OPACITY)
@@ -162,12 +145,12 @@ impl RenderOnce for Checkbox {
             mark = mark
                 .border(px(tokens::UNSELECTED_OUTLINE_WIDTH))
                 .border_color(color);
-            if let (false, Some(hovered)) = (self.disabled, colors.hovered_outline) {
+            if let (false, Some(hovered)) = (control.disabled, colors.hovered_outline) {
                 let hovered = theme.color(hovered);
                 mark = mark.group_hover(control.group.clone(), move |s| s.border_color(hovered));
             }
         }
-        mark = match self.state {
+        mark = match checked_state {
             CheckboxState::Checked => mark.child(
                 Icon::new(IconName::Check)
                     .size(px(tokens::ICON_SIZE))
@@ -197,7 +180,7 @@ impl RenderOnce for Checkbox {
                 )
                 .radius(radius)
                 .focused(control.focus_visible)
-                .disabled(self.disabled),
+                .disabled(control.disabled),
             )
             .child(FocusRing::new(radius).visible(control.focus_visible))
     }
