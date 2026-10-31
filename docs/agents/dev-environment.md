@@ -47,28 +47,20 @@ nix develop -c bash -c '
 ## PR の進め方
 
 - 1 つの作業のまとまり（部品 1 つ、修正のまとまり）= 1 ブランチ = 1 PR。main に直接 push しない。
-- CI が緑になったら squash merge する（人間の確認は待たない運用）。ただし v1.0 のタグ付けは人間に確認する（Web 版は main へのマージで自動的に GitHub Pages に出る）。
-- コミットの末尾: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`。
-  PR 本文の末尾: `🤖 Generated with [Claude Code](https://claude.com/claude-code)`。
-- 手順は skill `ship-pr`（`.agents/skills/ship-pr/`）。
+- レビューが終わり、CI が緑になったら squash merge する（人間の確認は待たない運用）。ただし v1.0 のタグ付けは人間に確認する（Web 版は main へのマージで自動的に GitHub Pages に出る）。
+- 手順は skill `ship-pr`。
 
 ## Codex との分担
 
 計画とレビュー・確認は Claude、実装は Codex に任せる運用をしている（skill `codex-delegate`）。
 
-- モデルは `gpt-6.1-sol`、reasoning effort は `xhigh`:
-  `codex exec -m gpt-6.1-sol -c model_reasoning_effort='"xhigh"' -s workspace-write -C . -`
-  （review は `-m` を取らないので `-c model='"gpt-6.1-sol"'`）。
+- モデルとコマンドは skill `codex-delegate`。
 - Codex の sandbox からは Nix daemon に繋がらない。**`nix develop -c` の中で codex を起動する**と、
   Codex が cargo を直接実行できる。プロンプトにも「nix develop を呼ばず cargo を直接使う」と書く。
 - sandbox からは Wayland に繋がらず、Codex は gallery を目視できない。画面の確認は Claude が行う（skill `gallery-check`）。
-- 実装後は `codex review --uncommitted` でレビューさせ、指摘を Codex に直させて再レビューする。
-- Codex には使用量の上限がある。上限に達したら、回復時刻まで待つか、残りを Claude が行い PR に明記する。
+- 実装後は Codex にレビューさせ、指摘を Codex に直させて再レビューする。**レビューの完了を待ってからマージする**（skill `ship-pr`）。
+- Codex には使用量の上限がある。上限に達したら、回復時刻まで待つか、残りを Claude が行い PR に明記する。レビューはサブエージェントに任せる。
 
-## 画面の確認（Linux / WSL）
+## 画面の確認
 
-- gallery は X11 で起動して xdotool で操作し、xwd + ImageMagick で撮る。手順とスクリプトは skill `gallery-check`。
-- 道具は nixpkgs から一時的に取る: `nix shell nixpkgs#xdotool nixpkgs#xwd nixpkgs#imagemagick`。
-- lavapipe（CPU 描画）は遅いので、フェードなど時間で変わる表示は操作の直後に撮る。
-- a11y ツリーは `nix develop -c tools/a11y-tree/run.sh <出力先> [ページ...]`（第 1 引数は出力先）。
-- `pkill -f` はコマンド行に同じ文字列を含む自分のシェルも殺す。gallery は `pkill -x gallery` で止める。
+手順とスクリプトは skill `gallery-check`。

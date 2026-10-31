@@ -6,7 +6,7 @@ description: gallery（見本アプリ）を Linux の X11 で起動し、xdotoo
 # gallery で見た目と動きを確かめる
 
 Codex の sandbox は Wayland に繋がらないので、画面の確認はこの skill で Claude が行う。
-背景は `docs/agents/dev-environment.md` の「画面の確認」、GPUI の癖は `docs/agents/gpui-notes.md`。
+GPUI の癖は `docs/agents/gpui-notes.md`。
 
 ## 手順
 
