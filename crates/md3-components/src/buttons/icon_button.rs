@@ -167,6 +167,13 @@ impl IconButton {
         self
     }
 
+    /// Tab で止まるかを指定する。
+    #[cfg(feature = "containment")]
+    pub(crate) fn tab_stop(mut self, tab_stop: bool) -> Self {
+        self.inner = self.inner.tab_stop(tab_stop);
+        self
+    }
+
     /// 押されたときの処理。トグルなら、呼び出し側で選択状態を反転する。
     pub fn on_click(
         mut self,

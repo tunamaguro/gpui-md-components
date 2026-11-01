@@ -11,6 +11,7 @@
 
 ## 判断の記録
 
+- ListAction は新しいトークン値を転記せず、操作の手前の余白に既存の `layout::LIST_ITEM_TRAILING_START_SPACE`（16dp、`ListItem.kt` L1289 `TrailingContentStartPadding`）を再利用する。Standard IconButton は既存の `SmallIconButtonTokens.kt` の高さ 40dp・アイコン 24dp・角 Full と、`IconButtonTokens.kt` の通常 / 未選択 OnSurfaceVariant・選択 Primary・無効 OnSurface / 0.38 を使う（すべて androidx@b8256a52、下表に出典あり）。
 - 数値は Compose を正とする（`docs/agents/resources.md`）。状態レイヤーの不透明度（hover 0.08 / focus 0.1 / pressed 0.1 / dragged 0.16）は material-web の `_md-sys-state.scss` とも一致することを確認した。
 - タイプスケールは基本の 15 種だけを転記し、Expressive 用の `*Emphasized*` は含めない。
 - 無効状態のコンテナの不透明度はコンポーネントごとに違う（0.1 / 0.12 など）ので、共通のトークンにはしない。内容（文字・アイコン）の 0.38 は全コンポーネントで共通で、material-web の `md.sys.state.disabled.state-layer-opacity` と同じ値。
