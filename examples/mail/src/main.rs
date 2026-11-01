@@ -22,7 +22,7 @@ use md3_components::inputs::{SearchBar, TextFieldState};
 use md3_components::navigation::{NavigationItem, NavigationSuite, TopAppBar};
 use md3_components::overlays::{Menu, MenuItem, SnackbarHost, SnackbarMessage};
 use md3_components::scrollbar::ScrollArea;
-use md3_components::selection::{Chip, ChipKind, Switch};
+use md3_components::selection::{Badge, Chip, ChipKind, Switch};
 use md3_components::theme::md3_color::ColorRole;
 use md3_components::theme::{self, Appearance, Md3ThemeExt, SetMd3ThemeExt, TypeScale};
 use md3_components::{IconName, StyledExt, Text, WindowSizeClass};
@@ -135,8 +135,16 @@ impl Render for MailView {
             .mail
             .filtered(Some(Folder::Inbox), "", true, false)
             .len();
+        let inbox = NavigationItem::new(IconName::Inbox, "Inbox");
+        let inbox = if unread_count > 0 {
+            inbox
+                .badge(Badge::new(unread_count.to_string()))
+                .badge_description(format!("{unread_count} unread"))
+        } else {
+            inbox
+        };
         let items = [
-            NavigationItem::new(IconName::Inbox, format!("Inbox ({unread_count})")),
+            inbox,
             NavigationItem::new(IconName::Star, "Starred"),
             NavigationItem::new(IconName::Send, "Sent"),
             NavigationItem::new(IconName::Delete, "Trash"),

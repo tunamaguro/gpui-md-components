@@ -16,6 +16,7 @@ use md3_theme::md3_tokens::{layout, state};
 use md3_theme::{Md3ThemeExt, MotionToken, Theme};
 
 use super::item::{ChangeHandler, NavigationItem, navigation};
+use crate::selection::BadgedBox;
 use crate::{FocusRing, Icon, StateLayer, StyledExt};
 
 /// 縦に積む項目の寸法と色。
@@ -86,6 +87,13 @@ fn vertical_item(
                 element.map_element(|element| element.opacity(opacity.clamp(0.0, 1.0)))
             },
         );
+    let icon = Icon::new(item.icon)
+        .size(px(style.icon_size))
+        .tint(disabled(icon_role));
+    let icon = match &item.badge {
+        Some(badge) => BadgedBox::new(icon, badge.clone()).into_any_element(),
+        None => icon.into_any_element(),
+    };
     let indicator = div()
         .relative()
         .flex_none()
@@ -97,11 +105,6 @@ fn vertical_item(
         .corner_radius(pill)
         .child(background)
         .child(
-            Icon::new(item.icon)
-                .size(px(style.icon_size))
-                .tint(disabled(icon_role)),
-        )
-        .child(
             StateLayer::new(
                 SharedString::from(format!("{}-layer", control.group)),
                 control.group.clone(),
@@ -111,7 +114,9 @@ fn vertical_item(
             .focused(control.focus_visible)
             .disabled(item.disabled),
         )
-        .child(FocusRing::new(pill).visible(control.focus_visible));
+        .child(FocusRing::new(pill).visible(control.focus_visible))
+        // バッジがリングに隠れないように前面に描く。
+        .child(icon);
     base.flex()
         .flex_col()
         .items_center()

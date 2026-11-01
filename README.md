@@ -32,7 +32,7 @@ Material Design 3（ベースライン）の UI 部品集。Windows / macOS / Li
 | feature       | 部品                                                                                                 |
 | ------------- | ---------------------------------------------------------------------------------------------------- |
 | `buttons`     | Button（5 種）、IconButton、FAB / ExtendedFAB、SegmentedButton                                       |
-| `selection`   | Checkbox、RadioButton、Switch、Chip（4 種）、Slider、Progress（線形 / 円形）、Badge                  |
+| `selection`   | Checkbox、RadioButton、Switch、Chip（4 種）、Slider、Progress（線形 / 円形）、Badge / BadgedBox      |
 | `inputs`      | TextField（Filled / Outlined、IME 対応、複数行）、Select、SearchBar                                  |
 | `overlays`    | Menu、Dialog、Tooltip、Snackbar、BottomSheet / SideSheet                                             |
 | `navigation`  | TopAppBar（4 種）、NavigationBar / Rail / Drawer、NavigationSuite、Tabs                              |

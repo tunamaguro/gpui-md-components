@@ -28,11 +28,11 @@
 
 ## 振る舞い
 
-- 操作できない。重ねる位置は呼び出し側が決める。
+- 操作できない。`BadgedBox::new(anchor, badge)` はアンカーの大きさを変えず右上に重ねる。文字付きは横 12dp・縦 14dp、点は横・縦 6dp 重なる。
 
 ## アクセシビリティ
 
-- 役割: なし（ツリーに出ない）。件数は重ねる先の要素のラベルに含めること。
+- 役割: なし（ツリーに出ない）。件数は重ねる先の要素のラベルなどに含めること。`NavigationItem::badge` は文字または `badge_description` を項目の説明に渡す。
 
 ## デスクトップ向け調整（密度など）
 
@@ -40,5 +40,6 @@
 
 ## 既知の制限・仕様からの逸脱
 
-- Compose の `BadgedBox`（アンカーへの自動配置）は未実装。
+- Compose の `BadgeEndRuler` / `BadgeTopRuler` による画面端からのはみ出し防止は未実装。NavigationBar では Text scale 200% の文字付きバッジがバーの上端から 2px ほどはみ出す。
+- `BadgedBox` のアンカーは自身の大きさが決まる要素に限る。`.w_full()` のように親に対する割合で幅を決める要素は幅が 0 になる（Compose の `fillMaxWidth` は親の制約を受け取るので広がる）。
 - 無効は AccessKit の disabled としてツリーに出し、Tab でも止まらない。ただし Linux（AT-SPI）では役割によって無効が伝わらない（[`docs/a11y-audit.md`](../a11y-audit.md)）。

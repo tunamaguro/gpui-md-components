@@ -1,7 +1,7 @@
 //! 行き先の状態とキー操作。
 mod support;
 use gpui::{Role, TestAppContext, prelude::*, px};
-use gpui_headless::Navigation;
+use gpui_headless::{Navigation, NavigationOption};
 use std::{cell::Cell, rc::Rc};
 
 #[gpui::test]
@@ -64,4 +64,19 @@ fn items_expose_position_selection_and_disabled_state() {
     let second = nav.item_a11y_node(1).expect("item");
     assert!(second.disabled);
     assert_eq!(second.selected, Some(false));
+}
+
+#[test]
+fn item_description_is_optional() {
+    let nav = Navigation::new("n")
+        .destination(NavigationOption::new("受信", false).description("未読 3 件"))
+        .item("設定", false);
+    assert_eq!(
+        nav.item_a11y_node(0)
+            .expect("項目がある")
+            .description
+            .as_deref(),
+        Some("未読 3 件")
+    );
+    assert_eq!(nav.item_a11y_node(1).expect("項目がある").description, None);
 }

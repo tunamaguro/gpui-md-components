@@ -35,8 +35,8 @@ selection = []
 inputs = ["overlays"]
 # Menu, Dialog, Tooltip, Snackbar, Sheet。Dialog などはボタンを使う
 overlays = ["buttons"]
-# TopAppBar, NavigationBar / Rail / Drawer, Tabs。アプリバーはアイコンボタン、モーダルなドロワーはオーバーレイを使う
-navigation = ["overlays"]
+# TopAppBar, NavigationBar / Rail / Drawer, Tabs。アプリバーはアイコンボタン、モーダルなドロワーはオーバーレイ、項目はバッジを使う
+navigation = ["overlays", "selection"]
 # List, Card, Divider
 containment = []
 # M3 Expressive の ToggleButton, ButtonGroup

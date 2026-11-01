@@ -8,7 +8,7 @@ mod radio_button;
 mod slider;
 mod switch;
 
-pub use badge::Badge;
+pub use badge::{Badge, BadgedBox};
 pub use checkbox::{Checkbox, CheckboxState};
 pub use chip::{Chip, ChipKind};
 pub use progress::{CircularProgress, LinearProgress};
