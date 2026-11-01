@@ -42,11 +42,15 @@
 
 - NavigationSuite は既定でウィンドウの幅（`WindowSizeClass::of`）から形を選ぶ。`.layout()` で固定できる。
 
+- バッジは Bar / Rail ではアイコンの右上に重ね、Drawer ではラベルの後ろに 12dp 空けて置く。Drawer の文字はラベルと同じ色で Label Large、点は通常の Badge を使う。
+
 ## アクセシビリティ
 
 - 役割: Navigation（Modal の Drawer は Dialog）。項目は Tab（selected、位置）
 
 - 名前: 並びは任意の `.aria_label()`、項目は表示ラベルが既定で `.aria_label()` で上書き可能
+
+- バッジの文字は項目の description に入り、`badge_description` があれば優先する。点には読み上げ用の説明を付ける。項目の名前は変わらない。
 
 - Drawer の項目がスクロールするときは、フォーカスが移った項目（キーボードによる矢印・Tab・初期フォーカス）は、スクロール領域の見える範囲に最小の量だけ動かして入れる（WCAG 2.2 の 2.4.11 Focus Not Obscured）
 
@@ -54,7 +58,7 @@
 
 ## 既知の制限・仕様からの逸脱
 
-- バッジ、選択中のアイコンの差し替え（塗りのアイコン）は未実装。
+- 選択中のアイコンの差し替え（塗りのアイコン）は未実装。
 - Expanded の幅で Compose の `NavigationSuiteScaffold` は既定で Rail を選ぶが、このライブラリの方針（compact / medium / expanded 以上で切り替え）に合わせて Drawer にした。
 - Rail の展開（expanded rail）、Drawer の見出し（セクション）、ドラッグで開閉する操作、開閉のアニメーションは未実装。
 

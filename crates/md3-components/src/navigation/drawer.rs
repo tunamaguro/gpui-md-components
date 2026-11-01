@@ -1,3 +1,6 @@
+// Ported from Jetpack Compose (https://android.googlesource.com/platform/frameworks/support)
+// Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/NavigationDrawer.kt @ b8256a52
+// Copyright 2021 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //! NavigationDrawer（Standard / Modal）。
 
 use std::rc::Rc;
@@ -165,6 +168,21 @@ impl RenderOnce for NavigationDrawer {
                         .text_color(color(label_role))
                         .child(source.label.clone()),
                 )
+                .when_some(source.badge.as_ref(), |this, badge| {
+                    this.child(
+                        div()
+                            .ml(px(layout::NAVIGATION_DRAWER_ITEM_BADGE_SPACE
+                                - layout::NAVIGATION_DRAWER_ITEM_ICON_SPACE))
+                            .child(match badge.label() {
+                                Some(label) => div()
+                                    .type_style(&theme.text_style(tokens::LARGE_BADGE_LABEL_FONT))
+                                    .text_color(color(label_role))
+                                    .child(label.clone())
+                                    .into_any_element(),
+                                None => badge.clone().into_any_element(),
+                            }),
+                    )
+                })
                 .child(
                     StateLayer::new(
                         SharedString::from(format!("{}-layer", control.group)),

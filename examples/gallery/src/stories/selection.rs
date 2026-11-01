@@ -4,7 +4,8 @@ use md3_components::selection::CheckboxState;
 
 use gpui::{App, IntoElement, WeakEntity, Window, div, prelude::*, px};
 use md3_components::selection::{
-    Badge, Checkbox, Chip, ChipKind, CircularProgress, LinearProgress, RadioGroup, Slider, Switch,
+    Badge, BadgedBox, Checkbox, Chip, ChipKind, CircularProgress, LinearProgress, RadioGroup,
+    Slider, Switch,
 };
 use md3_components::theme::TypeScale;
 use md3_components::{Icon, IconName, Text};
@@ -302,9 +303,5 @@ fn slider_row(label: &'static str, slider: Slider, value: String) -> impl IntoEl
 
 /// アイコンの右上にバッジを重ねる。
 fn badged(badge: Badge) -> impl IntoElement {
-    div()
-        .relative()
-        .size(px(24.0))
-        .child(Icon::new(IconName::Home))
-        .child(div().absolute().top(px(-4.0)).left(px(14.0)).child(badge))
+    BadgedBox::new(Icon::new(IconName::Home), badge)
 }

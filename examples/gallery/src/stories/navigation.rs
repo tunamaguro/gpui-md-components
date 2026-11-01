@@ -9,6 +9,7 @@ use md3_components::navigation::{
     NavigationBar, NavigationDrawer, NavigationDrawerKind, NavigationItem, NavigationRail,
     NavigationSuite, NavigationSuiteType, Tab, Tabs, TabsVariant, TopAppBar, TopAppBarVariant,
 };
+use md3_components::selection::Badge;
 use md3_components::theme::md3_color::ColorRole;
 use md3_components::theme::{Md3ThemeExt, TypeScale};
 use md3_components::{IconName, Text, WindowSizeClass};
@@ -47,9 +48,13 @@ fn frame(width: f32, height: f32, cx: &App, child: impl IntoElement) -> AnyEleme
 /// 見本の行き先。
 fn destinations() -> [NavigationItem; 4] {
     [
-        NavigationItem::new(IconName::Inbox, "受信トレイ"),
+        NavigationItem::new(IconName::Inbox, "受信トレイ")
+            .badge(Badge::new("3"))
+            .badge_description("未読 3 件"),
         NavigationItem::new(IconName::Send, "送信済み"),
-        NavigationItem::new(IconName::Favorite, "お気に入り"),
+        NavigationItem::new(IconName::Favorite, "お気に入り")
+            .badge(Badge::dot())
+            .badge_description("新着あり"),
         NavigationItem::new(IconName::Settings, "設定").disabled(true),
     ]
 }

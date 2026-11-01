@@ -1,6 +1,7 @@
 // Ported from Jetpack Compose (https://android.googlesource.com/platform/frameworks/support)
 // Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/SnackbarHost.kt (SNACKBAR_ENTER_SCALE) @ b8256a52
 // Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/Scaffold.kt (FabSpacing) @ 2a941dd11aa
+// Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/{Badge,NavigationDrawer}.kt @ b8256a52
 // Copyright 2021 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 // Copyright 2020 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //! コンポーネントの配置の値のうち、Compose の tokens ではなく部品の実装（`*Defaults` など）にあるもの。
@@ -60,6 +61,15 @@ pub const SLIDER_TRACK_INSIDE_CORNER: f32 = 2.0;
 
 /// 文字付きバッジの左右の余白（`BadgeWithContentHorizontalPadding`）。
 pub const BADGE_HORIZONTAL_SPACE: f32 = 4.0;
+
+/// 文字付きバッジの横方向の重なり。
+pub const BADGE_WITH_CONTENT_HORIZONTAL_OFFSET: f32 = 12.0;
+/// 文字付きバッジの縦方向の重なり。
+pub const BADGE_WITH_CONTENT_VERTICAL_OFFSET: f32 = 14.0;
+/// 点のバッジの横・縦方向の重なり。
+pub const BADGE_OFFSET: f32 = 6.0;
+/// ドロワーのラベルとバッジの間隔。
+pub const NAVIGATION_DRAWER_ITEM_BADGE_SPACE: f32 = 12.0;
 
 /// 線の不定アニメーションの 1 周の時間（ミリ秒、`LinearAnimationDuration`）。
 pub const LINEAR_PROGRESS_ANIMATION_DURATION: u64 = 1750;

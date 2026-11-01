@@ -13,6 +13,7 @@ type ChangeHandler = Rc<dyn Fn(usize, &mut Window, &mut App)>;
 pub struct NavigationOption {
     name: crate::AccessibleName,
     disabled: bool,
+    description: Option<SharedString>,
 }
 impl NavigationOption {
     /// 表示文字と無効状態から作る。
@@ -20,9 +21,15 @@ impl NavigationOption {
         Self {
             name: crate::AccessibleName::new(label),
             disabled,
+            description: None,
         }
     }
     accessible_name!();
+    /// 項目の説明を指定する。
+    pub fn description(mut self, description: impl Into<SharedString>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
 }
 
 /// 行き先の要素と描画に使う状態。
@@ -78,10 +85,7 @@ impl Navigation {
 
     /// 行き先を足す。
     pub fn item(mut self, label: impl Into<SharedString>, disabled: bool) -> Self {
-        self.items.push(NavigationOption {
-            name: crate::AccessibleName::new(label),
-            disabled,
-        });
+        self.items.push(NavigationOption::new(label, disabled));
         self
     }
     /// 名前を上書きできる項目を加える。
@@ -140,13 +144,15 @@ impl Navigation {
     /// 項目のアクセシビリティ情報。
     pub fn item_a11y_node(&self, index: usize) -> Option<A11yNode> {
         let item = self.items.get(index)?;
-        Some(
-            A11yNode::new(Role::Tab)
-                .with_name(&item.name)
-                .selected(self.selected == Some(index))
-                .position(index, self.items.len())
-                .disabled(item.disabled),
-        )
+        let mut node = A11yNode::new(Role::Tab)
+            .with_name(&item.name)
+            .selected(self.selected == Some(index))
+            .position(index, self.items.len())
+            .disabled(item.disabled);
+        if let Some(description) = &item.description {
+            node = node.description(description.clone());
+        }
+        Some(node)
     }
     /// 項目の描画を受け取り、土台と初期フォーカス先を返す。
     pub fn build(

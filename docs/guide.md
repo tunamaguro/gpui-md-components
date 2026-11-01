@@ -235,3 +235,7 @@ Slider の描画は `fraction` と `dragging` を使います。
 ## Scaffold と FAB
 
 FAB のある画面には `containment::Scaffold` を使う。上部・下部バー、本文、FAB、`SnackbarHost` を渡すと、Snackbar は FAB の上に置かれる。画面の根に置き、クリップされる領域やスクロール領域の中には置かない（Snackbar は遅延描画なのでクリップされない）。本文は FAB の分を自動では空けないので、スクロールする `List` に `.content_padding(gpui::Edges { bottom: px(必要な余白), ..Default::default() })` を指定する。`LazyList` は未対応。
+
+### ナビゲーションのバッジ
+
+`NavigationItem::new(IconName::Inbox, "Inbox").badge(Badge::new("3")).badge_description("3 unread")` のように指定する。文字は項目の説明として読み上げられ、`badge_description` はその説明を上書きする。点の `Badge::dot()` には読み上げ用の説明を指定する。任意のアンカーに重ねるときは `BadgedBox::new(anchor, badge)` を使う。
