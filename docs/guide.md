@@ -88,12 +88,16 @@ cx.set_reduce_motion(user_prefers_reduced_motion); // 起動時と、設定が�
 | ButtonGroup                                          | 各項目が Tab で止まり、Enter / Space で切り替える                                      |
 | RadioGroup・SegmentedButton・Tabs                    | Tab でグループに入り、矢印で移って選ぶ（Home / End）                                   |
 | NavigationBar / Rail / Drawer                        | 矢印でフォーカスだけを移し、Enter / Space で選ぶ                                       |
-| List / LazyList                                      | 矢印で移る（端で止まる）、Enter / Space で選ぶ                                         |
+| List / LazyList                                      | 行と行内操作から矢印で移動、Tab は行 → 操作 → 外、Enter / Space はフォーカス中の対象   |
 | Slider                                               | 矢印で 1 段、Home / End で端                                                           |
 | Menu・Select                                         | 開くと最初の項目にフォーカス、矢印で移動、Enter で選ぶ、Esc で閉じて元に戻る           |
 | Dialog・モーダルな Sheet / Drawer                    | 開くと中にフォーカスし、Tab は中に閉じ込める。Esc で閉じ、開いた要素にフォーカスを戻す |
 
 Dialog の操作で入力を検証するには `DialogAction::validating` を使います。handler は閉じたときに `true`、エラーで開いたままにするときに `false` を返します。`false` のときはフォーカスを戻さず、handler 内でエラーの入力欄へ移すこともできます。通常の `DialogAction::new` は操作後にフォーカスを戻します。
+
+`containment::ListItem::action` に `ListAction::new(icon).aria_label(name)` を渡すと、末尾の文字・静的アイコンの後ろにボタンを 1 つ置けます。`.selected(starred)` を指定するとトグルになり、`.on_click(move |window, cx| ...)` で呼び出し側が状態を更新します。スターは `IconName::Star` / `StarFill1` を切り替えると、色以外でも状態を示せます。実装例は `examples/mail/src/main.rs` にあります。
+
+行内のボタンのクリック・Enter・Space は行の `on_select` を呼びません。ボタン上でもホイールでリストをスクロールできます。押せる行とそのボタンから ↑↓ / Home / End で押せる行へ移り、Tab はその行のボタンを経由して外へ、行から Shift+Tab は前へ出ます。押せない行のボタンも Tab で操作でき、行が無効ならボタンも無効です。ただし LazyList は描かれている行だけが Tab の順序に入るので、ボタンは押せる行に付けます。操作で行が消えるときは、`on_click` の中でフォーカスの移動先を決めます。ボタンだけを無効にするには `ListAction::disabled(true)` を指定します。
 
 ## 6. Web（wasm32）
 

@@ -82,6 +82,13 @@ pub struct ListRow {
     pub index: usize,
     /// 選択されているか。
     pub selected: bool,
+    /// 行内の操作を Tab の止まり場所にするか。押せない行では `true`。
+    pub action_tab_stop: bool,
+}
+
+/// 行内の操作のポインタ入力を行に渡さず、ホイールは通す入れ物。
+pub fn list_action_slot() -> Div {
+    div().flex_none().block_mouse_except_scroll()
 }
 fn list_step(
     mut focusable: impl FnMut(usize) -> bool,
@@ -147,6 +154,7 @@ fn row(
         id,
         index,
         selected: item.selected,
+        action_tab_stop: tab_stop || !focusable,
     }
 }
 /// 全項目を描くリスト。
@@ -217,16 +225,21 @@ impl List {
                 .iter()
                 .map(|(_, item)| item.focusable())
                 .collect();
-            let target = self
-                .items
-                .iter()
-                .position(|(_, item)| item.selected && item.focusable())
-                .or_else(|| focusable.iter().position(|&f| f));
             let handles: Rc<[FocusHandle]> = self
                 .items
                 .iter()
                 .map(|(key, _)| focus_handle(item_id(&self.id, key), window, cx))
                 .collect();
+            let target = handles
+                .iter()
+                .enumerate()
+                .position(|(i, handle)| focusable[i] && handle.contains_focused(window, cx))
+                .or_else(|| {
+                    self.items
+                        .iter()
+                        .position(|(_, item)| item.selected && item.focusable())
+                })
+                .or_else(|| focusable.iter().position(|&f| f));
             let scroll = self.max_height.map(|_| scroll_handle(&self.id, window, cx));
             let mut base = div()
                 .id(self.id.clone())
@@ -395,7 +408,26 @@ impl<T: 'static> LazyList<T> {
                         (state.active, state.pending)
                     };
                     let built: Vec<_> = range.map(|index| (index, build(index, cx))).collect();
-                    let target = if built
+                    // 矢印で移った先のフォーカスを、この描画の止まり先の判定より先に移す。
+                    if let Some((_, (key, _, _))) =
+                        pending.and_then(|pending| built.iter().find(|(i, _)| *i == pending))
+                    {
+                        let handle = focus_handle(item_id(&list_id, key), window, cx);
+                        window.focus(&handle, cx);
+                        state.update(cx, |state, _| state.pending = None);
+                    }
+                    let focused = built.iter().find_map(|(index, (key, item, _))| {
+                        (item.focusable()
+                            && focus_handle(item_id(&list_id, key), window, cx)
+                                .contains_focused(window, cx))
+                        .then_some(*index)
+                    });
+                    if let Some(index) = focused {
+                        state.update(cx, |state, _| state.active = index);
+                    }
+                    let target = if focused.is_some() {
+                        focused
+                    } else if built
                         .iter()
                         .any(|(i, (_, item, _))| *i == active && item.focusable())
                     {
@@ -410,14 +442,6 @@ impl<T: 'static> LazyList<T> {
                         .into_iter()
                         .map(|(index, (key, item, data))| {
                             let id = item_id(&list_id, &key);
-                            if pending == Some(index) {
-                                let handle = focus_handle(id.clone(), window, cx);
-                                window.focus(&handle, cx);
-                                state.update(cx, |state, _| {
-                                    state.pending = None;
-                                    state.active = index;
-                                });
-                            }
                             let on_key = {
                                 let state = state.clone();
                                 let build = build.clone();

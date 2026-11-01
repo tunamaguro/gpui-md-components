@@ -203,3 +203,9 @@ Input の Chip の削除アイコンを Button にし、名前を `.remove_label
 Scaffold は Snackbar を FAB の上に置く。Tab 順は遅延描画のため Snackbar が最後になり、Compose（本文、Snackbar、FAB、下部バー）と異なる。Snackbar は一時的な通知で、ウィンドウの層に出すときも最後なので、この順のままとする。支援技術による確認は未実施。
 
 NavigationItem のバッジは Tab の description に文字または指定された説明を渡す。実際の読み上げは未確認。
+
+## 2026-11-01: List の行内操作
+
+`ListAction` の Button の役割、名前、toggled、行と操作それぞれの disabled を `containment::list::tests` で検証する。`tests/list_action.rs` は行とボタンのクリック・Enter / Space の分離、Tab / Shift+Tab の順序、行内操作からの ↑↓ / Home / End、矢印移動後の Tab、押せない行と無効の行、ボタン上のホイール、LazyList のクリック後の Tab を検証する。`gpui-headless/tests/list.rs` は `Button::tab_stop(false)` と `ListRow::action_tab_stop` も検証する。
+
+役割は List / ListItem とその子の Button であり、listbox / grid にはしていない（APG Listbox の注意点は `specs/list.md`）。gallery とメール一覧には塗りのスターでトグル状態を示す見本を用意した。Linux（X11）の gallery で hover、focus、文字 200% を確かめ、AT-SPI のツリーで toggle button が list item の子に出ることを確かめた。Windows / macOS のツリーと全 OS の読み上げは未確認。m3.material.io の本文は読んでいない。

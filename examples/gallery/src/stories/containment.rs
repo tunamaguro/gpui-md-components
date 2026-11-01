@@ -6,8 +6,8 @@ use gpui::{
 };
 use md3_components::buttons::{Button, ButtonVariant, ExtendedFab, Segment, SegmentedButton};
 use md3_components::containment::{
-    Card, CardVariant, Divider, FabPosition, LazyList, List, ListItem, ListLeading, ListTrailing,
-    Scaffold,
+    Card, CardVariant, Divider, FabPosition, LazyList, List, ListAction, ListItem, ListLeading,
+    ListTrailing, Scaffold,
 };
 use md3_components::overlays::{SnackbarDuration, SnackbarHost, SnackbarMessage};
 use md3_components::theme::md3_color::ColorRole;
@@ -150,6 +150,22 @@ pub fn page(
         }
     };
     let selected = |index: usize| demo.list_selected == Some(index);
+    let star = |index: usize, name: &'static str| {
+        let view = view.clone();
+        let starred = demo.list_stars[index];
+        ListAction::new(if starred {
+            IconName::StarFill1
+        } else {
+            IconName::Star
+        })
+        .aria_label(name)
+        .selected(starred)
+        .on_click(move |_, cx| {
+            Gallery::update_demo(&view, cx, |demo| {
+                demo.list_stars[index] = !demo.list_stars[index];
+            })
+        })
+    };
     let list = List::new("mail").aria_label("メール")
         .item(
             "inbox",
@@ -165,6 +181,7 @@ pub fn page(
                 .supporting_text("来週の打ち合わせの件")
                 .leading(ListLeading::Avatar("青".into()))
                 .trailing(ListTrailing::Text("10:24".into()))
+                .action(star(0, "青木さくらのメールのスター"))
                 .selected(selected(1))
                 .on_select(select(1)),
         )
@@ -183,6 +200,7 @@ pub fn page(
             ListItem::new("アーカイブ（無効）")
                 .leading(ListLeading::Icon(IconName::Delete))
                 .disabled(true)
+                .action(ListAction::new(IconName::Star).aria_label("アーカイブのスター").selected(false))
                 .on_select(select(3)),
         )
         .item(
@@ -193,6 +211,10 @@ pub fn page(
                 .selected(selected(4))
                 .on_select(select(4)),
         );
+    let list = list.item(
+        "static-action",
+        ListItem::new("行は押せません（スターのみ操作可能）").action(star(1, "押せない行のスター")),
+    );
     let item_states = [
         sample(
             "Enabled",
@@ -252,8 +274,11 @@ pub fn page(
                 LazyList::new("contacts", CONTACTS, contacts, {
                     let view = view.clone();
                     let selected = demo.contact;
+                    let stars = demo.contact_stars.clone();
                     move |index, _| {
                         let view = view.clone();
+                        let star_view = view.clone();
+                        let starred = stars.contains(&index);
                         (
                             SharedString::from(format!("contact-{index}")),
                             ListItem::new(format!("連絡先 {}", index + 1))
@@ -262,6 +287,24 @@ pub fn page(
                                     format!("{}", char::from(b'A' + (index % 26) as u8)).into(),
                                 ))
                                 .selected(selected == Some(index))
+                                .action(
+                                    ListAction::new(if starred {
+                                        IconName::StarFill1
+                                    } else {
+                                        IconName::Star
+                                    })
+                                    .aria_label(format!("連絡先 {} のスター", index + 1))
+                                    .selected(starred)
+                                    .on_click(move |_, cx| {
+                                        Gallery::update_demo(&star_view, cx, |demo| {
+                                            if demo.contact_stars.contains(&index) {
+                                                demo.contact_stars.retain(|&i| i != index);
+                                            } else {
+                                                demo.contact_stars.push(index);
+                                            }
+                                        })
+                                    }),
+                                )
                                 .on_select(move |_, cx| {
                                     Gallery::update_demo(&view, cx, |demo| {
                                         demo.contact = Some(index)

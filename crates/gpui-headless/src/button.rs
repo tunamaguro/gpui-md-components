@@ -18,6 +18,7 @@ pub struct Button {
     toggled: Option<bool>,
     menu_expanded: Option<bool>,
     disabled: bool,
+    tab_stop: bool,
     on_click: Option<ClickHandler>,
     on_toggle: Option<ToggleHandler>,
     before_click: Option<ClickHandler>,
@@ -37,6 +38,7 @@ impl Button {
             toggled: None,
             menu_expanded: None,
             disabled: false,
+            tab_stop: true,
             on_click: None,
             on_toggle: None,
             before_click: None,
@@ -64,6 +66,11 @@ impl Button {
     /// 無効にする。
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
+        self
+    }
+    /// Tab で止まるかを指定する（既定は `true`）。無効なボタンには止まらない。
+    pub fn tab_stop(mut self, tab_stop: bool) -> Self {
+        self.tab_stop = tab_stop;
         self
     }
     /// 押されたときの処理を設定する。
@@ -128,7 +135,7 @@ impl Button {
         let (base, state) = control(
             &self.id,
             self.disabled,
-            true,
+            self.tab_stop,
             window,
             cx,
             self.reveal_margin,

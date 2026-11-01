@@ -11,7 +11,7 @@ mod compose;
 mod model;
 
 use md3_components::buttons::{Button, ExtendedFab, Fab, IconButton, Segment, SegmentedButton};
-use md3_components::containment::{List, ListItem, ListTrailing, Scaffold};
+use md3_components::containment::{List, ListAction, ListItem, ListTrailing, Scaffold};
 use md3_components::gpui;
 use md3_components::gpui::{
     App, Bounds, ClickEvent, Context, Edges, Entity, FocusHandle, ScrollHandle, TitlebarOptions,
@@ -179,6 +179,8 @@ impl Render for MailView {
             let id = message.id;
             let message_read = message.read;
             let row_view = view.clone();
+            let star_view = view.clone();
+            let starred = message.starred;
             list = list.item(
                 format!("message-{id}"),
                 ListItem::new(message.subject.clone())
@@ -189,6 +191,27 @@ impl Render for MailView {
                     ))
                     .supporting_text(message.preview())
                     .trailing(ListTrailing::Text(message.time.clone().into()))
+                    .action(
+                        ListAction::new(if message.starred {
+                            IconName::StarFill1
+                        } else {
+                            IconName::Star
+                        })
+                        .aria_label(format!("Star {}", message.subject))
+                        .selected(message.starred)
+                        .on_click(move |window, cx| {
+                            star_view
+                                .update(cx, |this, cx| {
+                                    this.mail.toggle_star(id);
+                                    // スターを外すと行が一覧から消えるので、フォーカスを残す先を決める。
+                                    if starred && (this.starred || this.destination == 1) {
+                                        window.focus(&this.focus, cx);
+                                    }
+                                    cx.notify();
+                                })
+                                .ok();
+                        }),
+                    )
                     .selected(self.selected == Some(id))
                     .on_select(move |window, cx| {
                         row_view

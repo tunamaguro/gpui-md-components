@@ -124,6 +124,10 @@ pub struct Demo {
     pub drawer_open: bool,
     /// リストで選んだ項目。
     pub list_selected: Option<usize>,
+    /// リストのスターの切り替え。
+    pub list_stars: [bool; 2],
+    /// LazyList でスターを付けた連絡先。
+    pub contact_stars: Vec<usize>,
     /// Scaffold の FAB の位置。
     pub scaffold_position: usize,
     /// LazyList で選んだ連絡先。
@@ -167,6 +171,8 @@ impl Default for Demo {
             secondary_tab: 0,
             drawer_open: false,
             list_selected: Some(0),
+            list_stars: [false, true],
+            contact_stars: Vec::new(),
             scaffold_position: 2,
             contact: None,
             toggle: false,

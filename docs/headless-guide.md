@@ -32,6 +32,8 @@ let popup = menu.build(window, cx, |row, _, _| {
 let popup = popup.place(|base| base.flex().flex_col());
 ```
 
+List / LazyList の行内にボタンを置く場合は、`list_action_slot().child(button)` で囲み、`Button::tab_stop(row.action_tab_stop)` を渡します。ID は `ElementId::NamedChild(row.id.into(), "action".into())` など行から派生させ、一意な名前も付けます。入れ物はポインタ入力を行に渡さず、ホイールを通します。押せる行では Tab で行 → 操作 → 外、Shift+Tab で逆順、行と操作から ↑↓ / Home / End で押せる行へ移動します。押せない行の操作は個別の Tab 停止位置になります（LazyList では描かれている行だけが対象なので、操作は押せる行に付けます）。`row.state.disabled` は行が押せない場合も `true` なので、操作の無効状態は項目のデータから別に渡してください。
+
 通知のビューは `SnackbarOwner` を実装して `SnackbarQueue` を保持し、`show` で表示時間付きの `SnackbarEntry` を追加します。描画前に `prepare`、`front` で現在の内容を取得し、退場後に `finish_exit` を呼びます。Button、Dialog、MenuItem、ListItem は `.description()` で補足説明を指定でき、各ノードに反映されます。Tooltip は `DescribedTooltip` で同じ説明を読み上げ対象にも付けます。
 
 ## テキストとスクロール

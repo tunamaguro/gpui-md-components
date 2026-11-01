@@ -69,11 +69,13 @@ pub enum IconName {
     Share,
     /// `star`
     Star,
+    /// `star_fill1`（塗りのスター）。
+    StarFill1,
 }
 
 impl IconName {
     /// すべてのアイコン。
-    pub const ALL: [IconName; 30] = [
+    pub const ALL: [IconName; 31] = [
         IconName::Add,
         IconName::ArrowBack,
         IconName::ArrowDropDown,
@@ -104,6 +106,7 @@ impl IconName {
         IconName::Settings,
         IconName::Share,
         IconName::Star,
+        IconName::StarFill1,
     ];
 
     /// Material Symbols での名前（例: `arrow_back`）。
@@ -139,6 +142,7 @@ impl IconName {
             IconName::Settings => "settings",
             IconName::Share => "share",
             IconName::Star => "star",
+            IconName::StarFill1 => "star_fill1",
         }
     }
 
@@ -175,6 +179,7 @@ impl IconName {
             IconName::Settings => include_bytes!("../assets/settings.svg"),
             IconName::Share => include_bytes!("../assets/share.svg"),
             IconName::Star => include_bytes!("../assets/star.svg"),
+            IconName::StarFill1 => include_bytes!("../assets/star_fill1.svg"),
         }
     }
 }

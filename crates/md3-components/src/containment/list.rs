@@ -11,6 +11,7 @@ use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::list as tokens;
 use md3_theme::md3_tokens::layout;
 
+use crate::buttons::IconButton;
 use crate::{FocusRing, Icon, IconName, StateLayer, StyledExt};
 use gpui_headless::ListRow;
 
@@ -34,10 +35,79 @@ pub enum ListTrailing {
     Text(SharedString),
 }
 
+/// 行の末尾に置くアイコンボタン。名前は `.aria_label()` で指定する。
+#[derive(Clone)]
+pub struct ListAction {
+    icon: IconName,
+    name: gpui_headless::AccessibleName,
+    selected: Option<bool>,
+    disabled: bool,
+    on_click: Option<SelectHandler>,
+}
+
+impl ListAction {
+    /// アイコンから作る。ID は行の ID から派生する。
+    pub fn new(icon: IconName) -> Self {
+        Self {
+            icon,
+            name: gpui_headless::AccessibleName::default(),
+            selected: None,
+            disabled: false,
+            on_click: None,
+        }
+    }
+
+    accessible_name!();
+
+    /// トグルボタンにし、選択状態を指定する。
+    pub fn selected(mut self, selected: bool) -> Self {
+        self.selected = Some(selected);
+        self
+    }
+
+    /// 操作を無効にする。行が無効な場合も操作は無効になる。
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self
+    }
+
+    /// クリック、Enter、Space の処理。トグルの状態は呼び出し側で更新する。
+    ///
+    /// 操作で行が消えたり操作が無効になったりするときは、フォーカスの移動先も呼び出し側が決める。
+    pub fn on_click(mut self, handler: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.on_click = Some(Rc::new(handler));
+        self
+    }
+
+    fn button(self, row_id: ElementId, tab_stop: bool, row_disabled: bool) -> IconButton {
+        let mut button = IconButton::new(
+            ElementId::NamedChild(row_id.into(), "action".into()),
+            self.icon,
+        )
+        .tab_stop(tab_stop)
+        .disabled(row_disabled || self.disabled);
+        if let Some(name) = self.name.resolve() {
+            button = button.aria_label(name);
+        }
+        if let Some(selected) = self.selected {
+            button = button.selected(selected);
+        }
+        if let Some(on_click) = self.on_click {
+            button = button.on_click(move |_, window, cx| on_click(window, cx));
+        }
+        button
+    }
+}
+
 /// リストの 1 項目。[`List`] か [`LazyList`] に入れて使う。
 ///
 /// 行数は内容から決まる。上書き（overline）と補助テキストの両方があれば 3 行（88dp）、
 /// どちらか一方なら 2 行（72dp）、見出しだけなら 1 行（56dp）。
+///
+/// [`Self::action`] のボタンには `.aria_label()` で名前を付ける。
+/// 押せる行では Tab で行 → ボタン → リストの外、Shift+Tab で逆順に移る。
+/// 押せる行とそのボタンから ↑↓ / Home / End で押せる行へ移り、Enter / Space はフォーカス中の対象だけを実行する。
+/// 押せない行のボタンはそれ自体が Tab で止まる。
 #[derive(Clone)]
 pub struct ListItem {
     headline: SharedString,
@@ -46,6 +116,7 @@ pub struct ListItem {
     supporting_text: Option<SharedString>,
     leading: Option<ListLeading>,
     trailing: Option<ListTrailing>,
+    action: Option<ListAction>,
     selected: bool,
     disabled: bool,
     on_select: Option<SelectHandler>,
@@ -70,6 +141,7 @@ impl ListItem {
             supporting_text: None,
             leading: None,
             trailing: None,
+            action: None,
             selected: false,
             disabled: false,
             on_select: None,
@@ -100,6 +172,12 @@ impl ListItem {
     /// 末尾に置くもの。
     pub fn trailing(mut self, trailing: ListTrailing) -> Self {
         self.trailing = Some(trailing);
+        self
+    }
+
+    /// 末尾の文字・アイコンの後ろに操作を 1 つ置く。再指定すると置き換える。
+    pub fn action(mut self, action: ListAction) -> Self {
+        self.action = Some(action);
         self
     }
 
@@ -153,6 +231,7 @@ impl ListItem {
             base,
             state: control,
             id,
+            action_tab_stop,
             ..
         } = row;
         let lines = self.line_count();
@@ -303,7 +382,12 @@ impl ListItem {
             }))
             .children(leading)
             .child(text)
-            .children(trailing);
+            .children(trailing)
+            .children(self.action.map(|action| {
+                gpui_headless::list_action_slot()
+                    .pl(px(layout::LIST_ITEM_TRAILING_START_SPACE))
+                    .child(action.button(id.clone(), action_tab_stop, self.disabled))
+            }));
         if focusable {
             item = item
                 .child(
@@ -327,8 +411,8 @@ impl ListItem {
 
 /// 全項目を描くリスト。項目が多いときは [`LazyList`] を使う。
 ///
-/// 押せる項目（[`ListItem::on_select`]）があれば Tab ではリスト全体で 1 回だけ止まり、
-/// 中は ↑↓ / Home / End で移る（選択中の項目、無ければ最初の押せる項目に止まる）。
+/// 押せる項目（[`ListItem::on_select`]）は Tab で 1 行に止まり、行内の操作があれば次に止まる。
+/// 中は ↑↓ / Home / End で移る（フォーカスを含む行、選択中の項目、最初の押せる項目の順に優先する）。
 #[derive(IntoElement)]
 pub struct List {
     max_height: Option<gpui::Pixels>,
@@ -422,6 +506,9 @@ type ItemBuilder = Rc<dyn Fn(usize, &mut App) -> (SharedString, ListItem)>;
 /// 大きさ（高さ）は呼び出し側が指定する。キー操作は [`List`] と同じで、
 /// 見えていない項目へ移るときはその項目までスクロールしてからフォーカスする。
 /// Tab で止まるのは最後にフォーカスした項目で、それが見えていなければ最初に見えている押せる項目。
+///
+/// 描かれていない行は Tab の順序に入らない。[`ListItem::action`] は押せる行に付ける。
+/// 押せない行の操作は、スクロールしてその行が見えるまでキーボードで届かない。
 #[derive(IntoElement)]
 pub struct LazyList {
     scrollbar: bool,
@@ -500,6 +587,29 @@ impl RenderOnce for LazyList {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn action_button_exposes_name_toggle_and_disabled_state() {
+        for row_disabled in [false, true] {
+            for action_disabled in [false, true] {
+                for selected in [false, true] {
+                    let node = ListAction::new(IconName::Star)
+                        .aria_label("スター")
+                        .selected(selected)
+                        .disabled(action_disabled)
+                        .button("row".into(), true, row_disabled)
+                        .a11y_node();
+                    assert_eq!(node.role, gpui::Role::Button);
+                    assert_eq!(node.label.as_deref(), Some("スター"));
+                    assert_eq!(node.toggled, Some(gpui_headless::toggled(selected)));
+                    assert_eq!(node.disabled, row_disabled || action_disabled);
+                }
+            }
+        }
+        let node = ListAction::new(IconName::Star)
+            .button("row".into(), true, false)
+            .a11y_node();
+        assert_eq!(node.toggled, None);
+    }
     #[test]
     fn line_count_follows_the_content() {
         assert_eq!(ListItem::new("a").line_count(), 1);

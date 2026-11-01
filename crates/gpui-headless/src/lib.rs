@@ -81,7 +81,7 @@ pub use control::{ControlState, control, step};
 pub use dialog::Dialog;
 pub use focus::{VisibleFocus, clear_focus_visible, focus_handle, is_focus_visible};
 pub use keys::init;
-pub use list::{LazyList, List, ListBase, ListItem, ListRow};
+pub use list::{LazyList, List, ListBase, ListItem, ListRow, list_action_slot};
 pub use menu::{Menu, MenuItem, MenuKind, MenuPopup, MenuRow};
 pub use navigation::{Navigation, NavigationBase, NavigationItem, NavigationOption};
 pub use progress::Progress;

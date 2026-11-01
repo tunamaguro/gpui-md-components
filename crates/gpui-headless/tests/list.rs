@@ -120,3 +120,66 @@ fn selected_item_is_tab_stop_and_key_survives_reordering(cx: &mut TestAppContext
     support::press(cx, "enter");
     assert_eq!(*log.borrow(), [2, 2, 0]);
 }
+
+#[gpui::test]
+fn button_tab_stop_false_skips_tab_but_allows_explicit_focus(cx: &mut TestAppContext) {
+    use gpui_headless::{Button, focus_handle};
+    let log = Rc::new(RefCell::new(Vec::new()));
+    let skipped = Rc::new(RefCell::new(None));
+    let cx = support::open(cx, {
+        let log = log.clone();
+        let skipped = skipped.clone();
+        move |window, cx| {
+            *skipped.borrow_mut() = Some(focus_handle("button-1", window, cx));
+            div()
+                .children((0..3).map(|index| {
+                    let log = log.clone();
+                    Button::new(format!("button-{index}"), format!("操作 {index}"))
+                        .tab_stop(index != 1)
+                        .on_click(move |_, _, _| log.borrow_mut().push(index))
+                        .build(window, cx)
+                        .0
+                        .size(px(40.))
+                }))
+                .into_any_element()
+        }
+    });
+    support::tab(cx);
+    support::press(cx, "enter");
+    support::tab(cx);
+    support::press(cx, "enter");
+    assert_eq!(*log.borrow(), [0, 2]);
+    cx.update(|window, cx| {
+        window.focus(skipped.borrow().as_ref().expect("描画したボタン"), cx);
+    });
+    support::press(cx, "enter");
+    assert_eq!(*log.borrow(), [0, 2, 1]);
+}
+
+#[gpui::test]
+fn action_tab_stop_follows_the_focused_row_and_static_rows(cx: &mut TestAppContext) {
+    let stops = Rc::new(RefCell::new(Vec::new()));
+    let cx = support::open(cx, {
+        let stops = stops.clone();
+        move |window, cx| {
+            stops.borrow_mut().clear();
+            List::new("list")
+                .item("a", ListItem::new("先頭").on_select(|_, _| {}))
+                .item("b", ListItem::new("次").on_select(|_, _| {}))
+                .item("static", ListItem::new("静的"))
+                .item(
+                    "disabled",
+                    ListItem::new("無効").disabled(true).on_select(|_, _| {}),
+                )
+                .build(window, cx, |row, _, _| {
+                    stops.borrow_mut().push(row.action_tab_stop);
+                    row.base.size(px(40.)).into_any_element()
+                })
+                .finish(|base, _| base)
+        }
+    });
+    assert_eq!(*stops.borrow(), [true, false, true, true]);
+    support::tab(cx);
+    support::press(cx, "down");
+    assert_eq!(*stops.borrow(), [false, true, true, true]);
+}

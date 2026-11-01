@@ -37,8 +37,8 @@ inputs = ["overlays"]
 overlays = ["buttons"]
 # TopAppBar, NavigationBar / Rail / Drawer, Tabs。アプリバーはアイコンボタン、モーダルなドロワーはオーバーレイ、項目はバッジを使う
 navigation = ["overlays", "selection"]
-# List, Card, Divider
-containment = []
+# List, Card, Divider, Scaffold。List の行内操作はアイコンボタンを使う
+containment = ["buttons"]
 # M3 Expressive の ToggleButton, ButtonGroup
 expressive = []
 # gpui_platform（同じ rev）を再公開する。アプリの起動に使う。既定では無効

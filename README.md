@@ -22,7 +22,7 @@ Material Design 3（ベースライン）の UI 部品集。Windows / macOS / Li
 | `gpui-headless`  | 見た目を持たない操作・アクセシビリティ基盤（[独自テーマガイド](docs/headless-guide.md)） |
 | `md3-color`      | HCT 色空間・配色アルゴリズム（material-color-utilities の移植。GPU 不要）                |
 | `md3-tokens`     | デザイントークンの定数                                                                   |
-| `md3-icons`      | Material Symbols のアイコン（よく使う 30 個）                                            |
+| `md3-icons`      | Material Symbols のアイコン（よく使う 31 個）                                            |
 | `md3-theme`      | テーマ（gpui の `Global`）、gpui の型への変換、OS のライト / ダークへの追従              |
 | `md3-components` | 部品。feature で分割（下表）                                                             |
 | `gallery`        | 全部品・全バリアントの操作できる見本アプリ                                               |
@@ -36,7 +36,7 @@ Material Design 3（ベースライン）の UI 部品集。Windows / macOS / Li
 | `inputs`      | TextField（Filled / Outlined、IME 対応、複数行）、Select、SearchBar                                  |
 | `overlays`    | Menu、Dialog、Tooltip、Snackbar、BottomSheet / SideSheet                                             |
 | `navigation`  | TopAppBar（4 種）、NavigationBar / Rail / Drawer、NavigationSuite、Tabs                              |
-| `containment` | Card（3 種）、List / LazyList、Divider、Scaffold                                                     |
+| `containment` | Card（3 種）、List / LazyList（行内の ListAction）、Divider、Scaffold                                |
 | `expressive`  | M3 Expressive の ToggleButton、ButtonGroup（Standard / Connected）。押下・選択で形と幅がバネで変わる |
 
 TextField / Select の必須状態は `.required(true)`、メニューボタンの開閉状態は `.menu_expanded(open)` で伝える。静的な `Text` を読み上げ可能にするには一意な `.id()` を指定する。

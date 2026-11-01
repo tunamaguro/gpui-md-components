@@ -4,6 +4,8 @@
 
 ## 確認していないこと
 
+- `ListAction` の Windows / macOS の見た目と a11y ツリー、全 OS の読み上げは未確認。自動テストの範囲は `docs/a11y-audit.md`。
+
 - フォーカス移動やクリックによる IME 変換の終了は、Windows / macOS / Web / Linux の実際の IME では未確認。Windows 以外の入力欄間の移動は blur 処理のみに依存する。
   gpui に変換を終える公開 API がないため、Windows 以外で変換中にプログラムからフォーカスを移して戻すと、次の変換の更新で文字が二重になることがある（Codex レビューの指摘。実際の IME では未確認。X11 / Wayland のマウスのクリックは gpui が変換を終えるので該当しない）。
 
@@ -31,8 +33,6 @@
 ### サンプルアプリで見つけた不足
 
 `examples/mail` を作って分かったこと。先頭の印は優先度で、P1 は操作不能・入力の喪失・WCAG 違反、P2 は機能の不足、P3 は整理や未確認の項目。
-
-- [P2] `ListItem` の末尾は文字または静的アイコンに限られ、行内のスター切り替えを置けない。詳細のメニューで切り替える（`examples/mail/src/main.rs`）。
 
 - [P3] 内容の上に重ねる部品は、下の要素にクリックを渡さない処理（`block_mouse_except_scroll`）を部品ごとに持つ必要がある。FAB は直したが、ほかの部品やアプリが重ねる要素には同じ問題が残りうる。
 
@@ -88,6 +88,7 @@
 
 - TextField の複数行（レビューの P3）: ZWJ の直後の改行が前の文字と結合し、Backspace で前の文字ごと消える（`boundaries`）。選択の改行の幅 `LINE_BREAK_SELECTION_WIDTH` は見た目の値だが headless にある。taffy の測定は丸める前の幅で折り返すので、端数の幅で prepaint の行数が 1 行増えることがある（コードを読んだだけ）。Web で変換中の上下キーは選択を動かす（コードを読んだだけ）。`reveal_in_scopes`、選択の改行の幅、段落の間引き、幅からのキャレット分の差し引きには自動テストがない。`tab_leaves_the_multi_line_field` は移動先を確かめていない。
 - Web の IME 候補ウィンドウは左上に表示される。gpui_web の位置更新と隠れた textarea の変更が必要で、このリポジトリの許可された依存では修正できない。
+- ListAction（レビューの P3）: 操作の手前の余白 16dp は `list_action_slot` の中にあり、クリックしても行も操作も動かない。Compose は余白を末尾の入れ物の padding にしている。行内の操作の Tab と矢印の統合テストは `md3-components` にだけあり、`gpui-headless` 側は単体の確認だけ。headless の利用者は `list_action_slot`、`action_tab_stop`、ID の派生、行の無効の伝播を別々に組み合わせる必要がある。 LazyList の止まり先は `focused` の分岐を外しても今のテストは落ちない（`state.active` を更新してから読む 1 経路にまとめられる）。examples/mail でスターを外して行が消えると、フォーカスはルートへ移り、Tab は先頭へ戻る（`List` がフォーカスハンドルを公開していないので次の行へ移せない）。
 - ButtonGroup: 子の ID が同じ 2 つのグループを同じ親に置くと、押下の状態（`press_state`）を共有し、片方を押すと両方が広がる（`md3-components/src/expressive/button_group.rs`。分離前からの不具合）。
 - フォーカス追従: `.hidden()` の下でフォーカスを持ったまま隠れた部品は prepaint されず、再表示と同時にフォーカスを戻すと `reveal_on_focus` が移動に気付かない（Codex レビューの P2。今の部品には該当する使い方がない）。
 - Scrollbar: RTL での左右反転、タッチでのドラッグ（`docs/specs/scrollbar.md` の「制限」）。
