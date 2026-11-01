@@ -1,6 +1,6 @@
 ---
 name: codex-delegate
-description: 実装を Codex CLI に任せる（exec は gpt-6.1-terra、review は gpt-6.1-sol、どちらも xhigh）。Claude が計画とプロンプトを書き、nix develop の中で codex exec を走らせ、結果を検証して codex review で指摘を出させ、Codex に直させる。ユーザーが「実装は codex に」と言ったとき、まとまった実装・修正を委ねるときに使う。
+description: 実装を Codex CLI に任せる（exec は gpt-6.1-sol、review は gpt-6.1-sol、どちらも xhigh）。Claude が計画とプロンプトを書き、nix develop の中で codex exec を走らせ、結果を検証して codex review で指摘を出させ、Codex に直させる。ユーザーが「実装は codex に」と言ったとき、まとまった実装・修正を委ねるときに使う。
 ---
 
 # Codex に実装を任せる
@@ -31,7 +31,7 @@ scratchpad に `prompt.md` を作る:
 `&` や `nohup` で切り離すと、Codex が動いている間に完了の通知が来てしまう。
 
 ```sh
-nix develop -c bash -c "timeout 3000 codex exec -m gpt-6.1-terra -c model_reasoning_effort='\"xhigh\"' -s workspace-write -C . - < $SCRATCH/prompt.md" > $SCRATCH/codex.log 2>&1
+nix develop -c bash -c "timeout 3000 codex exec -m gpt-6.1-sol -c model_reasoning_effort='\"xhigh\"' -s workspace-write -C . - < $SCRATCH/prompt.md" > $SCRATCH/codex.log 2>&1
 ```
 
 - Bash ツールの `timeout` は、コマンドの `timeout` より長くする。短いと途中で殺される。
