@@ -3,7 +3,7 @@
 	url = https://github.com/androidx/androidx.git
 	branch = androidx-main
 [submodule "docs/references/aria-practices"]
-	path = docs/references/aria-practices
+	path = .agents/skills/a11y/references/aria-practices
 	url = https://github.com/w3c/aria-practices.git
 	branch = main
 [submodule "docs/references/material-web"]
@@ -13,3 +13,15 @@
 [submodule ".agents/skills/material-design-3-port/references/material-color-utilities"]
 	path = .agents/skills/material-design-3-port/references/material-color-utilities
 	url = https://github.com/material-foundation/material-color-utilities.git
+[submodule ".agents/skills/a11y/references/wcag"]
+	path = .agents/skills/a11y/references/wcag
+	url = https://github.com/w3c/wcag.git
+[submodule ".agents/skills/a11y/references/uievents"]
+	path = .agents/skills/a11y/references/uievents
+	url = https://github.com/w3c/uievents.git
+[submodule ".agents/skills/a11y/references/wcag2ict"]
+	path = .agents/skills/a11y/references/wcag2ict
+	url = https://github.com/w3c/wcag2ict.git
+[submodule ".agents/skills/a11y/references/aria"]
+	path = .agents/skills/a11y/references/aria
+	url = https://github.com/w3c/aria.git

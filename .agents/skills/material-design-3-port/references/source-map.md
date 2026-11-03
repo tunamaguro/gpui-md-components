@@ -68,4 +68,4 @@ rg -n '@use|values|new-tokens|renamed-tokens|unsupported-tokens' "$web/tokens/_m
 
 - 密度計算は `md3-tokens/src/density.rs` の出典を確認する。Compose / material-web 内に同じ密度トークンがあると仮定しない。
 - GPUI の API・計算・単位は、ルート `Cargo.toml` が固定する Zed のリビジョンの `crates/gpui/src` を確認する。`md3-theme/src/motion.rs` のように既存の変換処理があれば先に読む。
-- アクセシビリティの役割・状態・キー操作は、リポジトリルートの `docs/references/aria-practices/content/patterns/` と必要な仕様を確認する。Android のタッチ操作だけからデスクトップのキー操作を決めない。
+- アクセシビリティの役割・状態・キー操作は、[a11y スキルの APG](../../a11y/references/aria-practices/content/patterns/) と必要な仕様を確認する。Android のタッチ操作だけからデスクトップのキー操作を決めない。

@@ -14,6 +14,7 @@ description: Material Design 3 のトークン値・計算ロジック・コン�
 - [references/androidx](references/androidx): Compose Material3 の生成トークンと実装。数値の第一候補。
 - [references/material-web](references/material-web): Sass トークンと TypeScript / Sass の実装。Compose に値がない項目や Web 表現の参照先。
 - [references/material-color-utilities](references/material-color-utilities): HCT / CAM16 / TonalPalette / DynamicScheme などの配色アルゴリズムと公式テスト。
+- [m3.material.io](https://m3.material.io): Foundations,Styles,Componentsを参照する
 - [参照先の探し方](references/source-map.md): 対象のトークン・計算ロジックを探すときに読む。
 - [移植時の判断と検証](references/porting-notes.md): 値の食い違い、単位変換、状態・形状・モーションを移植するときに読む。
 
