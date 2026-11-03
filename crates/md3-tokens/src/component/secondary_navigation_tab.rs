@@ -3,7 +3,7 @@
 //         @ b8256a52 (tokens VERSION v0_162)
 // Copyright 2023 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 
-//! `SecondaryNavigationTabTokens` の転記。値の出典は `docs/TOKENS_SOURCE.md`。
+//! `SecondaryNavigationTabTokens` の転記。
 
 use crate::elevation;
 use crate::shape::Shape;

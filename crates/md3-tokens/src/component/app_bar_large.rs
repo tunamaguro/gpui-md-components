@@ -3,7 +3,7 @@
 //         @ b8256a52 (tokens VERSION 14_0_0)
 // Copyright 2024 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 
-//! `AppBarLargeTokens` の転記。値の出典は `docs/TOKENS_SOURCE.md`。
+//! `AppBarLargeTokens` の転記。
 
 use crate::typography::TypeScale;
 

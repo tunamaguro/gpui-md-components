@@ -3,7 +3,7 @@
 //         @ b8256a52 (tokens VERSION v0_210)
 // Copyright 2022 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 
-//! `SwitchTokens` の転記。値の出典は `docs/TOKENS_SOURCE.md`。
+//! `SwitchTokens` の転記。
 
 use crate::shape::Shape;
 use md3_color::ColorRole;

@@ -3,7 +3,7 @@
 //         @ b8256a52 (tokens VERSION 14_1_0)
 // Copyright 2024 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 
-//! `SmallIconButtonTokens` の転記。値の出典は `docs/TOKENS_SOURCE.md`。
+//! `SmallIconButtonTokens` の転記。
 
 use crate::shape::Shape;
 

@@ -6,7 +6,7 @@
 // Copyright 2020 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //! コンポーネントの配置の値のうち、Compose の tokens ではなく部品の実装（`*Defaults` など）にあるもの。
 //!
-//! 出典は `docs/TOKENS_SOURCE.md`。単位は dp。
+//! 単位は dp。
 
 /// ボタンの最小幅（`ButtonDefaults.MinWidth`）。
 pub const BUTTON_MIN_WIDTH: f32 = 58.0;

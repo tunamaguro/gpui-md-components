@@ -3,7 +3,7 @@
 //         @ b8256a52 (tokens VERSION v0_11_0)
 // Copyright 2021 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 
-//! `OutlinedButtonTokens` の転記。値の出典は `docs/TOKENS_SOURCE.md`。
+//! `OutlinedButtonTokens` の転記。
 
 use md3_color::ColorRole;
 

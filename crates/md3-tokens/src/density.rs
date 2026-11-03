@@ -3,8 +3,6 @@
 //! 密度を 1 段下げるごとに、高さなどの寸法を [`INTERVAL`] ずつ小さくする
 //! （material-components-web の `mdc-density` と同じ計算）。
 
-// 値は docs/TOKENS_SOURCE.md に記載の一次資料から転記した。`cargo xtask check-tokens` で突き合わせる。
-
 /// 密度 1 段あたりの寸法の変化量（dp）。
 pub const INTERVAL: f32 = 4.0;
 

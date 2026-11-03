@@ -3,7 +3,7 @@
 //         @ b8256a52 (tokens VERSION v0_7_0)
 // Copyright 2024 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 
-//! `CircularProgressIndicatorTokens` の転記。値の出典は `docs/TOKENS_SOURCE.md`。
+//! `CircularProgressIndicatorTokens` の転記。
 
 /// `ActiveThickness`
 pub const ACTIVE_THICKNESS: f32 = 4.0;

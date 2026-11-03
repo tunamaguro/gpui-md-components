@@ -1,7 +1,5 @@
 //! 高さ（elevation）のレベル 0〜5。単位は dp。
 
-// 値は docs/TOKENS_SOURCE.md に記載の一次資料から転記した。`cargo xtask check-tokens` で突き合わせる。
-
 /// レベル 0 の高さ（dp）。
 pub const LEVEL0: f32 = 0.0;
 

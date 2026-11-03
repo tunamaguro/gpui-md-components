@@ -1,7 +1,5 @@
 //! 角丸のスケール。単位は dp（論理ピクセル）。
 
-// 値は docs/TOKENS_SOURCE.md に記載の一次資料から転記した。`cargo xtask check-tokens` で突き合わせる。
-
 /// 角丸の大きさ。
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CornerSize {

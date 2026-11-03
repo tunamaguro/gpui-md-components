@@ -3,7 +3,6 @@
 // Copyright 2026 Google LLC. Licensed under the Apache License, Version 2.0.
 
 //! サイドシートのトークン。Compose に tokens がないため material-web から転記した。
-//! 値の出典は `docs/TOKENS_SOURCE.md`。
 
 use crate::elevation;
 use crate::shape::Shape;

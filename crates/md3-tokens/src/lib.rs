@@ -2,9 +2,6 @@
 //!
 //! タイプスケール・角丸・高さ・モーション・状態レイヤー不透明度・密度を定数で提供する。
 //! gpui に依存しない。寸法の単位は dp / sp（論理ピクセル）で、ピクセルへの変換はテーマで行う。
-//!
-//! すべての値の出典は `docs/TOKENS_SOURCE.md` にあり、`cargo xtask check-tokens` で
-//! 定数と突き合わせている。
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]

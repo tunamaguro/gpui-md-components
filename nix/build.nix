@@ -37,15 +37,13 @@ let
   );
 
   commonArgs = {
-    # Cargo のソースに加えて、`include_bytes!` / `include_str!` で埋め込むファイル
-    # （md3-icons の SVG、xtask web の HTML）を含める。
+    # Cargo のソースに加えて、埋め込み用のアイコン SVG を含める。
     src = lib.fileset.toSource {
       root = ../.;
       fileset = lib.fileset.unions [
         (craneLib.fileset.commonCargoSources ../.)
         ../clippy.toml
         ../crates/md3-icons/assets
-        ../xtask/web
       ];
     };
     cargoLock = ../Cargo.lock;

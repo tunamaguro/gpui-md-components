@@ -3,7 +3,7 @@
 //         @ b8256a52 (tokens VERSION v0_117)
 // Copyright 2022 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 
-//! `ScrimTokens` の転記。値の出典は `docs/TOKENS_SOURCE.md`。
+//! `ScrimTokens` の転記。
 
 use md3_color::ColorRole;
 

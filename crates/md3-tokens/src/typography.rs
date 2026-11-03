@@ -2,8 +2,6 @@
 //!
 //! 寸法の単位は sp（論理ピクセル）。トラッキング（字間）も sp。
 
-// 値は docs/TOKENS_SOURCE.md に記載の一次資料から転記した。`cargo xtask check-tokens` で突き合わせる。
-
 /// 書体の役割。具体的なフォントはテーマで決める（移植元はどちらも `FontFamily.SansSerif`）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Typeface {

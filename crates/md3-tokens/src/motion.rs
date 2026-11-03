@@ -1,7 +1,5 @@
 //! モーション: イージング（3 次ベジェ曲線）と時間。
 
-// 値は docs/TOKENS_SOURCE.md に記載の一次資料から転記した。`cargo xtask check-tokens` で突き合わせる。
-
 use std::time::Duration;
 
 /// CSS の `cubic-bezier(x1, y1, x2, y2)` と同じ 3 次ベジェ曲線のイージング。
