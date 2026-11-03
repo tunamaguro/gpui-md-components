@@ -146,40 +146,40 @@ impl IconName {
         }
     }
 
-    /// SVG のバイト列（viewBox は `0 -960 960 960`、塗りは単色）。
-    pub const fn svg(self) -> &'static [u8] {
+    /// SVG の文字列
+    pub const fn svg(self) -> &'static str {
         match self {
-            IconName::Add => include_bytes!("../assets/add.svg"),
-            IconName::ArrowBack => include_bytes!("../assets/arrow_back.svg"),
-            IconName::ArrowDropDown => include_bytes!("../assets/arrow_drop_down.svg"),
-            IconName::ArrowDropUp => include_bytes!("../assets/arrow_drop_up.svg"),
-            IconName::Check => include_bytes!("../assets/check.svg"),
-            IconName::ChevronRight => include_bytes!("../assets/chevron_right.svg"),
-            IconName::Close => include_bytes!("../assets/close.svg"),
-            IconName::ContentCopy => include_bytes!("../assets/content_copy.svg"),
-            IconName::DarkMode => include_bytes!("../assets/dark_mode.svg"),
-            IconName::Delete => include_bytes!("../assets/delete.svg"),
-            IconName::Edit => include_bytes!("../assets/edit.svg"),
-            IconName::Error => include_bytes!("../assets/error.svg"),
-            IconName::ExpandMore => include_bytes!("../assets/expand_more.svg"),
-            IconName::Favorite => include_bytes!("../assets/favorite.svg"),
-            IconName::Home => include_bytes!("../assets/home.svg"),
-            IconName::Image => include_bytes!("../assets/image.svg"),
-            IconName::Inbox => include_bytes!("../assets/inbox.svg"),
-            IconName::Info => include_bytes!("../assets/info.svg"),
-            IconName::LightMode => include_bytes!("../assets/light_mode.svg"),
-            IconName::Mail => include_bytes!("../assets/mail.svg"),
-            IconName::Menu => include_bytes!("../assets/menu.svg"),
-            IconName::MoreVert => include_bytes!("../assets/more_vert.svg"),
-            IconName::Notifications => include_bytes!("../assets/notifications.svg"),
-            IconName::Palette => include_bytes!("../assets/palette.svg"),
-            IconName::Person => include_bytes!("../assets/person.svg"),
-            IconName::Search => include_bytes!("../assets/search.svg"),
-            IconName::Send => include_bytes!("../assets/send.svg"),
-            IconName::Settings => include_bytes!("../assets/settings.svg"),
-            IconName::Share => include_bytes!("../assets/share.svg"),
-            IconName::Star => include_bytes!("../assets/star.svg"),
-            IconName::StarFill1 => include_bytes!("../assets/star_fill1.svg"),
+            IconName::Add => include_str!("../assets/add.svg"),
+            IconName::ArrowBack => include_str!("../assets/arrow_back.svg"),
+            IconName::ArrowDropDown => include_str!("../assets/arrow_drop_down.svg"),
+            IconName::ArrowDropUp => include_str!("../assets/arrow_drop_up.svg"),
+            IconName::Check => include_str!("../assets/check.svg"),
+            IconName::ChevronRight => include_str!("../assets/chevron_right.svg"),
+            IconName::Close => include_str!("../assets/close.svg"),
+            IconName::ContentCopy => include_str!("../assets/content_copy.svg"),
+            IconName::DarkMode => include_str!("../assets/dark_mode.svg"),
+            IconName::Delete => include_str!("../assets/delete.svg"),
+            IconName::Edit => include_str!("../assets/edit.svg"),
+            IconName::Error => include_str!("../assets/error.svg"),
+            IconName::ExpandMore => include_str!("../assets/expand_more.svg"),
+            IconName::Favorite => include_str!("../assets/favorite.svg"),
+            IconName::Home => include_str!("../assets/home.svg"),
+            IconName::Image => include_str!("../assets/image.svg"),
+            IconName::Inbox => include_str!("../assets/inbox.svg"),
+            IconName::Info => include_str!("../assets/info.svg"),
+            IconName::LightMode => include_str!("../assets/light_mode.svg"),
+            IconName::Mail => include_str!("../assets/mail.svg"),
+            IconName::Menu => include_str!("../assets/menu.svg"),
+            IconName::MoreVert => include_str!("../assets/more_vert.svg"),
+            IconName::Notifications => include_str!("../assets/notifications.svg"),
+            IconName::Palette => include_str!("../assets/palette.svg"),
+            IconName::Person => include_str!("../assets/person.svg"),
+            IconName::Search => include_str!("../assets/search.svg"),
+            IconName::Send => include_str!("../assets/send.svg"),
+            IconName::Settings => include_str!("../assets/settings.svg"),
+            IconName::Share => include_str!("../assets/share.svg"),
+            IconName::Star => include_str!("../assets/star.svg"),
+            IconName::StarFill1 => include_str!("../assets/star_fill1.svg"),
         }
     }
 }
@@ -192,8 +192,8 @@ mod tests {
     fn every_icon_is_an_svg() {
         for icon in IconName::ALL {
             let svg = icon.svg();
-            assert!(svg.starts_with(b"<svg"), "{}", icon.name());
-            assert!(svg.ends_with(b"</svg>"), "{}", icon.name());
+            assert!(svg.starts_with("<svg"), "{}", icon.name());
+            assert!(svg.ends_with("</svg>"), "{}", icon.name());
         }
     }
 }
