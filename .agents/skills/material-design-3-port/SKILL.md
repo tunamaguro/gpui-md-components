@@ -13,7 +13,7 @@ description: Material Design 3 のトークン値・計算ロジック・コン�
 
 - [references/androidx](references/androidx): Compose Material3 の生成トークンと実装。数値の第一候補。
 - [references/material-web](references/material-web): Sass トークンと TypeScript / Sass の実装。Compose に値がない項目や Web 表現の参照先。
-- [references/material-color-utilities](references/material-color-utilities): HCT / CAM16 / TonalPalette / DynamicScheme などの配色アルゴリズムと公式テスト。
+- [references/material-color-utilities/typescript](references/material-color-utilities/typescript): HCT / CAM16 / TonalPalette / DynamicScheme などの配色アルゴリズムと公式テストの参照元。
 - [references/material-design-icons](references/material-design-icons): Material Symbols の SVG・フォントと Material Icons の資産。アイコン形状とバリアントの参照先。
 - [m3.material.io](https://m3.material.io): Foundations,Styles,Componentsを参照する
 - [参照先の探し方](references/source-map.md): 対象のトークン・計算ロジック・アイコンを探すときに読む。
@@ -35,7 +35,7 @@ description: Material Design 3 のトークン値・計算ロジック・コン�
 - 色・形・タイポグラフィ・elevation の参照先をたどる。色を固定 RGB に潰さず `ColorRole` として対応させ、ライト / ダークやテーマの上書きを維持する。
 - material-web は公開トークンの `@use` / `@forward` 先と、`values()` の依存・追加・改名・除外を確認する。生成ファイルの値と実際のコンポーネントが利用する値を区別する。
 - 計算式は入力条件、初期値、クランプ、丸め、時間・長さの単位、終了条件まで読む。Android / DOM 固有の API は GPUI の責務に置き換え、観測できる結果を合わせる。
-- 配色計算は material-color-utilities の TypeScript 実装から依存する数式・定数とテストまで追い、`md3-color` の対象である 2021 仕様との対応を確認する。
+- 配色計算は material-color-utilities の TypeScript 実装を参照し、動的配色は 2026 仕様を対象とする。依存する数式・定数とテスト、`color_spec.ts` と `specVersion` の分岐を追い、上流の仕様フォールバックを維持する。
 - アイコン資産は material-design-icons で Material Symbols / Material Icons の区別、スタイル、サイズ、塗り、ウェイトなどを確認する。部品に内蔵された形状を合わせる場合は、Compose / material-web の該当定義も読む。
 - 同梱の submodule で根拠が見つからなければ、その範囲を明記する。密度など別の出典が必要な項目を、Compose 由来として記録しない。
 

@@ -50,19 +50,21 @@ rg -n '@use|values|new-tokens|renamed-tokens|unsupported-tokens' "$web/tokens/_m
 
 ## material-color-utilities
 
-起点は同梱の [typescript/](material-color-utilities/typescript/)。`md3-color` の出典コメントと対象仕様を確認してから、以下の実装と同じディレクトリにある `*_test.ts` を読む。Material3 の色ロール定義や Android の動的色取得だけではアルゴリズム全体の根拠にならない。
+起点は同梱の [typescript/](material-color-utilities/typescript/)。`md3-color` は TypeScript 版を参照し、動的配色は 2026 仕様を対象とする。出典コメントを確認してから、以下の実装と対応する `*_test.ts` を読む。Material3 の色ロール定義や Android の動的色取得だけではアルゴリズム全体の根拠にならない。
 
-| 調べるもの         | 起点                                                                                                                            | 追うもの                                                                                                               |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| HCT / CAM16        | [hct/](material-color-utilities/typescript/hct/) の `hct.ts`、`cam16.ts`、`viewing_conditions.ts`                               | ARGB との相互変換、観測条件、許容誤差、往復変換のテスト                                                                |
-| HCT ソルバー       | `hct/hct_solver.ts`                                                                                                             | 色域内に収める条件、探索、行列・定数、丸め                                                                             |
-| パレット           | [palettes/](material-color-utilities/typescript/palettes/) の `tonal_palette.ts`、`core_palette.ts`                             | 色相・彩度とトーンの対応、キーとなる色                                                                                 |
-| 動的スキーム       | [dynamiccolor/](material-color-utilities/typescript/dynamiccolor/)、[scheme/](material-color-utilities/typescript/scheme/)      | `dynamic_scheme.ts`、`dynamic_color.ts`、`material_dynamic_colors.ts`、`color_spec_2021.ts`、各 variant の生成とテスト |
-| コントラスト       | [contrast/](material-color-utilities/typescript/contrast/)、`dynamiccolor/contrast_curve.ts`、`dynamiccolor/tone_delta_pair.ts` | 明るさ・トーン・コントラスト比、背景との関係、トーンの差                                                               |
-| 色温度・色の補正   | [temperature/](material-color-utilities/typescript/temperature/)、[dislike/](material-color-utilities/typescript/dislike/)      | 補色・類似色、補正条件とテスト                                                                                         |
-| 数値・色空間の基礎 | [utils/](material-color-utilities/typescript/utils/) の `color_utils.ts`、`math_utils.ts`                                       | ARGB のビット演算、sRGB の線形化、XYZ / L\*、クランプ、色相の正規化                                                    |
+| 調べるもの         | 起点                                                                                                                            | 追うもの                                                                                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| HCT / CAM16        | [hct/](material-color-utilities/typescript/hct/) の `hct.ts`、`cam16.ts`、`viewing_conditions.ts`                                     | ARGB との相互変換、観測条件、許容誤差、往復変換のテスト                                                                                                        |
+| HCT ソルバー       | `hct/hct_solver.ts`                                                                                                              | 色域内に収める条件、探索、行列・定数、丸め                                                                                                                     |
+| パレット           | [palettes/](material-color-utilities/typescript/palettes/) の `tonal_palette.ts`、`core_palette.ts`、`core_palettes.ts`               | 色相・彩度とトーンの対応、キーとなる色                                                                                                                         |
+| 動的スキーム       | [dynamiccolor/](material-color-utilities/typescript/dynamiccolor/)、[scheme/](material-color-utilities/typescript/scheme/)            | `dynamic_scheme.ts`、`dynamic_color.ts`、`material_dynamic_colors.ts`、`color_spec.ts`、`color_spec_2026.ts`、`scheme_cmf.ts` など各 variant の生成とテスト |
+| コントラスト       | [contrast/](material-color-utilities/typescript/contrast/)、`dynamiccolor/contrast_curve.ts`、`dynamiccolor/tone_delta_pair.ts`       | 明るさ・トーン・コントラスト比、背景との関係、トーンの差                                                                                                       |
+| 色温度・色の補正   | [temperature/](material-color-utilities/typescript/temperature/)、[dislike/](material-color-utilities/typescript/dislike/)            | 補色・類似色、補正条件とテスト                                                                                                                                |
+| 数値・色空間の基礎 | [utils/](material-color-utilities/typescript/utils/) の `color_utils.ts`、`math_utils.ts`                                             | ARGB のビット演算、sRGB の線形化、XYZ / L\*、クランプ、色相の正規化                                                                                             |
 
-同じ checkout に 2021 / 2025 / 2026 仕様のコードが共存する。`md3-color` は 2021 仕様を対象とするため、`specVersion` と delegate の分岐を確認し、実装とテストの対象仕様を揃える。TypeScript と Kotlin / Java などを比較するときも、対応する仕様・入力・精度を確認する。
+同じ checkout に 2021 / 2025 / 2026 仕様のコードが共存する。`ColorSpecDelegateImpl2026` が継承する `ColorSpecDelegateImpl2025` / `ColorSpecDelegateImpl2021` と、`DynamicScheme.maybeFallbackSpecVersion` まで追い、上流の仕様フォールバックを維持する。`DynamicScheme.DEFAULT_SPEC_VERSION` は `'2021'` のため、既定値だけで対象仕様を判断しない。
+
+上流テストも対象仕様・入力・精度を確認する。2026 仕様の期待値がない範囲は別言語実装を参照する。それでもない場合は人間に相談する
 
 ## material-design-icons
 
