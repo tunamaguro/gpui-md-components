@@ -1,6 +1,6 @@
 ---
 name: material-design-3-port
-description: Material Design 3 のトークン値・計算ロジック・コンポーネント仕様を Rust / GPUI に移植するときに使う。同梱の AndroidX Compose、material-web、material-color-utilities の submodule を一次資料として読み、値の依存先、状態別の振る舞い、単位、参照リビジョンを確認する。
+description: Material Design 3 のトークン値・計算ロジック・コンポーネント仕様・アイコンを Rust / GPUI に移植するときに使う。同梱の submodule を一次資料として読み、値の依存先、状態別の振る舞い、単位、参照リビジョンを確認する。
 ---
 
 # Material Design 3 の移植
@@ -14,33 +14,14 @@ description: Material Design 3 のトークン値・計算ロジック・コン�
 - [references/androidx](references/androidx): Compose Material3 の生成トークンと実装。数値の第一候補。
 - [references/material-web](references/material-web): Sass トークンと TypeScript / Sass の実装。Compose に値がない項目や Web 表現の参照先。
 - [references/material-color-utilities](references/material-color-utilities): HCT / CAM16 / TonalPalette / DynamicScheme などの配色アルゴリズムと公式テスト。
+- [references/material-design-icons](references/material-design-icons): Material Symbols の SVG・フォントと Material Icons の資産。アイコン形状とバリアントの参照先。
 - [m3.material.io](https://m3.material.io): Foundations,Styles,Componentsを参照する
-- [参照先の探し方](references/source-map.md): 対象のトークン・計算ロジックを探すときに読む。
+- [参照先の探し方](references/source-map.md): 対象のトークン・計算ロジック・アイコンを探すときに読む。
 - [移植時の判断と検証](references/porting-notes.md): 値の食い違い、単位変換、状態・形状・モーションを移植するときに読む。
 
 ## 参照元を確定する
 
 1. 対象 crate と既存の出典コメントを読み、コンポーネント、バリアント、対象状態、ベースライン / Expressive の範囲を確認する。既存の数値やコメントも、一次資料との照合なしに正としない。
-
-1. submodule の実際のコミットと作業ツリーの変更を確認する。以下はスキルのディレクトリで実行する。
-
-   ```sh
-   git -C references/androidx rev-parse HEAD
-   git -C references/androidx status --short
-   git -C references/material-web rev-parse HEAD
-   git -C references/material-web status --short
-   git -C references/material-color-utilities rev-parse HEAD
-   git -C references/material-color-utilities status --short
-   ```
-
-   未初期化なら、リポジトリルートで必要なものだけ初期化する。
-
-   ```sh
-   git submodule update --init -- \
-     .agents/skills/material-design-3-port/references/androidx \
-     .agents/skills/material-design-3-port/references/material-web \
-     .agents/skills/material-design-3-port/references/material-color-utilities
-   ```
 
 1. Kotlin の `VERSION`、Sass の版・生成コンテキストも確認する。同じコミットでもファイルごとにトークンの世代が異なる。`latest` というディレクトリ名だけで採用を決めない。
 
@@ -55,6 +36,7 @@ description: Material Design 3 のトークン値・計算ロジック・コン�
 - material-web は公開トークンの `@use` / `@forward` 先と、`values()` の依存・追加・改名・除外を確認する。生成ファイルの値と実際のコンポーネントが利用する値を区別する。
 - 計算式は入力条件、初期値、クランプ、丸め、時間・長さの単位、終了条件まで読む。Android / DOM 固有の API は GPUI の責務に置き換え、観測できる結果を合わせる。
 - 配色計算は material-color-utilities の TypeScript 実装から依存する数式・定数とテストまで追い、`md3-color` の対象である 2021 仕様との対応を確認する。
+- アイコン資産は material-design-icons で Material Symbols / Material Icons の区別、スタイル、サイズ、塗り、ウェイトなどを確認する。部品に内蔵された形状を合わせる場合は、Compose / material-web の該当定義も読む。
 - 同梱の submodule で根拠が見つからなければ、その範囲を明記する。密度など別の出典が必要な項目を、Compose 由来として記録しない。
 
 ## 実装と出典

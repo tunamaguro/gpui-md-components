@@ -64,6 +64,24 @@ rg -n '@use|values|new-tokens|renamed-tokens|unsupported-tokens' "$web/tokens/_m
 
 同じ checkout に 2021 / 2025 / 2026 仕様のコードが共存する。`md3-color` は 2021 仕様を対象とするため、`specVersion` と delegate の分岐を確認し、実装とテストの対象仕様を揃える。TypeScript と Kotlin / Java などを比較するときも、対応する仕様・入力・精度を確認する。
 
+## material-design-icons
+
+起点は [README.md](material-design-icons/README.md)。Material Symbols と Material Icons を区別して対象の資産を探す。
+
+| 調べるもの                      | 起点                                                                     | 確認するもの                                                                                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Material Symbols の SVG         | [symbols/web/](material-design-icons/symbols/web/) の `<name>/<style>/`  | `materialsymbolsoutlined` / `materialsymbolsrounded` / `materialsymbolssharp`、ファイル名のサイズ・塗り・ウェイト・グレード、SVG の `viewBox` |
+| Material Symbols の可変フォント | [variablefont/](material-design-icons/variablefont/)                     | スタイル、軸と対応するフォントファイル                                                                                                        |
+| Material Icons の SVG・フォント | [src/](material-design-icons/src/)、[font/](material-design-icons/font/) | カテゴリ、アイコン名、スタイル、サイズ                                                                                                        |
+
+例: `home` の Material Symbols Outlined を探す。以下はスキルのディレクトリで実行する。
+
+```sh
+rg --files references/material-design-icons/symbols/web/home/materialsymbolsoutlined
+```
+
+部品固有のアイコンは、Compose Material3 の `internal/Icons.kt` や material-web の対象部品の `.ts` にも形状が定義されている。部品と同じ形状を移植するときは、その定義と Material Symbols のバリアントを照合する。
+
 ## 同梱の submodule の外に根拠があるもの
 
 - 密度計算は `md3-tokens/src/density.rs` の出典を確認する。Compose / material-web 内に同じ密度トークンがあると仮定しない。
