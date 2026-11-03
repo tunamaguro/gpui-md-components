@@ -1,13 +1,13 @@
-## 基本ルール
+# 基本ルール
 
-- ログメッセージは全て英語にすること
-- テストのログメッセージは全て日本語にすること
+- 常に日本語を使うこと
+- 全角と半角の間には半角スペースを入れること
 
 ## コードコメント
 
 - 新規コメントの言語は既存ファイルの慣習に合わせる。明確な慣習がなければ日本語を優先する
-  - 日本語で書く場合、特別な理由がなければ文末に句点`。`を付けず、全角括弧より半角括弧`()`を優先して使用する
-  - 日本語で書く場合、半角文字と全角文字の間には空白` `を入れること
+  - 同じ段落で文が続く場合は、文の区切りに句点 `。` を付ける。段落末尾とリスト項目の末尾には付けない
+  - 全角括弧より半角括弧 `()` を優先して使用する
 - コメントは必要なときだけ追加し、コードを読めば分かる説明で埋めない
 - コメントは、今のコードに実在するもの (コードの行やシンボル、呼び出している外部 API、根拠となる仕様) を対象にする。採用しなかった案、消した値、変更予定、過去の状態のように、今のコードに無いものを対象にしない
 - 変更履歴を書かない。「以前は」「従来は」「旧実装では」「もともと」「かつて」のように、今のコードを読んでも確認できない過去の状態を説明しない
@@ -19,3 +19,10 @@
   - 外部仕様とは、入力と前提、戻り値・エラー・None の条件、順序、有効期間、副作用などの契約を指す
   - 内部動作 (呼び出している外部 API、処理の順序、データ構造の選択) は補足としてのみ使い、仕様の説明の主軸としない
   - 主軸にしない内部動作の理由は、doc ではなくコード行のコメントに書くこと
+
+## コーディングスタイル
+
+- Prioritise, in this order: stability, simplicity, performance.
+- Keep things in one function unless composable or reusable
+- Do not extract single-use helpers preemptively. Inline the logic at the call site unless the helper is reused, hides a genuinely complex boundary, or has a clear independent name that improves the caller.
+- Before adding complexity for a speculative or vanishingly unlikely race or security edge case, explain the concrete failure mode, likelihood, and complexity cost to the user and get their buy-in. Do not silently expand scope for theoretical robustness.
