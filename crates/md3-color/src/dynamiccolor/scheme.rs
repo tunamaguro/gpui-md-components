@@ -10,6 +10,7 @@
 
 use std::fmt;
 
+use super::spec::spec;
 use super::{ColorRole, Platform, SpecVersion, Variant, calc, palettes};
 use crate::hct::Hct;
 use crate::palettes::TonalPalette;
@@ -151,6 +152,30 @@ impl DynamicScheme {
         calc::get_hct(self, role)
     }
 
+    /// この配色で `role` が背景に対して目標とするコントラスト比
+    ///
+    /// 移植元の `DynamicColor` の `background` / `secondBackground` と `contrastCurve` を、
+    /// この配色のコントラストレベルで評価したもの。背景かコントラストの目標を持たない役割では空になる。
+    /// 目標は配色の計算が満たそうとする値で、トーンの範囲や役割どうしのトーン差の制約によって、
+    /// 計算結果の色が目標に届かない場合がある
+    pub fn contrast_requirements(
+        &self,
+        role: ColorRole,
+    ) -> impl Iterator<Item = ContrastRequirement> + use<> {
+        let color = spec(role, self.spec_version);
+        let ratio = (color.contrast_curve)(self).map(|curve| curve.get(self.contrast_level));
+        let backgrounds = [(color.background)(self), (color.second_background)(self)];
+        backgrounds
+            .into_iter()
+            .flatten()
+            .filter_map(move |background| {
+                Some(ContrastRequirement {
+                    background,
+                    ratio: ratio?,
+                })
+            })
+    }
+
     pub(crate) fn palette(&self, palette: Palette) -> &TonalPalette {
         match palette {
             Palette::Primary => &self.primary_palette,
@@ -170,6 +195,15 @@ impl DynamicScheme {
             ..self.clone()
         }
     }
+}
+
+/// 色の役割が背景に対して目標とするコントラスト比。[`DynamicScheme::contrast_requirements`] が返す
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ContrastRequirement {
+    /// 背景の役割
+    pub background: ColorRole,
+    /// 目標のコントラスト比 (1〜21)
+    pub ratio: f64,
 }
 
 /// [`DynamicScheme`] のビルダー
@@ -451,5 +485,55 @@ fn cmf_error_hue(primary_hue: f64, tertiary_hue: f64) -> f64 {
         32.0
     } else {
         16.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn requirements(
+        version: SpecVersion,
+        contrast_level: ContrastLevel,
+        role: ColorRole,
+    ) -> Result<Vec<ContrastRequirement>, SchemeError> {
+        let scheme =
+            DynamicScheme::builder(Hct::from_argb(Argb::new(0xff67_50a4)), Variant::TonalSpot)
+                .spec_version(version)
+                .contrast_level(contrast_level)
+                .build()?;
+        Ok(scheme.contrast_requirements(role).collect())
+    }
+
+    fn on_primary(ratio: f64) -> Vec<ContrastRequirement> {
+        vec![ContrastRequirement {
+            background: ColorRole::Primary,
+            ratio,
+        }]
+    }
+
+    #[test]
+    fn コントラストの目標は版とコントラストレベルで変わる() -> Result<(), SchemeError> {
+        use SpecVersion::{Spec2021, Spec2026};
+        // color_spec_2026.ts の onPrimary は background が primary、contrastCurve が getCurve(6) = (6, 6, 7, 11)
+        let standard = requirements(Spec2026, ContrastLevel::STANDARD, ColorRole::OnPrimary)?;
+        assert_eq!(standard, on_primary(6.0));
+        let high = requirements(Spec2026, ContrastLevel::HIGH, ColorRole::OnPrimary)?;
+        assert_eq!(high, on_primary(11.0));
+        // color_spec_2021.ts の onPrimary は contrastCurve が (4.5, 7, 11, 21)
+        let spec_2021 = requirements(Spec2021, ContrastLevel::STANDARD, ColorRole::OnPrimary)?;
+        assert_eq!(spec_2021, on_primary(7.0));
+        Ok(())
+    }
+
+    #[test]
+    fn 背景を持たない役割は目標を持たない() -> Result<(), SchemeError> {
+        let surface = requirements(
+            SpecVersion::Spec2026,
+            ContrastLevel::STANDARD,
+            ColorRole::Surface,
+        )?;
+        assert!(surface.is_empty());
+        Ok(())
     }
 }

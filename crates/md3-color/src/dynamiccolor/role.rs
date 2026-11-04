@@ -193,6 +193,11 @@ impl ColorRole {
         ColorRole::OnTertiaryFixedVariant,
     ];
 
+    /// [`ColorRole::ALL`] での位置。役割ごとの値を配列に持つときの添字に使う
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+
     /// 移植元の `DynamicColor.name` と同じ snake_case の名前
     pub const fn name(self) -> &'static str {
         match self {
@@ -255,6 +260,18 @@ impl ColorRole {
             ColorRole::TertiaryFixedDim => "tertiary_fixed_dim",
             ColorRole::OnTertiaryFixed => "on_tertiary_fixed",
             ColorRole::OnTertiaryFixedVariant => "on_tertiary_fixed_variant",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn 添字は_all_での位置と一致する() {
+        for (position, role) in ColorRole::ALL.into_iter().enumerate() {
+            assert_eq!(role.index(), position, "{role:?}");
         }
     }
 }
