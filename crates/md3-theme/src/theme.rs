@@ -444,6 +444,50 @@ mod tests {
     }
 
     #[test]
+    fn コントラストの検査は配色の目標値によらず_4_5_対_1_を境にする() {
+        for contrast in [
+            ContrastLevel::STANDARD,
+            ContrastLevel::REDUCED,
+            ContrastLevel::HIGH,
+        ] {
+            let mut settings = ThemeSettings::default();
+            settings.color.contrast = contrast;
+            settings.color.light.set(
+                ColorRole::SurfaceContainerLowest,
+                Argb::from_rgb(0xff, 0xff, 0xff),
+            );
+            settings
+                .color
+                .light
+                .set(ColorRole::OnSurface, Argb::from_rgb(0x77, 0x77, 0x77));
+            let theme = resolve(settings.clone());
+            let reported = issue(
+                &theme,
+                ColorRole::OnSurface,
+                ColorRole::SurfaceContainerLowest,
+            )
+            .expect("白に対して #777777 の文字は 4.5:1 に届かないので報告される");
+            assert!(reported.ratio < 4.5, "{contrast:?}: {reported:?}");
+            assert_eq!(reported.required, 4.5, "{contrast:?}");
+
+            settings
+                .color
+                .light
+                .set(ColorRole::OnSurface, Argb::from_rgb(0x76, 0x76, 0x76));
+            let theme = resolve(settings);
+            assert!(
+                issue(
+                    &theme,
+                    ColorRole::OnSurface,
+                    ColorRole::SurfaceContainerLowest
+                )
+                .is_none(),
+                "{contrast:?}"
+            );
+        }
+    }
+
+    #[test]
     fn 配色の計算が見ない背景との組も報告する() {
         // 配色の計算は OnSurface を SurfaceDim、OnPrimaryFixed を PrimaryFixedDim に対してだけ調整する
         let theme = resolve(ThemeSettings::default());
