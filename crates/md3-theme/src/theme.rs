@@ -133,8 +133,16 @@ pub struct CustomColorRoles {
 pub struct Theme {
     settings: ThemeSettings,
     brightness: Brightness,
-    colors: [Argb; ColorRole::ALL.len()],
-    custom_colors: BTreeMap<&'static str, CustomColorRoles>,
+    // OS の外観が変わったときに解決し直さず切り替えられるよう、両方の明暗を持つ
+    light: Colors,
+    dark: Colors,
+}
+
+/// 片方の明暗の色
+#[derive(Clone, Debug, PartialEq)]
+struct Colors {
+    roles: [Argb; ColorRole::ALL.len()],
+    custom: BTreeMap<&'static str, CustomColorRoles>,
     contrast_issues: Vec<ContrastIssue>,
 }
 
@@ -147,85 +155,103 @@ impl Theme {
         settings: ThemeSettings,
         system: Brightness,
     ) -> Result<Self, SchemeError> {
-        let brightness = settings.appearance.brightness(system);
         let color = &settings.color;
-        let mut builder = DynamicScheme::builder(Hct::from_argb(color.source), color.variant)
-            .dark(brightness == Brightness::Dark)
-            .contrast_level(color.contrast)
-            .spec_version(color.spec_version)
-            .additional_source_colors(color.additional_sources.iter().copied().map(Hct::from_argb));
-        let palettes = &color.palettes;
-        if let Some(palette) = palettes.primary {
-            builder = builder.primary_palette(palette);
-        }
-        if let Some(palette) = palettes.secondary {
-            builder = builder.secondary_palette(palette);
-        }
-        if let Some(palette) = palettes.tertiary {
-            builder = builder.tertiary_palette(palette);
-        }
-        if let Some(palette) = palettes.neutral {
-            builder = builder.neutral_palette(palette);
-        }
-        if let Some(palette) = palettes.neutral_variant {
-            builder = builder.neutral_variant_palette(palette);
-        }
-        if let Some(palette) = palettes.error {
-            builder = builder.error_palette(palette);
-        }
-        let scheme = builder.build()?;
-
-        let generated = ColorRole::ALL.map(|role| scheme.argb(role));
-        let overrides = color.overrides(brightness);
-        let colors =
-            ColorRole::ALL.map(|role| overrides.get(role).unwrap_or(generated[role.index()]));
-
-        // 比は不透明度を無視したトーンで求める。ロールの色は不透明なので結果は変わらない
-        let contrast_issues = SURFACES
-            .into_iter()
-            .flat_map(|surface| SURFACE_TEXTS.map(|text| (text, surface)))
-            .chain(TEXT_PAIRS)
-            .filter_map(|(foreground, background)| {
-                let ratio = contrast::ratio_of_tones(
-                    colors[foreground.index()].lstar(),
-                    colors[background.index()].lstar(),
+        let colors = |brightness: Brightness| -> Result<Colors, SchemeError> {
+            let dark = brightness == Brightness::Dark;
+            let mut builder = DynamicScheme::builder(Hct::from_argb(color.source), color.variant)
+                .dark(dark)
+                .contrast_level(color.contrast)
+                .spec_version(color.spec_version)
+                .additional_source_colors(
+                    color.additional_sources.iter().copied().map(Hct::from_argb),
                 );
-                (ratio < TEXT_CONTRAST).then_some(ContrastIssue {
-                    foreground,
-                    background,
-                    ratio,
-                    required: TEXT_CONTRAST,
+            let palettes = &color.palettes;
+            if let Some(palette) = palettes.primary {
+                builder = builder.primary_palette(palette);
+            }
+            if let Some(palette) = palettes.secondary {
+                builder = builder.secondary_palette(palette);
+            }
+            if let Some(palette) = palettes.tertiary {
+                builder = builder.tertiary_palette(palette);
+            }
+            if let Some(palette) = palettes.neutral {
+                builder = builder.neutral_palette(palette);
+            }
+            if let Some(palette) = palettes.neutral_variant {
+                builder = builder.neutral_variant_palette(palette);
+            }
+            if let Some(palette) = palettes.error {
+                builder = builder.error_palette(palette);
+            }
+            let scheme = builder.build()?;
+
+            let overrides = color.overrides(brightness);
+            let roles =
+                ColorRole::ALL.map(|role| overrides.get(role).unwrap_or_else(|| scheme.argb(role)));
+
+            // 比は不透明度を無視したトーンで求める。ロールの色は不透明なので結果は変わらない
+            let contrast_issues = SURFACES
+                .into_iter()
+                .flat_map(|surface| SURFACE_TEXTS.map(|text| (text, surface)))
+                .chain(TEXT_PAIRS)
+                .filter_map(|(foreground, background)| {
+                    let ratio = contrast::ratio_of_tones(
+                        roles[foreground.index()].lstar(),
+                        roles[background.index()].lstar(),
+                    );
+                    (ratio < TEXT_CONTRAST).then_some(ContrastIssue {
+                        foreground,
+                        background,
+                        ratio,
+                        required: TEXT_CONTRAST,
+                    })
                 })
-            })
-            .collect();
+                .collect();
 
-        let custom_colors = color
-            .custom_colors
-            .iter()
-            .map(|(key, custom)| {
-                let group = CustomColorGroup::new(
-                    color.source,
-                    custom.color,
-                    custom.harmonize,
-                    brightness == Brightness::Dark,
-                );
-                let roles = CustomColorRoles {
-                    color: to_hsla(group.color),
-                    on_color: to_hsla(group.on_color),
-                    container: to_hsla(group.container),
-                    on_container: to_hsla(group.on_container),
-                };
-                (*key, roles)
-            })
-            .collect();
+            let custom = color
+                .custom_colors
+                .iter()
+                .map(|(key, custom)| {
+                    let group =
+                        CustomColorGroup::new(color.source, custom.color, custom.harmonize, dark);
+                    let roles = CustomColorRoles {
+                        color: to_hsla(group.color),
+                        on_color: to_hsla(group.on_color),
+                        container: to_hsla(group.container),
+                        on_container: to_hsla(group.on_container),
+                    };
+                    (*key, roles)
+                })
+                .collect();
 
+            Ok(Colors {
+                roles,
+                custom,
+                contrast_issues,
+            })
+        };
+        let light = colors(Brightness::Light)?;
+        let dark = colors(Brightness::Dark)?;
         Ok(Self {
+            brightness: settings.appearance.brightness(system),
             settings,
-            brightness,
-            colors,
-            custom_colors,
-            contrast_issues,
+            light,
+            dark,
         })
+    }
+
+    /// OS の外観が `system` のときのテーマ。解決し直さず、使う明暗だけを選び直す
+    pub(crate) fn with_system(mut self, system: Brightness) -> Self {
+        self.brightness = self.settings.appearance.brightness(system);
+        self
+    }
+
+    fn colors(&self) -> &Colors {
+        match self.brightness {
+            Brightness::Light => &self.light,
+            Brightness::Dark => &self.dark,
+        }
     }
 
     /// 解決に使った設定
@@ -240,12 +266,12 @@ impl Theme {
 
     /// `role` の色
     pub fn color(&self, role: ColorRole) -> Hsla {
-        to_hsla(self.colors[role.index()])
+        to_hsla(self.colors().roles[role.index()])
     }
 
     /// キーが `key` のアプリ独自の色の役割。設定の [`custom_colors`](crate::ColorSettings::custom_colors) にそのキーがなければ `None`
     pub fn custom_color(&self, key: &str) -> Option<CustomColorRoles> {
-        self.custom_colors.get(key).copied()
+        self.colors().custom.get(key).copied()
     }
 
     /// 文字として重ねて使うロールの組のうち、コントラスト比が 4.5:1 (WCAG 2.2 AA の通常の文字) に届かないもの
@@ -255,7 +281,7 @@ impl Theme {
     /// コントラストレベルを下げた配色では、差し替えがなくても報告されることがある。
     /// 大きな文字や文字以外 (3:1)、状態レイヤーを重ねた色、アプリ独自の色は対象にしない
     pub fn contrast_issues(&self) -> &[ContrastIssue] {
-        &self.contrast_issues
+        &self.colors().contrast_issues
     }
 
     /// sp の寸法に文字倍率を掛けて、gpui の論理ピクセルにする
@@ -336,7 +362,7 @@ mod tests {
     use crate::settings::{AppearanceMode, ColorSettings, CustomColor, DEFAULT_SOURCE, TextScale};
 
     fn argb(theme: &Theme, role: ColorRole) -> Argb {
-        theme.colors[role.index()]
+        theme.colors().roles[role.index()]
     }
 
     fn resolve(settings: ThemeSettings) -> Theme {
@@ -380,6 +406,20 @@ mod tests {
             surface_on_dark_system(AppearanceMode::Light),
             surface(false)
         );
+    }
+
+    #[test]
+    fn 明暗を選び直しても解決し直したテーマと同じになる() {
+        let mut settings = ThemeSettings::default();
+        settings
+            .color
+            .dark
+            .set(ColorRole::Primary, Argb::from_rgb(0xff, 0, 0));
+        let light =
+            Theme::resolve(settings.clone(), Brightness::Light).expect("既定の配色は解決できる");
+        let dark = Theme::resolve(settings, Brightness::Dark).expect("既定の配色は解決できる");
+        assert_eq!(light.clone().with_system(Brightness::Dark), dark);
+        assert_eq!(dark.with_system(Brightness::Light), light);
     }
 
     #[test]

@@ -71,20 +71,15 @@ impl ThemeExt for App {
             AppearanceMode::Light => Some(WindowAppearance::Light),
             AppearanceMode::Dark => Some(WindowAppearance::Dark),
         };
-        self.set_window_appearance(forced(settings.appearance));
+        let appearance = settings.appearance;
+        // 失敗しうる解決を枠の変更より先に済ませる。使う明暗は枠を合わせた後に選び直す
+        let theme = Theme::resolve(settings, previous.brightness())?;
+        self.set_window_appearance(forced(appearance));
         // 明示指定の間は App::window_appearance がその指定を返すため、指定を変えてから OS の外観を読む
         let system = Brightness::from_window_appearance(self.window_appearance());
-        match Theme::resolve(settings, system) {
-            Ok(theme) => {
-                self.set_global(GlobalTheme(Arc::new(theme)));
-                self.refresh_windows();
-                Ok(())
-            }
-            Err(error) => {
-                self.set_window_appearance(forced(previous.settings().appearance));
-                Err(error)
-            }
-        }
+        self.set_global(GlobalTheme(Arc::new(theme.with_system(system))));
+        self.refresh_windows();
+        Ok(())
     }
 }
 
@@ -100,14 +95,12 @@ fn init_global(cx: &mut App) {
 
 fn follow_system(system: Brightness, cx: &mut App) {
     let theme = &cx.global::<GlobalTheme>().0;
-    if theme.settings().appearance != AppearanceMode::System || theme.brightness() == system {
+    if theme.settings().appearance.brightness(system) == theme.brightness() {
         return;
     }
-    // 外観だけを変えた設定の解決は、今のテーマを作れた時点で成功する
-    if let Ok(theme) = Theme::resolve(theme.settings().clone(), system) {
-        cx.set_global(GlobalTheme(Arc::new(theme)));
-        cx.refresh_windows();
-    }
+    let followed = Theme::clone(theme).with_system(system);
+    cx.set_global(GlobalTheme(Arc::new(followed)));
+    cx.refresh_windows();
 }
 
 #[cfg(test)]
