@@ -25,7 +25,16 @@
     <script type="module">
       import init from "./gallery.js";
       const status = document.getElementById("status");
-      init().then(
+      // gallery_bg.wasm は build-web.sh で gzip してあるので、展開してから渡す。
+      const wasm = fetch("./gallery_bg.wasm.gz").then((response) => {
+        if (!response.ok) {
+          throw new Error(`failed to fetch wasm: ${response.status}`);
+        }
+        return new Response(response.body.pipeThrough(new DecompressionStream("gzip")), {
+          headers: { "Content-Type": "application/wasm" },
+        });
+      });
+      init({ module_or_path: wasm }).then(
         () => status.remove(),
         (error) => {
           status.textContent = "読み込みに失敗しました";

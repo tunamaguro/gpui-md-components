@@ -15,4 +15,6 @@ cargo build --manifest-path "$root/Cargo.toml" --locked --release --target wasm3
 rm -rf "$out"
 wasm-bindgen --target web --no-typescript --out-dir "$out" "$wasm"
 wasm-opt -Oz "$out/gallery_bg.wasm" -o "$out/gallery_bg.wasm"
+# index.html が gallery_bg.wasm.gz を取得してブラウザ側で展開する。
+gzip -9 "$out/gallery_bg.wasm"
 cp "$gallery_dir/index.html" "$out/"
