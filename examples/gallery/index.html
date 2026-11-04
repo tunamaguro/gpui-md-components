@@ -11,11 +11,30 @@
         height: 100%;
         overflow: hidden;
       }
+      /* gpui が body に足す canvas の配置を変えないよう、固定配置で重ねる */
+      #status {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: system-ui, sans-serif;
+        color: #49454f;
+      }
     </style>
     <script type="module">
       import init from "./gallery.js";
-      init();
+      const status = document.getElementById("status");
+      init().then(
+        () => status.remove(),
+        (error) => {
+          status.textContent = "読み込みに失敗しました";
+          throw error;
+        },
+      );
     </script>
   </head>
-  <body></body>
+  <body>
+    <div id="status" role="status">読み込み中…</div>
+  </body>
 </html>
