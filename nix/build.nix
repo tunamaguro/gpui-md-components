@@ -43,6 +43,10 @@ let
       fileset = lib.fileset.unions [
         (craneLib.fileset.commonCargoSources ../.)
         ../clippy.toml
+        # example-support が include_bytes! / include_str! で埋め込むフォントとライセンス文。
+        ../examples/example-support/assets
+        # md3-color のテストが include_str! で読む fixture。
+        ../crates/md3-color/tests/fixtures
       ];
     };
     cargoLock = ../Cargo.lock;
