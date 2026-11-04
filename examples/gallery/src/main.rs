@@ -17,6 +17,14 @@ struct Gallery {
     theme_page: Entity<ThemePage>,
 }
 
+impl Gallery {
+    fn new(cx: &mut Context<Self>) -> Self {
+        Self {
+            theme_page: cx.new(|_| ThemePage),
+        }
+    }
+}
+
 impl Render for Gallery {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         div().size_full().child(self.theme_page.clone())
@@ -34,9 +42,7 @@ fn run() {
         .expect("changing only the fonts keeps the default settings resolvable");
         cx.open_window(WindowOptions::default(), |window, cx| {
             cx.init_md3_theme(window);
-            cx.new(|cx| Gallery {
-                theme_page: cx.new(|_| ThemePage),
-            })
+            cx.new(Gallery::new)
         })
         .expect("failed to open window");
         cx.activate(true);
