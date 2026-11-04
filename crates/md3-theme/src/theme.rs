@@ -37,7 +37,7 @@ pub fn dp(value: Dp) -> Pixels {
 /// <https://www.w3.org/TR/WCAG22/#contrast-minimum>
 const TEXT_CONTRAST: f64 = 4.5;
 
-/// 文字を置く面と、その上に置く文字のロール
+/// 文字を置く面のロール
 const SURFACES: [ColorRole; 9] = [
     ColorRole::Background,
     ColorRole::Surface,
@@ -49,8 +49,10 @@ const SURFACES: [ColorRole; 9] = [
     ColorRole::SurfaceContainerHigh,
     ColorRole::SurfaceContainerHighest,
 ];
-// Primary と Error は、テキストボタンのラベルや入力欄のエラー文として面の上に文字で置かれる。
-// Secondary はナビゲーションの選択中のラベルに使われる
+/// [`SURFACES`] のどの面の上にも文字として置くロール
+///
+/// OnSurface と OnSurfaceVariant のほか、テキストボタンのラベル (Primary)、ナビゲーションの選択中のラベル (Secondary)、
+/// 入力欄のエラー文 (Error) に使うもの
 const SURFACE_TEXTS: [ColorRole; 5] = [
     ColorRole::OnSurface,
     ColorRole::OnSurfaceVariant,
