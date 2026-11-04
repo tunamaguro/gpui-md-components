@@ -10,7 +10,7 @@ use md3_theme::md3_tokens::shape::ShapeKey;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{AppearanceMode, Theme, ThemeExt as _};
 
-/// 前景と背景の組で見せる主なロール
+/// 主なロールの、背景とその上に置く文字の組 (背景, 前景)
 const PAIRS: [(ColorRole, ColorRole); 12] = [
     (ColorRole::Primary, ColorRole::OnPrimary),
     (ColorRole::PrimaryContainer, ColorRole::OnPrimaryContainer),

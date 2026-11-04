@@ -61,7 +61,7 @@ const SURFACE_TEXTS: [ColorRole; 5] = [
     ColorRole::Error,
 ];
 
-/// 面以外の背景と、その上に置く文字のロール (前景, 背景)
+/// [`SURFACES`] と [`SURFACE_TEXTS`] の組み合わせのほかに、文字として重ねるロールとその背景の組 (前景, 背景)
 const TEXT_PAIRS: [(ColorRole, ColorRole); 24] = [
     (ColorRole::OnBackground, ColorRole::Background),
     (ColorRole::OnSurfaceVariant, ColorRole::SurfaceVariant),
@@ -140,7 +140,7 @@ pub struct Theme {
     dark: Colors,
 }
 
-/// 片方の明暗の色
+/// 片方の明暗で解決した、ロールの色、アプリ独自の色、コントラストの検査の結果
 #[derive(Clone, Debug, PartialEq)]
 struct Colors {
     roles: [Argb; ColorRole::ALL.len()],

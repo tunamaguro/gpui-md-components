@@ -30,7 +30,7 @@ pub struct ThemeSettings {
     pub shapes: Shapes,
     /// モーションの方式
     pub motion: MotionScheme,
-    /// 部品の密度
+    /// 部品の密度。[`dp`](crate::dp) などの寸法の変換には掛からない
     pub density: Density,
     /// 文字倍率
     pub text_scale: TextScale,
