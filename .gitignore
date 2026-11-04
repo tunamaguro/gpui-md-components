@@ -7,3 +7,6 @@
 # Nix
 /result
 /result-*
+
+# trunk
+/examples/gallery/dist

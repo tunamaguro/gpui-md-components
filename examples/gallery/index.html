@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>md3-components gallery</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+      }
+      /* gpui が body に足す canvas の配置を変えないよう、固定配置で重ねる */
+      #status {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: system-ui, sans-serif;
+        color: #49454f;
+      }
+    </style>
+    <script type="module">
+      import init from "./gallery.js";
+      const status = document.getElementById("status");
+      // gallery_bg.wasm は build-web.sh で gzip してあるので、展開してから渡す。
+      const wasm = fetch("./gallery_bg.wasm.gz").then((response) => {
+        if (!response.ok) {
+          throw new Error(`failed to fetch wasm: ${response.status}`);
+        }
+        return new Response(response.body.pipeThrough(new DecompressionStream("gzip")), {
+          headers: { "Content-Type": "application/wasm" },
+        });
+      });
+      init({ module_or_path: wasm }).then(
+        () => status.remove(),
+        (error) => {
+          status.textContent = "読み込みに失敗しました";
+          throw error;
+        },
+      );
+    </script>
+  </head>
+  <body>
+    <div id="status" role="status">読み込み中…</div>
+  </body>
+</html>

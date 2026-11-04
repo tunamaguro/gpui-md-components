@@ -1348,6 +1348,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-support"
+version = "0.1.0"
+dependencies = [
+ "gpui",
+]
+
+[[package]]
 name = "exr"
 version = "1.74.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1660,6 +1667,16 @@ dependencies = [
  "memchr",
  "pin-project-lite",
  "slab",
+]
+
+[[package]]
+name = "gallery"
+version = "0.1.0"
+dependencies = [
+ "example-support",
+ "gpui",
+ "gpui_platform",
+ "wasm-bindgen",
 ]
 
 [[package]]
