@@ -49,11 +49,13 @@ const SURFACES: [ColorRole; 9] = [
     ColorRole::SurfaceContainerHigh,
     ColorRole::SurfaceContainerHighest,
 ];
-// Primary と Error は、テキストボタンのラベルや入力欄のエラー文として面の上に文字で置かれる
-const SURFACE_TEXTS: [ColorRole; 4] = [
+// Primary と Error は、テキストボタンのラベルや入力欄のエラー文として面の上に文字で置かれる。
+// Secondary はナビゲーションの選択中のラベルに使われる
+const SURFACE_TEXTS: [ColorRole; 5] = [
     ColorRole::OnSurface,
     ColorRole::OnSurfaceVariant,
     ColorRole::Primary,
+    ColorRole::Secondary,
     ColorRole::Error,
 ];
 
