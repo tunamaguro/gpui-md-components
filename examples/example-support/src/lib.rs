@@ -10,7 +10,7 @@ pub const FONT_LICENSE: &str = include_str!("../assets/OFL.txt");
 /// [`load_fonts`] で登録されるフォントのファミリー名。
 pub const FONT_FAMILY: &str = "IBM Plex Sans JP";
 
-/// IBM Plex Sans JP の全ウェイト (Thin から Bold まで) を `cx` のテキストシステムに登録する。
+/// IBM Plex Sans JP の Regular / Medium / Bold を `cx` のテキストシステムに登録する。
 ///
 /// 登録後は [`FONT_FAMILY`] をファミリー名に指定して使える。フォントを埋め込んだバイナリには
 /// [`FONT_LICENSE`] も含まれる。
@@ -22,12 +22,8 @@ pub fn load_fonts(cx: &App) {
     // OFL はフォントとともにライセンス文を配布することを求めるので、未使用として削られないようにする。
     std::hint::black_box(FONT_LICENSE);
     let fonts = [
-        include_bytes!("../assets/IBMPlexSansJP-Thin.ttf").as_slice(),
-        include_bytes!("../assets/IBMPlexSansJP-ExtraLight.ttf").as_slice(),
-        include_bytes!("../assets/IBMPlexSansJP-Light.ttf").as_slice(),
         include_bytes!("../assets/IBMPlexSansJP-Regular.ttf").as_slice(),
         include_bytes!("../assets/IBMPlexSansJP-Medium.ttf").as_slice(),
-        include_bytes!("../assets/IBMPlexSansJP-SemiBold.ttf").as_slice(),
         include_bytes!("../assets/IBMPlexSansJP-Bold.ttf").as_slice(),
     ];
     cx.text_system()
