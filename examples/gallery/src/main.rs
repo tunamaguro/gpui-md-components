@@ -2,29 +2,49 @@
 // Web 版は `start` から起動するので、wasm では `main` を置かない。
 #![cfg_attr(target_family = "wasm", no_main)]
 
-use gpui::{
-    App, AppContext as _, Context, IntoElement, ParentElement as _, Render, Styled as _, Window,
-    WindowOptions, div,
-};
+mod theme_page;
 
-struct Gallery;
+use gpui::{
+    App, AppContext as _, Context, Entity, IntoElement, ParentElement as _, Render, Styled as _,
+    Window, WindowOptions, div,
+};
+use md3_theme::ThemeExt as _;
+
+use crate::theme_page::ThemePage;
+
+/// ギャラリーのルート。各ページの状態は持たず、ページのエンティティだけを持つ
+struct Gallery {
+    theme_page: Entity<ThemePage>,
+}
+
+impl Gallery {
+    fn new(cx: &mut Context<Self>) -> Self {
+        Self {
+            theme_page: cx.new(|_| ThemePage),
+        }
+    }
+}
 
 impl Render for Gallery {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .size_full()
-            .bg(gpui::white())
-            .text_color(gpui::black())
-            .font_family(example_support::FONT_FAMILY)
-            .child("Hello world")
+        div().size_full().child(self.theme_page.clone())
     }
 }
 
 fn run() {
     gpui_platform::application().run(|cx: &mut App| {
         example_support::load_fonts(cx);
-        cx.open_window(WindowOptions::default(), |_, cx| cx.new(|_| Gallery))
-            .expect("failed to open window");
+        // 既定のテーマのうち、フォントだけを同梱のものにする。Web 版にはシステムのフォントがないため
+        cx.update_md3_theme(|settings| {
+            settings.fonts.brand = example_support::FONT_FAMILY.into();
+            settings.fonts.plain = example_support::FONT_FAMILY.into();
+        })
+        .expect("changing only the fonts keeps the default settings resolvable");
+        cx.open_window(WindowOptions::default(), |window, cx| {
+            cx.init_md3_theme(window);
+            cx.new(Gallery::new)
+        })
+        .expect("failed to open window");
         cx.activate(true);
     });
 }

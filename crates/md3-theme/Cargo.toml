@@ -14,3 +14,6 @@ workspace = true
 gpui.workspace = true
 md3-color.workspace = true
 md3-tokens.workspace = true
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
