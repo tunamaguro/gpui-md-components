@@ -4,14 +4,22 @@
 
 mod theme_page;
 
-use gpui::{App, AppContext as _, Context, IntoElement, Render, Window, WindowOptions};
+use gpui::{
+    App, AppContext as _, Context, Entity, IntoElement, ParentElement as _, Render, Styled as _,
+    Window, WindowOptions, div,
+};
 use md3_theme::ThemeExt as _;
 
-struct Gallery;
+use crate::theme_page::ThemePage;
+
+/// ギャラリーのルート。各ページの状態は持たず、ページのエンティティだけを持つ
+struct Gallery {
+    theme_page: Entity<ThemePage>,
+}
 
 impl Render for Gallery {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        theme_page::render(cx)
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        div().size_full().child(self.theme_page.clone())
     }
 }
 
@@ -26,7 +34,9 @@ fn run() {
         .expect("changing only the fonts keeps the default settings resolvable");
         cx.open_window(WindowOptions::default(), |window, cx| {
             cx.init_md3_theme(window);
-            cx.new(|_| Gallery)
+            cx.new(|cx| Gallery {
+                theme_page: cx.new(|_| ThemePage),
+            })
         })
         .expect("failed to open window");
         cx.activate(true);

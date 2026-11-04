@@ -1,9 +1,9 @@
 //! 今のテーマの設定・色・書体・形・影を並べるページ
 
 use gpui::{
-    AnyElement, App, Corners, Div, Hsla, InteractiveElement as _, IntoElement, ParentElement as _,
-    Pixels, Refineable as _, Rgba, SharedString, StatefulInteractiveElement as _, Styled as _, div,
-    px, size,
+    Context, Corners, Div, Hsla, InteractiveElement as _, IntoElement, ParentElement as _, Pixels,
+    Refineable as _, Render, Rgba, SharedString, StatefulInteractiveElement as _, Styled as _,
+    Window, div, px, size,
 };
 use md3_theme::md3_color::{ColorRole, ContrastLevel};
 use md3_theme::md3_tokens::shape::ShapeKey;
@@ -29,28 +29,31 @@ const PAIRS: [(ColorRole, ColorRole); 12] = [
     (ColorRole::InverseSurface, ColorRole::InverseOnSurface),
 ];
 
-/// ページ全体
-pub fn render(cx: &App) -> AnyElement {
-    let theme = cx.md3_theme();
-    div()
-        .id("theme-page")
-        .size_full()
-        .overflow_y_scroll()
-        .bg(theme.color(ColorRole::Surface))
-        .text_color(theme.color(ColorRole::OnSurface))
-        .p_6()
-        .flex()
-        .flex_col()
-        .gap_8()
-        .child(controls(theme))
-        .child(section(theme, "設定", settings(theme)))
-        .child(section(theme, "主なロールの組", pairs(theme)))
-        .child(section(theme, "すべてのロール", roles(theme)))
-        .child(section(theme, "書体", type_scale(theme)))
-        .child(section(theme, "形", shapes(theme)))
-        .child(section(theme, "影", elevations(theme)))
-        .child(section(theme, "コントラストの検査", contrast(theme)))
-        .into_any_element()
+/// 今のテーマを並べるページ
+pub struct ThemePage;
+
+impl Render for ThemePage {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.md3_theme();
+        div()
+            .id("theme-page")
+            .size_full()
+            .overflow_y_scroll()
+            .bg(theme.color(ColorRole::Surface))
+            .text_color(theme.color(ColorRole::OnSurface))
+            .p_6()
+            .flex()
+            .flex_col()
+            .gap_8()
+            .child(controls(theme))
+            .child(section(theme, "設定", settings(theme)))
+            .child(section(theme, "主なロールの組", pairs(theme)))
+            .child(section(theme, "すべてのロール", roles(theme)))
+            .child(section(theme, "書体", type_scale(theme)))
+            .child(section(theme, "形", shapes(theme)))
+            .child(section(theme, "影", elevations(theme)))
+            .child(section(theme, "コントラストの検査", contrast(theme)))
+    }
 }
 
 fn section(theme: &Theme, title: &'static str, body: impl IntoElement) -> Div {
