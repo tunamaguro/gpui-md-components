@@ -1,13 +1,17 @@
-// Ported from material-color-utilities (https://github.com/material-foundation/material-color-utilities)
+// Ported from material-color-utilities
+// (https://github.com/material-foundation/material-color-utilities)
 // Source: typescript/hct/viewing_conditions.ts @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3
 // Copyright 2021 Google LLC. Licensed under the Apache License, Version 2.0.
 
 use std::f64::consts::PI;
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 
 use crate::utils::{color, math};
 
-/// CAM16 の観察条件。色の見え方に影響する環境の情報。
+/// CAM16 の観測条件
+///
+/// 色の見え方は観測環境に左右されるため、CAM16 は色そのものに加えて観測条件を入力に取る。
+/// この型は観測条件だけで決まる CAM16 の中間値を保持する
 #[derive(Clone, Debug, PartialEq)]
 pub struct ViewingConditions {
     pub(crate) n: f64,
@@ -22,28 +26,35 @@ pub struct ViewingConditions {
     pub(crate) z: f64,
 }
 
+static STANDARD: LazyLock<ViewingConditions> = LazyLock::new(ViewingConditions::standard);
+
 impl ViewingConditions {
-    /// sRGB 相当の既定の観察条件（中程度の灰色の背景、平均的な周囲）。
-    pub fn standard() -> &'static Self {
-        static DEFAULT: OnceLock<ViewingConditions> = OnceLock::new();
-        DEFAULT.get_or_init(|| {
-            Self::make(
-                color::WHITE_POINT_D65,
-                (200.0 / PI) * color::y_from_lstar(50.0) / 100.0,
-                50.0,
-                2.0,
-                false,
-            )
-        })
+    /// [`ViewingConditions::standard`] の共有インスタンス
+    pub(crate) fn standard_ref() -> &'static Self {
+        &STANDARD
     }
 
-    /// 観察条件を作る。
+    /// sRGB に近い既定の観測条件
     ///
-    /// - `white_point`: 白色点の XYZ
-    /// - `adapting_luminance`: 順応輝度（lux）
-    /// - `background_lstar`: 背景の L*
-    /// - `surround`: 周囲の明るさ（0 = 暗い、1 = 薄暗い、2 = 平均）
-    /// - `discounting_illuminant`: 照明の色を差し引くか
+    /// D65 の白色点、順応輝度 `(200 / π) * Y(L* = 50) / 100`、背景の L* 50、
+    /// 周囲 2.0、照明の補正なし
+    pub fn standard() -> Self {
+        Self::make(
+            color::WHITE_POINT_D65,
+            (200.0 / PI) * color::y_from_lstar(50.0) / 100.0,
+            50.0,
+            2.0,
+            false,
+        )
+    }
+
+    /// 物理的な観測条件から作る
+    ///
+    /// - `white_point`: XYZ 色空間で測った白色点
+    /// - `adapting_luminance`: 順応視野の輝度。lux に 0.0586 を掛けた値
+    /// - `background_lstar`: 色の周囲の明るさ (L*)
+    /// - `surround`: 周囲の照明。0 は真っ暗、1.0 は薄暗い部屋、2.0 は色と周囲の照明が同じ
+    /// - `discounting_illuminant`: 目が照明の色を補正するか。ディスプレイのような自発光体では `false`
     pub fn make(
         white_point: [f64; 3],
         adapting_luminance: f64,
@@ -65,8 +76,8 @@ impl ViewingConditions {
             1.0
         } else {
             f * (1.0 - (1.0 / 3.6) * ((-adapting_luminance - 42.0) / 92.0).exp())
-        }
-        .clamp(0.0, 1.0);
+        };
+        let d = d.clamp(0.0, 1.0);
         let nc = f;
         let rgb_d = [
             d * (100.0 / r_w) + 1.0 - d,
@@ -107,30 +118,36 @@ impl ViewingConditions {
     }
 }
 
+impl Default for ViewingConditions {
+    fn default() -> Self {
+        Self::standard()
+    }
+}
+
+// Source: typescript/hct/hct_test.ts @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3
 #[cfg(test)]
 mod tests {
-    // Ported from typescript/hct/hct_test.ts ("viewing conditions")
-
     use super::*;
 
-    fn assert_close(actual: f64, expected: f64) {
-        assert!((actual - expected).abs() < 0.0005, "{actual} != {expected}");
-    }
-
     #[test]
-    fn default() {
+    fn 既定の観測条件() {
         let vc = ViewingConditions::standard();
-        assert_close(vc.n, 0.184);
-        assert_close(vc.aw, 29.981);
-        assert_close(vc.nbb, 1.017);
-        assert_close(vc.ncb, 1.017);
-        assert_close(vc.c, 0.69);
-        assert_close(vc.nc, 1.0);
-        assert_close(vc.rgb_d[0], 1.021);
-        assert_close(vc.rgb_d[1], 0.986);
-        assert_close(vc.rgb_d[2], 0.934);
-        assert_close(vc.fl, 0.388);
-        assert_close(vc.fl_root, 0.789);
-        assert_close(vc.z, 1.909);
+        let cases = [
+            (vc.n, 0.184),
+            (vc.aw, 29.981),
+            (vc.nbb, 1.017),
+            (vc.ncb, 1.017),
+            (vc.c, 0.69),
+            (vc.nc, 1.0),
+            (vc.rgb_d[0], 1.021),
+            (vc.rgb_d[1], 0.986),
+            (vc.rgb_d[2], 0.934),
+            (vc.fl, 0.388),
+            (vc.fl_root, 0.789),
+            (vc.z, 1.909),
+        ];
+        for (actual, expected) in cases {
+            assert!((actual - expected).abs() < 0.5e-3, "{actual} != {expected}");
+        }
     }
 }

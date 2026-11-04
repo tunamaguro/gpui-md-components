@@ -1,12 +1,36 @@
 [submodule "docs/references/androidx"]
-	path = docs/references/androidx
+	path = .agents/skills/material-design-3-port/references/androidx
 	url = https://github.com/androidx/androidx.git
 	branch = androidx-main
 [submodule "docs/references/aria-practices"]
-	path = docs/references/aria-practices
+	path = .agents/skills/a11y/references/aria-practices
 	url = https://github.com/w3c/aria-practices.git
 	branch = main
 [submodule "docs/references/material-web"]
-	path = docs/references/material-web
+	path = .agents/skills/material-design-3-port/references/material-web
 	url = https://github.com/material-components/material-web.git
 	branch = main
+[submodule ".agents/skills/material-design-3-port/references/material-color-utilities"]
+	path = .agents/skills/material-design-3-port/references/material-color-utilities
+	url = https://github.com/material-foundation/material-color-utilities.git
+	branch = main
+[submodule ".agents/skills/a11y/references/wcag"]
+	path = .agents/skills/a11y/references/wcag
+	url = https://github.com/w3c/wcag.git
+	branch = main
+[submodule ".agents/skills/a11y/references/uievents"]
+	path = .agents/skills/a11y/references/uievents
+	url = https://github.com/w3c/uievents.git
+	branch = main
+[submodule ".agents/skills/a11y/references/wcag2ict"]
+	path = .agents/skills/a11y/references/wcag2ict
+	url = https://github.com/w3c/wcag2ict.git
+	branch = main
+[submodule ".agents/skills/a11y/references/aria"]
+	path = .agents/skills/a11y/references/aria
+	url = https://github.com/w3c/aria.git
+	branch = main
+[submodule ".agents/skills/material-design-3-port/references/material-design-icons"]
+	path = .agents/skills/material-design-3-port/references/material-design-icons
+	url = https://github.com/google/material-design-icons.git
+	branch = master

@@ -1,8 +1,9 @@
-// Ported from material-color-utilities (https://github.com/material-foundation/material-color-utilities)
+// Ported from material-color-utilities
+// (https://github.com/material-foundation/material-color-utilities)
 // Source: typescript/hct/hct_solver.ts @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3
 // Copyright 2021 Google LLC. Licensed under the Apache License, Version 2.0.
 
-//! 色相・彩度・トーンから sRGB の色を求めるソルバー。
+//! HCT の色相・彩度・トーンから sRGB 色域内の色を求める
 
 use std::f64::consts::PI;
 
@@ -293,10 +294,12 @@ const CRITICAL_PLANES: [f64; 255] = [
     99.55452497210776,
 ];
 
+/// 角度 (ラジアン) を `[0, 2π)` に回し込む
 fn sanitize_radians(angle: f64) -> f64 {
     (angle + PI * 8.0) % (PI * 2.0)
 }
 
+/// 線形 RGB の成分 (0〜100) を丸めずに RGB の成分 (0〜255) に変換する
 fn true_delinearized(rgb_component: f64) -> f64 {
     let normalized = rgb_component / 100.0;
     let delinearized = if normalized <= 0.0031308 {
@@ -312,24 +315,27 @@ fn chromatic_adaptation(component: f64) -> f64 {
     math::signum(component) * 400.0 * af / (af + 27.13)
 }
 
+/// 線形 RGB の CAM16 の色相 (ラジアン、`[-π, π]`)
 fn hue_of(linrgb: [f64; 3]) -> f64 {
     let scaled_discount = math::matrix_multiply(linrgb, &SCALED_DISCOUNT_FROM_LINRGB);
     let r_a = chromatic_adaptation(scaled_discount[0]);
     let g_a = chromatic_adaptation(scaled_discount[1]);
     let b_a = chromatic_adaptation(scaled_discount[2]);
-    // redness-greenness
+    // 赤-緑
     let a = (11.0 * r_a + -12.0 * g_a + b_a) / 11.0;
-    // yellowness-blueness
+    // 黄-青
     let b = (r_a + g_a - 2.0 * b_a) / 9.0;
     b.atan2(a)
 }
 
+/// a から c へ反時計回りに進むとき、途中で b を通るか
 fn are_in_cyclic_order(a: f64, b: f64, c: f64) -> bool {
-    let delta_ab = sanitize_radians(b - a);
-    let delta_ac = sanitize_radians(c - a);
-    delta_ab < delta_ac
+    let delta_a_b = sanitize_radians(b - a);
+    let delta_a_c = sanitize_radians(c - a);
+    delta_a_b < delta_a_c
 }
 
+/// `source` から `target` への線分上で `mid` を通る位置 (0〜1)
 fn intercept(source: f64, mid: f64, target: f64) -> f64 {
     (mid - source) / (target - source)
 }
@@ -342,6 +348,7 @@ fn lerp_point(source: [f64; 3], t: f64, target: [f64; 3]) -> [f64; 3] {
     ]
 }
 
+/// `source` と `target` を結ぶ線分上で、`axis` の座標が `coordinate` になる点
 fn set_coordinate(source: [f64; 3], coordinate: f64, target: [f64; 3], axis: usize) -> [f64; 3] {
     let t = intercept(source[axis], coordinate, target[axis]);
     lerp_point(source, t, target)
@@ -351,38 +358,34 @@ fn is_bounded(x: f64) -> bool {
     (0.0..=100.0).contains(&x)
 }
 
-/// 輝度 `y` の平面と RGB 立方体の辺との `n` 番目の交点。存在しなければ `None`。
-fn nth_vertex(y: f64, n: u32) -> Option<[f64; 3]> {
-    let [k_r, k_g, k_b] = Y_FROM_LINRGB;
+/// Y が一定の平面と RGB 立方体の辺の交点のうち n 番目 (0〜11)。交点がなければ `None`
+fn nth_vertex(y: f64, n: usize) -> Option<[f64; 3]> {
+    let k_r = Y_FROM_LINRGB[0];
+    let k_g = Y_FROM_LINRGB[1];
+    let k_b = Y_FROM_LINRGB[2];
     let coord_a = if n % 4 <= 1 { 0.0 } else { 100.0 };
     let coord_b = if n.is_multiple_of(2) { 0.0 } else { 100.0 };
-    let vertex = if n < 4 {
+    if n < 4 {
         let g = coord_a;
         let b = coord_b;
         let r = (y - g * k_g - b * k_b) / k_r;
-        [r, g, b]
+        is_bounded(r).then_some([r, g, b])
     } else if n < 8 {
         let b = coord_a;
         let r = coord_b;
         let g = (y - r * k_r - b * k_b) / k_g;
-        [r, g, b]
+        is_bounded(g).then_some([r, g, b])
     } else {
         let r = coord_a;
         let g = coord_b;
         let b = (y - r * k_r - g * k_g) / k_b;
-        [r, g, b]
-    };
-    let solved = if n < 4 {
-        vertex[0]
-    } else if n < 8 {
-        vertex[1]
-    } else {
-        vertex[2]
-    };
-    is_bounded(solved).then_some(vertex)
+        is_bounded(b).then_some([r, g, b])
+    }
 }
 
-fn bisect_to_segment(y: f64, target_hue: f64) -> ([f64; 3], [f64; 3]) {
+/// Y が一定の平面と RGB 立方体の交わりの辺のうち、`target_hue` を挟む区間の両端
+fn bisect_to_segment(y: f64, target_hue: f64) -> [[f64; 3]; 2] {
+    // 移植元は頂点が見つからないとき `[-1, -1, -1]` を返す
     let mut left = [-1.0, -1.0, -1.0];
     let mut right = left;
     let mut left_hue = 0.0;
@@ -413,7 +416,7 @@ fn bisect_to_segment(y: f64, target_hue: f64) -> ([f64; 3], [f64; 3]) {
             }
         }
     }
-    (left, right)
+    [left, right]
 }
 
 fn midpoint(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
@@ -432,8 +435,9 @@ fn critical_plane_above(x: f64) -> i64 {
     (x - 0.5).ceil() as i64
 }
 
+/// 色相 `target_hue` (ラジアン) と Y が一定の色域の境界上の点 (線形 RGB)
 fn bisect_to_limit(y: f64, target_hue: f64) -> [f64; 3] {
-    let (mut left, mut right) = bisect_to_segment(y, target_hue);
+    let [mut left, mut right] = bisect_to_segment(y, target_hue);
     let mut left_hue = hue_of(left);
     for axis in 0..3 {
         if left[axis] != right[axis] {
@@ -453,9 +457,10 @@ fn bisect_to_limit(y: f64, target_hue: f64) -> [f64; 3] {
                     break;
                 }
                 let m_plane = (l_plane + r_plane).div_euclid(2);
+                // l_plane と r_plane の差が 2 以上なので、m_plane は両者の間 (0〜254) に収まる
                 let Some(&mid_plane_coordinate) = usize::try_from(m_plane)
                     .ok()
-                    .and_then(|i| CRITICAL_PLANES.get(i))
+                    .and_then(|index| CRITICAL_PLANES.get(index))
                 else {
                     break;
                 };
@@ -477,19 +482,21 @@ fn bisect_to_limit(y: f64, target_hue: f64) -> [f64; 3] {
 
 fn inverse_chromatic_adaptation(adapted: f64) -> f64 {
     let adapted_abs = adapted.abs();
-    let base = f64::max(0.0, 27.13 * adapted_abs / (400.0 - adapted_abs));
+    let base = math::max_js(0.0, 27.13 * adapted_abs / (400.0 - adapted_abs));
     math::signum(adapted) * base.powf(1.0 / 0.42)
 }
 
-/// 色相（ラジアン）・彩度・Y を満たす色を探す。見つからなければ `None`。
+/// 色相 (ラジアン)、彩度、Y から色を求める。色域内に解がなければ `None`
+///
+/// 移植元は解がないことを 0 で表す。不透明な ARGB は 0 にならないので `None` に置き換えている
 fn find_result_by_j(hue_radians: f64, chroma: f64, y: f64) -> Option<u32> {
-    // Initial estimate of j.
+    // j の初期値
     let mut j = y.sqrt() * 11.0;
-    // Operations inlined from Cam16 to avoid repeated calculation
-    let vc = ViewingConditions::standard();
-    let t_inner_coeff = 1.0 / (1.64 - 0.29f64.powf(vc.n)).powf(0.73);
+    // CAM16 の計算のうち、反復で変わらない部分を先に求める
+    let viewing_conditions = ViewingConditions::standard_ref();
+    let t_inner_coeff = 1.0 / (1.64 - 0.29_f64.powf(viewing_conditions.n)).powf(0.73);
     let e_hue = 0.25 * ((hue_radians + 2.0).cos() + 3.8);
-    let p1 = e_hue * (50000.0 / 13.0) * vc.nc * vc.ncb;
+    let p1 = e_hue * (50000.0 / 13.0) * viewing_conditions.nc * viewing_conditions.ncb;
     let h_sin = hue_radians.sin();
     let h_cos = hue_radians.cos();
     for iteration_round in 0..5 {
@@ -500,8 +507,9 @@ fn find_result_by_j(hue_radians: f64, chroma: f64, y: f64) -> Option<u32> {
             chroma / j_normalized.sqrt()
         };
         let t = (alpha * t_inner_coeff).powf(1.0 / 0.9);
-        let ac = vc.aw * j_normalized.powf(1.0 / vc.c / vc.z);
-        let p2 = ac / vc.nbb;
+        let ac = viewing_conditions.aw
+            * j_normalized.powf(1.0 / viewing_conditions.c / viewing_conditions.z);
+        let p2 = ac / viewing_conditions.nbb;
         let gamma = 23.0 * (p2 + 0.305) * t / (23.0 * p1 + 11.0 * t * h_cos + 108.0 * t * h_sin);
         let a = gamma * h_cos;
         let b = gamma * h_sin;
@@ -518,7 +526,9 @@ fn find_result_by_j(hue_radians: f64, chroma: f64, y: f64) -> Option<u32> {
         if linrgb[0] < 0.0 || linrgb[1] < 0.0 || linrgb[2] < 0.0 {
             return None;
         }
-        let [k_r, k_g, k_b] = Y_FROM_LINRGB;
+        let k_r = Y_FROM_LINRGB[0];
+        let k_g = Y_FROM_LINRGB[1];
+        let k_b = Y_FROM_LINRGB[2];
         let fnj = k_r * linrgb[0] + k_g * linrgb[1] + k_b * linrgb[2];
         if fnj <= 0.0 {
             return None;
@@ -529,16 +539,15 @@ fn find_result_by_j(hue_radians: f64, chroma: f64, y: f64) -> Option<u32> {
             }
             return Some(color::argb_from_linrgb(linrgb));
         }
-        // Iterates with Newton method,
-        // Using 2 * fn(j) / j as the approximation of fn'(j)
+        // ニュートン法で反復する。fn(j) の導関数を 2 * fn(j) / j で近似する
         j -= (fnj - y) * j / (2.0 * fnj);
     }
     None
 }
 
-/// 色相（度）・彩度・L* に最も近い sRGB の色を求める。
+/// 色相 (度)、彩度、L* から sRGB の色を求める
 ///
-/// 指定の彩度が出せない場合は、色相と L* を保ったまま彩度が最大の色を返す。
+/// 指定の彩度が色域を超えるときは、色相と L* を保ったまま彩度を色域の限界まで下げる
 pub(crate) fn solve_to_int(hue_degrees: f64, chroma: f64, lstar: f64) -> u32 {
     if chroma < 0.0001 || lstar < 0.0001 || lstar > 99.9999 {
         return color::argb_from_lstar(lstar);
@@ -546,8 +555,7 @@ pub(crate) fn solve_to_int(hue_degrees: f64, chroma: f64, lstar: f64) -> u32 {
     let hue_degrees = math::sanitize_degrees_double(hue_degrees);
     let hue_radians = hue_degrees / 180.0 * PI;
     let y = color::y_from_lstar(lstar);
-    // 移植元は 0 を「見つからない」として扱うので、0 が返った場合も同様にする。
-    if let Some(exact_answer) = find_result_by_j(hue_radians, chroma, y).filter(|&argb| argb != 0) {
+    if let Some(exact_answer) = find_result_by_j(hue_radians, chroma, y) {
         return exact_answer;
     }
     let linrgb = bisect_to_limit(y, hue_radians);

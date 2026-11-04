@@ -3,7 +3,7 @@ name: rust-guideline
 description: Rustコードを書く時のガイドライン
 ---
 
-# Rust
+## Rust
 
 - 基本的に`#![forbid(unsafe_code)]`,`#![deny(missing_docs)]`を使用する
 - linterの警告を抑制する必要があるときは、`#[allow(...)]` ではなく `#[expect(..., reason = "...")]` を使う
@@ -15,7 +15,17 @@ description: Rustコードを書く時のガイドライン
 - 複雑な状態には`enum`を活用すること
   - 1つの構造体に根本的に異なる状態を持たせず、不正な状態をコンパイル時に排除すること
   - 目安として、同じフィールドに対して繰り返し`if let`や`match`を行っている場合は複数状態が存在する可能性があるので、`enum`を検討する
+- 単位には`newtype pettern`を利用する
+  - 例: `Hue`,`Chroma`,`Tone`などの単位を表す構造体を定義することで、異なる単位の値を間違えて使用することを防ぐ
+
+## 依存方針
+
+- できる限り依存するクレートを増やさず、`gpui`,`gpui_platform`のみに依存すること. `wasm-bindgen` は `#[wasm_bindgen(start)]` のエントリポイントにだけ使う
+- コード生成は `xtask` で行い生成物をコミットする(`build.rs` 禁止)
 
 ## GPUI
 
 - 描画経路で `std::thread`、ブロッキング、`Mutex` を使わない(wasm32 で動かなくなる)
+- GPUIの慣習に合わせる
+  - 状態を持たない部品: `#[derive(IntoElement)]` + `RenderOnce` + メソッドチェーンのビルダー
+  - 状態を持つ部品(TextField 等): `Entity` + `Render`

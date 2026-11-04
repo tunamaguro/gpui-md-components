@@ -1663,17 +1663,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gallery"
-version = "0.1.0"
-dependencies = [
- "gpui",
- "gpui-headless",
- "gpui_platform",
- "md3-components",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2817,14 +2806,6 @@ name = "macro_rules_attribute-proc_macro"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc04a4c58212d57930a24bf47d3fa87485264a3a054e9c10e042eb373573ad3c"
-
-[[package]]
-name = "mail-sample"
-version = "0.1.0"
-dependencies = [
- "md3-components",
- "wasm-bindgen",
-]
 
 [[package]]
 name = "maybe-rayon"

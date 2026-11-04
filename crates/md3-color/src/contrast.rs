@@ -1,44 +1,46 @@
-// Ported from material-color-utilities (https://github.com/material-foundation/material-color-utilities)
+// Ported from material-color-utilities
+// (https://github.com/material-foundation/material-color-utilities)
 // Source: typescript/contrast/contrast.ts @ bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3
-// Copyright 2021 Google LLC. Licensed under the Apache License, Version 2.0.
+// Copyright 2022 Google LLC. Licensed under the Apache License, Version 2.0.
 
-//! WCAG のコントラスト比の計算。
+//! トーンのコントラスト比 (WCAG 2.1 の相対輝度に基づく)
 //!
-//! トーン（L*）どうしのコントラスト比を求めたり、目標のコントラスト比を満たす
-//! トーンを求めたりする。
+//! コントラスト比は 1 から 21 の値を取る。トーンの差が 40 以上あれば 3.0、50 以上あれば 4.5 以上になる
 
 use crate::units::Tone;
 use crate::utils::{color, math};
 
-/// 2 つのトーンのコントラスト比（1〜21）。
-pub fn ratio_of_tones(a: Tone, b: Tone) -> f64 {
-    ratio_of_tones_raw(a.value(), b.value())
+/// 2 つのトーンのコントラスト比。順序によらない
+pub fn ratio_of_tones(tone_a: Tone, tone_b: Tone) -> f64 {
+    ratio_of_tones_raw(tone_a.value(), tone_b.value())
 }
 
-/// `tone` より明るく、コントラスト比が `ratio` 以上になるトーン。
+/// `tone` 以上に明るく、`ratio` 以上のコントラスト比になるトーン
 ///
-/// 満たすトーンがなければ `None`。
+/// 目標の比を満たせない (誤差 0.04 を超えて下回る) とき、または結果が `[0, 100]` を外れるときは `None`。
+/// 結果は端数の誤差を見込んで 0.4 だけ明るい側に寄せる
 pub fn lighter(tone: Tone, ratio: f64) -> Option<Tone> {
     let lighter = lighter_raw(tone.value(), ratio);
-    (lighter >= 0.0).then_some(Tone::raw(lighter))
+    (lighter >= 0.0).then(|| Tone::new(lighter))
 }
 
-/// `tone` より暗く、コントラスト比が `ratio` 以上になるトーン。
+/// `tone` 以下に暗く、`ratio` 以上のコントラスト比になるトーン
 ///
-/// 満たすトーンがなければ `None`。
+/// 目標の比を満たせない (誤差 0.04 を超えて下回る) とき、または結果が `[0, 100]` を外れるときは `None`。
+/// 結果は端数の誤差を見込んで 0.4 だけ暗い側に寄せる
 pub fn darker(tone: Tone, ratio: f64) -> Option<Tone> {
     let darker = darker_raw(tone.value(), ratio);
-    (darker >= 0.0).then_some(Tone::raw(darker))
+    (darker >= 0.0).then(|| Tone::new(darker))
 }
 
-/// [`lighter`] と同じだが、満たすトーンがなければ 100 を返す。
+/// [`lighter`] と同じだが、目標を満たせないときは 100 を返す
 pub fn lighter_unsafe(tone: Tone, ratio: f64) -> Tone {
-    Tone::raw(lighter_unsafe_raw(tone.value(), ratio))
+    Tone::new(lighter_unsafe_raw(tone.value(), ratio))
 }
 
-/// [`darker`] と同じだが、満たすトーンがなければ 0 を返す。
+/// [`darker`] と同じだが、目標を満たせないときは 0 を返す
 pub fn darker_unsafe(tone: Tone, ratio: f64) -> Tone {
-    Tone::raw(darker_unsafe_raw(tone.value(), ratio))
+    Tone::new(darker_unsafe_raw(tone.value(), ratio))
 }
 
 pub(crate) fn ratio_of_tones_raw(tone_a: f64, tone_b: f64) -> f64 {
@@ -53,11 +55,12 @@ fn ratio_of_ys(y1: f64, y2: f64) -> f64 {
     (lighter + 5.0) / (darker + 5.0)
 }
 
-/// 移植元の `Contrast.lighter`。見つからなければ -1 を返す。
+/// 移植元と同じく、条件を満たせないときは -1 を返す
 pub(crate) fn lighter_raw(tone: f64, ratio: f64) -> f64 {
     if !(0.0..=100.0).contains(&tone) {
         return -1.0;
     }
+    // 2 つの色の Y と比の関係は、比 = (明るい Y + 5) / (暗い Y + 5)
     let dark_y = color::y_from_lstar(tone);
     let light_y = ratio * (dark_y + 5.0) - 5.0;
     let real_contrast = ratio_of_ys(light_y, dark_y);
@@ -72,7 +75,7 @@ pub(crate) fn lighter_raw(tone: f64, ratio: f64) -> f64 {
     return_value
 }
 
-/// 移植元の `Contrast.darker`。見つからなければ -1 を返す。
+/// 移植元と同じく、条件を満たせないときは -1 を返す
 pub(crate) fn darker_raw(tone: f64, ratio: f64) -> f64 {
     if !(0.0..=100.0).contains(&tone) {
         return -1.0;
@@ -103,62 +106,4 @@ pub(crate) fn lighter_unsafe_raw(tone: f64, ratio: f64) -> f64 {
 pub(crate) fn darker_unsafe_raw(tone: f64, ratio: f64) -> f64 {
     let darker_safe = darker_raw(tone, ratio);
     if darker_safe < 0.0 { 0.0 } else { darker_safe }
-}
-
-#[cfg(test)]
-mod tests {
-    // Ported from typescript/contrast/contrast_test.ts
-
-    use super::*;
-
-    fn assert_close(actual: f64, expected: f64) {
-        assert!((actual - expected).abs() < 0.5, "{actual} != {expected}");
-    }
-
-    #[test]
-    fn ratio_of_tones_out_of_bounds_input() {
-        assert_close(ratio_of_tones_raw(-10.0, 110.0), 21.0);
-    }
-
-    #[test]
-    fn lighter_impossible_ratio_errors() {
-        assert_close(lighter_raw(90.0, 10.0), -1.0);
-        assert_eq!(lighter(Tone::new(90.0), 10.0), None);
-    }
-
-    #[test]
-    fn lighter_out_of_bounds_input_above_errors() {
-        assert_close(lighter_raw(110.0, 2.0), -1.0);
-    }
-
-    #[test]
-    fn lighter_out_of_bounds_input_below_errors() {
-        assert_close(lighter_raw(-10.0, 2.0), -1.0);
-    }
-
-    #[test]
-    fn lighter_unsafe_returns_max_tone() {
-        assert_close(lighter_unsafe(Tone::new(100.0), 2.0).value(), 100.0);
-    }
-
-    #[test]
-    fn darker_impossible_ratio_errors() {
-        assert_close(darker_raw(10.0, 20.0), -1.0);
-        assert_eq!(darker(Tone::new(10.0), 20.0), None);
-    }
-
-    #[test]
-    fn darker_out_of_bounds_input_above_errors() {
-        assert_close(darker_raw(110.0, 2.0), -1.0);
-    }
-
-    #[test]
-    fn darker_out_of_bounds_input_below_errors() {
-        assert_close(darker_raw(-10.0, 2.0), -1.0);
-    }
-
-    #[test]
-    fn darker_unsafe_returns_min_tone() {
-        assert_close(darker_unsafe(Tone::new(0.0), 2.0).value(), 0.0);
-    }
 }

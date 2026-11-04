@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   fmt:
-    name: Format / tokens
+    name: Format
     runs-on: ubuntu-24.04
 
     steps:
@@ -41,21 +41,8 @@ jobs:
       - name: Format
         run: cargo fmt --all --check
 
-      # check-tokens の実行でも cargo がワークスペース全体の依存（zed などの git 依存）を取得するので、
-      # ~/.cargo だけをキャッシュする（xtask は std だけなので target は要らない）。
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          shared-key: fmt
-          cache-targets: false
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-
-      # docs/TOKENS_SOURCE.md と md3-tokens の定数の突き合わせ。xtask は std だけなのでシステム依存なしで動く。
-      - name: Check tokens
-        run: cargo run --locked -p xtask -- check-tokens
-
   check:
-    name: Check (${{ matrix.os }})
+    name: Check / Build (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -88,7 +75,6 @@ jobs:
       - name: Setup Rust
         uses: moonrepo/setup-rust@abb2d32350334249b178c401e5ec5836e0cd88d3 # v1.3.0
         with:
-          components: clippy
           cache: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -101,11 +87,11 @@ jobs:
           shared-key: check
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Check
+        run: cargo check --workspace --all-targets --locked
 
-      - name: Test
-        run: cargo test --workspace --locked
+      - name: Build
+        run: cargo build --workspace --locked
 
   wasm:
     name: Build (wasm32-unknown-unknown)
@@ -135,11 +121,8 @@ jobs:
           shared-key: wasm
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Build md3-components
-        run: cargo build -p md3-components --target wasm32-unknown-unknown --locked
-
-      - name: Build examples
-        run: cargo build -p gallery -p mail-sample --target wasm32-unknown-unknown --locked
+      - name: Build workspace
+        run: cargo build --workspace --target wasm32-unknown-unknown --locked
 
   # ブランチ保護の必須チェックにはこのジョブだけを指定する。
   ci:

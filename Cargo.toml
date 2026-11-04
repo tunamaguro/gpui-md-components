@@ -7,8 +7,6 @@ members = [
   "crates/md3-icons",
   "crates/md3-theme",
   "crates/md3-components",
-  "examples/gallery",
-  "examples/mail",
   "xtask",
 ]
 
@@ -31,7 +29,7 @@ md3-icons = { path = "crates/md3-icons" }
 md3-theme = { path = "crates/md3-theme" }
 md3-components = { path = "crates/md3-components" }
 
-# gpui の rev 固定はここ1か所。更新は専用 PR で行う（docs/agents/architecture.md）。
+# gpui の rev 固定はここ1か所。更新は専用 PR で行う。
 # zed@37faef81f74fc1bb08be9939c4cffc8ede6ced2f (2026-10-27)
 # default features は windows-manifest（build 時に embed-resource）を含むので切り、必要なものだけ有効にする。
 gpui = { git = "https://github.com/zed-industries/zed", rev = "37faef81f74fc1bb08be9939c4cffc8ede6ced2f", default-features = false, features = [
@@ -45,8 +43,6 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "37faef81
   "wayland",
   "x11",
 ] }
-# wasm 版 examples のエントリポイント（#[wasm_bindgen(start)]）用。上流 zed と同じ要求版。
-wasm-bindgen = "0.2.120"
 
 # 上流 zed の [patch.crates-io] のうち gpui の依存グラフに入るもの。上流と同じ rev に揃える。
 [patch.crates-io]
@@ -64,8 +60,3 @@ allow_attributes_without_reason = "deny"
 dbg_macro = "deny"
 todo = "deny"
 unwrap_used = "deny"
-
-[profile.flamegraph]
-inherits = "release"
-debug = true
-strip = "none"
