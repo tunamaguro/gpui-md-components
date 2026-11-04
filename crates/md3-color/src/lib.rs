@@ -20,8 +20,7 @@ mod utils;
 
 pub use custom_color::CustomColorGroup;
 pub use dynamiccolor::{
-    ColorRole, ContrastRequirement, DynamicScheme, DynamicSchemeBuilder, Platform, SchemeError,
-    SpecVersion, Variant,
+    ColorRole, DynamicScheme, DynamicSchemeBuilder, Platform, SchemeError, SpecVersion, Variant,
 };
 pub use hct::{Cam16, Hct, ViewingConditions};
 pub use palettes::TonalPalette;

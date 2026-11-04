@@ -130,7 +130,9 @@ fn ブランドの色から作ったテーマを細かく調整できる(cx: &mu
 }
 
 #[gpui::test]
-fn 目標に届かない色も設定でき_検査の結果で分かる(cx: &mut TestAppContext) {
+fn コントラストが足りない色も設定でき_検査の結果で分かる(
+    cx: &mut TestAppContext,
+) {
     open_window(cx);
     let primary = current(cx).color(ColorRole::Primary);
     let gray = Argb::from_rgb(0x80, 0x80, 0x80);
@@ -150,7 +152,7 @@ fn 目標に届かない色も設定でき_検査の結果で分かる(cx: &mut 
                 && issue.background == ColorRole::Primary
                 && issue.ratio < issue.required
         }),
-        "灰色の文字は主色の上で目標の比に届かない"
+        "灰色の文字は主色の上で 4.5:1 に届かない"
     );
 }
 

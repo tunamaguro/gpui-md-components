@@ -350,9 +350,9 @@ fn elevations(theme: &Theme) -> Div {
 fn contrast(theme: &Theme) -> Div {
     let issues = theme.contrast_issues();
     let summary = if issues.is_empty() {
-        "すべての組が配色の目標を満たしている".to_owned()
+        "文字として重ねる組はすべて 4.5:1 以上".to_owned()
     } else {
-        format!("{} 組が配色の目標に届かない", issues.len())
+        format!("{} 組が 4.5:1 に届かない", issues.len())
     };
     div()
         .flex()
@@ -364,7 +364,7 @@ fn contrast(theme: &Theme) -> Div {
                 theme,
                 TypeScale::BodySmall,
                 format!(
-                    "{} on {}: {:.2} (目標 {:.2})",
+                    "{} on {}: {:.2} (必要 {:.2})",
                     issue.foreground.name(),
                     issue.background.name(),
                     issue.ratio,

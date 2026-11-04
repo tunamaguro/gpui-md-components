@@ -33,16 +33,81 @@ pub fn dp(value: Dp) -> Pixels {
     px(value.0)
 }
 
-/// 配色の目標に届かないコントラスト
+/// 文字に求めるコントラスト比。WCAG 2.2 の達成基準 1.4.3 (AA) の通常の文字の値
+/// https://www.w3.org/TR/WCAG22/#contrast-minimum
+const TEXT_CONTRAST: f64 = 4.5;
+
+/// 文字を置く面と、その上に置く文字のロール
+const SURFACES: [ColorRole; 9] = [
+    ColorRole::Background,
+    ColorRole::Surface,
+    ColorRole::SurfaceDim,
+    ColorRole::SurfaceBright,
+    ColorRole::SurfaceContainerLowest,
+    ColorRole::SurfaceContainerLow,
+    ColorRole::SurfaceContainer,
+    ColorRole::SurfaceContainerHigh,
+    ColorRole::SurfaceContainerHighest,
+];
+// Primary と Error は、テキストボタンのラベルや入力欄のエラー文として面の上に文字で置かれる
+const SURFACE_TEXTS: [ColorRole; 4] = [
+    ColorRole::OnSurface,
+    ColorRole::OnSurfaceVariant,
+    ColorRole::Primary,
+    ColorRole::Error,
+];
+
+/// 面以外の背景と、その上に置く文字のロール (前景, 背景)
+const TEXT_PAIRS: [(ColorRole, ColorRole); 24] = [
+    (ColorRole::OnBackground, ColorRole::Background),
+    (ColorRole::OnSurfaceVariant, ColorRole::SurfaceVariant),
+    (ColorRole::InverseOnSurface, ColorRole::InverseSurface),
+    (ColorRole::InversePrimary, ColorRole::InverseSurface),
+    (ColorRole::OnPrimary, ColorRole::Primary),
+    (ColorRole::OnPrimaryContainer, ColorRole::PrimaryContainer),
+    (ColorRole::OnSecondary, ColorRole::Secondary),
+    (
+        ColorRole::OnSecondaryContainer,
+        ColorRole::SecondaryContainer,
+    ),
+    (ColorRole::OnTertiary, ColorRole::Tertiary),
+    (ColorRole::OnTertiaryContainer, ColorRole::TertiaryContainer),
+    (ColorRole::OnError, ColorRole::Error),
+    (ColorRole::OnErrorContainer, ColorRole::ErrorContainer),
+    // Fixed の文字は Fixed と FixedDim のどちらの上にも置かれる
+    (ColorRole::OnPrimaryFixed, ColorRole::PrimaryFixed),
+    (ColorRole::OnPrimaryFixed, ColorRole::PrimaryFixedDim),
+    (ColorRole::OnPrimaryFixedVariant, ColorRole::PrimaryFixed),
+    (ColorRole::OnPrimaryFixedVariant, ColorRole::PrimaryFixedDim),
+    (ColorRole::OnSecondaryFixed, ColorRole::SecondaryFixed),
+    (ColorRole::OnSecondaryFixed, ColorRole::SecondaryFixedDim),
+    (
+        ColorRole::OnSecondaryFixedVariant,
+        ColorRole::SecondaryFixed,
+    ),
+    (
+        ColorRole::OnSecondaryFixedVariant,
+        ColorRole::SecondaryFixedDim,
+    ),
+    (ColorRole::OnTertiaryFixed, ColorRole::TertiaryFixed),
+    (ColorRole::OnTertiaryFixed, ColorRole::TertiaryFixedDim),
+    (ColorRole::OnTertiaryFixedVariant, ColorRole::TertiaryFixed),
+    (
+        ColorRole::OnTertiaryFixedVariant,
+        ColorRole::TertiaryFixedDim,
+    ),
+];
+
+/// 文字として重ねて使うロールの組のうち、コントラストが足りないもの
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ContrastIssue {
-    /// 前景のロール
+    /// 前景 (文字) のロール
     pub foreground: ColorRole,
     /// 背景のロール
     pub background: ColorRole,
     /// テーマの色でのコントラスト比
     pub ratio: f64,
-    /// 配色の目標のコントラスト比
+    /// 求めるコントラスト比
     pub required: f64,
 }
 
@@ -114,24 +179,20 @@ impl Theme {
             ColorRole::ALL.map(|role| overrides.get(role).unwrap_or(generated[role.index()]));
 
         // 比は不透明度を無視したトーンで求める。ロールの色は不透明なので結果は変わらない
-        let contrast_issues = ColorRole::ALL
+        let contrast_issues = SURFACES
             .into_iter()
-            .flat_map(|foreground| {
-                scheme
-                    .contrast_requirements(foreground)
-                    .map(move |requirement| (foreground, requirement))
-            })
-            .filter_map(|(foreground, requirement)| {
-                let background = requirement.background;
+            .flat_map(|surface| SURFACE_TEXTS.map(|text| (text, surface)))
+            .chain(TEXT_PAIRS)
+            .filter_map(|(foreground, background)| {
                 let ratio = contrast::ratio_of_tones(
                     colors[foreground.index()].lstar(),
                     colors[background.index()].lstar(),
                 );
-                (ratio < requirement.ratio).then_some(ContrastIssue {
+                (ratio < TEXT_CONTRAST).then_some(ContrastIssue {
                     foreground,
                     background,
                     ratio,
-                    required: requirement.ratio,
+                    required: TEXT_CONTRAST,
                 })
             })
             .collect();
@@ -185,11 +246,12 @@ impl Theme {
         self.custom_colors.get(key).copied()
     }
 
-    /// テーマの色でコントラスト比が配色の目標に届かない前景と背景の組
+    /// 文字として重ねて使うロールの組のうち、コントラスト比が 4.5:1 (WCAG 2.2 AA の通常の文字) に届かないもの
     ///
-    /// 設定した色は目標に届かなくてもそのまま使われ、ここで報告するだけにとどまる。
-    /// 目標は配色の計算が満たそうとする値のため、差し替えのない配色でも高コントラストなどでは届かない組がある。
-    /// 対象は今の明暗だけで、アプリ独自の色は含まない
+    /// 対象は On〇〇 とその背景、各面とその上の文字 (OnSurface、OnSurfaceVariant、Primary、Error) などの組で、
+    /// 今の明暗の、差し替えた後の色で比べる。設定した色は届かなくてもそのまま使われ、ここで報告するだけにとどまる。
+    /// コントラストレベルを下げた配色では、差し替えがなくても報告されることがある。
+    /// 大きな文字や文字以外 (3:1)、状態レイヤーを重ねた色、アプリ独自の色は対象にしない
     pub fn contrast_issues(&self) -> &[ContrastIssue] {
         &self.contrast_issues
     }
@@ -358,28 +420,76 @@ mod tests {
         );
     }
 
+    fn issue(theme: &Theme, foreground: ColorRole, background: ColorRole) -> Option<ContrastIssue> {
+        theme
+            .contrast_issues()
+            .iter()
+            .copied()
+            .find(|issue| issue.foreground == foreground && issue.background == background)
+    }
+
     #[test]
-    fn 目標に届かない色も使ったうえで報告する() {
+    fn コントラストが足りない色も使ったうえで報告する() {
         let mut settings = ThemeSettings::default();
-        settings.color.contrast = ContrastLevel::HIGH;
         let primary = argb(&resolve(settings.clone()), ColorRole::Primary);
         settings.color.light.set(ColorRole::OnPrimary, primary);
         let theme = resolve(settings);
         assert_eq!(argb(&theme, ColorRole::OnPrimary), primary);
-        let issue = theme
-            .contrast_issues()
-            .iter()
-            .find(|issue| {
-                issue.foreground == ColorRole::OnPrimary && issue.background == ColorRole::Primary
-            })
+        let issue = issue(&theme, ColorRole::OnPrimary, ColorRole::Primary)
             .expect("前景を背景と同じ色にした組は報告される");
         assert_eq!(issue.ratio, 1.0);
-        // color_spec_2026.ts の onPrimary の contrastCurve は getCurve(6) で、高コントラストでは 11
-        assert_eq!(issue.required, 11.0);
+        assert_eq!(issue.required, 4.5);
     }
 
     #[test]
-    fn 差し替えた色が目標を満たしていれば報告しない() {
+    fn 配色の計算が見ない背景との組も報告する() {
+        // 配色の計算は OnSurface を SurfaceDim、OnPrimaryFixed を PrimaryFixedDim に対してだけ調整する
+        let theme = resolve(ThemeSettings::default());
+        let on_surface = argb(&theme, ColorRole::OnSurface);
+        let on_primary_fixed = argb(&theme, ColorRole::OnPrimaryFixed);
+        let mut settings = ThemeSettings::default();
+        settings.color.light.set(ColorRole::Surface, on_surface);
+        settings
+            .color
+            .light
+            .set(ColorRole::PrimaryFixed, on_primary_fixed);
+        let theme = resolve(settings);
+        assert!(issue(&theme, ColorRole::OnSurface, ColorRole::Surface).is_some());
+        assert!(issue(&theme, ColorRole::OnPrimaryFixed, ColorRole::PrimaryFixed).is_some());
+    }
+
+    #[test]
+    fn 標準と高コントラストの配色は差し替えなしで報告しない() {
+        let variants = [
+            Variant::TonalSpot,
+            Variant::Vibrant,
+            Variant::Monochrome,
+            Variant::Neutral,
+            Variant::Expressive,
+            Variant::Fidelity,
+            Variant::Content,
+        ];
+        for variant in variants {
+            for contrast in [ContrastLevel::STANDARD, ContrastLevel::HIGH] {
+                for appearance in [AppearanceMode::Light, AppearanceMode::Dark] {
+                    let mut settings = ThemeSettings {
+                        appearance,
+                        ..ThemeSettings::default()
+                    };
+                    settings.color.variant = variant;
+                    settings.color.contrast = contrast;
+                    let issues = resolve(settings).contrast_issues().to_vec();
+                    assert!(
+                        issues.is_empty(),
+                        "{variant:?} {contrast:?} {appearance:?}: {issues:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn 差し替えた色のコントラストが足りていれば報告しない() {
         let mut settings = ThemeSettings::default();
         settings
             .color

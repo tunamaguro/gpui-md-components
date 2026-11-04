@@ -16,5 +16,5 @@ mod tone_delta_pair;
 mod variant;
 
 pub use role::ColorRole;
-pub use scheme::{ContrastRequirement, DynamicScheme, DynamicSchemeBuilder, SchemeError};
+pub use scheme::{DynamicScheme, DynamicSchemeBuilder, SchemeError};
 pub use variant::{Platform, SpecVersion, Variant};
