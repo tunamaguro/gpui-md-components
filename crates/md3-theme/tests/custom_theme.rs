@@ -107,7 +107,7 @@ fn ブランドの色から作ったテーマを細かく調整できる(cx: &mu
     let warning_roles = theme.custom_color(WARNING).expect("設定に加えた色は引ける");
     assert_ne!(warning_roles.color, warning_roles.on_color);
 
-    // 書体: BodyLarge は Plain の書体で 16sp、行の高さ 24sp
+    // 書体: BodyLarge は Plain の書体で 16sp、行の高さ 24sp。文字倍率 1.25 を掛けて 20px と 30px になる
     let body = theme.text_style(TypeScale::BodyLarge);
     assert_eq!(body.font_family, Some("Noto Sans".into()));
     assert_eq!(body.font_size, Some(px(20.0).into()));

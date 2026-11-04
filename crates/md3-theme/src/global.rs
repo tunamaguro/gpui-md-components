@@ -16,7 +16,7 @@ impl Global for GlobalTheme {}
 ///
 /// テーマは [`init_md3_theme`](Self::init_md3_theme) か [`update_md3_theme`](Self::update_md3_theme)
 /// を最初に呼んだときに作られる。[`AppearanceMode::System`] のテーマは、
-/// [`init_md3_theme`](Self::init_md3_theme) に渡したウィンドウの外観に合わせて作り直される
+/// [`init_md3_theme`](Self::init_md3_theme) に渡したウィンドウの外観に合わせてライトとダークが切り替わる
 pub trait ThemeExt {
     /// `window` の外観をテーマに反映し、ウィンドウを閉じるまで外観の変化に追従させる
     ///

@@ -34,7 +34,7 @@ pub fn dp(value: Dp) -> Pixels {
 }
 
 /// 文字に求めるコントラスト比。WCAG 2.2 の達成基準 1.4.3 (AA) の通常の文字の値
-/// https://www.w3.org/TR/WCAG22/#contrast-minimum
+/// <https://www.w3.org/TR/WCAG22/#contrast-minimum>
 const TEXT_CONTRAST: f64 = 4.5;
 
 /// 文字を置く面と、その上に置く文字のロール
@@ -276,7 +276,7 @@ impl Theme {
 
     /// 文字として重ねて使うロールの組のうち、コントラスト比が 4.5:1 (WCAG 2.2 AA の通常の文字) に届かないもの
     ///
-    /// 対象は On〇〇 とその背景、各面とその上の文字 (OnSurface、OnSurfaceVariant、Primary、Error) などの組で、
+    /// 対象は `On*` とその背景、各面とその上の文字 (OnSurface、OnSurfaceVariant、Primary、Secondary、Error) などの組で、
     /// 今の明暗の、差し替えた後の色で比べる。設定した色は届かなくてもそのまま使われ、ここで報告するだけにとどまる。
     /// コントラストレベルを下げた配色では、差し替えがなくても報告されることがある。
     /// 大きな文字や文字以外 (3:1)、状態レイヤーを重ねた色、アプリ独自の色は対象にしない
@@ -529,7 +529,7 @@ mod tests {
 
     #[test]
     fn 配色の計算が見ない背景との組も報告する() {
-        // 配色の計算は OnSurface を SurfaceDim、OnPrimaryFixed を PrimaryFixedDim に対してだけ調整する
+        // ライトの配色の計算は OnSurface を SurfaceDim、OnPrimaryFixed を PrimaryFixedDim に対してだけ調整する
         let theme = resolve(ThemeSettings::default());
         let on_surface = argb(&theme, ColorRole::OnSurface);
         let on_primary_fixed = argb(&theme, ColorRole::OnPrimaryFixed);

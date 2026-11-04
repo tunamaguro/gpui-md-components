@@ -1,4 +1,4 @@
-//! 今のテーマの設定・色・書体・形・影を並べるページ。
+//! 今のテーマの設定・色・書体・形・影を並べるページ
 
 use gpui::{
     AnyElement, App, Corners, Div, Hsla, InteractiveElement as _, IntoElement, ParentElement as _,
