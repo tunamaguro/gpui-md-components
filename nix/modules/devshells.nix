@@ -17,8 +17,9 @@
           inputsFrom = [ app ];
           packages = [
             config.treefmt.build.wrapper
-            # examples/gallery の Web 版のビルドと配信 (`trunk serve`) に使う。
-            pkgs.trunk
+            # examples/gallery の Web 版のビルド (`examples/gallery/build-web.sh`) に使う。
+            (pkgs.callPackage ../wasm-bindgen-cli.nix { })
+            pkgs.binaryen
           ]
           # `vulkaninfo --summary` で Vulkan ドライバが見えているか確認できるようにする。
           ++ lib.optionals isLinux [ pkgs.vulkan-tools ];
