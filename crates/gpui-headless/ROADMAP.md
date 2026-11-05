@@ -9,7 +9,7 @@
 4. 値の範囲 (min / max / step)
 5. テキスト入力 (IME、選択)
 
-各マイルストーンは 1 PR とし、完了条件には APG のキーボード操作と、支援技術に公開する role・状態・アクションのテストを含める。
+各マイルストーンは 1 PR とし、コンポーネントは参照する APG に従って、キーボード操作と支援技術に公開する role・状態・アクションのテストを書く。
 
 ## マイルストーン
 
@@ -47,8 +47,9 @@
 
 ## M0: Button
 
-- [x] role `button`、Enter / Space / クリック / 支援技術のクリック操作で `on_click` を呼ぶ
-- [x] 無効状態 (`Disabled` / `DisabledFocusable`)
+参照する APG:
+
+- [Button](../../.agents/skills/a11y/references/aria-practices/content/patterns/button/button-pattern.html)
 
 ## M1: Toggle 系
 
@@ -59,14 +60,11 @@
 - [ ] 部品が内部で状態を持つ API も用意するか。用意するなら初期値と、ID の寿命による初期化の条件
 - [ ] Button の内部 (フォーカス、無効状態、クリックの扱い) をどう共有するか
 
-完了条件:
+参照する APG:
 
-- [ ] Checkbox: role `checkbox`、Space で切り替え、`aria_toggled` で true / false / mixed を公開する
-- [ ] Switch: role `switch`、Space で切り替え (Enter は任意)、on / off を公開する。mixed は公開しない
-- [ ] Toggle Button: role `button` に押下状態を公開し、Enter / Space で切り替える
-- [ ] Switch と Toggle Button は、状態が変わっても名前を変えない
-- [ ] 中間状態の Checkbox を操作したときの次の状態を呼び出し側が決められる
-- [ ] 無効状態は Button と同じ契約に従う
+- [Checkbox](../../.agents/skills/a11y/references/aria-practices/content/patterns/checkbox/checkbox-pattern.html)
+- [Switch](../../.agents/skills/a11y/references/aria-practices/content/patterns/switch/switch-pattern.html)
+- [Button (Toggle Button)](../../.agents/skills/a11y/references/aria-practices/content/patterns/button/button-pattern.html)
 
 ## M2: md3-components で M0・M1 を使う
 
@@ -101,13 +99,11 @@ headless 部品だけを先に増やすと、装飾側で使ったときに API 
 - [ ] 項目の追加・削除・無効化と、すべて無効なときのフォーカスの移動先
 - [ ] 選択数の上限、選択の解除を許すか、フォーカスの移動で選択を変えるか (RadioGroup と ToggleGroup で別々に決める)
 
-完了条件:
+参照する APG:
 
-- [ ] グループ全体が Tab 1 回で到達でき、到達先は選択中の項目 (無ければ先頭)
-- [ ] 矢印キーで移動し、端で折り返す
-- [ ] 無効な項目の扱い (飛ばすか、フォーカスはできるか) が APG に従う
-- [ ] RadioGroup: role `radiogroup` / `radio`、各 radio の checked 状態、グループと各項目の名前。Space で選び、矢印キーの移動で選択も移る
-- [ ] ToggleGroup: 各項目の押下状態を公開し、矢印キーの移動では選択を変えない
+- [Keyboard Interface (グループ内のフォーカス移動)](../../.agents/skills/a11y/references/aria-practices/content/practices/keyboard-interface/keyboard-interface-practice.html)
+- [Radio Group](../../.agents/skills/a11y/references/aria-practices/content/patterns/radio/radio-group-pattern.html)
+- [Button (ToggleGroup の各項目)](../../.agents/skills/a11y/references/aria-practices/content/patterns/button/button-pattern.html)
 
 ## M5: Slider
 
@@ -115,13 +111,9 @@ headless 部品だけを先に増やすと、装飾側で使ったときに API 
 
 M4 の矢印キーの扱いを使う。値の公開は gpui の `aria_numeric_value` など、支援技術からの操作は `on_a11y_action` で実現できる
 
-完了条件:
+参照する APG:
 
-- [ ] role `slider`、名前・現在値・最小値・最大値・向きを公開する。読み上げ用の値の表現を指定できる
-- [ ] 矢印キーで step ずつ、Home / End で最小・最大に変える。PageUp / PageDown で大きく変える (任意)
-- [ ] ドラッグとトラックのクリックで値を変える
-- [ ] 支援技術の Increment / Decrement / SetValue に応える
-- [ ] キーボード・ドラッグ・支援技術の操作が同じ値の更新規則 (範囲への丸め、step) に従う
+- [Slider](../../.agents/skills/a11y/references/aria-practices/content/patterns/slider/slider-pattern.html)
 
 ## M6: Tabs
 
@@ -131,13 +123,9 @@ M4 の矢印キーの扱いを使う。値の公開は gpui の `aria_numeric_va
 
 - [ ] フォーカスの移動と同時に選ぶか (自動) 、Enter / Space で選ぶか (手動)。自動にするのは、パネルの表示に目立つ遅延が無い場合に限る
 
-完了条件:
+参照する APG:
 
-- [ ] role `tablist` / `tab` / `tabpanel`、tablist の名前、各 tab の selected 状態
-- [ ] tab から panel への `controls`、panel から tab への `labelled_by` を公開する (M3 の結果に従う)
-- [ ] 横向き・縦向きで矢印キーが変わる。Home / End で先頭・末尾に移動する (任意)
-- [ ] 選ばれていない panel は表示せず、操作の対象にしない
-- [ ] panel の先頭にフォーカスできる要素が無いとき、panel 自体に Tab で到達できる
+- [Tabs](../../.agents/skills/a11y/references/aria-practices/content/patterns/tabs/tabs-pattern.html)
 
 ## M7: 非モーダルのオーバーレイ基盤と Tooltip
 
@@ -145,12 +133,9 @@ M4 の矢印キーの扱いを使う。値の公開は gpui の `aria_numeric_va
 
 Menu と Select がこの基盤を使う。Dialog の完成を待たない
 
-完了条件:
+参照する APG:
 
-- [ ] Escape と外側クリックで閉じ、閉じた理由を呼び出し側に伝える
-- [ ] Tooltip: role `tooltip`、起動元の説明として関連付ける (M3 の結果に従う)。Tooltip にフォーカスを移さない
-- [ ] Tooltip: フォーカスとホバーで表示し、Escape で閉じる。ホバーしたまま Tooltip 上にポインタを移しても消えない
-- [ ] Tooltip: Escape で閉じた後、同じホバー・フォーカスのままでは再表示しない
+- [Tooltip](../../.agents/skills/a11y/references/aria-practices/content/patterns/tooltip/tooltip-pattern.html)
 
 ## M8: Menu
 
@@ -158,14 +143,10 @@ Menu と Select がこの基盤を使う。Dialog の完成を待たない
 
 M4 の矢印キー移動と M7 のオーバーレイ基盤を組み合わせる
 
-完了条件:
+参照する APG:
 
-- [ ] Menu Button: Enter / Space / 下矢印で開いて先頭へ、上矢印で開いて末尾へフォーカス。開閉状態と popup の種類を公開する
-- [ ] Menu: 上下矢印で移動、Home / End、文字入力で先頭文字が一致する項目へ移動 (typeahead)
-- [ ] 無効な項目にも矢印キーでフォーカスできる
-- [ ] 閉じたときのフォーカス先を理由ごとに分ける: Escape と項目の実行は Menu Button に戻す、Tab / Shift+Tab は外へ移す、外側の操作ではその操作先を尊重する
-- [ ] 実行したコマンドが別の場所 (Dialog など) にフォーカスを移した場合は、それを上書きしない
-- [ ] role `menu` / `menuitem` (checkbox / radio の項目を含む)
+- [Menu Button](../../.agents/skills/a11y/references/aria-practices/content/patterns/menu-button/menu-button-pattern.html)
+- [Menu and Menubar](../../.agents/skills/a11y/references/aria-practices/content/patterns/menubar/menu-and-menubar-pattern.html)
 
 ## M9: Dialog
 
@@ -173,24 +154,18 @@ M4 の矢印キー移動と M7 のオーバーレイ基盤を組み合わせる
 
 M7 の基盤に、M3 で決めた背景の操作を止める仕組みを組み合わせる
 
-完了条件:
+参照する APG:
 
-- [ ] 開くとダイアログ内の最初の操作可能な要素か、指定した要素 (静的な見出しも可) にフォーカスする
-- [ ] Tab / Shift+Tab がダイアログ内で循環する
-- [ ] Escape で閉じ、開く前にフォーカスしていた要素か指定した要素にフォーカスを戻す。その要素が無くなっていた場合の戻し先を決める
-- [ ] 背景はマウス・キーボード・支援技術のいずれからも操作できない。背景を視覚的に覆う処理は MD3 側の完了条件にする
-- [ ] role `dialog`、modal であること (`set_modal`) と名前を公開する
+- [Dialog (Modal)](../../.agents/skills/a11y/references/aria-practices/content/patterns/dialog-modal/dialog-modal-pattern.html)
 
 ## M10: Select (Listbox)
 
 対象: Select (APG の Select-Only Combobox)
 
-完了条件:
+参照する APG:
 
-- [ ] 実際のフォーカスは combobox に残し、候補は `aria_active_descendant` で示す
-- [ ] 開いたときは選択中の候補をアクティブにし、見える位置までスクロールする
-- [ ] 矢印キーで候補を動かしても値は確定しない。Enter / Space / Tab で確定し、Escape では元の値を保って閉じる
-- [ ] role `combobox` / `listbox` / `option`、選択状態と展開状態を公開する
+- [Combobox](../../.agents/skills/a11y/references/aria-practices/content/patterns/combobox/combobox-pattern.html)
+- [Select-Only Combobox の例](../../.agents/skills/a11y/references/aria-practices/content/patterns/combobox/examples/combobox-select-only.html)
 
 ## M11: TextField
 
@@ -201,18 +176,17 @@ gpui の `EntityInputHandler` を前提にする。最初は単一行に限る
 - [ ] 文字列・選択・IME・クリップボードを扱う編集モデルと、位置・範囲・描画の対応を渡す境界
 - [ ] 支援技術にテキストと選択を公開する方法 (gpui の `TextRun` / `TextSelection`)
 
-完了条件:
+参照する APG:
 
-- [ ] read-only / disabled
-- [ ] 名前・値・選択状態を公開し、対応する支援技術の操作に応える
+- 対応する APG のパターンは無い
 
 ## 随時
 
 操作がほとんど無く、他のマイルストーンに依存しないもの。手が空いたときに入れる
 
-- [ ] Progress indicator: role `progressbar`。値が確定していれば範囲と現在値を公開し、不定なら現在値を省く
-- [ ] Link: Enter で実行する (Space では実行しない)
-- [ ] Disclosure: 開閉ボタンと領域の関連 (M3 の結果に従う)
+- [ ] Progress indicator (対応する APG のパターンは無い)
+- [ ] Link ([APG](../../.agents/skills/a11y/references/aria-practices/content/patterns/link/link-pattern.html))
+- [ ] Disclosure ([APG](../../.agents/skills/a11y/references/aria-practices/content/patterns/disclosure/disclosure-pattern.html))
 
 ## 後回し
 
