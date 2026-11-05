@@ -4,7 +4,7 @@
 
 mod accessibility;
 pub mod button;
-pub mod checkbox;
+pub mod choice;
 
 /// 部品を操作できるかどうか
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]

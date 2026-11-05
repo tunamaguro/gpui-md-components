@@ -1,4 +1,4 @@
-//! 見た目を持たないチェックボックス
+//! オンとオフを切り替える、見た目を持たない部品
 
 use gpui::{
     AnyElement, App, ClickEvent, Div, ElementId, FocusHandle, InteractiveElement, Interactivity,
@@ -23,6 +23,13 @@ pub enum CheckedState {
     Mixed,
 }
 
+impl CheckedState {
+    /// [`CheckedState::Checked`] なら `true` を返す。[`CheckedState::Mixed`] では `false`
+    pub fn is_checked(self) -> bool {
+        self == CheckedState::Checked
+    }
+}
+
 impl From<bool> for CheckedState {
     fn from(checked: bool) -> Self {
         if checked {
@@ -43,37 +50,88 @@ impl From<CheckedState> for accesskit::Toggled {
     }
 }
 
-type ChangeHandler = Box<dyn Fn(bool, &mut Window, &mut App)>;
+mod sealed {
+    pub trait Sealed {}
+}
+
+/// [`Choice`] が支援技術に公開する role と、取りうる状態を決める
+///
+/// このクレートの外では実装できない
+pub trait ChoiceKind: sealed::Sealed + 'static {
+    /// [`Choice::new`] に渡し、[`Choice::on_change`] で受け取る状態
+    ///
+    /// `true` はオン、`false` はオフに対応する
+    type State: Copy + From<bool> + Into<accesskit::Toggled>;
+    /// 支援技術に公開する role
+    const ROLE: accesskit::Role;
+}
+
+/// [`Checkbox`] の種類
+#[derive(Debug)]
+pub enum CheckboxKind {}
+
+impl sealed::Sealed for CheckboxKind {}
+
+impl ChoiceKind for CheckboxKind {
+    type State = CheckedState;
+    const ROLE: accesskit::Role = accesskit::Role::CheckBox;
+}
+
+/// [`Switch`] の種類
+#[derive(Debug)]
+pub enum SwitchKind {}
+
+impl sealed::Sealed for SwitchKind {}
+
+impl ChoiceKind for SwitchKind {
+    type State = bool;
+    const ROLE: accesskit::Role = accesskit::Role::Switch;
+}
 
 /// 見た目を持たないチェックボックス
 ///
-/// 状態は呼び出し側が持ち、[`Checkbox::new`] に毎回渡す。チェックボックス自身は状態を変えない。
-/// 支援技術には role `checkbox` と、渡した状態に対応する checked の状態として公開される。
-/// アクセシブルな名前は、子の内容か `aria_label` で与えること。
-/// マウスのクリック・フォーカス中の Space・支援技術からのクリック操作で [`Checkbox::on_change`] のハンドラを呼び、
+/// 支援技術には role `checkbox` と、[`CheckedState`] に対応する checked の状態として公開される。
+/// アクセシブルな名前は、子の内容か `aria_label` で与えること
+pub type Checkbox = Choice<CheckboxKind>;
+
+/// 見た目を持たないスイッチ
+///
+/// 支援技術には role `switch` と、オンかオフかの状態として公開される。
+/// アクセシブルな名前は `aria_label` で与えること。子の内容は名前にならない。
+/// 状態によって名前を変えないこと
+pub type Switch = Choice<SwitchKind>;
+
+type ChangeHandler<S> = Box<dyn Fn(S, &mut Window, &mut App)>;
+
+/// オンとオフを切り替える、見た目を持たない部品
+///
+/// 状態は呼び出し側が持ち、[`Choice::new`] に毎回渡す。部品自身は状態を変えない。
+/// マウスのクリック・フォーカス中の Space・支援技術からのクリック操作で [`Choice::on_change`] のハンドラを呼び、
 /// Enter では呼ばない。
 /// 見た目は [`Styled`] と [`InteractiveElement`] で呼び出し側が付ける
+///
+/// 種類ごとの型として [`Checkbox`] と [`Switch`] がある
 #[derive(IntoElement)]
-pub struct Checkbox {
+pub struct Choice<K: ChoiceKind> {
     id: ElementId,
     inner: Stateful<Div>,
-    state: CheckedState,
-    on_change: Option<ChangeHandler>,
+    state: K::State,
+    on_change: Option<ChangeHandler<K::State>>,
     provided_focus_handle: Option<FocusHandle>,
     availability: Availability,
 }
 
-impl Checkbox {
-    /// `state` を表示するチェックボックスを作る
+impl<K: ChoiceKind> Choice<K> {
+    /// `state` を表示する部品を作る
     ///
-    /// `id` は同じ親の中で一意にし、描画のたびに同じ値を渡すこと。[`Checkbox::track_focus`] を指定しない場合、
+    /// `id` は同じ親の中で一意にし、描画のたびに同じ値を渡すこと。[`Choice::track_focus`] を指定しない場合、
     /// `id` が変わるか 1 フレームでも描画されないとフォーカスが外れる
-    pub fn new(id: impl Into<ElementId>, state: impl Into<CheckedState>) -> Self {
+    pub fn new(id: impl Into<ElementId>, state: K::State) -> Self {
         let id = id.into();
         Self {
             id: id.clone(),
             inner: div().id(id),
-            state: state.into(),
+            state,
             on_change: None,
             provided_focus_handle: None,
             availability: Availability::Enabled,
@@ -82,31 +140,34 @@ impl Checkbox {
 
     /// 操作されたときに `handler` を呼ぶ。複数回呼んだ場合は最後に渡した `handler` だけを呼ぶ
     ///
-    /// `handler` には操作後に求められるチェックの有無を渡す。[`CheckedState::Checked`] のときは `false`、
-    /// [`CheckedState::Unchecked`] と [`CheckedState::Mixed`] のときは `true` になる。
-    /// 表示を変えるには、`handler` で呼び出し側の状態を更新し、次の描画で [`Checkbox::new`] に渡すこと。
-    /// 設定しない場合、チェックボックスは操作されても何も呼ばず、支援技術にクリック操作を公開しない
-    pub fn on_change(mut self, handler: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+    /// `handler` には操作後に求められる状態を渡す。
+    /// 現在の状態がオンならオフを、オフか [`CheckedState::Mixed`] ならオンを渡す。
+    /// 表示を変えるには、`handler` で呼び出し側の状態を更新し、次の描画で [`Choice::new`] に渡すこと。
+    /// 設定しない場合、部品は操作されても何も呼ばず、支援技術にクリック操作を公開しない
+    pub fn on_change(
+        mut self,
+        handler: impl Fn(K::State, &mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_change = Some(Box::new(handler));
         self
     }
 
-    /// チェックボックスを無効にするか、無効でも Tab で到達できるようにするかを設定する。既定では有効
+    /// 部品を無効にするか、無効でも Tab で到達できるようにするかを設定する。既定では有効
     ///
-    /// 無効なチェックボックスは操作されてもハンドラを呼ばず、マウスの左ボタンの押下を親に伝えず、
+    /// 無効な部品は操作されてもハンドラを呼ばず、マウスの左ボタンの押下を親に伝えず、
     /// 支援技術には disabled として公開される。
-    /// 有効か無効かだけを切り替える場合は [`Checkbox::disabled`] を使う
+    /// 有効か無効かだけを切り替える場合は [`Choice::disabled`] を使う
     pub fn availability(mut self, availability: Availability) -> Self {
         self.availability = availability;
         self
     }
 
-    /// チェックボックスを無効にする。`false` を渡すと有効に戻す
+    /// 部品を無効にする。`false` を渡すと有効に戻す
     ///
-    /// 無効なチェックボックスは操作されてもハンドラを呼ばず、マウスの左ボタンの押下を親に伝えず、Tab でも到達できず、
+    /// 無効な部品は操作されてもハンドラを呼ばず、マウスの左ボタンの押下を親に伝えず、Tab でも到達できず、
     /// 支援技術には disabled として公開される。
     /// フォーカス中に無効になった場合は、フォーカスが外れるまでフォーカスを保つ。
-    /// 無効でも Tab で到達できるようにしたい場合は [`Checkbox::availability`] を使う
+    /// 無効でも Tab で到達できるようにしたい場合は [`Choice::availability`] を使う
     pub fn disabled(self, disabled: bool) -> Self {
         self.availability(if disabled {
             Availability::Disabled
@@ -115,10 +176,10 @@ impl Checkbox {
         })
     }
 
-    /// `focus_handle` をこのチェックボックスのフォーカスとして使う
+    /// `focus_handle` をこの部品のフォーカスとして使う
     ///
     /// 呼び出し側から `focus_handle` でフォーカスの移動や判定ができる。`focus_handle` は Tab で到達できるように設定される。
-    /// 指定しない場合はチェックボックスが内部でフォーカスを持つ
+    /// 指定しない場合は部品が内部でフォーカスを持つ
     pub fn track_focus(mut self, focus_handle: &FocusHandle) -> Self {
         self.provided_focus_handle = Some(focus_handle.clone());
         self
@@ -137,17 +198,18 @@ impl Checkbox {
 }
 
 // TODO: フォーカス・無効状態・クリックの扱いは [`Button`](crate::button::Button) と同じ処理を複製している。1 つにまとめたい
-impl RenderOnce for Checkbox {
+impl<K: ChoiceKind> RenderOnce for Choice<K> {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let focus_handle = self.focus_handle(window, cx);
         // フォーカス中に無効になった場合は、フォーカスが外れるまでフォーカスを保つ
         let focusable = self.availability.is_focusable() || focus_handle.is_focused(window);
         let disabled = self.availability.is_disabled();
         let on_change = self.on_change.filter(|_| !disabled);
-        let next = self.state != CheckedState::Checked;
+        let toggled: accesskit::Toggled = self.state.into();
+        let next = K::State::from(toggled != accesskit::Toggled::True);
         self.inner
-            .role(accesskit::Role::CheckBox)
-            .aria_toggled(self.state.into())
+            .role(K::ROLE)
+            .aria_toggled(toggled)
             .when(disabled, |this| {
                 let focus_handle = focus_handle.clone();
                 // 押下を親に伝えず、親の on_click を呼ばせない。
@@ -164,7 +226,7 @@ impl RenderOnce for Checkbox {
             })
             .when_some(on_change, |this, on_change| {
                 this.on_click(move |event, window, cx| {
-                    // APG の Checkbox パターンは Enter での操作を定義していない
+                    // APG は Enter での操作を、Checkbox パターンでは定義せず、Switch パターンでは任意としている
                     if let ClickEvent::Keyboard(KeyboardClickEvent {
                         button: KeyboardButton::Enter,
                         ..
@@ -183,27 +245,28 @@ impl RenderOnce for Checkbox {
     }
 }
 
-impl Styled for Checkbox {
+impl<K: ChoiceKind> Styled for Choice<K> {
     fn style(&mut self) -> &mut StyleRefinement {
         self.inner.style()
     }
 }
 
-impl ParentElement for Checkbox {
+impl<K: ChoiceKind> ParentElement for Choice<K> {
     fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
         self.inner.extend(elements);
     }
 }
 
-impl InteractiveElement for Checkbox {
+impl<K: ChoiceKind> InteractiveElement for Choice<K> {
     fn interactivity(&mut self) -> &mut Interactivity {
         self.inner.interactivity()
     }
 }
 
-impl StatefulInteractiveElement for Checkbox {}
+impl<K: ChoiceKind> StatefulInteractiveElement for Choice<K> {}
 
-/// APG の Checkbox パターン (content/patterns/checkbox/checkbox-pattern.html) で期待される振る舞い
+/// APG の Checkbox パターン (content/patterns/checkbox/checkbox-pattern.html) と
+/// Switch パターン (content/patterns/switch/switch-pattern.html) で期待される振る舞い
 #[cfg(test)]
 mod tests {
     use std::{cell::RefCell, rc::Rc};
@@ -215,19 +278,19 @@ mod tests {
 
     use super::*;
 
-    struct CheckboxView {
-        state: CheckedState,
+    struct ChoiceView<K: ChoiceKind> {
+        state: K::State,
         availability: Availability,
         focus_handle: FocusHandle,
-        changes: Rc<RefCell<Vec<bool>>>,
+        changes: Rc<RefCell<Vec<K::State>>>,
         node: Option<accesskit::Node>,
     }
 
-    impl Render for CheckboxView {
+    impl<K: ChoiceKind> Render for ChoiceView<K> {
         fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
             let changes = self.changes.clone();
-            let element = Checkbox::new("checkbox", self.state)
-                .on_change(move |checked, _, _| changes.borrow_mut().push(checked))
+            let element = Choice::<K>::new("choice", self.state)
+                .on_change(move |state, _, _| changes.borrow_mut().push(state))
                 .track_focus(&self.focus_handle)
                 .availability(self.availability)
                 .aria_label("Lettuce")
@@ -243,12 +306,12 @@ mod tests {
         }
     }
 
-    fn setup(
+    fn setup<K: ChoiceKind>(
         cx: &mut TestAppContext,
-        state: CheckedState,
+        state: K::State,
         availability: Availability,
-    ) -> (Entity<CheckboxView>, &mut VisualTestContext) {
-        cx.add_window_view(|_, cx| CheckboxView {
+    ) -> (Entity<ChoiceView<K>>, &mut VisualTestContext) {
+        cx.add_window_view(|_, cx| ChoiceView {
             state,
             availability,
             focus_handle: cx.focus_handle(),
@@ -257,11 +320,17 @@ mod tests {
         })
     }
 
-    fn changes(view: &Entity<CheckboxView>, cx: &mut VisualTestContext) -> Vec<bool> {
+    fn changes<K: ChoiceKind>(
+        view: &Entity<ChoiceView<K>>,
+        cx: &mut VisualTestContext,
+    ) -> Vec<K::State> {
         view.read_with(cx, |view, _| view.changes.borrow().clone())
     }
 
-    fn a11y_node(view: &Entity<CheckboxView>, cx: &mut VisualTestContext) -> accesskit::Node {
+    fn a11y_node<K: ChoiceKind>(
+        view: &Entity<ChoiceView<K>>,
+        cx: &mut VisualTestContext,
+    ) -> accesskit::Node {
         view.read_with(cx, |view, _| view.node.clone())
             .expect("描画済みであること")
     }
@@ -286,33 +355,62 @@ mod tests {
     }
 
     #[gpui::test]
-    fn role_checkbox_として公開される(cx: &mut TestAppContext) {
-        let (view, cx) = setup(cx, CheckedState::Unchecked, Availability::Enabled);
+    fn checkbox_は_role_checkbox_として公開される(cx: &mut TestAppContext) {
+        let (view, cx) = setup::<CheckboxKind>(cx, CheckedState::Unchecked, Availability::Enabled);
         let node = a11y_node(&view, cx);
         assert_eq!(node.role(), accesskit::Role::CheckBox);
         assert_eq!(node.label(), Some("Lettuce"));
     }
 
     #[gpui::test]
-    fn 状態が_checked_として公開される(cx: &mut TestAppContext) {
+    fn switch_は_role_switch_として公開される(cx: &mut TestAppContext) {
+        let (view, cx) = setup::<SwitchKind>(cx, false, Availability::Enabled);
+        let node = a11y_node(&view, cx);
+        assert_eq!(node.role(), accesskit::Role::Switch);
+        assert_eq!(node.label(), Some("Lettuce"));
+    }
+
+    #[gpui::test]
+    fn checkbox_の状態が_checked_として公開される(cx: &mut TestAppContext) {
         for (state, toggled) in [
             (CheckedState::Unchecked, accesskit::Toggled::False),
             (CheckedState::Checked, accesskit::Toggled::True),
             (CheckedState::Mixed, accesskit::Toggled::Mixed),
         ] {
-            let (view, cx) = setup(cx, state, Availability::Enabled);
+            let (view, cx) = setup::<CheckboxKind>(cx, state, Availability::Enabled);
             assert_eq!(a11y_node(&view, cx).toggled(), Some(toggled), "{state:?}");
         }
     }
 
     #[gpui::test]
-    fn space_で切り替え後の値が渡される(cx: &mut TestAppContext) {
-        for (state, next) in [
-            (CheckedState::Unchecked, true),
-            (CheckedState::Checked, false),
-            (CheckedState::Mixed, true),
+    fn switch_の状態が_checked_として公開される(cx: &mut TestAppContext) {
+        for (state, toggled) in [
+            (false, accesskit::Toggled::False),
+            (true, accesskit::Toggled::True),
         ] {
-            let (view, cx) = setup(cx, state, Availability::Enabled);
+            let (view, cx) = setup::<SwitchKind>(cx, state, Availability::Enabled);
+            assert_eq!(a11y_node(&view, cx).toggled(), Some(toggled), "{state:?}");
+        }
+    }
+
+    #[gpui::test]
+    fn checkbox_は_space_で切り替え後の値が渡される(cx: &mut TestAppContext) {
+        for (state, next) in [
+            (CheckedState::Unchecked, CheckedState::Checked),
+            (CheckedState::Checked, CheckedState::Unchecked),
+            (CheckedState::Mixed, CheckedState::Checked),
+        ] {
+            let (view, cx) = setup::<CheckboxKind>(cx, state, Availability::Enabled);
+            focus_next(cx);
+            press_key(cx, "space");
+            assert_eq!(changes(&view, cx), vec![next], "{state:?}");
+        }
+    }
+
+    #[gpui::test]
+    fn switch_は_space_で切り替え後の値が渡される(cx: &mut TestAppContext) {
+        for (state, next) in [(false, true), (true, false)] {
+            let (view, cx) = setup::<SwitchKind>(cx, state, Availability::Enabled);
             focus_next(cx);
             press_key(cx, "space");
             assert_eq!(changes(&view, cx), vec![next], "{state:?}");
@@ -321,14 +419,14 @@ mod tests {
 
     #[gpui::test]
     fn マウスのクリックで操作できる(cx: &mut TestAppContext) {
-        let (view, cx) = setup(cx, CheckedState::Unchecked, Availability::Enabled);
+        let (view, cx) = setup::<CheckboxKind>(cx, CheckedState::Unchecked, Availability::Enabled);
         click(cx);
-        assert_eq!(changes(&view, cx), vec![true]);
+        assert_eq!(changes(&view, cx), vec![CheckedState::Checked]);
     }
 
     #[gpui::test]
     fn enter_では操作しない(cx: &mut TestAppContext) {
-        let (view, cx) = setup(cx, CheckedState::Unchecked, Availability::Enabled);
+        let (view, cx) = setup::<CheckboxKind>(cx, CheckedState::Unchecked, Availability::Enabled);
         focus_next(cx);
         press_key(cx, "enter");
         assert!(changes(&view, cx).is_empty());
@@ -336,12 +434,12 @@ mod tests {
 
     #[gpui::test]
     fn 自身では状態を変えない(cx: &mut TestAppContext) {
-        let (view, cx) = setup(cx, CheckedState::Unchecked, Availability::Enabled);
+        let (view, cx) = setup::<CheckboxKind>(cx, CheckedState::Unchecked, Availability::Enabled);
         click(cx);
         click(cx);
         assert_eq!(
             changes(&view, cx),
-            vec![true, true],
+            vec![CheckedState::Checked, CheckedState::Checked],
             "渡された状態が変わらない限り同じ値を渡すこと"
         );
         assert_eq!(
@@ -351,10 +449,10 @@ mod tests {
     }
 
     #[gpui::test]
-    fn 無効なチェックボックスは操作できず_disabled_として公開される(
+    fn 無効な部品は操作できず_disabled_として公開される(
         cx: &mut TestAppContext,
     ) {
-        let (view, cx) = setup(cx, CheckedState::Unchecked, Availability::Disabled);
+        let (view, cx) = setup::<CheckboxKind>(cx, CheckedState::Unchecked, Availability::Disabled);
         focus_next(cx);
         press_key(cx, "space");
         click(cx);
