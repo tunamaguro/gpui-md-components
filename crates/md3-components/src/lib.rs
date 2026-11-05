@@ -26,12 +26,7 @@ pub use gpui;
 pub use gpui_platform;
 pub use md3_icons::IconName;
 
-#[cfg(any(
-    feature = "button",
-    feature = "icon-button",
-    feature = "checkbox",
-    feature = "switch"
-))]
+#[cfg(any(feature = "button", feature = "icon-button", feature = "switch"))]
 use gpui::{Hsla, Pixels, Styled as _, Svg, svg};
 #[cfg(any(
     feature = "button",
@@ -52,12 +47,7 @@ use md3_theme::md3_tokens::Dp;
 const MIN_INTERACTIVE_SIZE: Dp = Dp(48.0);
 
 /// 大きさ `size` の正方形に `color` で描くアイコン
-#[cfg(any(
-    feature = "button",
-    feature = "icon-button",
-    feature = "checkbox",
-    feature = "switch"
-))]
+#[cfg(any(feature = "button", feature = "icon-button", feature = "switch"))]
 fn icon(name: IconName, size: Pixels, color: Hsla) -> Svg {
     svg()
         .data(name.svg())

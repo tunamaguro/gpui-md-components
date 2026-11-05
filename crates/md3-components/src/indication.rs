@@ -25,6 +25,10 @@ pub(crate) struct Indication {
     focus_handle: FocusHandle,
     enabled: bool,
     /// ポインターが部品の上にあるか
+    #[cfg_attr(
+        not(any(feature = "button", feature = "checkbox", feature = "switch")),
+        allow(dead_code)
+    )]
     pub(crate) hovered: bool,
     /// 押されているか
     pub(crate) pressed: bool,
@@ -427,6 +431,7 @@ pub(crate) fn with_corners<E: Styled>(element: E, radii: Corners<Pixels>) -> E {
 }
 
 /// `from` の半径から `to` の半径へ `t` だけ進めた半径。バネの行き過ぎで負になる場合は 0 にする
+#[cfg(any(feature = "button", feature = "icon-button"))]
 pub(crate) fn lerp_corners(from: Corners<Pixels>, to: Corners<Pixels>, t: f32) -> Corners<Pixels> {
     let lerp = |a: Pixels, b: Pixels| (a + (b - a) * t).max(px(0.0));
     Corners {
