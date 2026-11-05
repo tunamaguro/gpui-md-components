@@ -6,39 +6,7 @@ use gpui::{
     StyleRefinement, Styled, Window, accesskit, div, prelude::FluentBuilder,
 };
 
-use crate::accessibility::A11yInfoExt;
-
-/// ボタンを操作できるかどうか
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
-pub enum Availability {
-    /// 操作でき、Tab で到達できる
-    #[default]
-    Enabled,
-    /// 操作できず、Tab でも到達できない
-    ///
-    /// フォーカス中にこの状態になった場合は、フォーカスが外れるまでフォーカスを保つ
-    Disabled,
-    /// 操作できないが、Tab で到達できる
-    ///
-    /// 無効な理由を伝えたい場合や、周囲から存在を推測できず見つけてもらう必要がある場合に使う
-    DisabledFocusable,
-}
-
-impl Availability {
-    fn is_focusable(self) -> bool {
-        matches!(
-            self,
-            Availability::Enabled | Availability::DisabledFocusable
-        )
-    }
-
-    fn is_disabled(self) -> bool {
-        matches!(
-            self,
-            Availability::Disabled | Availability::DisabledFocusable
-        )
-    }
-}
+use crate::{Availability, accessibility::A11yInfoExt};
 
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
