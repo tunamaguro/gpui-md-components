@@ -53,11 +53,9 @@
 
 ## M1: Toggle 系
 
-対象: Checkbox (中間状態を含む)、Switch、押下状態を持つ Toggle Button
+対象: Checkbox (中間状態を含む)、Switch
 
-- [x] Checkbox
-- [x] Switch
-- [ ] Toggle Button
+押下状態を持つ Toggle Button は、ToggleGroup の項目と合わせて M4 で作る
 
 決めたこと:
 
@@ -75,17 +73,16 @@
 
 - AccessKit は Switch の名前を子の内容から求めない (accesskit_consumer の `Node::labelled_by`)。名前は `aria_label` で与える必要がある
 - Switch は Mixed を持てない (WAI-ARIA は mixed を false として扱う)
-- Switch と Toggle Button は、状態によってラベルを変えない
+- Switch は、状態によってラベルを変えない
 
 参照する APG:
 
 - [Checkbox](../../.agents/skills/a11y/references/aria-practices/content/patterns/checkbox/checkbox-pattern.html)
 - [Switch](../../.agents/skills/a11y/references/aria-practices/content/patterns/switch/switch-pattern.html)
-- [Button (Toggle Button)](../../.agents/skills/a11y/references/aria-practices/content/patterns/button/button-pattern.html)
 
 ## M2: md3-components で M0・M1 を使う
 
-対象: MD3 の Button (各バリアント)、Icon button、Checkbox、Switch
+対象: MD3 の Button (各バリアント)、Icon button (toggle のバリアントを除く)、Checkbox、Switch
 
 headless 部品だけを先に増やすと、装飾側で使ったときに API の不足が見つかり作り直しになるため、早い段階で一度 MD3 まで作る。
 以降のマイルストーンでも、対応する MD3 部品を作って装飾側の要求を確かめる
@@ -108,7 +105,7 @@ headless 部品だけを先に増やすと、装飾側で使ったときに API 
 
 ## M4: 矢印キー移動の基盤と RadioGroup / ToggleGroup
 
-対象: RadioGroup、ToggleGroup (複数選択。MD3 の Segmented button の複数選択で使う)
+対象: RadioGroup、ToggleGroup (複数選択。MD3 の Segmented button の複数選択で使う)、Toggle Button (押下状態を持つボタン。単体でも使い、ToggleGroup の項目にもなる)
 
 決めること:
 
@@ -116,11 +113,16 @@ headless 部品だけを先に増やすと、装飾側で使ったときに API 
 - [ ] 項目の追加・削除・無効化と、すべて無効なときのフォーカスの移動先
 - [ ] 選択数の上限、選択の解除を許すか、フォーカスの移動で選択を変えるか (RadioGroup と ToggleGroup で別々に決める)
 
+気を付けること:
+
+- Toggle Button は状態によってラベルを変えない。ラベルを変える場合は押下状態を公開しない
+- Toggle Button は M1 の `Choice` に含めない
+
 参照する APG:
 
 - [Keyboard Interface (グループ内のフォーカス移動)](../../.agents/skills/a11y/references/aria-practices/content/practices/keyboard-interface/keyboard-interface-practice.html)
 - [Radio Group](../../.agents/skills/a11y/references/aria-practices/content/patterns/radio/radio-group-pattern.html)
-- [Button (ToggleGroup の各項目)](../../.agents/skills/a11y/references/aria-practices/content/patterns/button/button-pattern.html)
+- [Button (Toggle Button と ToggleGroup の各項目)](../../.agents/skills/a11y/references/aria-practices/content/patterns/button/button-pattern.html)
 
 ## M5: Slider
 
