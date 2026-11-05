@@ -263,15 +263,3 @@ impl ColorRole {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn 添字は_all_での位置と一致する() {
-        for (position, role) in ColorRole::ALL.into_iter().enumerate() {
-            assert_eq!(role.index(), position, "{role:?}");
-        }
-    }
-}

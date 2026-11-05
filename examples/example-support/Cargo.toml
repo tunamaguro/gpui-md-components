@@ -4,7 +4,7 @@ description = "examples 以下のクレートで共有するアセットと初�
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+license-file = "assets/OFL.txt"
 publish.workspace = true
 
 [lints]
