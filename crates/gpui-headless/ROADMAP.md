@@ -14,8 +14,8 @@
 ## マイルストーン
 
 - [x] M0: Button
-- [ ] M1: Toggle 系
-- [ ] M2: md3-components で M0・M1 を使う
+- [x] M1: Toggle 系
+- [x] M2: md3-components で M0・M1 を使う
 - [ ] M3: 調査 (関連付け・テスト・モーダル・フォーカス)
 - [ ] M4: 矢印キー移動の基盤と RadioGroup / ToggleGroup
 - [ ] M5: Slider
@@ -89,9 +89,11 @@ headless 部品だけを先に増やすと、装飾側で使ったときに API 
 
 完了条件:
 
-- [ ] state layer、ripple、focus ring を headless の `Styled` / `InteractiveElement` 経由で付けられる
-- [ ] 装飾のために headless 側へ追加した API があれば、M1 の部品にも反映する
-- [ ] gallery に表示する
+- [x] state layer、ripple、focus ring を headless の `Styled` / `InteractiveElement` 経由で付けられる
+- [x] 装飾のために headless 側へ追加した API があれば、M1 の部品にも反映する (追加した API は無い)
+- [x] gallery に表示する
+
+装飾側で困ったことは [md3-components/HEADLESS_FEEDBACK.md](../md3-components/HEADLESS_FEEDBACK.md) に記録した
 
 ## M3: 調査 (関連付け・テスト・モーダル・フォーカス)
 
