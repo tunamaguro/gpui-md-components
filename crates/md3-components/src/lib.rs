@@ -5,7 +5,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-#[cfg(any(feature = "button", feature = "icon-button", feature = "checkbox"))]
+#[cfg(feature = "button")]
 pub mod button;
 #[cfg(feature = "checkbox")]
 pub mod checkbox;
