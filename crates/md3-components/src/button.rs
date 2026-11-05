@@ -20,7 +20,7 @@ use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::md3_tokens::{Dp, elevation, web_component};
 use md3_theme::{ThemeExt as _, dp};
 
-use crate::indication::{self, Interaction};
+use crate::indication::{self, Indication};
 use crate::{MIN_INTERACTIVE_SIZE, icon};
 
 /// ボタンの強調の度合いと見た目
@@ -343,20 +343,11 @@ impl ButtonVariant {
 impl RenderOnce for Button {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = cx.md3_theme().clone();
-        let focus_handle = crate::focus_handle(&self.id, window, cx);
-        let interaction = Interaction::state(&self.id, window, cx);
         let enabled = !self.disabled;
-        let focused = focus_handle.is_focused(window);
-        Interaction::sync(&interaction, enabled, focused, cx);
-        let focus_visible = focused && window.last_input_was_keyboard();
-        let (hovered, pressed, layer_opacity) = {
-            let state = interaction.read(cx);
-            (
-                state.is_hovered(),
-                state.is_pressed(),
-                state.state_layer_opacity(focus_visible, cx),
-            )
-        };
+        let indication = Indication::new(&self.id, enabled, window, cx);
+        let pressed = indication.pressed;
+        let focus_visible = indication.focus_visible;
+        let hovered = indication.hovered;
 
         let metrics = self.size.metrics();
         let style = self.variant.style();
@@ -408,7 +399,6 @@ impl RenderOnce for Button {
             .text_style()
             .refine(&theme.text_style(metrics.type_scale));
         let label = label.child(self.label.clone());
-        let ripple_state = interaction.clone();
 
         let container = div()
             .relative()
@@ -430,24 +420,18 @@ impl RenderOnce for Button {
                 this.child(icon(name, dp(metrics.icon_size), content))
             })
             .child(label)
-            .with_spring(
-                "md3-shape",
-                SpringAnimation::new(spring).to(pressed),
+            .with_spring("md3-shape", SpringAnimation::new(spring).to(pressed), {
+                let indication = indication.clone();
                 move |this, phase| {
                     let radii = indication::lerp_corners(rest_radii, pressed_radii, phase.0);
-                    indication::with_corners(this, radii)
-                        .when(enabled, |this| {
-                            this.child(indication::state_layer(content, layer_opacity, radii))
-                                .child(indication::ripple(ripple_state, content, radii))
-                        })
-                        .when(focus_visible, |this| {
-                            this.child(indication::focus_ring(&theme, radii))
-                        })
-                },
-            );
+                    let this = indication::with_corners(this, radii);
+                    let this = indication.layers(this, content, content, radii);
+                    indication.focus_ring(this, &theme, radii)
+                }
+            });
 
         let button = gpui_headless::button::Button::new(self.id)
-            .track_focus(&focus_handle)
+            .track_focus(indication.focus_handle())
             .disabled(self.disabled)
             .aria_label(self.label)
             .flex()
@@ -457,11 +441,7 @@ impl RenderOnce for Button {
             .min_h(dp(MIN_INTERACTIVE_SIZE))
             .child(container)
             .when_some(self.on_click, |this, handler| this.on_click(handler));
-        if enabled {
-            indication::track(button, &interaction, &["enter", "space"])
-        } else {
-            button
-        }
+        indication.track(button, &["enter", "space"])
     }
 }
 

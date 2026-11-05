@@ -16,7 +16,7 @@ pub use gpui_platform;
 pub use md3_icons::IconName;
 
 #[cfg(feature = "button")]
-use gpui::{App, ElementId, FocusHandle, Hsla, Pixels, Styled as _, Svg, Window, svg};
+use gpui::{Hsla, Pixels, Styled as _, Svg, svg};
 #[cfg(feature = "button")]
 use md3_theme::md3_tokens::Dp;
 
@@ -24,16 +24,6 @@ use md3_theme::md3_tokens::Dp;
 /// `minimumInteractiveComponentSize` (48.dp) による
 #[cfg(feature = "button")]
 const MIN_INTERACTIVE_SIZE: Dp = Dp(48.0);
-
-/// `id` の部品のフォーカス。同じ `id` で描画し続ける間は同じハンドルを返す
-#[cfg(feature = "button")]
-fn focus_handle(id: &ElementId, window: &mut Window, cx: &mut App) -> FocusHandle {
-    let key = ElementId::NamedChild(std::sync::Arc::new(id.clone()), "md3-focus".into());
-    window
-        .use_keyed_state(key, cx, |_, cx| cx.focus_handle())
-        .read(cx)
-        .clone()
-}
 
 /// 大きさ `size` の正方形に `color` で描くアイコン
 #[cfg(feature = "button")]

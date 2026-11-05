@@ -1,14 +1,15 @@
 //! 操作の状態を示す表示 (状態レイヤー、リップル、フォーカスリング)
 //!
-//! 部品は headless の要素に [`track`] で操作を記録するリスナーを付け、その記録から表示を組み立てる
+//! 部品は描画のたびに [`Indication::new`] で操作の状態を読み、headless の要素に [`Indication::track`] で
+//! 操作を記録するリスナーを付け、読んだ状態から表示を組み立てる
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use gpui::{
-    Animation, AnimationExt as _, App, Bounds, Corners, Div, ElementId, Entity, Hsla, IntoElement,
-    MouseButton, PathBuilder, Pixels, Point, StatefulInteractiveElement, Styled, Window, canvas,
-    div, point, px,
+    Animation, AnimationExt as _, App, Bounds, Corners, Div, ElementId, Entity, FocusHandle, Hsla,
+    IntoElement, MouseButton, ParentElement, PathBuilder, Pixels, Point,
+    StatefulInteractiveElement, Styled, Window, canvas, div, point, px,
 };
 use md3_theme::md3_tokens::focus_ring;
 use md3_theme::md3_tokens::motion::CubicBezier;
@@ -17,10 +18,134 @@ use md3_theme::md3_tokens::state;
 use md3_theme::{Theme, dp};
 use web_time::Instant;
 
-/// 部品が受けている操作の記録
-///
-/// 部品の id ごとに [`Interaction::state`] で引き、[`track`] で付けたリスナーが更新して再描画させる
-pub(crate) struct Interaction {
+/// 描画 1 回分の、部品の操作の状態
+#[derive(Clone)]
+pub(crate) struct Indication {
+    interaction: Entity<Interaction>,
+    focus_handle: FocusHandle,
+    enabled: bool,
+    /// ポインターが部品の上にあるか
+    pub(crate) hovered: bool,
+    /// 押されているか
+    pub(crate) pressed: bool,
+    /// キーボードで操作していて、部品にフォーカスがあるか
+    pub(crate) focus_visible: bool,
+    state_layer_opacity: f32,
+}
+
+impl Indication {
+    /// `id` の部品の操作の状態を読む。描画のたびに呼ぶ
+    ///
+    /// フォーカスと操作の記録は、同じ `id` で描画し続ける間だけ保たれる。
+    /// `enabled` が `false` の間は hover と押下を記録せず、記録済みのものも消す
+    pub(crate) fn new(id: &ElementId, enabled: bool, window: &mut Window, cx: &mut App) -> Self {
+        let id = Arc::new(id.clone());
+        let focus_handle = window
+            .use_keyed_state(
+                ElementId::NamedChild(id.clone(), "md3-focus".into()),
+                cx,
+                |_, cx| cx.focus_handle(),
+            )
+            .read(cx)
+            .clone();
+        let interaction = window.use_keyed_state(
+            ElementId::NamedChild(id, "md3-interaction".into()),
+            cx,
+            |_, _| Interaction {
+                hovered: false,
+                press: None,
+                ripples: Vec::new(),
+            },
+        );
+        let focused = focus_handle.is_focused(window);
+        let now = cx.background_executor().now();
+        interaction.update(cx, |this, _| {
+            if !enabled {
+                this.hovered = false;
+                this.release_all(now);
+            } else if this.press == Some(PressSource::Key) && !focused {
+                // キーを離す前にフォーカスが外れると、離したことを受け取れない
+                this.release_all(now);
+            }
+        });
+        let focus_visible = focused && window.last_input_was_keyboard();
+        let state = interaction.read(cx);
+        let pressed = state.press.is_some();
+        // 押下中はリップルが押下を示すため、リップルを出さないモーション低減の設定のときだけ押下の値を使う
+        let state_layer_opacity = if pressed && cx.reduce_motion() {
+            state::PRESSED_STATE_LAYER_OPACITY
+        } else if focus_visible {
+            state::FOCUS_STATE_LAYER_OPACITY
+        } else if state.hovered {
+            state::HOVER_STATE_LAYER_OPACITY
+        } else {
+            0.0
+        };
+        Self {
+            hovered: state.hovered,
+            interaction,
+            focus_handle,
+            enabled,
+            pressed,
+            focus_visible,
+            state_layer_opacity,
+        }
+    }
+
+    /// 部品のフォーカス。headless の部品の `track_focus` に渡す
+    pub(crate) fn focus_handle(&self) -> &FocusHandle {
+        &self.focus_handle
+    }
+
+    /// `element` に、hover・マウスの左ボタンの押下・`keys` のキーの押下を記録するリスナーを付ける
+    ///
+    /// `keys` は修飾キーなしで押されたときだけ記録する。無効な部品には何も付けない
+    pub(crate) fn track<E: StatefulInteractiveElement>(
+        &self,
+        element: E,
+        keys: &'static [&'static str],
+    ) -> E {
+        if self.enabled {
+            track(element, &self.interaction, keys)
+        } else {
+            element
+        }
+    }
+
+    /// `element` の全面に、`layer` の色の状態レイヤーと `ripple` の色の押下の波紋を足す。
+    /// どちらも角の半径が `radii` の形の内側に描く。無効な部品には何も足さない
+    pub(crate) fn layers<E: ParentElement>(
+        &self,
+        element: E,
+        layer: Hsla,
+        ripple: Hsla,
+        radii: Corners<Pixels>,
+    ) -> E {
+        if !self.enabled {
+            return element;
+        }
+        element
+            .child(state_layer(layer, self.state_layer_opacity, radii))
+            .child(ripple_layer(self.interaction.clone(), ripple, radii))
+    }
+
+    /// キーボードのフォーカスがあるときに、`element` の外側に角の半径が `radii` のリングを足す
+    pub(crate) fn focus_ring<E: ParentElement>(
+        &self,
+        element: E,
+        theme: &Theme,
+        radii: Corners<Pixels>,
+    ) -> E {
+        if self.focus_visible {
+            element.child(focus_ring(theme, radii))
+        } else {
+            element
+        }
+    }
+}
+
+/// 部品が受けている操作の記録。[`track`] で付けたリスナーが更新して再描画させる
+struct Interaction {
     hovered: bool,
     press: Option<PressSource>,
     ripples: Vec<Ripple>,
@@ -52,55 +177,6 @@ impl Ripple {
 }
 
 impl Interaction {
-    /// `id` の部品の記録。同じ `id` で描画し続ける間は同じ記録を返す
-    pub(crate) fn state(id: &ElementId, window: &mut Window, cx: &mut App) -> Entity<Self> {
-        let key = ElementId::NamedChild(Arc::new(id.clone()), "md3-interaction".into());
-        window.use_keyed_state(key, cx, |_, _| Self {
-            hovered: false,
-            press: None,
-            ripples: Vec::new(),
-        })
-    }
-
-    /// ポインターが部品の上にあるか
-    pub(crate) fn is_hovered(&self) -> bool {
-        self.hovered
-    }
-
-    /// 押されているか
-    pub(crate) fn is_pressed(&self) -> bool {
-        self.press.is_some()
-    }
-
-    /// 状態レイヤーの不透明度。押下中はリップルが押下を示すため、モーションを減らす設定のときだけ押下の値を返す
-    pub(crate) fn state_layer_opacity(&self, focus_visible: bool, cx: &App) -> f32 {
-        if self.is_pressed() && cx.reduce_motion() {
-            state::PRESSED_STATE_LAYER_OPACITY
-        } else if focus_visible {
-            state::FOCUS_STATE_LAYER_OPACITY
-        } else if self.hovered {
-            state::HOVER_STATE_LAYER_OPACITY
-        } else {
-            0.0
-        }
-    }
-
-    /// 操作を受け付けない間やフォーカスを失った後に、記録した hover と押下を消す
-    ///
-    /// 描画のたびに呼ぶ。キーで始めた押下は、キーを離す前にフォーカスが外れると離したことを受け取れないため、
-    /// `focused` が `false` なら解除する
-    pub(crate) fn sync(this: &Entity<Self>, enabled: bool, focused: bool, cx: &mut App) {
-        let now = cx.background_executor().now();
-        this.update(cx, |this, _| {
-            if !enabled {
-                this.hovered = false;
-                this.release_all(now);
-            } else if this.press == Some(PressSource::Key) && !focused {
-                this.release_all(now);
-            }
-        });
-    }
-
     fn press(&mut self, source: PressSource, origin: Option<Point<Pixels>>, cx: &App) {
         let now = cx.background_executor().now();
         self.release_all(now);
@@ -129,10 +205,7 @@ impl Interaction {
     }
 }
 
-/// `element` に、hover・マウスの左ボタンの押下・`keys` のキーの押下を `interaction` に記録するリスナーを付ける
-///
-/// `keys` は修飾キーなしで押されたときだけ記録する。操作できない部品には付けないこと
-pub(crate) fn track<E: StatefulInteractiveElement>(
+fn track<E: StatefulInteractiveElement>(
     element: E,
     interaction: &Entity<Interaction>,
     keys: &'static [&'static str],
@@ -191,7 +264,7 @@ pub(crate) fn track<E: StatefulInteractiveElement>(
 }
 
 /// 親の全面を覆う、`color` に `opacity` を掛けた状態レイヤー
-pub(crate) fn state_layer(color: Hsla, opacity: f32, radii: Corners<Pixels>) -> Div {
+fn state_layer(color: Hsla, opacity: f32, radii: Corners<Pixels>) -> Div {
     with_corners(
         div()
             .absolute()
@@ -206,7 +279,7 @@ pub(crate) fn state_layer(color: Hsla, opacity: f32, radii: Corners<Pixels>) -> 
 /// 親の全面に、`interaction` の押下の波紋を `color` で描く。波紋は角の半径が `radii` の形の内側だけに描く
 ///
 /// 波紋の大きさ・動き・時間は Material Web の `md-ripple` に合わせている
-pub(crate) fn ripple(
+fn ripple_layer(
     interaction: Entity<Interaction>,
     color: Hsla,
     radii: Corners<Pixels>,
@@ -314,7 +387,7 @@ fn paint_ripple(
 /// 角の半径が `radii` の形の外側に、キーボードのフォーカスを示すリングを描く
 ///
 /// 表示し始めに太くなってから戻るアニメーションは、Material Web の `md-focus-ring` に合わせている
-pub(crate) fn focus_ring(theme: &Theme, radii: Corners<Pixels>) -> impl IntoElement {
+fn focus_ring(theme: &Theme, radii: Corners<Pixels>) -> impl IntoElement {
     let color = theme.color(focus_ring::COLOR);
     let offset = dp(focus_ring::OUTWARD_OFFSET);
     let grow = focus_ring::DURATION.mul_f32(focus_ring::GROW_FRACTION);
