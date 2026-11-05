@@ -3,6 +3,7 @@
 #![cfg_attr(target_family = "wasm", no_main)]
 
 mod button_page;
+mod icon_button_page;
 mod theme_page;
 
 use gpui::{
@@ -14,6 +15,7 @@ use md3_theme::ThemeExt as _;
 use md3_theme::md3_color::ColorRole;
 
 use crate::button_page::ButtonPage;
+use crate::icon_button_page::IconButtonPage;
 use crate::theme_page::ThemePage;
 
 actions!(
@@ -38,6 +40,7 @@ impl Gallery {
             pages: vec![
                 ("テーマ", cx.new(|_| ThemePage).into()),
                 ("ボタン", cx.new(|_| ButtonPage::new()).into()),
+                ("アイコンボタン", cx.new(|_| IconButtonPage::new()).into()),
             ],
             selected: 0,
         }

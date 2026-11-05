@@ -5,9 +5,11 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-#[cfg(feature = "button")]
+#[cfg(any(feature = "button", feature = "icon-button"))]
 pub mod button;
-#[cfg(feature = "button")]
+#[cfg(feature = "icon-button")]
+pub mod icon_button;
+#[cfg(any(feature = "button", feature = "icon-button"))]
 mod indication;
 
 pub use gpui;
@@ -15,18 +17,18 @@ pub use gpui;
 pub use gpui_platform;
 pub use md3_icons::IconName;
 
-#[cfg(feature = "button")]
+#[cfg(any(feature = "button", feature = "icon-button"))]
 use gpui::{Hsla, Pixels, Styled as _, Svg, svg};
-#[cfg(feature = "button")]
+#[cfg(any(feature = "button", feature = "icon-button"))]
 use md3_theme::md3_tokens::Dp;
 
 /// 操作できる範囲の最小の幅と高さ。Compose の `InteractiveComponentSize.kt` の
 /// `minimumInteractiveComponentSize` (48.dp) による
-#[cfg(feature = "button")]
+#[cfg(any(feature = "button", feature = "icon-button"))]
 const MIN_INTERACTIVE_SIZE: Dp = Dp(48.0);
 
 /// 大きさ `size` の正方形に `color` で描くアイコン
-#[cfg(feature = "button")]
+#[cfg(any(feature = "button", feature = "icon-button"))]
 fn icon(name: IconName, size: Pixels, color: Hsla) -> Svg {
     svg()
         .data(name.svg())

@@ -136,7 +136,7 @@ impl Render for ButtonPage {
 }
 
 /// 見出し `name` の付いた横 1 列
-fn row(theme: &Theme, name: &str) -> Div {
+pub(crate) fn row(theme: &Theme, name: &str) -> Div {
     div()
         .flex()
         .flex_wrap()
