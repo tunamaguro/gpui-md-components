@@ -11,26 +11,53 @@ pub mod button;
 pub mod checkbox;
 #[cfg(feature = "icon-button")]
 pub mod icon_button;
-#[cfg(any(feature = "button", feature = "icon-button", feature = "checkbox"))]
+#[cfg(any(
+    feature = "button",
+    feature = "icon-button",
+    feature = "checkbox",
+    feature = "switch"
+))]
 mod indication;
+#[cfg(feature = "switch")]
+pub mod switch;
 
 pub use gpui;
 #[cfg(feature = "platform")]
 pub use gpui_platform;
 pub use md3_icons::IconName;
 
-#[cfg(any(feature = "button", feature = "icon-button", feature = "checkbox"))]
+#[cfg(any(
+    feature = "button",
+    feature = "icon-button",
+    feature = "checkbox",
+    feature = "switch"
+))]
 use gpui::{Hsla, Pixels, Styled as _, Svg, svg};
-#[cfg(any(feature = "button", feature = "icon-button", feature = "checkbox"))]
+#[cfg(any(
+    feature = "button",
+    feature = "icon-button",
+    feature = "checkbox",
+    feature = "switch"
+))]
 use md3_theme::md3_tokens::Dp;
 
 /// 操作できる範囲の最小の幅と高さ。Compose の `InteractiveComponentSize.kt` の
 /// `minimumInteractiveComponentSize` (48.dp) による
-#[cfg(any(feature = "button", feature = "icon-button", feature = "checkbox"))]
+#[cfg(any(
+    feature = "button",
+    feature = "icon-button",
+    feature = "checkbox",
+    feature = "switch"
+))]
 const MIN_INTERACTIVE_SIZE: Dp = Dp(48.0);
 
 /// 大きさ `size` の正方形に `color` で描くアイコン
-#[cfg(any(feature = "button", feature = "icon-button", feature = "checkbox"))]
+#[cfg(any(
+    feature = "button",
+    feature = "icon-button",
+    feature = "checkbox",
+    feature = "switch"
+))]
 fn icon(name: IconName, size: Pixels, color: Hsla) -> Svg {
     svg()
         .data(name.svg())

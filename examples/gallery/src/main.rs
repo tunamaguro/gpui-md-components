@@ -5,6 +5,7 @@
 mod button_page;
 mod checkbox_page;
 mod icon_button_page;
+mod switch_page;
 mod theme_page;
 
 use gpui::{
@@ -18,6 +19,7 @@ use md3_theme::md3_color::ColorRole;
 use crate::button_page::ButtonPage;
 use crate::checkbox_page::CheckboxPage;
 use crate::icon_button_page::IconButtonPage;
+use crate::switch_page::SwitchPage;
 use crate::theme_page::ThemePage;
 
 actions!(
@@ -44,6 +46,7 @@ impl Gallery {
                 ("ボタン", cx.new(|_| ButtonPage::new()).into()),
                 ("アイコンボタン", cx.new(|_| IconButtonPage::new()).into()),
                 ("チェックボックス", cx.new(|_| CheckboxPage::new()).into()),
+                ("スイッチ", cx.new(|_| SwitchPage::new()).into()),
             ],
             selected: 0,
         }

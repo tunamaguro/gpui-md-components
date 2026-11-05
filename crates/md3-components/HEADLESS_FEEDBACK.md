@@ -9,7 +9,7 @@ headless の改善を検討するときの材料にする
   - gpui のキーボードによるクリック (Enter / Space の key down で保留し key up で発火) と同じ判定を、押下の表示のために複製している
   - キーで押している間にフォーカスが外れると key up を受け取れないため、描画のたびにフォーカスを見て押下を解除する処理が要る
 - どのキーで操作できるかを MD3 側も知っている必要がある。Button は Enter と Space、Checkbox / Switch は Space だけで、headless の振る舞いと二重管理になっている
-- 押下・hover の状態は、Expressive の押下時の形の変化 (バネの目標値)・状態レイヤーの不透明度・高さ (影) の切り替えに使う。`Styled` の `.hover()` / `.active()` だけでは足りない
+- 押下・hover の状態は、Expressive の押下時の形の変化 (バネの目標値。Switch ではつまみの大きさと位置)・状態レイヤーの不透明度・高さ (影) の切り替えに使う。`Styled` の `.hover()` / `.active()` だけでは足りない
 
 ## フォーカスを装飾側で判定するために `track_focus` が必須
 
