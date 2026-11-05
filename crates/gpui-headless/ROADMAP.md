@@ -55,10 +55,26 @@
 
 対象: Checkbox (中間状態を含む)、Switch、押下状態を持つ Toggle Button
 
-決めること:
+- [x] Checkbox
+- [ ] Switch
+- [ ] Toggle Button
 
-- [ ] 部品が内部で状態を持つ API も用意するか。用意するなら初期値と、ID の寿命による初期化の条件
-- [ ] Button の内部 (フォーカス、無効状態、クリックの扱い) をどう共有するか
+決めたこと:
+
+- 部品は内部で状態を持たず、呼び出し側が持つ API だけを用意する
+- Button の内部 (フォーカス、無効状態、クリックの扱い) は共有せず、各部品に複製することを許容する。将来は 1 つにまとめたい
+- ラベルとグループは呼び出し側が組み立てる
+  - 名前は子の内容か `aria_label` で与える。別の要素を参照する `labelled_by` は gpui の公開 API では作れない (M3)
+  - ラベルのクリックで切り替えるのは要件ではない。必要なら呼び出し側がラベルの `on_click` で状態を更新する
+  - Checkbox のグループに求められるのは role `group` と名前だけで、キー操作の要件は無い。`div().role(Role::Group).aria_label(..)` で作る
+- Mixed の親の状態の算出と、子をまとめて更新するのは呼び出し側が行う。Mixed で操作されたときは `true` を要求する
+- Checkbox は APG に合わせて Enter では操作しない
+
+Switch と Toggle Button で気を付けること:
+
+- AccessKit は Switch の名前を子の内容から求めない (accesskit_consumer の `Node::labelled_by`)。名前は `aria_label` で与える必要がある
+- Switch は Mixed を持てない (WAI-ARIA は mixed を false として扱う)
+- Switch と Toggle Button は、状態によってラベルを変えない
 
 参照する APG:
 
