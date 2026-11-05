@@ -56,7 +56,7 @@ impl Render for ThemePage {
     }
 }
 
-fn section(theme: &Theme, title: &'static str, body: impl IntoElement) -> Div {
+pub(crate) fn section(theme: &Theme, title: &'static str, body: impl IntoElement) -> Div {
     div()
         .flex()
         .flex_col()
@@ -65,7 +65,7 @@ fn section(theme: &Theme, title: &'static str, body: impl IntoElement) -> Div {
         .child(body)
 }
 
-fn styled_text(theme: &Theme, scale: TypeScale, text: impl Into<SharedString>) -> Div {
+pub(crate) fn styled_text(theme: &Theme, scale: TypeScale, text: impl Into<SharedString>) -> Div {
     let mut element = div();
     element.text_style().refine(&theme.text_style(scale));
     element.child(text.into())

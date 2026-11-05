@@ -14,6 +14,7 @@ workspace = true
 gpui.workspace = true
 gpui_platform.workspace = true
 example-support = { path = "../example-support" }
+md3-components.workspace = true
 md3-theme.workspace = true
 
 [target.'cfg(target_family = "wasm")'.dependencies]

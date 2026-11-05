@@ -2,38 +2,97 @@
 // Web 版は `start` から起動するので、wasm では `main` を置かない。
 #![cfg_attr(target_family = "wasm", no_main)]
 
+mod button_page;
 mod theme_page;
 
 use gpui::{
-    App, AppContext as _, Context, Entity, IntoElement, ParentElement as _, Render, Styled as _,
-    Window, WindowOptions, div,
+    AnyView, App, AppContext as _, Context, InteractiveElement as _, IntoElement, KeyBinding,
+    ParentElement as _, Render, Styled as _, Window, WindowOptions, actions, div,
 };
+use md3_components::button::{Button, ButtonVariant};
 use md3_theme::ThemeExt as _;
+use md3_theme::md3_color::ColorRole;
 
+use crate::button_page::ButtonPage;
 use crate::theme_page::ThemePage;
 
-/// ギャラリーのルート。各ページの状態は持たず、ページのエンティティだけを持つ
+actions!(
+    gallery,
+    [
+        /// 次の Tab stop へフォーカスを移す
+        FocusNext,
+        /// 前の Tab stop へフォーカスを移す
+        FocusPrevious
+    ]
+);
+
+/// ギャラリーのルート。表示中のページを選び、各ページのエンティティを持つ
 struct Gallery {
-    theme_page: Entity<ThemePage>,
+    pages: Vec<(&'static str, AnyView)>,
+    selected: usize,
 }
 
 impl Gallery {
     fn new(cx: &mut Context<Self>) -> Self {
         Self {
-            theme_page: cx.new(|_| ThemePage),
+            pages: vec![
+                ("テーマ", cx.new(|_| ThemePage).into()),
+                ("ボタン", cx.new(|_| ButtonPage::new()).into()),
+            ],
+            selected: 0,
         }
     }
 }
 
 impl Render for Gallery {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        div().size_full().child(self.theme_page.clone())
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.md3_theme().clone();
+        let tabs = self.pages.iter().enumerate().map(|(index, (name, _))| {
+            Button::new(("page", index), *name)
+                .variant(if index == self.selected {
+                    ButtonVariant::Tonal
+                } else {
+                    ButtonVariant::Text
+                })
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.selected = index;
+                    cx.notify();
+                }))
+        });
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .bg(theme.color(ColorRole::Surface))
+            .on_action(|_: &FocusNext, window, cx| window.focus_next(cx))
+            .on_action(|_: &FocusPrevious, window, cx| window.focus_prev(cx))
+            .child(
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .gap_1()
+                    .px_4()
+                    .py_1()
+                    .bg(theme.color(ColorRole::SurfaceContainer))
+                    .children(tabs),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .child(self.pages[self.selected].1.clone()),
+            )
     }
 }
 
 fn run() {
     gpui_platform::application().run(|cx: &mut App| {
         example_support::load_fonts(cx);
+        // gpui は Tab にフォーカスの移動を割り当てないため、アプリで割り当てる
+        cx.bind_keys([
+            KeyBinding::new("tab", FocusNext, None),
+            KeyBinding::new("shift-tab", FocusPrevious, None),
+        ]);
         // 既定のテーマのうち、フォントだけを同梱のものにする。Web 版にはシステムのフォントがないため
         cx.update_md3_theme(|settings| {
             settings.fonts.brand = example_support::FONT_FAMILY.into();

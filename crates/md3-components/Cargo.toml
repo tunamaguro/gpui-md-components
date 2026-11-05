@@ -16,10 +16,13 @@ gpui_platform = { workspace = true, optional = true }
 gpui-headless.workspace = true
 md3-icons.workspace = true
 md3-theme.workspace = true
+# gpui の時計 (`BackgroundExecutor::now`) が返す型。wasm でも使える
+web-time = "1.1.0"
 
 [features]
-default = ["platform"]
+default = ["platform", "button"]
 platform = ["dep:gpui_platform"]
+button = []
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }
