@@ -25,6 +25,10 @@ headless の改善を検討するときの材料にする
 
 - headless の `Button::on_click` は固有メソッドで、gpui の同名のトレイトメソッドを隠す。装飾側でクリックのリスナーを足したいときは、トレイトを明示して呼ぶ必要があり、無効時に呼ばれない保証もなくなる
 
+## エラーの状態を公開できない
+
+- MD3 の Checkbox にはエラーの見た目 (`md.comp.checkbox.*.error.*`) があるが、headless の `Checkbox` は支援技術に invalid を公開する手段を持たない。見た目だけのエラーになるのを避けるため、MD3 側ではエラーの指定を用意していない
+
 ## テスト
 
 - MD3 の部品の `render` は `impl IntoElement` を返すため、headless のテストのように a11y ノードを書き出して role・名前・状態を確かめる方法がない。MD3 側では操作の結果だけをテストしている
@@ -32,4 +36,6 @@ headless の改善を検討するときの材料にする
 ## gpui 側の制約 (headless の範囲外だが装飾で困ったこと)
 
 - 角丸の形でクリップできず、放射状のグラデーションもないため、リップルは角丸の矩形で切り取った多角形を重ねて近似している
+- `PathBuilder` の線の端の形を選べない (`LineCap` が re-export されていない) ため、Checkbox のチェックマークは Compose の `StrokeCap.Square` に合わせて端を太さの半分だけ延ばしている
+- バネの目標値に色を渡せず、1 つの `with_spring` の中から別の `with_spring` に値を渡す方法もないため、Checkbox は色・線を引く割合・Mixed への変形のバネを入れ子の `div` に 1 つずつ付けている
 - gpui は Tab にフォーカスの移動を割り当てないため、アプリ (gallery) で `tab` / `shift-tab` を `focus_next` / `focus_prev` に割り当てている (M3 の調査対象)

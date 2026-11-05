@@ -3,6 +3,7 @@
 #![cfg_attr(target_family = "wasm", no_main)]
 
 mod button_page;
+mod checkbox_page;
 mod icon_button_page;
 mod theme_page;
 
@@ -15,6 +16,7 @@ use md3_theme::ThemeExt as _;
 use md3_theme::md3_color::ColorRole;
 
 use crate::button_page::ButtonPage;
+use crate::checkbox_page::CheckboxPage;
 use crate::icon_button_page::IconButtonPage;
 use crate::theme_page::ThemePage;
 
@@ -41,6 +43,7 @@ impl Gallery {
                 ("テーマ", cx.new(|_| ThemePage).into()),
                 ("ボタン", cx.new(|_| ButtonPage::new()).into()),
                 ("アイコンボタン", cx.new(|_| IconButtonPage::new()).into()),
+                ("チェックボックス", cx.new(|_| CheckboxPage::new()).into()),
             ],
             selected: 0,
         }

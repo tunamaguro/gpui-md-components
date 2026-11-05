@@ -20,10 +20,11 @@ md3-theme.workspace = true
 web-time = "1.1.0"
 
 [features]
-default = ["platform", "button", "icon-button"]
+default = ["platform", "button", "icon-button", "checkbox"]
 platform = ["dep:gpui_platform"]
 button = []
 icon-button = []
+checkbox = []
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }
