@@ -2,8 +2,8 @@
 
 use gpui::{
     AnyElement, App, ClickEvent, Div, ElementId, FocusHandle, InteractiveElement, Interactivity,
-    IntoElement, ParentElement, RenderOnce, Stateful, StatefulInteractiveElement, StyleRefinement,
-    Styled, Window, accesskit, div, prelude::FluentBuilder,
+    IntoElement, MouseButton, ParentElement, RenderOnce, Stateful, StatefulInteractiveElement,
+    StyleRefinement, Styled, Window, accesskit, div, prelude::FluentBuilder,
 };
 
 use crate::accessibility::A11yInfoExt;
@@ -85,7 +85,7 @@ impl Button {
 
     /// ボタンを無効にするか、無効でも Tab で到達できるようにするかを設定する。既定では有効
     ///
-    /// 無効なボタンは押されてもハンドラを呼ばず、支援技術には disabled として公開される。
+    /// 無効なボタンは押されてもハンドラを呼ばず、マウスの左ボタンの押下を親に伝えず、支援技術には disabled として公開される。
     /// 有効か無効かだけを切り替える場合は [`Button::disabled`] を使う
     pub fn availability(mut self, availability: Availability) -> Self {
         self.availability = availability;
@@ -94,7 +94,8 @@ impl Button {
 
     /// ボタンを無効にする。`false` を渡すと有効に戻す
     ///
-    /// 無効なボタンは押されてもハンドラを呼ばず、Tab でも到達できず、支援技術には disabled として公開される。
+    /// 無効なボタンは押されてもハンドラを呼ばず、マウスの左ボタンの押下を親に伝えず、Tab でも到達できず、
+    /// 支援技術には disabled として公開される。
     /// フォーカス中に無効になった場合は、フォーカスが外れるまでフォーカスを保つ。
     /// 無効でも Tab で到達できるようにしたい場合は [`Button::availability`] を使う
     pub fn disabled(self, disabled: bool) -> Self {
@@ -135,6 +136,17 @@ impl RenderOnce for Button {
         let on_click = self.on_click.filter(|_| !disabled);
         self.inner
             .role(accesskit::Role::Button)
+            .when(disabled, |this| {
+                let focus_handle = focus_handle.clone();
+                // 押下を親に伝えず、親の on_click を呼ばせない。
+                // 伝播を止めると track_focus によるクリック時のフォーカス移動も呼ばれないため、ここで移す
+                this.on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                    if focusable {
+                        window.focus(&focus_handle, cx);
+                    }
+                    cx.stop_propagation();
+                })
+            })
             .when(focusable, |this| {
                 this.track_focus(&focus_handle.tab_stop(true))
             })
@@ -184,12 +196,14 @@ mod tests {
         availability: Availability,
         focus_handle: FocusHandle,
         clicks: Rc<Cell<usize>>,
+        parent_clicks: Rc<Cell<usize>>,
         node: Option<accesskit::Node>,
     }
 
     impl Render for ButtonView {
         fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
             let clicks = self.clicks.clone();
+            let parent_clicks = self.parent_clicks.clone();
             let element = Button::new("button")
                 .when(self.has_handler, |this| {
                     this.on_click(move |_, _, _| clicks.set(clicks.get() + 1))
@@ -205,7 +219,11 @@ mod tests {
             let mut node = accesskit::Node::new(element.a11y_role().expect("role を持つこと"));
             element.write_a11y_info(&mut node);
             self.node = Some(node);
-            div().size_full().child(element)
+            div()
+                .id("parent")
+                .size_full()
+                .on_click(move |_, _, _| parent_clicks.set(parent_clicks.get() + 1))
+                .child(element)
         }
     }
 
@@ -218,12 +236,17 @@ mod tests {
             availability,
             focus_handle: cx.focus_handle(),
             clicks: Rc::default(),
+            parent_clicks: Rc::default(),
             node: None,
         })
     }
 
     fn clicks(view: &Entity<ButtonView>, cx: &mut VisualTestContext) -> usize {
         view.read_with(cx, |view, _| view.clicks.get())
+    }
+
+    fn parent_clicks(view: &Entity<ButtonView>, cx: &mut VisualTestContext) -> usize {
+        view.read_with(cx, |view, _| view.parent_clicks.get())
     }
 
     fn a11y_node(view: &Entity<ButtonView>, cx: &mut VisualTestContext) -> accesskit::Node {
@@ -352,6 +375,12 @@ mod tests {
         assert!(!is_focused(&view, cx), "Tab でボタンに到達しないこと");
         click(cx);
         assert_eq!(clicks(&view, cx), 0);
+        assert_eq!(
+            parent_clicks(&view, cx),
+            0,
+            "親にもクリックが伝わらないこと"
+        );
+        assert!(!is_focused(&view, cx), "クリックでもフォーカスされないこと");
     }
 
     #[gpui::test]
@@ -378,6 +407,11 @@ mod tests {
         press_key(cx, "space");
         click(cx);
         assert_eq!(clicks(&view, cx), 0);
+        assert_eq!(
+            parent_clicks(&view, cx),
+            0,
+            "親にもクリックが伝わらないこと"
+        );
 
         let node = a11y_node(&view, cx);
         assert!(node.is_disabled());
@@ -396,6 +430,24 @@ mod tests {
         press_key(cx, "space");
         click(cx);
         assert_eq!(clicks(&view, cx), 0);
+        assert_eq!(
+            parent_clicks(&view, cx),
+            0,
+            "親にもクリックが伝わらないこと"
+        );
+    }
+
+    #[gpui::test]
+    fn 無効でも到達できるボタンはクリックでフォーカスされる(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Availability::DisabledFocusable);
+        click(cx);
+        assert!(
+            is_focused(&view, cx),
+            "クリックでボタンにフォーカスが移ること"
+        );
+        assert_eq!(parent_clicks(&view, cx), 0, "親にクリックが伝わらないこと");
     }
 
     #[gpui::test]
