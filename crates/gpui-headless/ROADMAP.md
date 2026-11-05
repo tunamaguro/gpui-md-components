@@ -16,9 +16,9 @@
 - [x] M0: Button
 - [ ] M1: Toggle 系
 - [ ] M2: md3-components で M0・M1 を使う
-- [ ] M3: Slider
-- [ ] M4: 調査 (関連付け・テスト・モーダル・フォーカス)
-- [ ] M5: 矢印キー移動の基盤と RadioGroup / ToggleGroup
+- [ ] M3: 調査 (関連付け・テスト・モーダル・フォーカス)
+- [ ] M4: 矢印キー移動の基盤と RadioGroup / ToggleGroup
+- [ ] M5: Slider
 - [ ] M6: Tabs
 - [ ] M7: 非モーダルのオーバーレイ基盤と Tooltip
 - [ ] M8: Menu
@@ -39,7 +39,7 @@
   - 1 回の操作で要求を 1 回だけ通知する
 - 「フォーカスできる」「Tab で到達できる」「操作できる」を別々に扱う
 
-テストは次の 3 段階に分けて書く。M4 で 3 段目を検証する手段を決めるまでは、1・2 段目までとし、3 段目は実環境での再現手順を残す
+テストは次の 3 段階に分けて書く。M3 で 3 段目を検証する手段を決めるまでは、1・2 段目までとし、3 段目は実環境での再現手順を残す
 
 1. 入力と状態遷移
 2. 要素が書く a11y ノードの属性
@@ -81,21 +81,7 @@ headless 部品だけを先に増やすと、装飾側で使ったときに API 
 - [ ] 装飾のために headless 側へ追加した API があれば、M1 の部品にも反映する
 - [ ] gallery に表示する
 
-## M3: Slider
-
-対象: Slider (単一の値)
-
-Menu や Dialog に依存しない。gpui の `aria_numeric_value` などの値の公開と `on_a11y_action` で実現できる
-
-完了条件:
-
-- [ ] role `slider`、名前・現在値・最小値・最大値・向きを公開する。読み上げ用の値の表現を指定できる
-- [ ] 矢印キーで step ずつ、Home / End で最小・最大に変える。PageUp / PageDown で大きく変える (任意)
-- [ ] ドラッグとトラックのクリックで値を変える
-- [ ] 支援技術の Increment / Decrement / SetValue に応える
-- [ ] キーボード・ドラッグ・支援技術の操作が同じ値の更新規則 (範囲への丸め、step) に従う
-
-## M4: 調査 (関連付け・テスト・モーダル・フォーカス)
+## M3: 調査 (関連付け・テスト・モーダル・フォーカス)
 
 後続のマイルストーンの前提を確かめる。gpui の公開 API が足りない場合は、回避策か gpui の rev 更新を決め、後続の完了条件を直す
 
@@ -105,7 +91,7 @@ Menu や Dialog に依存しない。gpui の `aria_numeric_value` などの値�
 - [ ] フォーカスと Tab stop を独立に制御する方法。M0 の Button はフォーカスを持つと Tab で到達できるため、矢印キー移動の項目に使えるか確かめる
 - [ ] `aria_active_descendant` を、別のサブツリーに描画した一覧の項目に向けられるか
 
-## M5: 矢印キー移動の基盤と RadioGroup / ToggleGroup
+## M4: 矢印キー移動の基盤と RadioGroup / ToggleGroup
 
 対象: RadioGroup、ToggleGroup (複数選択。MD3 の Segmented button の複数選択で使う)
 
@@ -123,6 +109,20 @@ Menu や Dialog に依存しない。gpui の `aria_numeric_value` などの値�
 - [ ] RadioGroup: role `radiogroup` / `radio`、各 radio の checked 状態、グループと各項目の名前。Space で選び、矢印キーの移動で選択も移る
 - [ ] ToggleGroup: 各項目の押下状態を公開し、矢印キーの移動では選択を変えない
 
+## M5: Slider
+
+対象: Slider (単一の値)
+
+M4 の矢印キーの扱いを使う。値の公開は gpui の `aria_numeric_value` など、支援技術からの操作は `on_a11y_action` で実現できる
+
+完了条件:
+
+- [ ] role `slider`、名前・現在値・最小値・最大値・向きを公開する。読み上げ用の値の表現を指定できる
+- [ ] 矢印キーで step ずつ、Home / End で最小・最大に変える。PageUp / PageDown で大きく変える (任意)
+- [ ] ドラッグとトラックのクリックで値を変える
+- [ ] 支援技術の Increment / Decrement / SetValue に応える
+- [ ] キーボード・ドラッグ・支援技術の操作が同じ値の更新規則 (範囲への丸め、step) に従う
+
 ## M6: Tabs
 
 対象: Tabs
@@ -134,7 +134,7 @@ Menu や Dialog に依存しない。gpui の `aria_numeric_value` などの値�
 完了条件:
 
 - [ ] role `tablist` / `tab` / `tabpanel`、tablist の名前、各 tab の selected 状態
-- [ ] tab から panel への `controls`、panel から tab への `labelled_by` を公開する (M4 の結果に従う)
+- [ ] tab から panel への `controls`、panel から tab への `labelled_by` を公開する (M3 の結果に従う)
 - [ ] 横向き・縦向きで矢印キーが変わる。Home / End で先頭・末尾に移動する (任意)
 - [ ] 選ばれていない panel は表示せず、操作の対象にしない
 - [ ] panel の先頭にフォーカスできる要素が無いとき、panel 自体に Tab で到達できる
@@ -148,7 +148,7 @@ Menu と Select がこの基盤を使う。Dialog の完成を待たない
 完了条件:
 
 - [ ] Escape と外側クリックで閉じ、閉じた理由を呼び出し側に伝える
-- [ ] Tooltip: role `tooltip`、起動元の説明として関連付ける (M4 の結果に従う)。Tooltip にフォーカスを移さない
+- [ ] Tooltip: role `tooltip`、起動元の説明として関連付ける (M3 の結果に従う)。Tooltip にフォーカスを移さない
 - [ ] Tooltip: フォーカスとホバーで表示し、Escape で閉じる。ホバーしたまま Tooltip 上にポインタを移しても消えない
 - [ ] Tooltip: Escape で閉じた後、同じホバー・フォーカスのままでは再表示しない
 
@@ -156,7 +156,7 @@ Menu と Select がこの基盤を使う。Dialog の完成を待たない
 
 対象: Menu Button + Menu
 
-M5 の矢印キー移動と M7 のオーバーレイ基盤を組み合わせる
+M4 の矢印キー移動と M7 のオーバーレイ基盤を組み合わせる
 
 完了条件:
 
@@ -171,7 +171,7 @@ M5 の矢印キー移動と M7 のオーバーレイ基盤を組み合わせる
 
 対象: Dialog (モーダル)
 
-M7 の基盤に、M4 で決めた背景の操作を止める仕組みを組み合わせる
+M7 の基盤に、M3 で決めた背景の操作を止める仕組みを組み合わせる
 
 完了条件:
 
@@ -196,7 +196,7 @@ M7 の基盤に、M4 で決めた背景の操作を止める仕組みを組み�
 
 gpui の `EntityInputHandler` を前提にする。最初は単一行に限る
 
-決めること (M5 までに決める):
+決めること (M4 までに決める):
 
 - [ ] 文字列・選択・IME・クリップボードを扱う編集モデルと、位置・範囲・描画の対応を渡す境界
 - [ ] 支援技術にテキストと選択を公開する方法 (gpui の `TextRun` / `TextSelection`)
@@ -212,7 +212,7 @@ gpui の `EntityInputHandler` を前提にする。最初は単一行に限る
 
 - [ ] Progress indicator: role `progressbar`。値が確定していれば範囲と現在値を公開し、不定なら現在値を省く
 - [ ] Link: Enter で実行する (Space では実行しない)
-- [ ] Disclosure: 開閉ボタンと領域の関連 (M4 の結果に従う)
+- [ ] Disclosure: 開閉ボタンと領域の関連 (M3 の結果に従う)
 
 ## 後回し
 
