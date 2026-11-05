@@ -19,8 +19,6 @@ pub const FONT_FAMILY: &str = "IBM Plex Sans JP";
 ///
 /// フォントの読み込みに失敗した場合。
 pub fn load_fonts(cx: &App) {
-    // OFL はフォントとともにライセンス文を配布することを求めるので、未使用として削られないようにする。
-    std::hint::black_box(FONT_LICENSE);
     let fonts = [
         include_bytes!("../assets/IBMPlexSansJP-Thin.ttf").as_slice(),
         include_bytes!("../assets/IBMPlexSansJP-ExtraLight.ttf").as_slice(),
