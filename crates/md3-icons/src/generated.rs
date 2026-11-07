@@ -75557,7 +75557,7 @@ pub const ZOOM_OUT_MAP: Icon = Icon {
 };
 
 /// すべてのアイコン
-pub static ALL: &[Icon] = &[
+pub const ALL: &[Icon] = &[
     N10K,
     N10MP,
     N11MP,
