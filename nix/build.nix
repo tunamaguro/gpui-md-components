@@ -45,6 +45,8 @@ let
         ../clippy.toml
         # example-support が include_bytes! / include_str! で埋め込むフォントとライセンス文。
         ../examples/example-support/assets
+        # md3-icons が include_bytes! で埋め込むアイコン SVG。
+        ../crates/md3-icons/assets
         # md3-color のテストが include_str! で読む fixture。
         ../crates/md3-color/tests/fixtures
       ];
