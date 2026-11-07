@@ -8,7 +8,12 @@ use md3_color::SchemeError;
 use crate::settings::{AppearanceMode, Brightness, ThemeSettings};
 use crate::theme::Theme;
 
-struct GlobalTheme(Arc<Theme>);
+/// アプリ全体で共有するテーマ ([`ThemeExt::md3_theme`]) への参照
+///
+/// 複製は安価で、複製した時点のテーマを保つ。テーマを変えても、持っている値は変わらないため、
+/// 今のテーマが必要なときは [`ThemeExt::md3_theme`] から取り直す
+pub type SharedTheme = Arc<Theme>;
+struct GlobalTheme(SharedTheme);
 
 impl Global for GlobalTheme {}
 
@@ -29,7 +34,7 @@ pub trait ThemeExt {
     ///
     /// [`init_md3_theme`](Self::init_md3_theme) と [`update_md3_theme`](Self::update_md3_theme)
     /// のどちらもまだ呼んでいない場合
-    fn md3_theme(&self) -> &Arc<Theme>;
+    fn md3_theme(&self) -> &SharedTheme;
 
     /// `f` で設定を変えてテーマを作り直し、すべてのウィンドウを再描画する
     ///
@@ -53,7 +58,7 @@ impl ThemeExt for App {
         );
     }
 
-    fn md3_theme(&self) -> &Arc<Theme> {
+    fn md3_theme(&self) -> &SharedTheme {
         &self
             .try_global::<GlobalTheme>()
             .expect("call init_md3_theme or update_md3_theme before reading the theme")
@@ -120,7 +125,7 @@ mod tests {
         window
     }
 
-    fn current(cx: &mut TestAppContext) -> Arc<Theme> {
+    fn current(cx: &mut TestAppContext) -> SharedTheme {
         cx.update(|cx| cx.md3_theme().clone())
     }
 
