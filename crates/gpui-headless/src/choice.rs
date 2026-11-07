@@ -3,8 +3,8 @@
 use gpui::{
     AnyElement, App, ClickEvent, Div, ElementId, FocusHandle, InteractiveElement, Interactivity,
     IntoElement, KeyboardButton, KeyboardClickEvent, MouseButton, ParentElement, RenderOnce,
-    Stateful, StatefulInteractiveElement, StyleRefinement, Styled, Window, accesskit, div,
-    prelude::FluentBuilder,
+    SharedString, Stateful, StatefulInteractiveElement, StyleRefinement, Styled, Window, accesskit,
+    div, prelude::FluentBuilder,
 };
 
 use crate::{Availability, accessibility::A11yInfoExt};
@@ -119,6 +119,7 @@ pub struct Choice<K: ChoiceKind> {
     on_change: Option<ChangeHandler<K::State>>,
     provided_focus_handle: Option<FocusHandle>,
     availability: Availability,
+    error: Option<SharedString>,
 }
 
 impl<K: ChoiceKind> Choice<K> {
@@ -135,6 +136,7 @@ impl<K: ChoiceKind> Choice<K> {
             on_change: None,
             provided_focus_handle: None,
             availability: Availability::Enabled,
+            error: None,
         }
     }
 
@@ -174,6 +176,15 @@ impl<K: ChoiceKind> Choice<K> {
         } else {
             Availability::Enabled
         })
+    }
+
+    /// 値にエラーがあることを示す。`None` を渡すとエラーのない状態に戻す。既定ではエラーなし
+    ///
+    /// `Some` の場合、支援技術には invalid として公開され、`message` が説明 (description) の先頭に加わる。
+    /// 部品は `message` を表示しないため、エラーの内容は呼び出し側がテキストとしても表示すること
+    pub fn error(mut self, message: Option<SharedString>) -> Self {
+        self.error = message;
+        self
     }
 
     /// `focus_handle` をこの部品のフォーカスとして使う
@@ -241,6 +252,16 @@ impl<K: ChoiceKind> RenderOnce for Choice<K> {
                 if disabled {
                     node.set_disabled();
                 }
+                if let Some(error) = &self.error {
+                    node.set_invalid(accesskit::Invalid::True);
+                    // AccessKit のアダプタは invalid や error_message を OS に渡さないため、
+                    // メッセージを description に含めて読み上げさせる
+                    let description = match node.description() {
+                        Some(description) => format!("{error} {description}"),
+                        None => error.to_string(),
+                    };
+                    node.set_description(description);
+                }
             })
     }
 }
@@ -281,6 +302,8 @@ mod tests {
     struct ChoiceView<K: ChoiceKind> {
         state: K::State,
         availability: Availability,
+        error: Option<SharedString>,
+        description: Option<SharedString>,
         focus_handle: FocusHandle,
         changes: Rc<RefCell<Vec<K::State>>>,
         node: Option<accesskit::Node>,
@@ -293,7 +316,11 @@ mod tests {
                 .on_change(move |state, _, _| changes.borrow_mut().push(state))
                 .track_focus(&self.focus_handle)
                 .availability(self.availability)
+                .error(self.error.clone())
                 .aria_label("Lettuce")
+                .when_some(self.description.clone(), |this, description| {
+                    this.aria_description(description)
+                })
                 .size(px(50.))
                 .render(window, cx)
                 .into_element();
@@ -314,6 +341,8 @@ mod tests {
         cx.add_window_view(|_, cx| ChoiceView {
             state,
             availability,
+            error: None,
+            description: None,
             focus_handle: cx.focus_handle(),
             changes: Rc::default(),
             node: None,
@@ -333,6 +362,20 @@ mod tests {
     ) -> accesskit::Node {
         view.read_with(cx, |view, _| view.node.clone())
             .expect("描画済みであること")
+    }
+
+    fn set_error<K: ChoiceKind>(
+        view: &Entity<ChoiceView<K>>,
+        cx: &mut VisualTestContext,
+        error: Option<&'static str>,
+        description: Option<&'static str>,
+    ) {
+        view.update(cx, |view, cx| {
+            view.error = error.map(SharedString::from);
+            view.description = description.map(SharedString::from);
+            cx.notify();
+        });
+        cx.run_until_parked();
     }
 
     fn focus_next(cx: &mut VisualTestContext) {
@@ -461,5 +504,43 @@ mod tests {
         assert!(node.is_disabled());
         assert!(!node.supports_action(accesskit::Action::Click));
         assert!(!node.supports_action(accesskit::Action::Focus));
+    }
+
+    #[gpui::test]
+    fn エラーがない部品は_invalid_として公開されない(cx: &mut TestAppContext) {
+        let (view, cx) = setup::<CheckboxKind>(cx, CheckedState::Unchecked, Availability::Enabled);
+        let node = a11y_node(&view, cx);
+        assert_eq!(node.invalid(), None);
+        assert_eq!(node.description(), None);
+    }
+
+    #[gpui::test]
+    fn エラーは_invalid_とメッセージの説明として公開される(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup::<SwitchKind>(cx, false, Availability::Enabled);
+        set_error(&view, cx, Some("Required"), None);
+        let node = a11y_node(&view, cx);
+        assert_eq!(node.invalid(), Some(accesskit::Invalid::True));
+        assert_eq!(node.description(), Some("Required"));
+
+        set_error(&view, cx, None, None);
+        let node = a11y_node(&view, cx);
+        assert_eq!(
+            node.invalid(),
+            None,
+            "None を渡すとエラーのない状態に戻ること"
+        );
+        assert_eq!(node.description(), None);
+    }
+
+    #[gpui::test]
+    fn エラーのメッセージは既存の説明の前に加わる(cx: &mut TestAppContext) {
+        let (view, cx) = setup::<CheckboxKind>(cx, CheckedState::Unchecked, Availability::Enabled);
+        set_error(&view, cx, Some("Required"), Some("Fresh only"));
+        assert_eq!(
+            a11y_node(&view, cx).description(),
+            Some("Required Fresh only")
+        );
     }
 }
