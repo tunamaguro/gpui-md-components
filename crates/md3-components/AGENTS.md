@@ -14,4 +14,4 @@ GPUI 向けに MD3 の見た目を持つ UI コンポーネントを提供する
 - 文字倍率・密度・外観・モーション低減の設定を尊重し、利用者の設定を部品固有の固定値で打ち消さない
 - 仕様とトークンの移植は [MD3 移植スキル](../../.agents/skills/material-design-3-port/SKILL.md)、アクセシビリティ要件の判断は [a11y スキル](../../.agents/skills/a11y/SKILL.md) に従う
 - 各コンポーネントはテーマの上書きに対応する
-    - 個別に`md3_theme::SharedTheme`を受け取れるようにする
+  - 個別に`md3_theme::SharedTheme`を受け取れるようにする
