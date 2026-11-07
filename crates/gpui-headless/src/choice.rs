@@ -30,12 +30,12 @@ impl CheckedState {
     }
 }
 
-impl From<bool> for CheckedState {
-    fn from(checked: bool) -> Self {
-        if checked {
-            CheckedState::Checked
-        } else {
-            CheckedState::Unchecked
+impl Toggle for CheckedState {
+    /// [`CheckedState::Checked`] なら [`CheckedState::Unchecked`] を、それ以外なら [`CheckedState::Checked`] を返す
+    fn toggle(self) -> Self {
+        match self {
+            CheckedState::Checked => CheckedState::Unchecked,
+            CheckedState::Unchecked | CheckedState::Mixed => CheckedState::Checked,
         }
     }
 }
@@ -50,6 +50,19 @@ impl From<CheckedState> for accesskit::Toggled {
     }
 }
 
+/// [`Choice`] が操作されたときに、次の状態を決める
+pub trait Toggle {
+    /// 現在の状態で操作されたときに求められる次の状態を返す
+    fn toggle(self) -> Self;
+}
+
+impl Toggle for bool {
+    /// 反転した値を返す
+    fn toggle(self) -> Self {
+        !self
+    }
+}
+
 mod sealed {
     pub trait Sealed {}
 }
@@ -60,8 +73,8 @@ mod sealed {
 pub trait ChoiceKind: sealed::Sealed + 'static {
     /// [`Choice::new`] に渡し、[`Choice::on_change`] で受け取る状態
     ///
-    /// `true` はオン、`false` はオフに対応する
-    type State: Copy + From<bool> + Into<accesskit::Toggled>;
+    /// 操作されたときの次の状態は [`Toggle::toggle`] で決まる
+    type State: Copy + Toggle + Into<accesskit::Toggled>;
     /// 支援技術に公開する role
     const ROLE: accesskit::Role;
 }
@@ -142,8 +155,7 @@ impl<K: ChoiceKind> Choice<K> {
 
     /// 操作されたときに `handler` を呼ぶ。複数回呼んだ場合は最後に渡した `handler` だけを呼ぶ
     ///
-    /// `handler` には操作後に求められる状態を渡す。
-    /// 現在の状態がオンならオフを、オフか [`CheckedState::Mixed`] ならオンを渡す。
+    /// `handler` には操作後に求められる状態として、現在の状態に [`Toggle::toggle`] を適用した値を渡す。
     /// 表示を変えるには、`handler` で呼び出し側の状態を更新し、次の描画で [`Choice::new`] に渡すこと。
     /// 設定しない場合、部品は操作されても何も呼ばず、支援技術にクリック操作を公開しない
     pub fn on_change(
@@ -216,11 +228,10 @@ impl<K: ChoiceKind> RenderOnce for Choice<K> {
         let focusable = self.availability.is_focusable() || focus_handle.is_focused(window);
         let disabled = self.availability.is_disabled();
         let on_change = self.on_change.filter(|_| !disabled);
-        let toggled: accesskit::Toggled = self.state.into();
-        let next = K::State::from(toggled != accesskit::Toggled::True);
+        let next = self.state.toggle();
         self.inner
             .role(K::ROLE)
-            .aria_toggled(toggled)
+            .aria_toggled(self.state.into())
             .when(disabled, |this| {
                 let focus_handle = focus_handle.clone();
                 // 押下を親に伝えず、親の on_click を呼ばせない。
