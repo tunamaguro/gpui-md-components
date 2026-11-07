@@ -58,7 +58,8 @@ pub(crate) fn generate(check: bool) -> Result<(), String> {
 
         let _ = write!(
             consts,
-            "/// `{name}`\npub const {ident}: Icon = Icon {{ name: \"{name}\", svgs: ["
+"/// `{name}` ([Google Fonts](https://fonts.google.com/icons?selected=Material+Symbols+Outlined:{name}))
+pub const {ident}: Icon = Icon {{ name: \"{name}\", svgs: ["
         );
         for style in ICON_STYLES {
             consts.push('[');
