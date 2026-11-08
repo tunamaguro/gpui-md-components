@@ -17,3 +17,12 @@ pub use gpui_platform;
 pub fn init(cx: &mut gpui::App) {
     gpui_headless::init(cx);
 }
+
+/// `child` をウィンドウのルートとして包む
+///
+/// この crate の部品が必要とするウィンドウ全体の入力を記録する。部品を使うウィンドウでは、
+/// ルートビューの render が返す要素を包むこと。包まない場合、フォーカスリングがマウスの操作で消えない。
+/// レイアウトと見た目は `child` のまま
+pub fn root(child: impl gpui::IntoElement) -> impl gpui::IntoElement {
+    gpui_headless::root(child)
+}

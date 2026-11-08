@@ -59,20 +59,22 @@ impl Render for Gallery {
             Page::Theme => self.theme_page.clone().into(),
             Page::Button => self.button_page.clone().into(),
         };
-        div()
-            .size_full()
-            .flex()
-            .flex_col()
-            .bg(cx.md3_theme().color(ColorRole::Surface))
-            .child(
-                div()
-                    .flex()
-                    .gap_2()
-                    .p_2()
-                    .child(tab(Page::Theme, "Theme", cx))
-                    .child(tab(Page::Button, "Button", cx)),
-            )
-            .child(div().flex_1().min_h_0().child(page))
+        md3_components::root(
+            div()
+                .size_full()
+                .flex()
+                .flex_col()
+                .bg(cx.md3_theme().color(ColorRole::Surface))
+                .child(
+                    div()
+                        .flex()
+                        .gap_2()
+                        .p_2()
+                        .child(tab(Page::Theme, "Theme", cx))
+                        .child(tab(Page::Button, "Button", cx)),
+                )
+                .child(div().flex_1().min_h_0().child(page)),
+        )
     }
 }
 
