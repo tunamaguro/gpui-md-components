@@ -4,7 +4,7 @@ use gpui::{
     Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
     SharedString, StatefulInteractiveElement as _, Styled as _, Window, div,
 };
-use md3_components::{Button, ButtonShape, ButtonSize, ButtonVariant};
+use md3_components::{Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{Theme, ThemeExt as _};
@@ -71,6 +71,52 @@ impl Render for ButtonPage {
                 ),
             ))
             .children(rows)
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_4()
+                    .child(label(&theme, "Error colors").w_32())
+                    .child(
+                        button("error-filled", cx)
+                            .colors(ButtonColors {
+                                container: Some(ColorRole::Error),
+                                content: Some(ColorRole::OnError),
+                                ..ButtonColors::default()
+                            })
+                            .icon(md3_icons::DELETE)
+                            .child("Delete"),
+                    )
+                    .child(
+                        button("error-tonal", cx)
+                            .variant(ButtonVariant::FilledTonal)
+                            .colors(ButtonColors {
+                                container: Some(ColorRole::ErrorContainer),
+                                content: Some(ColorRole::OnErrorContainer),
+                                ..ButtonColors::default()
+                            })
+                            .child("Delete"),
+                    )
+                    .child(
+                        button("error-text", cx)
+                            .variant(ButtonVariant::Text)
+                            .colors(ButtonColors {
+                                content: Some(ColorRole::Error),
+                                ..ButtonColors::default()
+                            })
+                            .child("Delete"),
+                    )
+                    .child(
+                        button("error-disabled", cx)
+                            .colors(ButtonColors {
+                                container: Some(ColorRole::Error),
+                                content: Some(ColorRole::OnError),
+                                ..ButtonColors::default()
+                            })
+                            .disabled(true)
+                            .child("Disabled"),
+                    ),
+            )
             .children(SIZES.map(|(size, name)| {
                 div()
                     .flex()
