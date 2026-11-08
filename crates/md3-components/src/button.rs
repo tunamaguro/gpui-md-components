@@ -30,7 +30,7 @@ use md3_theme::{SharedTheme, ThemeExt, dp};
 /// `ButtonDefaults.MinWidth`。どのサイズにも使う
 const MIN_WIDTH: Dp = Dp(58.0);
 
-/// 容器の層がボタンの hover と押下を知るための group 名
+/// 容器の層がボタンの hover を知るための group 名
 const GROUP: &str = "md3-button";
 
 /// ボタンの種類。強調の度合いが高い順に Filled、FilledTonal、Elevated、Outlined、Text
@@ -161,7 +161,6 @@ struct Elevations {
     default: Elevation,
     hovered: Elevation,
     focused: Elevation,
-    pressed: Elevation,
 }
 
 /// バリアントごとの色・枠線・影
@@ -198,7 +197,6 @@ impl ButtonVariant {
                     default: filled_button::CONTAINER_ELEVATION,
                     hovered: filled_button::HOVERED_CONTAINER_ELEVATION,
                     focused: filled_button::FOCUSED_CONTAINER_ELEVATION,
-                    pressed: filled_button::PRESSED_CONTAINER_ELEVATION,
                 }),
             },
             // `defaultElevatedButtonColors`、`elevatedButtonElevation`
@@ -218,7 +216,6 @@ impl ButtonVariant {
                     default: elevated_button::CONTAINER_ELEVATION,
                     hovered: elevated_button::HOVERED_CONTAINER_ELEVATION,
                     focused: elevated_button::FOCUSED_CONTAINER_ELEVATION,
-                    pressed: elevated_button::PRESSED_CONTAINER_ELEVATION,
                 }),
             },
             // `defaultFilledTonalButtonColors`、`filledTonalButtonElevation`。
@@ -239,7 +236,6 @@ impl ButtonVariant {
                     default: filled_tonal_button::CONTAINER_ELEVATION,
                     hovered: filled_tonal_button::HOVER_CONTAINER_ELEVATION,
                     focused: filled_tonal_button::FOCUS_CONTAINER_ELEVATION,
-                    pressed: filled_tonal_button::PRESSED_CONTAINER_ELEVATION,
                 }),
             },
             // `defaultOutlinedButtonColors`、`outlinedButtonBorder`
@@ -442,7 +438,6 @@ impl RenderOnce for Button {
 
         // 角丸は描画時の大きさで決まるため、背景・枠線・影は Shaped で包んだ層に描き、ボタン自身は透明な箱にする
         let container = div()
-            .id("container")
             .absolute()
             .top_0()
             .left_0()
@@ -468,7 +463,7 @@ impl RenderOnce for Button {
                             None => style,
                         }
                     };
-                // gpui は自身のスタイル、group_hover、group_active の順に重ねるため、押下 > hover > フォーカスの順に優先される
+                // gpui は group_hover を自身のスタイルの後に重ねるため、hover がフォーカスより優先される
                 this.when_some(tokens.elevations.as_ref(), |this, e| {
                     this.shadow(theme.shadow(e.default))
                 })
@@ -483,9 +478,6 @@ impl RenderOnce for Button {
                 })
                 .group_hover(GROUP, |style| {
                     layer(style, state::HOVER_STATE_LAYER_OPACITY, |e| e.hovered)
-                })
-                .group_active(GROUP, |style| {
-                    layer(style, state::PRESSED_STATE_LAYER_OPACITY, |e| e.pressed)
                 })
             });
 
