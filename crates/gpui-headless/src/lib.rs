@@ -5,6 +5,9 @@
 mod accessibility;
 pub mod button;
 pub mod choice;
+mod navigation;
+
+pub use navigation::{FocusNext, FocusPrevious, init};
 
 /// 部品を操作できるかどうか
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
