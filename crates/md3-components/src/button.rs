@@ -455,29 +455,22 @@ impl RenderOnce for Button {
             })
             .when(!disabled, |this| {
                 // 透明なバリアントは高さ 0 の影も付けない。gpui は 0 の影でも要素の真下を塗るため
-                let layer =
-                    |style: StyleRefinement, opacity: f32, pick: fn(&Elevations) -> Elevation| {
-                        let style = style.bg(state_layer(opacity));
-                        match &tokens.elevations {
-                            Some(elevations) => style.shadow(theme.shadow(pick(elevations))),
-                            None => style,
-                        }
-                    };
+                let shadow = |pick: fn(&Elevations) -> Elevation| {
+                    tokens.elevations.as_ref().map(|e| theme.shadow(pick(e)))
+                };
+                let this = if focus_visible {
+                    this.bg(state_layer(state::FOCUS_STATE_LAYER_OPACITY))
+                        .when_some(shadow(|e| e.focused), |this, s| this.shadow(s))
+                } else {
+                    this.when_some(shadow(|e| e.default), |this, s| this.shadow(s))
+                };
                 // gpui は group_hover を自身のスタイルの後に重ねるため、hover がフォーカスより優先される
-                this.when_some(tokens.elevations.as_ref(), |this, e| {
-                    this.shadow(theme.shadow(e.default))
-                })
-                .when(focus_visible, |mut this| {
-                    let focused = layer(
-                        StyleRefinement::default(),
-                        state::FOCUS_STATE_LAYER_OPACITY,
-                        |e| e.focused,
-                    );
-                    this.style().refine(&focused);
-                    this
-                })
-                .group_hover(GROUP, |style| {
-                    layer(style, state::HOVER_STATE_LAYER_OPACITY, |e| e.hovered)
+                this.group_hover(GROUP, |style| {
+                    let style = style.bg(state_layer(state::HOVER_STATE_LAYER_OPACITY));
+                    match shadow(|e| e.hovered) {
+                        Some(s) => style.shadow(s),
+                        None => style,
+                    }
                 })
             });
 
