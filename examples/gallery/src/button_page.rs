@@ -4,7 +4,7 @@ use gpui::{
     Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
     SharedString, StatefulInteractiveElement as _, Styled as _, Window, div,
 };
-use md3_components::{Button, ButtonSize, ButtonVariant};
+use md3_components::{Button, ButtonShape, ButtonSize, ButtonVariant};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{Theme, ThemeExt as _};
@@ -84,6 +84,19 @@ impl Render for ButtonPage {
                             .variant(ButtonVariant::Outlined)
                             .icon(md3_icons::ADD)
                             .child("With icon"),
+                    )
+                    .child(
+                        button(format!("size-{name}-square"), cx)
+                            .size(size)
+                            .shape(ButtonShape::Square)
+                            .child("Square"),
+                    )
+                    .child(
+                        button(format!("size-{name}-square-outlined"), cx)
+                            .size(size)
+                            .shape(ButtonShape::Square)
+                            .variant(ButtonVariant::Outlined)
+                            .child("Square"),
                     )
             }))
             .child(
