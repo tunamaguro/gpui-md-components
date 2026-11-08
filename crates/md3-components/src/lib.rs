@@ -4,9 +4,12 @@
 
 #[cfg(feature = "button")]
 mod button;
+// 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
+#[cfg(feature = "button")]
+mod shape;
 
 #[cfg(feature = "button")]
-pub use button::{Button, ButtonSize, ButtonVariant};
+pub use button::{Button, ButtonShape, ButtonSize, ButtonVariant};
 pub use gpui;
 pub use gpui_platform;
 

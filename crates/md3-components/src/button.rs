@@ -8,12 +8,13 @@
 //! MD3 のボタン
 
 use gpui::{
-    AnyElement, App, ClickEvent, Corners, Div, ElementId, FocusHandle, Hsla, InteractiveElement,
-    IntoElement, ParentElement, Pixels, Refineable, RenderOnce, SharedString,
-    StatefulInteractiveElement, StyleRefinement, Styled, Window, div, prelude::FluentBuilder, px,
-    size, svg,
+    AnyElement, App, ClickEvent, Div, ElementId, FocusHandle, Hsla, InteractiveElement,
+    IntoElement, ParentElement, Refineable, RenderOnce, SharedString, StatefulInteractiveElement,
+    StyleRefinement, Styled, Window, div, prelude::FluentBuilder, svg,
 };
 use gpui_headless::button::Button as HeadlessButton;
+
+use crate::shape::Shaped;
 use md3_icons::{Icon, IconStyle};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::{
@@ -24,10 +25,13 @@ use md3_theme::md3_tokens::elevation::Elevation;
 use md3_theme::md3_tokens::shape::ShapeKey;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::md3_tokens::{Dp, focus_ring, state};
-use md3_theme::{SharedTheme, Theme, ThemeExt, dp};
+use md3_theme::{SharedTheme, ThemeExt, dp};
 
 /// `ButtonDefaults.MinWidth`。どのサイズにも使う
 const MIN_WIDTH: Dp = Dp(58.0);
+
+/// 容器の層がボタンの hover と押下を知るための group 名
+const GROUP: &str = "md3-button";
 
 /// ボタンの種類。強調の度合いが高い順に Filled、FilledTonal、Elevated、Outlined、Text
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -61,6 +65,16 @@ pub enum ButtonSize {
     ExtraLarge,
 }
 
+/// ボタンの形
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum ButtonShape {
+    /// 短辺の両端を半円にした形
+    #[default]
+    Round,
+    /// 角を小さく丸めた形。角の半径はサイズに合わせて決まる
+    Square,
+}
+
 /// サイズごとの寸法と書体
 struct SizeTokens {
     height: Dp,
@@ -71,7 +85,8 @@ struct SizeTokens {
     icon_spacing: Dp,
     label: TypeScale,
     outline_width: Dp,
-    shape: ShapeKey,
+    round: ShapeKey,
+    square: ShapeKey,
 }
 
 impl ButtonSize {
@@ -90,7 +105,8 @@ impl ButtonSize {
                 icon_spacing: Dp(4.0),
                 label: TypeScale::LabelLarge,
                 outline_width: button_x_small::OUTLINED_OUTLINE_WIDTH,
-                shape: button_x_small::CONTAINER_SHAPE_ROUND,
+                round: button_x_small::CONTAINER_SHAPE_ROUND,
+                square: button_x_small::CONTAINER_SHAPE_SQUARE,
             },
             Self::Small => SizeTokens {
                 height: button_small::CONTAINER_HEIGHT,
@@ -100,7 +116,8 @@ impl ButtonSize {
                 icon_spacing: button_small::ICON_LABEL_SPACE,
                 label: TypeScale::LabelLarge,
                 outline_width: button_small::OUTLINED_OUTLINE_WIDTH,
-                shape: button_small::CONTAINER_SHAPE_ROUND,
+                round: button_small::CONTAINER_SHAPE_ROUND,
+                square: button_small::CONTAINER_SHAPE_SQUARE,
             },
             Self::Medium => SizeTokens {
                 height: button_medium::CONTAINER_HEIGHT,
@@ -110,7 +127,8 @@ impl ButtonSize {
                 icon_spacing: button_medium::ICON_LABEL_SPACE,
                 label: TypeScale::TitleMedium,
                 outline_width: button_medium::OUTLINED_OUTLINE_WIDTH,
-                shape: button_medium::CONTAINER_SHAPE_ROUND,
+                round: button_medium::CONTAINER_SHAPE_ROUND,
+                square: button_medium::CONTAINER_SHAPE_SQUARE,
             },
             Self::Large => SizeTokens {
                 height: button_large::CONTAINER_HEIGHT,
@@ -120,7 +138,8 @@ impl ButtonSize {
                 icon_spacing: button_large::ICON_LABEL_SPACE,
                 label: TypeScale::HeadlineSmall,
                 outline_width: button_large::OUTLINED_OUTLINE_WIDTH,
-                shape: button_large::CONTAINER_SHAPE_ROUND,
+                round: button_large::CONTAINER_SHAPE_ROUND,
+                square: button_large::CONTAINER_SHAPE_SQUARE,
             },
             Self::ExtraLarge => SizeTokens {
                 height: button_x_large::CONTAINER_HEIGHT,
@@ -130,7 +149,8 @@ impl ButtonSize {
                 icon_spacing: button_x_large::ICON_LABEL_SPACE,
                 label: TypeScale::HeadlineLarge,
                 outline_width: button_x_large::OUTLINED_OUTLINE_WIDTH,
-                shape: button_x_large::CONTAINER_SHAPE_ROUND,
+                round: button_x_large::CONTAINER_SHAPE_ROUND,
+                square: button_x_large::CONTAINER_SHAPE_SQUARE,
             },
         }
     }
@@ -267,6 +287,8 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 ///
 /// テーマの密度 ([`ThemeSettings::density`](md3_theme::ThemeSettings::density)) は反映しない。
 /// 大きさは [`Button::size`] で選ぶ
+///
+/// 押せる範囲はボタンの形を囲む矩形で、角丸の外側も含む
 #[derive(IntoElement)]
 pub struct Button {
     id: ElementId,
@@ -274,6 +296,7 @@ pub struct Button {
     children: Vec<AnyElement>,
     variant: ButtonVariant,
     size: ButtonSize,
+    shape: ButtonShape,
     icon: Option<Icon>,
     on_click: Option<ClickHandler>,
     aria_label: Option<SharedString>,
@@ -283,7 +306,7 @@ pub struct Button {
 }
 
 impl Button {
-    /// [`ButtonVariant::Filled`] で [`ButtonSize::Small`] のボタンを作る
+    /// [`ButtonVariant::Filled`]、[`ButtonSize::Small`]、[`ButtonShape::Round`] のボタンを作る
     ///
     /// `id` は同じ親の中で一意にし、描画のたびに同じ値を渡すこと。[`Button::track_focus`] を指定しない場合、
     /// `id` が変わるか 1 フレームでも描画されないとフォーカスが外れる
@@ -294,6 +317,7 @@ impl Button {
             children: Vec::new(),
             variant: ButtonVariant::default(),
             size: ButtonSize::default(),
+            shape: ButtonShape::default(),
             icon: None,
             on_click: None,
             aria_label: None,
@@ -312,6 +336,12 @@ impl Button {
     /// ボタンの大きさを設定する
     pub fn size(mut self, size: ButtonSize) -> Self {
         self.size = size;
+        self
+    }
+
+    /// ボタンの形を設定する
+    pub fn shape(mut self, shape: ButtonShape) -> Self {
+        self.shape = shape;
         self
     }
 
@@ -365,28 +395,6 @@ impl Button {
     }
 }
 
-/// 形が `key` の要素の角の半径
-///
-/// ボタンの形は CornerFull (短辺の 50%) で、gpui は描画時に半径を短辺の半分までに切り詰める。
-/// そのため描画前に大きさが分からなくても、十分に大きい寸法で求めれば実際の大きさの半円になる
-fn corner_radii(theme: &Theme, key: ShapeKey, outset: Pixels) -> Corners<Pixels> {
-    let radii = theme.corner_radii(key, size(px(f32::MAX), px(f32::MAX)));
-    Corners {
-        top_left: radii.top_left + outset,
-        top_right: radii.top_right + outset,
-        bottom_right: radii.bottom_right + outset,
-        bottom_left: radii.bottom_left + outset,
-    }
-}
-
-fn rounded<E: Styled>(element: E, radii: Corners<Pixels>) -> E {
-    element
-        .rounded_tl(radii.top_left)
-        .rounded_tr(radii.top_right)
-        .rounded_br(radii.bottom_right)
-        .rounded_bl(radii.bottom_left)
-}
-
 impl RenderOnce for Button {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
@@ -426,23 +434,19 @@ impl RenderOnce for Button {
                 None => layer,
             }
         };
-        let radii = corner_radii(&theme, size.shape, px(0.0));
+        let shape = match self.shape {
+            ButtonShape::Round => size.round,
+            ButtonShape::Square => size.square,
+        };
 
-        let mut button = HeadlessButton::new(self.id)
-            .track_focus(&focus_handle)
-            .disabled(disabled)
-            .relative()
-            .flex_grow_1()
-            .flex()
-            .items_center()
-            .justify_center()
-            .gap(dp(size.icon_spacing))
-            .min_w(dp(MIN_WIDTH))
-            .min_h(dp(size.height))
-            .px(dp(size.horizontal_padding))
-            .py(dp(size.vertical_padding))
-            .text_color(content)
-            .whitespace_nowrap()
+        // 角丸は描画時の大きさで決まるため、背景・枠線・影は Shaped で包んだ層に描き、ボタン自身は透明な箱にする
+        let container = div()
+            .id("container")
+            .absolute()
+            .top_0()
+            .left_0()
+            .right_0()
+            .bottom_0()
             .when_some(container, |this, container| this.bg(container))
             .when_some(tokens.outline, |this, (role, disabled_opacity)| {
                 let color = theme.color(role);
@@ -463,16 +467,44 @@ impl RenderOnce for Button {
                             None => style,
                         }
                     };
-                // gpui は focus_visible、hover、active の順に重ねるため、押下 > hover > フォーカスの順に優先される
-                this.focus_visible(|style| {
-                    layer(style, state::FOCUS_STATE_LAYER_OPACITY, |e| e.focused)
-                })
-                .hover(|style| layer(style, state::HOVER_STATE_LAYER_OPACITY, |e| e.hovered))
-                .active(|style| layer(style, state::PRESSED_STATE_LAYER_OPACITY, |e| e.pressed))
-                .when_some(tokens.elevations.as_ref(), |this, e| {
+                // gpui は自身のスタイル、group_hover、group_active の順に重ねるため、押下 > hover > フォーカスの順に優先される
+                this.when_some(tokens.elevations.as_ref(), |this, e| {
                     this.shadow(theme.shadow(e.default))
                 })
-            })
+                .when(focus_visible, |mut this| {
+                    let focused = layer(
+                        StyleRefinement::default(),
+                        state::FOCUS_STATE_LAYER_OPACITY,
+                        |e| e.focused,
+                    );
+                    this.style().refine(&focused);
+                    this
+                })
+                .group_hover(GROUP, |style| {
+                    layer(style, state::HOVER_STATE_LAYER_OPACITY, |e| e.hovered)
+                })
+                .group_active(GROUP, |style| {
+                    layer(style, state::PRESSED_STATE_LAYER_OPACITY, |e| e.pressed)
+                })
+            });
+
+        let mut button = HeadlessButton::new(self.id)
+            .track_focus(&focus_handle)
+            .disabled(disabled)
+            .group(GROUP)
+            .relative()
+            .flex_grow_1()
+            .flex()
+            .items_center()
+            .justify_center()
+            .gap(dp(size.icon_spacing))
+            .min_w(dp(MIN_WIDTH))
+            .min_h(dp(size.height))
+            .px(dp(size.horizontal_padding))
+            .py(dp(size.vertical_padding))
+            .text_color(content)
+            .whitespace_nowrap()
+            .child(Shaped::new(container, theme.clone(), shape))
             .when_some(self.icon, |this, icon| {
                 this.child(
                     svg()
@@ -485,22 +517,21 @@ impl RenderOnce for Button {
             .child(div().flex().items_center().children(self.children))
             .when(focus_visible, |this| {
                 let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
-                this.child(
-                    rounded(div(), corner_radii(&theme, size.shape, outset))
-                        .absolute()
-                        .top(-outset)
-                        .left(-outset)
-                        .right(-outset)
-                        .bottom(-outset)
-                        .border(dp(focus_ring::WIDTH))
-                        .border_color(theme.color(focus_ring::COLOR)),
-                )
+                let ring = div()
+                    .absolute()
+                    .top(-outset)
+                    .left(-outset)
+                    .right(-outset)
+                    .bottom(-outset)
+                    .border(dp(focus_ring::WIDTH))
+                    .border_color(theme.color(focus_ring::COLOR));
+                this.child(Shaped::new(ring, theme.clone(), shape).outset(outset))
             })
             .when_some(self.aria_label, |this, label| this.aria_label(label))
             .when_some(self.on_click, |this, on_click| this.on_click(on_click));
         button.text_style().refine(&theme.text_style(size.label));
 
-        self.outer.flex().child(rounded(button, radii))
+        self.outer.flex().child(button)
     }
 }
 
