@@ -1676,6 +1676,8 @@ dependencies = [
  "example-support",
  "gpui",
  "gpui_platform",
+ "md3-components",
+ "md3-icons",
  "md3-theme",
  "wasm-bindgen",
 ]
