@@ -24,7 +24,7 @@ use md3_theme::md3_tokens::component::checkbox;
 use md3_theme::md3_tokens::{focus_ring, state, supplement};
 use md3_theme::{SharedTheme, Theme, ThemeExt, dp, shape_radii};
 
-/// [`Checkbox::interaction_source`] を指定しないとき、状態レイヤーがチェックボックスの hover を知るための group 名
+/// [`CheckboxRow`] の子でないとき、状態レイヤーがチェックボックスの hover を知るための group 名
 const GROUP: &str = "md3-checkbox";
 
 /// チェックボックスの状態
@@ -73,7 +73,7 @@ type ClickHandler = Box<dyn Fn(&CheckboxState, &mut Window, &mut App)>;
 /// ラベルは表示しないため、名前は必ず [`Checkbox::aria_label`] で与えること
 ///
 /// 設定しない場合は見た目だけのチェックボックスになり、押せず、フォーカスを受けず、支援技術にも公開されない。
-/// [`CheckboxRow`] の子にして、行全体を 1 つのチェックボックスとして操作させる場合に使う
+/// [`CheckboxRow::checkbox`] に渡して、行全体を 1 つのチェックボックスとして操作させる場合に使う
 ///
 /// 大きさは状態レイヤーの 40dp 四方の箱で、操作できる場合はこの箱が押せる範囲になる。
 /// フォーカスリングは箱の外側にはみ出して描く
@@ -97,7 +97,7 @@ impl Checkbox {
     /// `state` を表示するチェックボックスを作る
     ///
     /// `id` は同じ親の中で一意にし、描画のたびに同じ値を渡すこと。操作できるチェックボックスで
-    /// [`Checkbox::track_focus`] も [`Checkbox::interaction_source`] も指定しない場合、
+    /// [`Checkbox::track_focus`] を指定しない場合、
     /// `id` が変わるか 1 フレームでも描画されないとフォーカスが外れる
     pub fn new(id: impl Into<ElementId>, state: CheckboxState) -> Self {
         Self {
@@ -158,19 +158,9 @@ impl Checkbox {
     /// `focus_handle` をこのチェックボックスのフォーカスとして使う
     ///
     /// 指定しない場合は、操作できるチェックボックスが内部でフォーカスを持つ。
-    /// 見た目だけのチェックボックスと、[`Checkbox::interaction_source`] を指定した場合は使わない
+    /// 見た目だけのチェックボックスでは使わない
     pub fn track_focus(mut self, focus_handle: &FocusHandle) -> Self {
         self.focus_handle = Some(focus_handle.clone());
-        self
-    }
-
-    /// 状態レイヤー・hover の枠線・フォーカスリングを、`source` を渡した部品の hover とフォーカスで描く
-    ///
-    /// 見た目だけのチェックボックスに、自身を子孫に含む [`CheckboxRow`] に渡したものと同じ `source` を渡すと、
-    /// 行の hover とフォーカスがチェックボックスに表示される。
-    /// 操作できるチェックボックスに渡すと、`source` のフォーカスをこのチェックボックスのフォーカスとして使う
-    pub fn interaction_source(mut self, source: &InteractionSource) -> Self {
-        self.interaction_source = Some(source.clone());
         self
     }
 
@@ -187,7 +177,7 @@ impl RenderOnce for Checkbox {
         let disabled = self.disabled;
         let interactive = self.on_click.is_some();
 
-        // hover を知る group と、フォーカスを表示するためのフォーカス。見た目だけで source もなければどちらも持たない
+        // hover を知る group と、フォーカスを表示するためのフォーカス。行の子でない見た目だけのものはどちらも持たない
         let (group, focus_handle): (Option<SharedString>, Option<FocusHandle>) =
             match &self.interaction_source {
                 Some(source) => (
@@ -313,15 +303,20 @@ impl RenderOnce for Checkbox {
             .error(self.error)
             .flex()
             .child(indicator)
-            .map(|this| match (&self.interaction_source, focus_handle) {
-                (Some(source), _) => this.interaction_source(source.inner()),
-                (None, Some(focus_handle)) => this.track_focus(&focus_handle).group(GROUP),
-                (None, None) => this,
+            .when_some(focus_handle, |this, focus_handle| {
+                this.track_focus(&focus_handle)
             })
+            .group(GROUP)
             .when_some(self.aria_label, |this, label| this.aria_label(label))
             .on_change(move |next, window, cx| on_click(&next.into(), window, cx));
 
         self.outer.child(root)
+    }
+}
+
+impl Styled for Checkbox {
+    fn style(&mut self) -> &mut gpui::StyleRefinement {
+        self.outer.style()
     }
 }
 
@@ -332,20 +327,21 @@ impl RenderOnce for Checkbox {
 /// 文字列を直接子にしても支援技術には公開されないため、名前にするテキストは [`gpui::text!`] で作ること。
 /// 状態は呼び出し側が持ち、[`CheckboxRow::new`] に毎回渡す
 ///
-/// 行自身は見た目を持たない。子に見た目だけの [`Checkbox`] を置き、行に渡したものと同じ [`InteractionSource`] を
-/// [`Checkbox::interaction_source`] に渡すこと。行の hover とフォーカスがチェックボックスに表示される。
+/// 行自身は見た目を持たない。[`CheckboxRow::checkbox`] でチェックボックスを置くと、
+/// 行の hover とフォーカスがそのチェックボックスに表示される。
 /// 無効とエラーは子のチェックボックスにも同じ値を渡すこと。
 /// レイアウトは [`Styled`] で呼び出し側が付ける
 ///
 /// ```ignore
 /// CheckboxRow::new("row", state, &source)
 ///     .on_click(|next, _, _| { /* 状態を更新する */ })
-///     .child(Checkbox::new("box", state).interaction_source(&source))
+///     .checkbox(Checkbox::new("box", state))
 ///     .child(gpui::text!("ラベル"))
 /// ```
 #[derive(IntoElement)]
 pub struct CheckboxRow {
     inner: HeadlessCheckbox,
+    source: InteractionSource,
 }
 
 impl CheckboxRow {
@@ -356,6 +352,7 @@ impl CheckboxRow {
     pub fn new(id: impl Into<ElementId>, state: CheckboxState, source: &InteractionSource) -> Self {
         Self {
             inner: HeadlessCheckbox::new(id, state.into()).interaction_source(source.inner()),
+            source: source.clone(),
         }
     }
 
@@ -369,6 +366,17 @@ impl CheckboxRow {
         self.inner = self
             .inner
             .on_change(move |next, window, cx| handler(&next.into(), window, cx));
+        self
+    }
+
+    /// 行の hover とフォーカスを表示するチェックボックスを子に加える
+    ///
+    /// `checkbox` は見た目だけのチェックボックスとして描かれ、[`Checkbox::on_click`]・[`Checkbox::aria_label`]・
+    /// [`Checkbox::track_focus`] は使わない。押したときの処理と名前は行に与えること
+    pub fn checkbox(mut self, mut checkbox: Checkbox) -> Self {
+        checkbox.on_click = None;
+        checkbox.interaction_source = Some(self.source.clone());
+        self.inner = self.inner.child(checkbox);
         self
     }
 
@@ -528,12 +536,6 @@ impl Colors {
     }
 }
 
-impl Styled for Checkbox {
-    fn style(&mut self) -> &mut gpui::StyleRefinement {
-        self.outer.style()
-    }
-}
-
 /// 行全体を 1 つのチェックボックスとして操作させる構成 ([`CheckboxRow`] と見た目だけの [`Checkbox`]) の振る舞い
 #[cfg(test)]
 mod tests {
@@ -555,9 +557,7 @@ mod tests {
             CheckboxRow::new("row", CheckboxState::Unchecked, &self.source)
                 .on_click(move |state, _, _| changes.borrow_mut().push(*state))
                 .w(px(200.))
-                .child(
-                    Checkbox::new("box", CheckboxState::Unchecked).interaction_source(&self.source),
-                )
+                .checkbox(Checkbox::new("box", CheckboxState::Unchecked))
                 .child(gpui::text!("Lettuce"))
         }
     }

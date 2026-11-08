@@ -65,7 +65,7 @@ impl Render for CheckboxPage {
                 .flex()
                 .items_center()
                 .pr_4()
-                .child(Checkbox::new(format!("{id}-box"), state).interaction_source(source))
+                .checkbox(Checkbox::new(format!("{id}-box"), state))
                 .child(label(&theme, text))
         };
         let child = |index: usize, text: &'static str, cx: &mut Context<Self>| {
@@ -133,10 +133,13 @@ impl Render for CheckboxPage {
 }
 
 /// 支援技術に公開されるテキスト。[`CheckboxRow`] の子にすると行の名前になる
+///
+/// `text` を支援技術のノードの id にも使うため、ページ内で重ならない文字列を渡すこと
 fn label(theme: &Theme, text: impl Into<gpui::SharedString>) -> gpui::Div {
+    let text = text.into();
     let mut element = div();
     element
         .text_style()
         .refine(&theme.text_style(TypeScale::BodyMedium));
-    element.child(gpui::text!(text.into()))
+    element.child(gpui::text!(id = text.clone(), text))
 }
