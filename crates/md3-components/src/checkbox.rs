@@ -14,9 +14,9 @@
 //! MD3 のチェックボックス
 
 use gpui::{
-    App, ElementId, FocusHandle, Hsla, InteractiveElement, IntoElement, ParentElement, Refineable,
-    RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window, div,
-    prelude::FluentBuilder, svg,
+    App, CornersRefinement, ElementId, FocusHandle, Hsla, InteractiveElement, IntoElement,
+    ParentElement, Refineable, RenderOnce, SharedString, StatefulInteractiveElement, Styled,
+    Window, div, prelude::FluentBuilder, size, svg,
 };
 use gpui_headless::choice::{Checkbox as HeadlessCheckbox, CheckedState};
 
@@ -25,11 +25,8 @@ use md3_icons::IconStyle;
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::checkbox;
 use md3_theme::md3_tokens::typography::TypeScale;
-use md3_theme::md3_tokens::{Dp, focus_ring, state};
-use md3_theme::{SharedTheme, Theme, ThemeExt, dp};
-
-/// `RadiusSize`。`CheckboxTokens.ContainerShape` と同じ 2dp
-const CORNER_RADIUS: Dp = Dp(2.0);
+use md3_theme::md3_tokens::{focus_ring, state};
+use md3_theme::{SharedTheme, Theme, ThemeExt, dp, shape_radii};
 
 /// 状態レイヤーがチェックボックスの hover を知るための group 名
 const GROUP: &str = "md3-checkbox";
@@ -46,26 +43,6 @@ pub enum CheckboxState {
     ///
     /// まとめて操作するチェックボックスで、配下の一部だけがチェックされていることを表す
     Indeterminate,
-}
-
-impl From<CheckedState> for CheckboxState {
-    fn from(value: CheckedState) -> Self {
-        match value {
-            CheckedState::Unchecked => CheckboxState::Unchecked,
-            CheckedState::Checked => CheckboxState::Checked,
-            CheckedState::Mixed => CheckboxState::Indeterminate,
-        }
-    }
-}
-
-impl From<CheckboxState> for CheckedState {
-    fn from(value: CheckboxState) -> Self {
-        match value {
-            CheckboxState::Unchecked => CheckedState::Unchecked,
-            CheckboxState::Checked => CheckedState::Checked,
-            CheckboxState::Indeterminate => CheckedState::Mixed,
-        }
-    }
 }
 
 type ClickHandler = Box<dyn Fn(&CheckboxState, &mut Window, &mut App)>;
@@ -186,22 +163,22 @@ impl RenderOnce for Checkbox {
         let focus_handle = self
             .focus_handle
             .unwrap_or_else(|| util::keyed_focus_handle(&self.id, window, cx));
-        let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
         let colors = Colors::resolve(
             &theme,
             self.state,
             disabled,
             self.error.is_some(),
-            focus_visible,
+            focus_handle.is_focused(window),
+            gpui_headless::is_focus_visible(&focus_handle, window, cx),
         );
 
-        let container = div()
+        let container_size = dp(checkbox::CONTAINER_SIZE);
+        let mut container = div()
             .absolute()
             .top_0()
             .left_0()
             .right_0()
             .bottom_0()
-            .rounded(dp(CORNER_RADIUS))
             .when_some(colors.fill, |this, fill| this.bg(fill))
             .when_some(colors.outline, |this, outline| {
                 this.border(dp(checkbox::UNSELECTED_OUTLINE_WIDTH))
@@ -210,8 +187,18 @@ impl RenderOnce for Checkbox {
             .when_some(colors.hover_outline, |this, outline| {
                 this.group_hover(GROUP, |style| style.border_color(outline))
             });
+        let radii = shape_radii(
+            checkbox::CONTAINER_SHAPE,
+            size(container_size, container_size),
+        );
+        container.style().corner_radii = CornersRefinement {
+            top_left: Some(radii.top_left.into()),
+            top_right: Some(radii.top_right.into()),
+            bottom_right: Some(radii.bottom_right.into()),
+            bottom_left: Some(radii.bottom_left.into()),
+        };
 
-        // Compose は線を描いてチェックマークを作るが、同じ形のアイコンで代える
+        // Compose は drawCheck で線を描くが、Material Symbols のアイコンで代える。形と線の太さは Compose と異なる
         let icon = match self.state {
             CheckboxState::Unchecked => None,
             CheckboxState::Checked => Some(md3_icons::CHECK),
@@ -241,7 +228,7 @@ impl RenderOnce for Checkbox {
             .child(
                 div()
                     .relative()
-                    .size(dp(checkbox::CONTAINER_SIZE))
+                    .size(container_size)
                     .child(container)
                     .when_some(icon, |this, icon| {
                         this.child(
@@ -271,7 +258,12 @@ impl RenderOnce for Checkbox {
             });
 
         let on_click = self.on_click;
-        let mut root = HeadlessCheckbox::new(self.id, self.state.into())
+        let state = match self.state {
+            CheckboxState::Unchecked => CheckedState::Unchecked,
+            CheckboxState::Checked => CheckedState::Checked,
+            CheckboxState::Indeterminate => CheckedState::Mixed,
+        };
+        let mut root = HeadlessCheckbox::new(self.id, state)
             .track_focus(&focus_handle)
             .disabled(disabled)
             .error(self.error)
@@ -283,7 +275,14 @@ impl RenderOnce for Checkbox {
             .when_some(self.label, |this, label| this.child(label))
             .when_some(self.aria_label, |this, label| this.aria_label(label))
             .when_some(on_click, |this, on_click| {
-                this.on_change(move |next, window, cx| on_click(&next.into(), window, cx))
+                this.on_change(move |next, window, cx| {
+                    let next = match next {
+                        CheckedState::Unchecked => CheckboxState::Unchecked,
+                        CheckedState::Checked => CheckboxState::Checked,
+                        CheckedState::Mixed => CheckboxState::Indeterminate,
+                    };
+                    on_click(&next, window, cx)
+                })
             });
         root.text_style()
             .refine(&theme.text_style(TypeScale::BodyLarge));
@@ -321,6 +320,7 @@ impl Colors {
         state: CheckboxState,
         disabled: bool,
         error: bool,
+        focused: bool,
         focus_visible: bool,
     ) -> Self {
         let selected = state != CheckboxState::Unchecked;
@@ -351,7 +351,8 @@ impl Colors {
             (false, false) => {
                 let role = if error {
                     checkbox::UNSELECTED_ERROR_OUTLINE_COLOR
-                } else if focus_visible {
+                } else if focused {
+                    // Material Web はリングの有無にかかわらず、フォーカスがあればこの色にする (`:focus-within`)
                     checkbox::UNSELECTED_FOCUS_OUTLINE_COLOR
                 } else {
                     checkbox::UNSELECTED_OUTLINE_COLOR
