@@ -2,5 +2,17 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+#[cfg(feature = "button")]
+mod button;
+
+#[cfg(feature = "button")]
+pub use button::{Button, ButtonVariant};
 pub use gpui;
 pub use gpui_platform;
+
+/// この crate の部品が使うキー割り当てと操作を登録する。アプリの起動時に、ウィンドウを開く前に 1 回呼ぶ
+///
+/// Tab と Shift+Tab で、操作したウィンドウの中の部品の間をフォーカスが移るようになる
+pub fn init(cx: &mut gpui::App) {
+    gpui_headless::init(cx);
+}
