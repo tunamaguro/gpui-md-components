@@ -7,7 +7,7 @@ use gpui::{
     div, prelude::FluentBuilder,
 };
 
-use crate::{Availability, accessibility::A11yInfoExt};
+use crate::{Availability, accessibility::A11yInfoExt, focus_visible};
 
 /// チェックボックスの状態
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
@@ -259,6 +259,8 @@ impl<K: ChoiceKind> RenderOnce for Choice<K> {
                     on_change(next, window, cx);
                 })
             })
+            .capture_any_mouse_down(focus_visible::record_mouse_down)
+            .on_mouse_down_out(focus_visible::record_mouse_down)
             .a11y_info(move |node: &mut accesskit::Node| {
                 if disabled {
                     node.set_disabled();
