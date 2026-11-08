@@ -6,7 +6,7 @@
 mod button;
 
 #[cfg(feature = "button")]
-pub use button::{Button, ButtonVariant};
+pub use button::{Button, ButtonSize, ButtonVariant};
 pub use gpui;
 pub use gpui_platform;
 

@@ -16,7 +16,8 @@ use gpui_headless::button::Button as HeadlessButton;
 use md3_icons::{Icon, IconStyle};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::{
-    button_small, elevated_button, filled_button, filled_tonal_button, outlined_button, text_button,
+    button_large, button_medium, button_small, button_x_large, button_x_small, elevated_button,
+    filled_button, filled_tonal_button, outlined_button, text_button,
 };
 use md3_theme::md3_tokens::elevation::Elevation;
 use md3_theme::md3_tokens::shape::ShapeKey;
@@ -24,18 +25,8 @@ use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::md3_tokens::{Dp, focus_ring, state};
 use md3_theme::{SharedTheme, Theme, ThemeExt, dp};
 
-/// `ButtonDefaults.MinWidth`
+/// `ButtonDefaults.MinWidth`。どのサイズにも使う
 const MIN_WIDTH: Dp = Dp(58.0);
-/// `ButtonDefaults.MinHeight`。精密なポインタ向けの 36dp は Compose でも既定で使われないため採らない
-const MIN_HEIGHT: Dp = button_small::CONTAINER_HEIGHT;
-/// `ButtonDefaults.ButtonVerticalPadding`
-const VERTICAL_PADDING: Dp = Dp(8.0);
-/// `ButtonDefaults.IconSize`
-const ICON_SIZE: Dp = Dp(18.0);
-/// `ButtonDefaults.IconSpacing`
-const ICON_SPACING: Dp = button_small::ICON_LABEL_SPACE;
-/// `ButtonDefaults.shape` などすべてのバリアントの形
-const SHAPE: ShapeKey = button_small::CONTAINER_SHAPE_ROUND;
 
 /// ボタンの種類。強調の度合いが高い順に Filled、FilledTonal、Elevated、Outlined、Text
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -51,6 +42,97 @@ pub enum ButtonVariant {
     Outlined,
     /// 文字だけのボタン。強調の低い操作に使う
     Text,
+}
+
+/// ボタンの大きさ。高さ・余白・アイコン・ラベルの書体が大きさに合わせて決まる
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum ButtonSize {
+    /// 高さ 32dp
+    ExtraSmall,
+    /// 高さ 40dp
+    #[default]
+    Small,
+    /// 高さ 56dp
+    Medium,
+    /// 高さ 96dp
+    Large,
+    /// 高さ 136dp
+    ExtraLarge,
+}
+
+/// サイズごとの寸法と書体
+struct SizeTokens {
+    height: Dp,
+    /// 左右の余白。アイコンの有無で変わらない
+    horizontal_padding: Dp,
+    vertical_padding: Dp,
+    icon_size: Dp,
+    icon_spacing: Dp,
+    label: TypeScale,
+    outline_width: Dp,
+    shape: ShapeKey,
+}
+
+impl ButtonSize {
+    // 余白は `ButtonDefaults.contentPaddingFor`、アイコンは `iconSizeFor` と `iconSpacingFor`、
+    // 書体は `textStyleFor` が高さから選ぶ値。精密なポインタ向けの値は Compose でも既定で使われないため採らない。
+    // 枠線の太さは、Compose の `outlinedButtonBorder` はどのサイズにも Small の値を使うが、サイズごとのトークンに従う
+    fn tokens(self) -> SizeTokens {
+        match self {
+            // `ExtraSmallContentPadding` と `ExtraSmallIconSpacing` は、Compose が TODO 付きで
+            // ButtonXSmallTokens (余白 16dp、間隔 8dp) と異なる値を使っている
+            Self::ExtraSmall => SizeTokens {
+                height: button_x_small::CONTAINER_HEIGHT,
+                horizontal_padding: Dp(12.0),
+                vertical_padding: Dp(6.0),
+                icon_size: button_x_small::ICON_SIZE,
+                icon_spacing: Dp(4.0),
+                label: TypeScale::LabelLarge,
+                outline_width: button_x_small::OUTLINED_OUTLINE_WIDTH,
+                shape: button_x_small::CONTAINER_SHAPE_ROUND,
+            },
+            Self::Small => SizeTokens {
+                height: button_small::CONTAINER_HEIGHT,
+                horizontal_padding: button_small::LEADING_SPACE,
+                vertical_padding: Dp(10.0),
+                icon_size: button_small::ICON_SIZE,
+                icon_spacing: button_small::ICON_LABEL_SPACE,
+                label: TypeScale::LabelLarge,
+                outline_width: button_small::OUTLINED_OUTLINE_WIDTH,
+                shape: button_small::CONTAINER_SHAPE_ROUND,
+            },
+            Self::Medium => SizeTokens {
+                height: button_medium::CONTAINER_HEIGHT,
+                horizontal_padding: button_medium::LEADING_SPACE,
+                vertical_padding: Dp(16.0),
+                icon_size: button_medium::ICON_SIZE,
+                icon_spacing: button_medium::ICON_LABEL_SPACE,
+                label: TypeScale::TitleMedium,
+                outline_width: button_medium::OUTLINED_OUTLINE_WIDTH,
+                shape: button_medium::CONTAINER_SHAPE_ROUND,
+            },
+            Self::Large => SizeTokens {
+                height: button_large::CONTAINER_HEIGHT,
+                horizontal_padding: button_large::LEADING_SPACE,
+                vertical_padding: Dp(32.0),
+                icon_size: button_large::ICON_SIZE,
+                icon_spacing: button_large::ICON_LABEL_SPACE,
+                label: TypeScale::HeadlineSmall,
+                outline_width: button_large::OUTLINED_OUTLINE_WIDTH,
+                shape: button_large::CONTAINER_SHAPE_ROUND,
+            },
+            Self::ExtraLarge => SizeTokens {
+                height: button_x_large::CONTAINER_HEIGHT,
+                horizontal_padding: button_x_large::LEADING_SPACE,
+                vertical_padding: Dp(48.0),
+                icon_size: button_x_large::ICON_SIZE,
+                icon_spacing: button_x_large::ICON_LABEL_SPACE,
+                label: TypeScale::HeadlineLarge,
+                outline_width: button_x_large::OUTLINED_OUTLINE_WIDTH,
+                shape: button_x_large::CONTAINER_SHAPE_ROUND,
+            },
+        }
+    }
 }
 
 /// 状態ごとの影の高さ
@@ -73,14 +155,10 @@ struct VariantTokens {
     outline: Option<(ColorRole, f32)>,
     /// 無効時の影はどのバリアントにもない
     elevations: Option<Elevations>,
-    /// (アイコンなし, アイコンあり) の (左, 右) の余白
-    horizontal_padding: [(Dp, Dp); 2],
 }
 
 impl ButtonVariant {
     fn tokens(self) -> VariantTokens {
-        // `ButtonDefaults.ContentPadding` と `ButtonWithIconContentPadding`
-        const PADDING: [(Dp, Dp); 2] = [(Dp(24.0), Dp(24.0)), (Dp(16.0), Dp(24.0))];
         match self {
             // `defaultButtonColors`、`buttonElevation`
             Self::Filled => VariantTokens {
@@ -101,7 +179,6 @@ impl ButtonVariant {
                     focused: filled_button::FOCUSED_CONTAINER_ELEVATION,
                     pressed: filled_button::PRESSED_CONTAINER_ELEVATION,
                 }),
-                horizontal_padding: PADDING,
             },
             // `defaultElevatedButtonColors`、`elevatedButtonElevation`
             Self::Elevated => VariantTokens {
@@ -122,7 +199,6 @@ impl ButtonVariant {
                     focused: elevated_button::FOCUSED_CONTAINER_ELEVATION,
                     pressed: elevated_button::PRESSED_CONTAINER_ELEVATION,
                 }),
-                horizontal_padding: PADDING,
             },
             // `defaultFilledTonalButtonColors`、`filledTonalButtonElevation`。
             // Compose はこのバリアントだけ版の古い FilledTonalButtonTokens (v0_103) を参照している
@@ -144,7 +220,6 @@ impl ButtonVariant {
                     focused: filled_tonal_button::FOCUS_CONTAINER_ELEVATION,
                     pressed: filled_tonal_button::PRESSED_CONTAINER_ELEVATION,
                 }),
-                horizontal_padding: PADDING,
             },
             // `defaultOutlinedButtonColors`、`outlinedButtonBorder`
             Self::Outlined => VariantTokens {
@@ -160,9 +235,8 @@ impl ButtonVariant {
                     outlined_button::DISABLED_CONTAINER_OPACITY,
                 )),
                 elevations: None,
-                horizontal_padding: PADDING,
             },
-            // `defaultTextButtonColors`、`TextButtonContentPadding`、`TextButtonWithIconContentPadding`
+            // `defaultTextButtonColors`
             Self::Text => VariantTokens {
                 container: None,
                 // Compose は TextButtonTokens.LabelColor (OnSurfaceVariant) ではなく Primary を使う
@@ -174,7 +248,6 @@ impl ButtonVariant {
                 ),
                 outline: None,
                 elevations: None,
-                horizontal_padding: [(Dp(12.0), Dp(12.0)), (Dp(12.0), Dp(16.0))],
             },
         }
     }
@@ -184,7 +257,7 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
 /// MD3 のボタン
 ///
-/// 子の内容をラベルとして [`TypeScale::LabelLarge`] の書体とバリアントの内容の色で描く。
+/// 子の内容をラベルとして、サイズの書体とバリアントの内容の色で描く。
 /// 支援技術には role `button` として公開され、子の内容がアクセシブルな名前になる。
 /// マウスのクリック・フォーカス中の Enter と Space で [`Button::on_click`] のハンドラを呼ぶ。
 ///
@@ -196,6 +269,7 @@ pub struct Button {
     outer: Div,
     children: Vec<AnyElement>,
     variant: ButtonVariant,
+    size: ButtonSize,
     icon: Option<Icon>,
     on_click: Option<ClickHandler>,
     disabled: bool,
@@ -204,7 +278,7 @@ pub struct Button {
 }
 
 impl Button {
-    /// [`ButtonVariant::Filled`] のボタンを作る
+    /// [`ButtonVariant::Filled`] で [`ButtonSize::Small`] のボタンを作る
     ///
     /// `id` は同じ親の中で一意にし、描画のたびに同じ値を渡すこと。[`Button::track_focus`] を指定しない場合、
     /// `id` が変わるか 1 フレームでも描画されないとフォーカスが外れる
@@ -214,6 +288,7 @@ impl Button {
             outer: div(),
             children: Vec::new(),
             variant: ButtonVariant::default(),
+            size: ButtonSize::default(),
             icon: None,
             on_click: None,
             disabled: false,
@@ -228,9 +303,15 @@ impl Button {
         self
     }
 
+    /// ボタンの大きさを設定する
+    pub fn size(mut self, size: ButtonSize) -> Self {
+        self.size = size;
+        self
+    }
+
     /// ラベルの前にアイコンを置く
     ///
-    /// アイコンは 18dp でラベルと同じ色になり、ラベルとの間隔と左の余白は MD3 の規定に合わせる。
+    /// アイコンはラベルと同じ色になり、大きさとラベルとの間隔はサイズに合わせる。
     /// アイコンは装飾として扱い、アクセシブルな名前には含めない
     pub fn icon(mut self, icon: Icon) -> Self {
         self.icon = Some(icon);
@@ -296,6 +377,7 @@ impl RenderOnce for Button {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
         let tokens = self.variant.tokens();
+        let size = self.size.tokens();
         let disabled = self.disabled;
 
         let focus_handle = self.focus_handle.unwrap_or_else(|| {
@@ -330,9 +412,7 @@ impl RenderOnce for Button {
                 None => layer,
             }
         };
-        let radii = corner_radii(&theme, SHAPE, px(0.0));
-        let (padding_start, padding_end) =
-            tokens.horizontal_padding[usize::from(self.icon.is_some())];
+        let radii = corner_radii(&theme, size.shape, px(0.0));
 
         let mut button = HeadlessButton::new(self.id)
             .track_focus(&focus_handle)
@@ -342,18 +422,17 @@ impl RenderOnce for Button {
             .flex()
             .items_center()
             .justify_center()
-            .gap(dp(ICON_SPACING))
+            .gap(dp(size.icon_spacing))
             .min_w(dp(MIN_WIDTH))
-            .min_h(dp(MIN_HEIGHT))
-            .pl(dp(padding_start))
-            .pr(dp(padding_end))
-            .py(dp(VERTICAL_PADDING))
+            .min_h(dp(size.height))
+            .px(dp(size.horizontal_padding))
+            .py(dp(size.vertical_padding))
             .text_color(content)
             .whitespace_nowrap()
             .when_some(container, |this, container| this.bg(container))
             .when_some(tokens.outline, |this, (role, disabled_opacity)| {
                 let color = theme.color(role);
-                this.border(dp(button_small::OUTLINED_OUTLINE_WIDTH))
+                this.border(dp(size.outline_width))
                     .border_color(if disabled {
                         color.opacity(disabled_opacity)
                     } else {
@@ -385,7 +464,7 @@ impl RenderOnce for Button {
                     svg()
                         .data(icon.svg(IconStyle::Outlined, false).as_bytes())
                         .flex_none()
-                        .size(dp(ICON_SIZE))
+                        .size(dp(size.icon_size))
                         .text_color(content),
                 )
             })
@@ -393,7 +472,7 @@ impl RenderOnce for Button {
             .when(focus_visible, |this| {
                 let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
                 this.child(
-                    rounded(div(), corner_radii(&theme, SHAPE, outset))
+                    rounded(div(), corner_radii(&theme, size.shape, outset))
                         .absolute()
                         .top(-outset)
                         .left(-outset)
@@ -404,9 +483,7 @@ impl RenderOnce for Button {
                 )
             })
             .when_some(self.on_click, |this, on_click| this.on_click(on_click));
-        button
-            .text_style()
-            .refine(&theme.text_style(TypeScale::LabelLarge));
+        button.text_style().refine(&theme.text_style(size.label));
 
         self.outer.flex().child(rounded(button, radii))
     }
