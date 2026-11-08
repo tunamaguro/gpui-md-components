@@ -9,8 +9,6 @@ mod navigation;
 #[cfg(test)]
 mod test_window;
 
-pub use navigation::{FocusNext, FocusPrevious, init};
-
 /// 部品を操作できるかどうか
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum Availability {
@@ -41,4 +39,8 @@ impl Availability {
             Availability::Disabled | Availability::DisabledFocusable
         )
     }
+}
+/// この crate の部品が使うキー割り当てと操作を登録する。アプリの起動時に 1 回呼ぶ
+pub fn init(cx: &mut gpui::App) {
+    navigation::init(cx);
 }

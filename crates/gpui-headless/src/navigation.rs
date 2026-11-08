@@ -19,7 +19,7 @@ actions!(
 /// 何もフォーカスしていない状態からも移れる。
 /// 割り当ては特定のキーコンテキストに限らないため、Tab を別の用途に使う部品は、
 /// 自身のキーコンテキストで割り当てるか、[`FocusNext`] を処理して伝播を止めれば上書きできる
-pub fn init(cx: &mut App) {
+pub(crate) fn init(cx: &mut App) {
     cx.bind_keys([
         KeyBinding::new("tab", FocusNext, None),
         KeyBinding::new("shift-tab", FocusPrevious, None),
