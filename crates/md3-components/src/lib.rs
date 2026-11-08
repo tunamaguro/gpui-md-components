@@ -9,7 +9,7 @@ mod button;
 mod shape;
 
 #[cfg(feature = "button")]
-pub use button::{Button, ButtonShape, ButtonSize, ButtonVariant};
+pub use button::{Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant};
 pub use gpui;
 pub use gpui_platform;
 

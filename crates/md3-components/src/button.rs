@@ -270,6 +270,22 @@ impl ButtonVariant {
     }
 }
 
+/// ボタンの色の上書き。`None` の項目はバリアントの色のまま
+///
+/// 色は役割で指定するため、テーマの明暗や配色が変わると追従する。
+/// 状態レイヤーは内容の色から作る。枠線の色は変わらない
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ButtonColors {
+    /// 有効なときの容器の色
+    pub container: Option<ColorRole>,
+    /// 有効なときのラベルとアイコンの色
+    pub content: Option<ColorRole>,
+    /// 無効なときの容器の色と不透明度
+    pub disabled_container: Option<(ColorRole, f32)>,
+    /// 無効なときのラベルとアイコンの色と不透明度
+    pub disabled_content: Option<(ColorRole, f32)>,
+}
+
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
 /// MD3 のボタン
@@ -279,7 +295,7 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 /// マウスのクリック・フォーカス中の Enter と Space で [`Button::on_click`] のハンドラを呼ぶ。
 ///
 /// [`Styled`] で指定したスタイルはボタンの外側の箱に付く。大きさや外側の余白、flex の指定に使い、
-/// 箱を広げるとボタンも箱いっぱいに広がる。色や形は変えられない
+/// 箱を広げるとボタンも箱いっぱいに広がる。色や形は変えられないため、[`Button::colors`] と [`Button::shape`] を使う
 ///
 /// テーマの密度 ([`ThemeSettings::density`](md3_theme::ThemeSettings::density)) は反映しない。
 /// 大きさは [`Button::size`] で選ぶ
@@ -291,6 +307,7 @@ pub struct Button {
     outer: Div,
     children: Vec<AnyElement>,
     variant: ButtonVariant,
+    colors: ButtonColors,
     size: ButtonSize,
     shape: ButtonShape,
     icon: Option<Icon>,
@@ -313,6 +330,7 @@ impl Button {
             outer: div().flex(),
             children: Vec::new(),
             variant: ButtonVariant::default(),
+            colors: ButtonColors::default(),
             size: ButtonSize::default(),
             shape: ButtonShape::default(),
             icon: None,
@@ -327,6 +345,14 @@ impl Button {
     /// ボタンの種類を設定する
     pub fn variant(mut self, variant: ButtonVariant) -> Self {
         self.variant = variant;
+        self
+    }
+
+    /// バリアントの色を `colors` で上書きする
+    ///
+    /// 削除のような取り消せない操作を目立たせる場合などに使う
+    pub fn colors(mut self, colors: ButtonColors) -> Self {
+        self.colors = colors;
         self
     }
 
@@ -395,7 +421,14 @@ impl Button {
 impl RenderOnce for Button {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
-        let tokens = self.variant.tokens();
+        let mut tokens = self.variant.tokens();
+        tokens.container = self.colors.container.or(tokens.container);
+        tokens.content = self.colors.content.unwrap_or(tokens.content);
+        tokens.disabled_container = self.colors.disabled_container.or(tokens.disabled_container);
+        tokens.disabled_content = self
+            .colors
+            .disabled_content
+            .unwrap_or(tokens.disabled_content);
         let size = self.size.tokens();
         let disabled = self.disabled;
 
