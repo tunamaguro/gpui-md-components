@@ -2,7 +2,7 @@
 
 use gpui::{
     Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
-    StatefulInteractiveElement as _, Styled as _, Window, div,
+    SharedString, StatefulInteractiveElement as _, Styled as _, Window, div,
 };
 use md3_components::{Button, ButtonSize, ButtonVariant};
 use md3_theme::md3_color::ColorRole;
@@ -25,30 +25,24 @@ const VARIANTS: [(ButtonVariant, &str); 5] = [
     (ButtonVariant::Text, "Text"),
 ];
 
-/// ボタンを並べるページ。押した回数を持つ
+/// ボタンを並べるページ。押した回数と最後に押したボタンを持つ
 #[derive(Default)]
 pub struct ButtonPage {
     clicks: usize,
+    last_clicked: Option<SharedString>,
 }
 
 impl Render for ButtonPage {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.md3_theme().clone();
         let rows = VARIANTS.map(|(variant, name)| {
-            let button = |suffix: &str| Button::new(format!("{name}-{suffix}")).variant(variant);
+            let button = |suffix: &str| button(format!("{name}-{suffix}"), cx).variant(variant);
             div()
                 .flex()
                 .items_center()
                 .gap_4()
                 .child(label(&theme, name).w_32())
-                .child(
-                    button("plain")
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.clicks += 1;
-                            cx.notify();
-                        }))
-                        .child(name),
-                )
+                .child(button("plain").child(name))
                 .child(button("icon").icon(md3_icons::ADD).child("With icon"))
                 .child(button("disabled").disabled(true).child("Disabled"))
                 .child(
@@ -68,7 +62,14 @@ impl Render for ButtonPage {
             .flex()
             .flex_col()
             .gap_4()
-            .child(label(&theme, format!("押した回数: {}", self.clicks)))
+            .child(label(
+                &theme,
+                format!(
+                    "押した回数: {} / 最後に押したボタン: {}",
+                    self.clicks,
+                    self.last_clicked.as_deref().unwrap_or("なし")
+                ),
+            ))
             .children(rows)
             .children(SIZES.map(|(size, name)| {
                 div()
@@ -76,9 +77,9 @@ impl Render for ButtonPage {
                     .items_center()
                     .gap_4()
                     .child(label(&theme, name).w_32())
-                    .child(Button::new(format!("size-{name}")).size(size).child(name))
+                    .child(button(format!("size-{name}"), cx).size(size).child(name))
                     .child(
-                        Button::new(format!("size-{name}-icon"))
+                        button(format!("size-{name}-icon"), cx)
                             .size(size)
                             .variant(ButtonVariant::Outlined)
                             .icon(md3_icons::ADD)
@@ -86,12 +87,22 @@ impl Render for ButtonPage {
                     )
             }))
             .child(
-                Button::new("full-width")
+                button("full-width", cx)
                     .variant(ButtonVariant::Outlined)
                     .w_full()
                     .child("幅いっぱいのボタン"),
             )
     }
+}
+
+/// 押すと押した回数と最後に押したボタンを更新するボタン。`id` を最後に押したボタンとして表示する
+fn button(id: impl Into<SharedString>, cx: &Context<ButtonPage>) -> Button {
+    let id = id.into();
+    Button::new(id.clone()).on_click(cx.listener(move |this, _, _, cx| {
+        this.clicks += 1;
+        this.last_clicked = Some(id.clone());
+        cx.notify();
+    }))
 }
 
 fn label(theme: &Theme, text: impl Into<gpui::SharedString>) -> gpui::Div {
