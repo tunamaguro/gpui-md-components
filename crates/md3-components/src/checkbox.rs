@@ -3,12 +3,10 @@
 // Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/Checkbox.kt
 //         (`CheckboxImpl`、`drawBox`、`CheckboxDefaults`) @ 2a941dd11aabd9bb7d2016ed159764b220117c20
 // Copyright 2021 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
-// 状態レイヤーの色とフォーカスリングの大きさは Compose にないため Material Web から移植している
+// フォーカスリングの大きさは Compose にないため Material Web から移植している
 // (https://github.com/material-components/material-web)
-// Source: checkbox/internal/_checkbox.scss、tokens/versions/v0_192/_md-comp-checkbox.scss
-//         @ de5470f7ed6a653457ca8f5cc0e7f7602c7a8391
-// _checkbox.scss: Copyright 2022 Google LLC. _md-comp-checkbox.scss: Copyright 2023 Google LLC.
-// Licensed under the Apache License, Version 2.0.
+// Source: checkbox/internal/_checkbox.scss @ de5470f7ed6a653457ca8f5cc0e7f7602c7a8391
+// Copyright 2022 Google LLC. Licensed under the Apache License, Version 2.0.
 // トークンの値と版は md3-tokens の各ファイルにある
 
 //! MD3 のチェックボックス
@@ -22,9 +20,8 @@ use gpui_headless::choice::{Checkbox as HeadlessCheckbox, CheckedState};
 
 use crate::util;
 use md3_icons::IconStyle;
-use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::checkbox;
-use md3_theme::md3_tokens::{focus_ring, state};
+use md3_theme::md3_tokens::{focus_ring, state, supplement};
 use md3_theme::{SharedTheme, Theme, ThemeExt, dp, shape_radii};
 
 /// 状態レイヤーがチェックボックスの hover を知るための group 名
@@ -365,26 +362,37 @@ impl Colors {
                 checkbox::UNSELECTED_HOVER_OUTLINE_COLOR
             })
         });
-        // Material Web の `*-state-layer-color`。Compose は状態レイヤーの色をトークンに持たない
-        let state_layer = (!disabled).then(|| {
-            theme.color(if error {
-                ColorRole::Error
-            } else if selected {
-                ColorRole::Primary
-            } else {
-                ColorRole::OnSurface
-            })
-        });
+        let (hover_layer, focus_layer) = if error {
+            (
+                supplement::checkbox::ERROR_HOVER_STATE_LAYER_COLOR,
+                supplement::checkbox::ERROR_FOCUS_STATE_LAYER_COLOR,
+            )
+        } else if selected {
+            (
+                supplement::checkbox::SELECTED_HOVER_STATE_LAYER_COLOR,
+                supplement::checkbox::SELECTED_FOCUS_STATE_LAYER_COLOR,
+            )
+        } else {
+            (
+                supplement::checkbox::UNSELECTED_HOVER_STATE_LAYER_COLOR,
+                supplement::checkbox::UNSELECTED_FOCUS_STATE_LAYER_COLOR,
+            )
+        };
         Self {
             fill,
             outline,
             hover_outline,
             checkmark,
-            focus_state_layer: state_layer
-                .filter(|_| focus_visible)
-                .map(|layer| layer.opacity(state::FOCUS_STATE_LAYER_OPACITY)),
-            hover_state_layer: state_layer
-                .map(|layer| layer.opacity(state::HOVER_STATE_LAYER_OPACITY)),
+            focus_state_layer: (!disabled && focus_visible).then(|| {
+                theme
+                    .color(focus_layer)
+                    .opacity(state::FOCUS_STATE_LAYER_OPACITY)
+            }),
+            hover_state_layer: (!disabled).then(|| {
+                theme
+                    .color(hover_layer)
+                    .opacity(state::HOVER_STATE_LAYER_OPACITY)
+            }),
             focus_ring: focus_visible.then(|| theme.color(focus_ring::COLOR)),
         }
     }
