@@ -270,11 +270,6 @@ impl Button {
     }
 }
 
-/// `elevation` の段階の影
-fn shadow(theme: &Theme, elevation: Elevation) -> Vec<gpui::BoxShadow> {
-    theme.shadow(f32::from(elevation.level()))
-}
-
 /// 形が `key` の要素の角の半径
 ///
 /// ボタンの形は CornerFull (短辺の 50%) で、gpui は描画時に半径を短辺の半分までに切り詰める。
@@ -371,7 +366,7 @@ impl RenderOnce for Button {
                     |style: StyleRefinement, opacity: f32, pick: fn(&Elevations) -> Elevation| {
                         let style = style.bg(state_layer(opacity));
                         match &tokens.elevations {
-                            Some(elevations) => style.shadow(shadow(&theme, pick(elevations))),
+                            Some(elevations) => style.shadow(theme.shadow(pick(elevations))),
                             None => style,
                         }
                     };
@@ -382,7 +377,7 @@ impl RenderOnce for Button {
                 .hover(|style| layer(style, state::HOVER_STATE_LAYER_OPACITY, |e| e.hovered))
                 .active(|style| layer(style, state::PRESSED_STATE_LAYER_OPACITY, |e| e.pressed))
                 .when_some(tokens.elevations.as_ref(), |this, e| {
-                    this.shadow(shadow(&theme, e.default))
+                    this.shadow(theme.shadow(e.default))
                 })
             })
             .when_some(self.icon, |this, icon| {

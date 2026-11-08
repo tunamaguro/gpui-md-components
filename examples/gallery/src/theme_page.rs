@@ -6,6 +6,7 @@ use gpui::{
     Window, div, px, size,
 };
 use md3_theme::md3_color::{ColorRole, ContrastLevel};
+use md3_theme::md3_tokens::elevation::Elevation;
 use md3_theme::md3_tokens::shape::ShapeKey;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{AppearanceMode, Theme, ThemeExt as _};
@@ -332,20 +333,20 @@ fn elevations(theme: &Theme) -> Div {
         .flex_wrap()
         .gap_6()
         .p_2()
-        .children((0..=5u8).map(|level| {
+        .children(Elevation::ALL.map(|elevation| {
             div()
                 .w(px(120.0))
                 .h(px(72.0))
                 .rounded(px(12.0))
                 .bg(theme.color(ColorRole::SurfaceContainerLow))
-                .shadow(theme.shadow(f32::from(level)))
+                .shadow(theme.shadow(elevation))
                 .flex()
                 .items_center()
                 .justify_center()
                 .child(styled_text(
                     theme,
                     TypeScale::LabelLarge,
-                    format!("Level {level}"),
+                    format!("Level {}", elevation.level()),
                 ))
         }))
 }

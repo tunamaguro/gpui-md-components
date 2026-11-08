@@ -7,6 +7,7 @@ use gpui::{
     point, px,
 };
 use md3_color::{Argb, ColorRole, CustomColorGroup, DynamicScheme, Hct, SchemeError, contrast};
+use md3_tokens::elevation::Elevation;
 use md3_tokens::motion::MotionSchemeKey;
 use md3_tokens::shadow;
 use md3_tokens::shape::{CornerSize, ShapeKey};
@@ -323,11 +324,9 @@ impl Theme {
         }
     }
 
-    /// 高さの段階 `level` の影。key shadow、ambient shadow の順
-    ///
-    /// `level` の扱いは [`shadow::shadow`] と同じ
-    pub fn shadow(&self, level: f32) -> Vec<BoxShadow> {
-        let elevation = shadow::shadow(level);
+    /// 高さの段階 `elevation` の影。key shadow、ambient shadow の順
+    pub fn shadow(&self, elevation: Elevation) -> Vec<BoxShadow> {
+        let elevation = shadow::shadow(elevation);
         let color = self.color(shadow::SHADOW_COLOR);
         [elevation.key, elevation.ambient]
             .into_iter()
@@ -684,7 +683,7 @@ mod tests {
     #[test]
     fn 影は影のロールの色に不透明度を掛ける() {
         let theme = resolve(ThemeSettings::default());
-        let shadows = theme.shadow(1.0);
+        let shadows = theme.shadow(Elevation::Level1);
         let color = theme.color(ColorRole::Shadow);
         assert_eq!(shadows.len(), 2);
         assert_eq!(shadows[0].color, color.opacity(shadow::KEY_OPACITY));

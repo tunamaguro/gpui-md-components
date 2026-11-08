@@ -14,6 +14,7 @@
 use md3_color::ColorRole;
 
 use crate::Dp;
+use crate::elevation::Elevation;
 
 /// 影の色。`md.comp.elevation.shadow-color` (`md.sys.color.shadow`)
 pub const SHADOW_COLOR: ColorRole = ColorRole::Shadow;
@@ -46,12 +47,9 @@ pub struct ElevationShadow {
     pub ambient: Shadow,
 }
 
-/// 段階 `level` の影を求める
-///
-/// `level` は段階の番号 (0〜5) で、dp の値ではない。段階からは [`Elevation::level`](crate::elevation::Elevation::level) で求める。
-/// 段階の間の値は補間され、0 未満は 0、5 を超える値は 5 と同じ影になる。NaN は 0 として扱う
-pub fn shadow(level: f32) -> ElevationShadow {
-    let level = if level.is_nan() { 0.0 } else { level };
+/// 段階 `elevation` の影を求める
+pub fn shadow(elevation: Elevation) -> ElevationShadow {
+    let level = f32::from(elevation.level());
     // CSS の clamp(0, level - offset, max)
     let step = |offset: f32, max: f32| (level - offset).clamp(0.0, max);
     ElevationShadow {
@@ -86,8 +84,8 @@ mod tests {
             (6., 10., 4.),
             (8., 12., 6.),
         ];
-        for level in 0..6 {
-            let s = shadow(level as f32);
+        for (level, elevation) in Elevation::ALL.into_iter().enumerate() {
+            let s = shadow(elevation);
             assert_eq!(
                 (s.key.y.0, s.key.blur.0, s.key.spread.0),
                 (key[level].0, key[level].1, 0.0)
@@ -97,12 +95,5 @@ mod tests {
                 ambient[level]
             );
         }
-    }
-
-    #[test]
-    fn 範囲外の段階は端の影になる() {
-        assert_eq!(shadow(-1.0), shadow(0.0));
-        assert_eq!(shadow(9.0), shadow(5.0));
-        assert_eq!(shadow(f32::NAN), shadow(0.0));
     }
 }
