@@ -263,6 +263,9 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 ///
 /// [`Styled`] で指定したスタイルはボタンの外側の箱に付く。大きさや外側の余白、flex の指定に使い、
 /// 箱を広げるとボタンも箱いっぱいに広がる。色や形は変えられない
+///
+/// テーマの密度 ([`ThemeSettings::density`](md3_theme::ThemeSettings::density)) は反映しない。
+/// 大きさは [`Button::size`] で選ぶ
 #[derive(IntoElement)]
 pub struct Button {
     id: ElementId,
