@@ -512,6 +512,25 @@ mod tests {
     }
 
     #[gpui::test]
+    fn 部品の中で内部のフォーカスを使ってもマウスボタンを押すとフォーカスの表示が消える(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = add_test_window(cx, |_, _| WrapperView {
+            focus_visible: Rc::default(),
+        });
+        cx.simulate_keystrokes("tab");
+        cx.simulate_mouse_down(
+            point(px(100.), px(100.)),
+            MouseButton::Left,
+            Modifiers::none(),
+        );
+        assert!(
+            !view.read_with(cx, |view, _| view.focus_visible.get()),
+            "マウスボタンを押すとフォーカスを表示しないこと"
+        );
+    }
+
+    #[gpui::test]
     fn tab_で移ったフォーカスはマウスを動かしても表示し続ける(
         cx: &mut TestAppContext,
     ) {
