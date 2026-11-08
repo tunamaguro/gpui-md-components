@@ -21,7 +21,7 @@ pub struct Button {
     id: ElementId,
     inner: Stateful<Div>,
     on_click: Option<ClickHandler>,
-    /// [`Button::track_focus`] で渡されたもの、または [`Button::is_focus_visible`] で求めたもの
+    /// [`Button::track_focus`] で渡されたもの、または内部で最初に引いたもの
     focus_handle: Option<FocusHandle>,
     availability: Availability,
     /// フォーカスを得てから最後に押されたのがキーボードかどうか。[`Button::is_focus_visible`] を呼んだ場合だけ持つ
@@ -95,11 +95,7 @@ impl Button {
     /// クリックでフォーカスを得た場合は、キーが押されるまで `false` になる。
     /// 描画のたびに、このボタンを描画する前に呼ぶこと
     pub fn is_focus_visible(&mut self, window: &mut Window, cx: &mut App) -> bool {
-        let focus_handle = self.focus_handle(window, cx);
-        let focused = focus_handle.is_focused(window);
-        // 部品は型ごとの id の下で描画されるため、render で keyed state を引くと別のハンドルになる。
-        // ここで求めたものを render でも使う
-        self.focus_handle = Some(focus_handle);
+        let focused = self.focus_handle(window, cx).is_focused(window);
         let keyboard_focus = self
             .keyboard_focus
             .get_or_insert_with(|| window.use_keyed_state(self.id.clone(), cx, |_, _| false))
@@ -111,20 +107,24 @@ impl Button {
         visible
     }
 
-    fn focus_handle(&self, window: &mut Window, cx: &mut App) -> FocusHandle {
-        self.focus_handle.clone().unwrap_or_else(|| {
-            window
-                .use_keyed_state(self.id.clone(), cx, |_, cx| {
-                    cx.focus_handle().tab_index(0).tab_stop(true)
-                })
-                .read(cx)
-                .clone()
-        })
+    fn focus_handle(&mut self, window: &mut Window, cx: &mut App) -> FocusHandle {
+        // 部品は型ごとの id の下で描画されるため、is_focus_visible と render で keyed state を引くと
+        // 別のハンドルになる。最初に引いたものを使い続ける
+        self.focus_handle
+            .get_or_insert_with(|| {
+                window
+                    .use_keyed_state(self.id.clone(), cx, |_, cx| {
+                        cx.focus_handle().tab_index(0).tab_stop(true)
+                    })
+                    .read(cx)
+                    .clone()
+            })
+            .clone()
     }
 }
 
 impl RenderOnce for Button {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let focus_handle = self.focus_handle(window, cx);
         // フォーカス中に無効になった場合は、フォーカスが外れるまでフォーカスを保つ
         let focusable = self.availability.is_focusable() || focus_handle.is_focused(window);
