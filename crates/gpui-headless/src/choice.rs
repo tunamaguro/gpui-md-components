@@ -1,10 +1,12 @@
 //! オンとオフを切り替える、見た目を持たない部品
 
+use std::sync::Arc;
+
 use gpui::{
-    AnyElement, App, ClickEvent, Div, ElementId, FocusHandle, InteractiveElement, Interactivity,
-    IntoElement, KeyboardButton, KeyboardClickEvent, MouseButton, ParentElement, RenderOnce,
-    SharedString, Stateful, StatefulInteractiveElement, StyleRefinement, Styled, Window, accesskit,
-    div, prelude::FluentBuilder,
+    AnyElement, App, ClickEvent, Div, ElementId, Entity, FocusHandle, InteractiveElement,
+    Interactivity, IntoElement, KeyboardButton, KeyboardClickEvent, MouseButton, ParentElement,
+    RenderOnce, SharedString, Stateful, StatefulInteractiveElement, StyleRefinement, Styled,
+    Window, accesskit, div, prelude::FluentBuilder,
 };
 
 use crate::{Availability, accessibility::A11yInfoExt};
@@ -115,6 +117,16 @@ pub type Checkbox = Choice<CheckboxKind>;
 pub type Switch = Choice<SwitchKind>;
 
 type ChangeHandler<S> = Box<dyn Fn(S, &mut Window, &mut App)>;
+type PressChild = Box<dyn FnOnce(bool, &mut Window, &mut App) -> AnyElement>;
+
+/// 部品を押している入力。入力ごとに持ち、すべて離されるまで押されているとみなす
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Press {
+    /// マウスの左ボタン
+    pointer: bool,
+    /// フォーカス中の Space
+    space: bool,
+}
 
 /// オンとオフを切り替える、見た目を持たない部品
 ///
@@ -133,6 +145,7 @@ pub struct Choice<K: ChoiceKind> {
     provided_focus_handle: Option<FocusHandle>,
     availability: Availability,
     error: Option<SharedString>,
+    press_child: Option<PressChild>,
 }
 
 impl<K: ChoiceKind> Choice<K> {
@@ -150,6 +163,7 @@ impl<K: ChoiceKind> Choice<K> {
             provided_focus_handle: None,
             availability: Availability::Enabled,
             error: None,
+            press_child: None,
         }
     }
 
@@ -208,6 +222,31 @@ impl<K: ChoiceKind> Choice<K> {
         self
     }
 
+    /// 押されているかに応じて作った子を、他の子の後ろに置く。複数回呼んだ場合は最後に渡した `child` だけを使う
+    ///
+    /// `child` は描画のたびに呼ばれ、押されている間は `true` を受け取る。押下中の見た目を付けるのに使う。
+    /// 押されているのは、部品の上でマウスの左ボタンを押してから離すまでと、
+    /// フォーカス中に Space を押してから離すまで。Enter では押されない。
+    /// 無効な部品は押されず、Space による押下はフォーカスが外れるかウィンドウが非アクティブになると取り消される。
+    /// 押下の始まりと終わりで、この部品を描くビューを描き直す
+    pub fn child_with_press<E: IntoElement>(
+        mut self,
+        child: impl FnOnce(bool, &mut Window, &mut App) -> E + 'static,
+    ) -> Self {
+        self.press_child = Some(Box::new(move |pressed, window, cx| {
+            child(pressed, window, cx).into_any_element()
+        }));
+        self
+    }
+
+    fn press(&self, window: &mut Window, cx: &mut App) -> Entity<Press> {
+        window.use_keyed_state(
+            ElementId::NamedChild(Arc::new(self.id.clone()), "press".into()),
+            cx,
+            |_, _| Press::default(),
+        )
+    }
+
     fn focus_handle(&self, window: &mut Window, cx: &mut App) -> FocusHandle {
         self.provided_focus_handle.clone().unwrap_or_else(|| {
             window
@@ -222,11 +261,32 @@ impl<K: ChoiceKind> Choice<K> {
 
 // TODO: フォーカス・無効状態・クリックの扱いは [`Button`](crate::button::Button) と同じ処理を複製している。1 つにまとめたい
 impl<K: ChoiceKind> RenderOnce for Choice<K> {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let focus_handle = self.focus_handle(window, cx);
         // フォーカス中に無効になった場合は、フォーカスが外れるまでフォーカスを保つ
         let focusable = self.availability.is_focusable() || focus_handle.is_focused(window);
         let disabled = self.availability.is_disabled();
+        // 押下は child_with_press を指定したときだけ追う
+        let mut press = None;
+        let mut press_child = None;
+        if let Some(child) = self.press_child.take() {
+            let state = self.press(window, cx);
+            let current = *state.read(cx);
+            // フォーカスが移るかウィンドウが非アクティブになると、Space を離しても key up が届かない
+            let space_holds = focus_handle.is_focused(window) && window.is_window_active();
+            let pressed = !disabled && (current.pointer || current.space && space_holds);
+            // 取り消した押下はここで消す。描画中に判定を済ませるため、ビューを描き直さずに書き換える
+            let cancel_pointer = current.pointer && disabled;
+            let cancel_space = current.space && (disabled || !space_holds);
+            if cancel_pointer || cancel_space {
+                state.update(cx, |press, _| {
+                    press.pointer &= !cancel_pointer;
+                    press.space &= !cancel_space;
+                });
+            }
+            press_child = Some(child(pressed, window, cx));
+            press = (!disabled).then_some(state);
+        }
         let on_change = self.on_change.filter(|_| !disabled);
         let next = self.state.toggle();
         self.inner
@@ -246,6 +306,54 @@ impl<K: ChoiceKind> RenderOnce for Choice<K> {
             .when(focusable, |this| {
                 this.track_focus(&focus_handle.tab_stop(true))
             })
+            .when_some(press, |this, press| {
+                let set_press = move |update: fn(&mut Press, bool), value: bool, cx: &mut App| {
+                    press.update(cx, |press, cx| {
+                        let before = *press;
+                        update(press, value);
+                        if *press != before {
+                            cx.notify();
+                        }
+                    })
+                };
+                let pointer = |press: &mut Press, value| press.pointer = value;
+                let space = |press: &mut Press, value| press.space = value;
+                let is_space = |keystroke: &gpui::Keystroke| {
+                    keystroke.key == "space" && !keystroke.modifiers.modified()
+                };
+                // 押下の始まりは gpui がクリックの判定を始める条件に合わせ、Space だけ既定の動作の取り消しを見る。
+                // 終わりは capture で受け、on_change のハンドラが伝播を止めても押下を残さない
+                this.on_mouse_down(MouseButton::Left, {
+                    let set_press = set_press.clone();
+                    move |_, _, cx| set_press(pointer, true, cx)
+                })
+                .capture_any_mouse_up({
+                    let set_press = set_press.clone();
+                    move |event, _, cx| {
+                        if event.button == MouseButton::Left {
+                            set_press(pointer, false, cx);
+                        }
+                    }
+                })
+                .on_mouse_up_out(MouseButton::Left, {
+                    let set_press = set_press.clone();
+                    move |_, _, cx| set_press(pointer, false, cx)
+                })
+                .on_key_down({
+                    let set_press = set_press.clone();
+                    move |event, window, cx| {
+                        if is_space(&event.keystroke) && !window.default_prevented() {
+                            set_press(space, true, cx);
+                        }
+                    }
+                })
+                .capture_key_up(move |event, _, cx| {
+                    if event.keystroke.key == "space" {
+                        set_press(space, false, cx);
+                    }
+                })
+            })
+            .children(press_child)
             .when_some(on_change, |this, on_change| {
                 this.on_click(move |event, window, cx| {
                     // APG は Enter での操作を、Checkbox パターンでは定義せず、Switch パターンでは任意としている
@@ -301,7 +409,10 @@ impl<K: ChoiceKind> StatefulInteractiveElement for Choice<K> {}
 /// Switch パターン (content/patterns/switch/switch-pattern.html) で期待される振る舞い
 #[cfg(test)]
 mod tests {
-    use std::{cell::RefCell, rc::Rc};
+    use std::{
+        cell::{Cell, RefCell},
+        rc::Rc,
+    };
 
     use gpui::{
         Context, Element, Entity, KeyDownEvent, KeyUpEvent, Keystroke, Modifiers, Render,
@@ -318,14 +429,23 @@ mod tests {
         description: Option<SharedString>,
         focus_handle: FocusHandle,
         changes: Rc<RefCell<Vec<K::State>>>,
+        /// on_change のハンドラで伝播を止める
+        stop_propagation: bool,
+        pressed: Rc<Cell<bool>>,
         node: Option<accesskit::Node>,
     }
 
     impl<K: ChoiceKind> Render for ChoiceView<K> {
         fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
             let changes = self.changes.clone();
-            let element = Choice::<K>::new("choice", self.state)
-                .on_change(move |state, _, _| changes.borrow_mut().push(state))
+            let stop_propagation = self.stop_propagation;
+            let choice = Choice::<K>::new("choice", self.state)
+                .on_change(move |state, _, cx| {
+                    changes.borrow_mut().push(state);
+                    if stop_propagation {
+                        cx.stop_propagation();
+                    }
+                })
                 .track_focus(&self.focus_handle)
                 .availability(self.availability)
                 .error(self.error.clone())
@@ -333,7 +453,13 @@ mod tests {
                 .when_some(self.description.clone(), |this, description| {
                     this.aria_description(description)
                 })
-                .size(px(50.))
+                .size(px(50.));
+            let pressed = self.pressed.clone();
+            let element = choice
+                .child_with_press(move |is_pressed, _, _| {
+                    pressed.set(is_pressed);
+                    div()
+                })
                 .render(window, cx)
                 .into_element();
             // テスト用ウィンドウは支援技術を有効にできず a11y ツリーを組み立てないため、
@@ -357,6 +483,8 @@ mod tests {
             description: None,
             focus_handle: cx.focus_handle(),
             changes: Rc::default(),
+            stop_propagation: false,
+            pressed: Rc::default(),
             node: None,
         })
     }
@@ -388,6 +516,33 @@ mod tests {
             cx.notify();
         });
         cx.run_until_parked();
+    }
+
+    fn is_pressed<K: ChoiceKind>(view: &Entity<ChoiceView<K>>, cx: &mut VisualTestContext) -> bool {
+        cx.run_until_parked();
+        view.read_with(cx, |view, _| view.pressed.get())
+    }
+
+    fn key_down(cx: &mut VisualTestContext, key: &'static str) {
+        cx.simulate_event(KeyDownEvent {
+            keystroke: Keystroke::parse(key).unwrap(),
+            is_held: false,
+            prefer_character_input: false,
+        });
+    }
+
+    fn key_up(cx: &mut VisualTestContext, key: &'static str) {
+        cx.simulate_event(KeyUpEvent {
+            keystroke: Keystroke::parse(key).unwrap(),
+        });
+    }
+
+    fn mouse_down(cx: &mut VisualTestContext, position: gpui::Point<gpui::Pixels>) {
+        cx.simulate_mouse_down(position, MouseButton::Left, Modifiers::none());
+    }
+
+    fn mouse_up(cx: &mut VisualTestContext, position: gpui::Point<gpui::Pixels>) {
+        cx.simulate_mouse_up(position, MouseButton::Left, Modifiers::none());
     }
 
     fn press_key(cx: &mut VisualTestContext, key: &'static str) {
@@ -549,5 +704,109 @@ mod tests {
             a11y_node(&view, cx).description(),
             Some("Required Fresh only")
         );
+    }
+
+    #[gpui::test]
+    fn マウスの左ボタンを押している間だけ押されている(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup::<SwitchKind>(cx, false, Availability::Enabled);
+        assert!(!is_pressed(&view, cx));
+        mouse_down(cx, point(px(10.), px(10.)));
+        assert!(is_pressed(&view, cx));
+        mouse_up(cx, point(px(10.), px(10.)));
+        assert!(!is_pressed(&view, cx));
+    }
+
+    #[gpui::test]
+    fn 部品の外でマウスを離しても押下が終わる(cx: &mut TestAppContext) {
+        let (view, cx) = setup::<SwitchKind>(cx, false, Availability::Enabled);
+        mouse_down(cx, point(px(10.), px(10.)));
+        mouse_up(cx, point(px(200.), px(200.)));
+        assert!(!is_pressed(&view, cx));
+    }
+
+    #[gpui::test]
+    fn space_を押している間だけ押され_enter_では押されない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup::<SwitchKind>(cx, false, Availability::Enabled);
+        cx.simulate_keystrokes("tab");
+        key_down(cx, "enter");
+        assert!(!is_pressed(&view, cx));
+        key_up(cx, "enter");
+        key_down(cx, "space");
+        assert!(is_pressed(&view, cx));
+        key_up(cx, "space");
+        assert!(!is_pressed(&view, cx));
+    }
+
+    #[gpui::test]
+    fn space_の押下中にフォーカスが外れると押下を取り消す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup::<SwitchKind>(cx, false, Availability::Enabled);
+        cx.simulate_keystrokes("tab");
+        key_down(cx, "space");
+        assert!(is_pressed(&view, cx));
+        cx.update(|window, cx| window.blur(cx));
+        assert!(!is_pressed(&view, cx));
+        let focus_handle = view.read_with(cx, |view, _| view.focus_handle.clone());
+        cx.update(|window, cx| window.focus(&focus_handle, cx));
+        assert!(
+            !is_pressed(&view, cx),
+            "フォーカスが戻っても取り消した押下を戻さないこと"
+        );
+    }
+
+    #[gpui::test]
+    fn マウスと_space_は両方離すまで押されている(cx: &mut TestAppContext) {
+        let (view, cx) = setup::<SwitchKind>(cx, false, Availability::Enabled);
+        mouse_down(cx, point(px(10.), px(10.)));
+        key_down(cx, "space");
+        key_up(cx, "space");
+        assert!(is_pressed(&view, cx));
+        mouse_up(cx, point(px(10.), px(10.)));
+        assert!(!is_pressed(&view, cx));
+    }
+
+    #[gpui::test]
+    fn ハンドラが伝播を止めても押下が終わる(cx: &mut TestAppContext) {
+        let (view, cx) = setup::<SwitchKind>(cx, false, Availability::Enabled);
+        view.update(cx, |view, _| view.stop_propagation = true);
+        click(cx);
+        assert!(!is_pressed(&view, cx));
+        cx.simulate_keystrokes("tab");
+        press_key(cx, "space");
+        assert!(!is_pressed(&view, cx));
+        assert_eq!(changes(&view, cx), vec![true, true]);
+    }
+
+    #[gpui::test]
+    fn 無効な部品は押されない(cx: &mut TestAppContext) {
+        let (view, cx) = setup::<SwitchKind>(cx, false, Availability::DisabledFocusable);
+        mouse_down(cx, point(px(10.), px(10.)));
+        assert!(!is_pressed(&view, cx));
+        mouse_up(cx, point(px(10.), px(10.)));
+        cx.simulate_keystrokes("tab");
+        key_down(cx, "space");
+        assert!(!is_pressed(&view, cx));
+    }
+
+    #[gpui::test]
+    fn space_の取り消しでマウスの押下は消えない(cx: &mut TestAppContext) {
+        let (view, cx) = setup::<SwitchKind>(cx, false, Availability::Enabled);
+        cx.simulate_keystrokes("tab");
+        mouse_down(cx, point(px(10.), px(10.)));
+        key_down(cx, "space");
+        cx.update(|window, cx| window.blur(cx));
+        assert!(is_pressed(&view, cx));
+        view.update(cx, |_, cx| cx.notify());
+        assert!(
+            is_pressed(&view, cx),
+            "取り消した後に描き直してもマウスの押下が残ること"
+        );
+        mouse_up(cx, point(px(10.), px(10.)));
+        assert!(!is_pressed(&view, cx));
     }
 }
