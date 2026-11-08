@@ -40,7 +40,7 @@ impl Gallery {
             page: Page::Theme,
             theme_page: cx.new(|_| ThemePage),
             button_page: cx.new(|_| ButtonPage::default()),
-            checkbox_page: cx.new(|_| CheckboxPage::default()),
+            checkbox_page: cx.new(CheckboxPage::new),
         }
     }
 }
