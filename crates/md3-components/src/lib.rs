@@ -5,11 +5,15 @@
 #[cfg(feature = "button")]
 mod button;
 // 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
+#[cfg(feature = "checkbox")]
+mod checkbox;
 #[cfg(feature = "button")]
 mod shape;
 
 #[cfg(feature = "button")]
 pub use button::{Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant};
+#[cfg(feature = "checkbox")]
+pub use checkbox::{Checkbox, CheckboxState};
 pub use gpui;
 pub use gpui_platform;
 
