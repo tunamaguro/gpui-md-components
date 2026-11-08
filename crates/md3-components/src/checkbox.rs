@@ -26,7 +26,7 @@ use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::checkbox;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::md3_tokens::{Dp, focus_ring, state};
-use md3_theme::{SharedTheme, ThemeExt, dp};
+use md3_theme::{SharedTheme, Theme, ThemeExt, dp};
 
 /// `RadiusSize`。`CheckboxTokens.ContainerShape` と同じ 2dp
 const CORNER_RADIUS: Dp = Dp(2.0);
@@ -182,75 +182,18 @@ impl RenderOnce for Checkbox {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
         let disabled = self.disabled;
-        let error = self.error.is_some();
-        let selected = self.state != CheckboxState::Unchecked;
 
         let focus_handle = self
             .focus_handle
             .unwrap_or_else(|| util::keyed_focus_handle(&self.id, window, cx));
         let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
-
-        // `defaultCheckboxColors` と `isCheckboxStylingFixEnabled` が true のときの色の選択。
-        // false は MD2 の見た目のため採らない。エラーの色は CheckboxTokens にあるが Compose は使っていない。
-        // 選択時は箱と枠線が同じ色のため、drawBox と同じく塗りだけで描き、枠線は付けない
-        let (fill, outline, checkmark): (Option<Hsla>, Option<Hsla>, Hsla) =
-            match (selected, disabled) {
-                (true, false) => {
-                    let (container, icon) = if error {
-                        (
-                            checkbox::SELECTED_ERROR_CONTAINER_COLOR,
-                            checkbox::SELECTED_ERROR_ICON_COLOR,
-                        )
-                    } else {
-                        (
-                            checkbox::SELECTED_CONTAINER_COLOR,
-                            checkbox::SELECTED_ICON_COLOR,
-                        )
-                    };
-                    (Some(theme.color(container)), None, theme.color(icon))
-                }
-                (true, true) => (
-                    Some(
-                        theme
-                            .color(checkbox::SELECTED_DISABLED_CONTAINER_COLOR)
-                            .opacity(checkbox::SELECTED_DISABLED_CONTAINER_OPACITY),
-                    ),
-                    None,
-                    theme.color(checkbox::SELECTED_DISABLED_ICON_COLOR),
-                ),
-                (false, false) => {
-                    let role = if error {
-                        checkbox::UNSELECTED_ERROR_OUTLINE_COLOR
-                    } else if focus_visible {
-                        checkbox::UNSELECTED_FOCUS_OUTLINE_COLOR
-                    } else {
-                        checkbox::UNSELECTED_OUTLINE_COLOR
-                    };
-                    (None, Some(theme.color(role)), gpui::transparent_black())
-                }
-                (false, true) => (
-                    None,
-                    Some(
-                        theme
-                            .color(checkbox::UNSELECTED_DISABLED_OUTLINE_COLOR)
-                            .opacity(checkbox::UNSELECTED_DISABLED_CONTAINER_OPACITY),
-                    ),
-                    gpui::transparent_black(),
-                ),
-            };
-        let hover_outline = theme.color(if error {
-            checkbox::UNSELECTED_ERROR_HOVER_OUTLINE_COLOR
-        } else {
-            checkbox::UNSELECTED_HOVER_OUTLINE_COLOR
-        });
-        // Material Web の `*-state-layer-color`。Compose は状態レイヤーの色をトークンに持たない
-        let state_layer = theme.color(if error {
-            ColorRole::Error
-        } else if selected {
-            ColorRole::Primary
-        } else {
-            ColorRole::OnSurface
-        });
+        let colors = Colors::resolve(
+            &theme,
+            self.state,
+            disabled,
+            self.error.is_some(),
+            focus_visible,
+        );
 
         let container = div()
             .absolute()
@@ -259,13 +202,13 @@ impl RenderOnce for Checkbox {
             .right_0()
             .bottom_0()
             .rounded(dp(CORNER_RADIUS))
-            .when_some(fill, |this, fill| this.bg(fill))
-            .when_some(outline, |this, outline| {
+            .when_some(colors.fill, |this, fill| this.bg(fill))
+            .when_some(colors.outline, |this, outline| {
                 this.border(dp(checkbox::UNSELECTED_OUTLINE_WIDTH))
                     .border_color(outline)
-                    .when(!disabled, |this| {
-                        this.group_hover(GROUP, |style| style.border_color(hover_outline))
-                    })
+            })
+            .when_some(colors.hover_outline, |this, outline| {
+                this.group_hover(GROUP, |style| style.border_color(outline))
             });
 
         // Compose は線を描いてチェックマークを作るが、同じ形のアイコンで代える
@@ -282,13 +225,9 @@ impl RenderOnce for Checkbox {
             .left_0()
             .size(state_size)
             .rounded_full()
-            .when(!disabled, |this| {
-                this.when(focus_visible, |this| {
-                    this.bg(state_layer.opacity(state::FOCUS_STATE_LAYER_OPACITY))
-                })
-                .group_hover(GROUP, |style| {
-                    style.bg(state_layer.opacity(state::HOVER_STATE_LAYER_OPACITY))
-                })
+            .when_some(colors.focus_state_layer, |this, layer| this.bg(layer))
+            .when_some(colors.hover_state_layer, |this, layer| {
+                this.group_hover(GROUP, |style| style.bg(layer))
             });
 
         let indicator = div()
@@ -312,11 +251,11 @@ impl RenderOnce for Checkbox {
                                 .top_0()
                                 .left_0()
                                 .size(dp(checkbox::ICON_SIZE))
-                                .text_color(checkmark),
+                                .text_color(colors.checkmark),
                         )
                     }),
             )
-            .when(focus_visible, |this| {
+            .when_some(colors.focus_ring, |this, ring| {
                 // Material Web は 44px の円 (状態レイヤーから外側へ 2px) の外側に、太さ 3px のリングを描く
                 let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
                 this.child(
@@ -327,17 +266,9 @@ impl RenderOnce for Checkbox {
                         .size(state_size + outset * 2.0)
                         .rounded_full()
                         .border(dp(focus_ring::WIDTH))
-                        .border_color(theme.color(focus_ring::COLOR)),
+                        .border_color(ring),
                 )
             });
-
-        let label_color = if disabled {
-            theme
-                .color(ColorRole::OnSurface)
-                .opacity(checkbox::UNSELECTED_DISABLED_CONTAINER_OPACITY)
-        } else {
-            theme.color(ColorRole::OnSurface)
-        };
 
         let on_click = self.on_click;
         let mut root = HeadlessCheckbox::new(self.id, self.state.into())
@@ -347,7 +278,7 @@ impl RenderOnce for Checkbox {
             .group(GROUP)
             .flex()
             .items_center()
-            .text_color(label_color)
+            .text_color(colors.label)
             .child(indicator)
             .when_some(self.label, |this, label| this.child(label))
             .when_some(self.aria_label, |this, label| this.aria_label(label))
@@ -358,6 +289,120 @@ impl RenderOnce for Checkbox {
             .refine(&theme.text_style(TypeScale::BodyLarge));
 
         self.outer.child(root)
+    }
+}
+
+/// 状態から決まる描画の色
+struct Colors {
+    /// 箱の塗り。`None` は塗らない
+    fill: Option<Hsla>,
+    /// 箱の枠線。`None` は枠線を付けない
+    outline: Option<Hsla>,
+    /// hover 中の枠線。`None` は hover で変えない
+    hover_outline: Option<Hsla>,
+    /// チェックマーク
+    checkmark: Hsla,
+    /// フォーカスの状態レイヤー。`None` は描かない
+    focus_state_layer: Option<Hsla>,
+    /// hover の状態レイヤー。`None` は描かない
+    hover_state_layer: Option<Hsla>,
+    /// フォーカスリング。`None` は描かない
+    focus_ring: Option<Hsla>,
+    /// ラベル
+    label: Hsla,
+}
+
+impl Colors {
+    // `defaultCheckboxColors` と `isCheckboxStylingFixEnabled` が true のときの色の選択。
+    // false は MD2 の見た目のため採らない。エラーの色は CheckboxTokens にあるが Compose は使っていない。
+    // 選択時は箱と枠線が同じ色のため、drawBox と同じく塗りだけで描き、枠線は付けない
+    fn resolve(
+        theme: &Theme,
+        state: CheckboxState,
+        disabled: bool,
+        error: bool,
+        focus_visible: bool,
+    ) -> Self {
+        let selected = state != CheckboxState::Unchecked;
+        let (fill, outline, checkmark) = match (selected, disabled) {
+            (true, false) => {
+                let (container, icon) = if error {
+                    (
+                        checkbox::SELECTED_ERROR_CONTAINER_COLOR,
+                        checkbox::SELECTED_ERROR_ICON_COLOR,
+                    )
+                } else {
+                    (
+                        checkbox::SELECTED_CONTAINER_COLOR,
+                        checkbox::SELECTED_ICON_COLOR,
+                    )
+                };
+                (Some(theme.color(container)), None, theme.color(icon))
+            }
+            (true, true) => (
+                Some(
+                    theme
+                        .color(checkbox::SELECTED_DISABLED_CONTAINER_COLOR)
+                        .opacity(checkbox::SELECTED_DISABLED_CONTAINER_OPACITY),
+                ),
+                None,
+                theme.color(checkbox::SELECTED_DISABLED_ICON_COLOR),
+            ),
+            (false, false) => {
+                let role = if error {
+                    checkbox::UNSELECTED_ERROR_OUTLINE_COLOR
+                } else if focus_visible {
+                    checkbox::UNSELECTED_FOCUS_OUTLINE_COLOR
+                } else {
+                    checkbox::UNSELECTED_OUTLINE_COLOR
+                };
+                (None, Some(theme.color(role)), gpui::transparent_black())
+            }
+            (false, true) => (
+                None,
+                Some(
+                    theme
+                        .color(checkbox::UNSELECTED_DISABLED_OUTLINE_COLOR)
+                        .opacity(checkbox::UNSELECTED_DISABLED_CONTAINER_OPACITY),
+                ),
+                gpui::transparent_black(),
+            ),
+        };
+        let hover_outline = (!selected && !disabled).then(|| {
+            theme.color(if error {
+                checkbox::UNSELECTED_ERROR_HOVER_OUTLINE_COLOR
+            } else {
+                checkbox::UNSELECTED_HOVER_OUTLINE_COLOR
+            })
+        });
+        // Material Web の `*-state-layer-color`。Compose は状態レイヤーの色をトークンに持たない
+        let state_layer = (!disabled).then(|| {
+            theme.color(if error {
+                ColorRole::Error
+            } else if selected {
+                ColorRole::Primary
+            } else {
+                ColorRole::OnSurface
+            })
+        });
+        let label = theme.color(ColorRole::OnSurface);
+        Self {
+            fill,
+            outline,
+            hover_outline,
+            checkmark,
+            focus_state_layer: state_layer
+                .filter(|_| focus_visible)
+                .map(|layer| layer.opacity(state::FOCUS_STATE_LAYER_OPACITY)),
+            hover_state_layer: state_layer
+                .map(|layer| layer.opacity(state::HOVER_STATE_LAYER_OPACITY)),
+            focus_ring: focus_visible.then(|| theme.color(focus_ring::COLOR)),
+            label: if disabled {
+                label.opacity(checkbox::UNSELECTED_DISABLED_CONTAINER_OPACITY)
+            } else {
+                label
+            },
+        }
     }
 }
 
