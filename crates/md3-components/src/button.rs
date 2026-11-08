@@ -313,7 +313,8 @@ impl Button {
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            outer: div(),
+            // 利用者が Styled で指定した display を render で上書きしないよう、既定はここで付ける
+            outer: div().flex(),
             children: Vec::new(),
             variant: ButtonVariant::default(),
             size: ButtonSize::default(),
@@ -531,7 +532,7 @@ impl RenderOnce for Button {
             .when_some(self.on_click, |this, on_click| this.on_click(on_click));
         button.text_style().refine(&theme.text_style(size.label));
 
-        self.outer.flex().child(button)
+        self.outer.child(button)
     }
 }
 
