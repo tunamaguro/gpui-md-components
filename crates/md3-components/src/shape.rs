@@ -1,7 +1,7 @@
 //! 描画時の大きさで角丸を決める要素
 
 use gpui::{
-    App, Bounds, CornersRefinement, Element, ElementId, GlobalElementId, InspectorElementId,
+    App, Bounds, CornersRefinement, Div, Element, ElementId, GlobalElementId, InspectorElementId,
     IntoElement, LayoutId, Pixels, Styled, Window, px, size,
 };
 use md3_theme::SharedTheme;
@@ -12,15 +12,15 @@ use md3_theme::md3_tokens::shape::ShapeKey;
 /// 割合の角は描画するときの大きさの短辺から求めるため、レイアウトで大きさが変わっても形を保つ。
 /// [`Shaped::outset`] を指定すると、要素の縁から内側に `outset` だけ入った箱を `key` の形とし、
 /// その形を外側へ `outset` だけ広げた角丸で描く。角丸以外の見た目とレイアウトは `inner` のまま
-pub(crate) struct Shaped<E> {
-    inner: E,
+pub(crate) struct Shaped {
+    inner: Div,
     theme: SharedTheme,
     key: ShapeKey,
     outset: Pixels,
 }
 
-impl<E: Element + Styled> Shaped<E> {
-    pub(crate) fn new(inner: E, theme: SharedTheme, key: ShapeKey) -> Self {
+impl Shaped {
+    pub(crate) fn new(inner: Div, theme: SharedTheme, key: ShapeKey) -> Self {
         Self {
             inner,
             theme,
@@ -35,7 +35,7 @@ impl<E: Element + Styled> Shaped<E> {
     }
 }
 
-impl<E: Element + Styled> IntoElement for Shaped<E> {
+impl IntoElement for Shaped {
     type Element = Self;
 
     fn into_element(self) -> Self::Element {
@@ -43,9 +43,9 @@ impl<E: Element + Styled> IntoElement for Shaped<E> {
     }
 }
 
-impl<E: Element + Styled> Element for Shaped<E> {
-    type RequestLayoutState = E::RequestLayoutState;
-    type PrepaintState = E::PrepaintState;
+impl Element for Shaped {
+    type RequestLayoutState = <Div as Element>::RequestLayoutState;
+    type PrepaintState = <Div as Element>::PrepaintState;
 
     fn id(&self) -> Option<ElementId> {
         self.inner.id()
