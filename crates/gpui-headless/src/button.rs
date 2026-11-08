@@ -158,7 +158,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::navigation::add_test_window;
+    use crate::test_window::add_test_window;
 
     struct ButtonView {
         has_handler: bool,

@@ -309,7 +309,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::navigation::add_test_window;
+    use crate::test_window::add_test_window;
 
     struct ChoiceView<K: ChoiceKind> {
         state: K::State,

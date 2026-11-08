@@ -40,20 +40,6 @@ fn move_focus(cx: &mut App, f: fn(&mut Window, &mut App)) {
     });
 }
 
-/// [`crate::init`] を登録し、`build` のビューを開いたウィンドウをアクティブにする
-///
-/// キー操作はアクティブなウィンドウに届く。テスト用のウィンドウは開いただけではアクティブにならない
-#[cfg(test)]
-pub(crate) fn add_test_window<V: gpui::Render>(
-    cx: &mut gpui::TestAppContext,
-    build: impl FnOnce(&mut Window, &mut gpui::Context<V>) -> V,
-) -> (gpui::Entity<V>, &mut gpui::VisualTestContext) {
-    cx.update(crate::init);
-    let (view, cx) = cx.add_window_view(build);
-    cx.update(|window, _| window.activate_window());
-    (view, cx)
-}
-
 /// APG の Keyboard Interface (content/practices/keyboard-interface/keyboard-interface-practice.html)
 /// で期待される Tab と Shift+Tab の振る舞い
 #[cfg(test)]
@@ -65,6 +51,7 @@ mod tests {
 
     use super::*;
     use crate::button::Button;
+    use crate::test_window::add_test_window;
 
     struct ButtonsView {
         handles: [FocusHandle; 2],
