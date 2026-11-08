@@ -4,10 +4,18 @@ use gpui::{
     Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
     StatefulInteractiveElement as _, Styled as _, Window, div,
 };
-use md3_components::{Button, ButtonVariant};
+use md3_components::{Button, ButtonSize, ButtonVariant};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{Theme, ThemeExt as _};
+
+const SIZES: [(ButtonSize, &str); 5] = [
+    (ButtonSize::ExtraSmall, "Extra small"),
+    (ButtonSize::Small, "Small"),
+    (ButtonSize::Medium, "Medium"),
+    (ButtonSize::Large, "Large"),
+    (ButtonSize::ExtraLarge, "Extra large"),
+];
 
 const VARIANTS: [(ButtonVariant, &str); 5] = [
     (ButtonVariant::Filled, "Filled"),
@@ -62,6 +70,21 @@ impl Render for ButtonPage {
             .gap_4()
             .child(label(&theme, format!("押した回数: {}", self.clicks)))
             .children(rows)
+            .children(SIZES.map(|(size, name)| {
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_4()
+                    .child(label(&theme, name).w_32())
+                    .child(Button::new(format!("size-{name}")).size(size).child(name))
+                    .child(
+                        Button::new(format!("size-{name}-icon"))
+                            .size(size)
+                            .variant(ButtonVariant::Outlined)
+                            .icon(md3_icons::ADD)
+                            .child("With icon"),
+                    )
+            }))
             .child(
                 Button::new("full-width")
                     .variant(ButtonVariant::Outlined)
