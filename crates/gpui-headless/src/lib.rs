@@ -3,11 +3,11 @@
 #![deny(missing_docs)]
 
 mod accessibility;
-#[cfg(test)]
-mod test_window;
 pub mod button;
 pub mod choice;
 mod navigation;
+#[cfg(test)]
+mod test_window;
 
 pub use navigation::{FocusNext, FocusPrevious, init};
 
