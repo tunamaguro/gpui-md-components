@@ -15,6 +15,7 @@ use gpui::{
 use gpui_headless::button::Button as HeadlessButton;
 
 use crate::shape::Shaped;
+use crate::util;
 use md3_icons::{Icon, IconStyle};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::{
@@ -432,12 +433,9 @@ impl RenderOnce for Button {
         let size = self.size.tokens();
         let disabled = self.disabled;
 
-        let focus_handle = self.focus_handle.unwrap_or_else(|| {
-            window
-                .use_keyed_state(self.id.clone(), cx, |_, cx| cx.focus_handle())
-                .read(cx)
-                .clone()
-        });
+        let focus_handle = self
+            .focus_handle
+            .unwrap_or_else(|| util::keyed_focus_handle(&self.id, window, cx));
         // リングはボタンの外側に描くため、ボタン自身のスタイルでは表せない
         let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
 

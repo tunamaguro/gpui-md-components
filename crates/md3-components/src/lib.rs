@@ -4,11 +4,14 @@
 
 #[cfg(feature = "button")]
 mod button;
-// 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(feature = "checkbox")]
 mod checkbox;
+// 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(feature = "button")]
 mod shape;
+// 使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
+#[cfg(any(feature = "button", feature = "checkbox"))]
+mod util;
 
 #[cfg(feature = "button")]
 pub use button::{Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant};

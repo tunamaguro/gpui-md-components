@@ -20,6 +20,7 @@ use gpui::{
 };
 use gpui_headless::choice::{Checkbox as HeadlessCheckbox, CheckedState};
 
+use crate::util;
 use md3_icons::IconStyle;
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::checkbox;
@@ -184,12 +185,9 @@ impl RenderOnce for Checkbox {
         let error = self.error.is_some();
         let selected = self.state != CheckboxState::Unchecked;
 
-        let focus_handle = self.focus_handle.unwrap_or_else(|| {
-            window
-                .use_keyed_state(self.id.clone(), cx, |_, cx| cx.focus_handle())
-                .read(cx)
-                .clone()
-        });
+        let focus_handle = self
+            .focus_handle
+            .unwrap_or_else(|| util::keyed_focus_handle(&self.id, window, cx));
         let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
 
         // `defaultCheckboxColors` と `isCheckboxStylingFixEnabled` が true のときの色の選択。
