@@ -466,13 +466,18 @@ impl RenderOnce for Button {
             ButtonShape::Square => size.square,
         };
 
-        // 角丸は描画時の大きさで決まるため、背景・枠線・影は Shaped で包んだ層に描き、ボタン自身は透明な箱にする
+        // 高さが操作領域の最小に満たないサイズは、形の上下に余白をとって操作領域を広げる。
+        // 幅は MIN_WIDTH が操作領域の最小以上のため広げない
+        let margin = ((dp(interactive::MIN_SIZE) - dp(size.height)) / 2.0).max(px(0.0));
+
+        // 角丸は描画時の大きさで決まるため、背景・枠線・影は Shaped で包んだ層に描き、ボタン自身は透明な箱にする。
+        // 形はボタン自身から上下の余白を除いた範囲に描くため、操作領域からはみ出さない
         let container = div()
             .absolute()
-            .top_0()
+            .top(margin)
             .left_0()
             .right_0()
-            .bottom_0()
+            .bottom(margin)
             .when_some(container, |this, container| this.bg(container))
             .when_some(tokens.outline, |this, (role, disabled_opacity)| {
                 let color = theme.color(role);
@@ -504,7 +509,10 @@ impl RenderOnce for Button {
                 })
             });
 
-        let visual = div()
+        let mut button = HeadlessButton::new(self.id)
+            .track_focus(&focus_handle)
+            .disabled(disabled)
+            .group(GROUP)
             .relative()
             .flex_grow_1()
             .flex()
@@ -512,9 +520,11 @@ impl RenderOnce for Button {
             .justify_center()
             .gap(dp(size.icon_spacing))
             .min_w(dp(supplement::button::MIN_WIDTH))
-            .min_h(dp(size.height))
+            .min_h(dp(size.height) + margin * 2.0)
             .px(dp(size.horizontal_padding))
-            .py(dp(size.vertical_padding))
+            .py(dp(size.vertical_padding) + margin)
+            .text_color(content)
+            .whitespace_nowrap()
             .child(Shaped::new(container, theme.clone(), shape))
             .when_some(self.icon, |this, icon| {
                 this.child(
@@ -530,31 +540,14 @@ impl RenderOnce for Button {
                 let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
                 let ring = div()
                     .absolute()
-                    .top(-outset)
+                    .top(margin - outset)
                     .left(-outset)
                     .right(-outset)
-                    .bottom(-outset)
+                    .bottom(margin - outset)
                     .border(dp(focus_ring::WIDTH))
                     .border_color(theme.color(focus_ring::COLOR));
                 this.child(Shaped::new(ring, theme.clone(), shape).outset(outset))
-            });
-
-        // 高さが操作領域の最小に満たないサイズは、上下に余白をとって操作領域を広げる。
-        // 幅は MIN_WIDTH が操作領域の最小以上のため広げない
-        let margin = ((dp(interactive::MIN_SIZE) - dp(size.height)) / 2.0).max(px(0.0));
-        let mut button = HeadlessButton::new(self.id)
-            .track_focus(&focus_handle)
-            .disabled(disabled)
-            .group(GROUP)
-            .flex_grow_1()
-            .flex()
-            // 外側の箱が小さく引き伸ばしで縮められても、操作領域が形と上下の余白を覆うようにする
-            .min_w(dp(supplement::button::MIN_WIDTH))
-            .min_h(dp(size.height) + margin * 2.0)
-            .py(margin)
-            .text_color(content)
-            .whitespace_nowrap()
-            .child(visual)
+            })
             .when_some(self.aria_label, |this, label| this.aria_label(label))
             .when_some(self.on_click, |this, on_click| this.on_click(on_click));
         button.text_style().refine(&theme.text_style(size.label));
@@ -579,16 +572,15 @@ impl ParentElement for Button {
 mod tests {
     use std::{cell::Cell, rc::Rc};
 
-    use gpui::{Context, Modifiers, Pixels, Render, TestAppContext, VisualTestContext, point};
+    use gpui::{
+        Bounds, Context, Modifiers, Pixels, Render, TestAppContext, VisualTestContext, point, size,
+    };
 
     use super::*;
 
     struct ButtonView {
-        size: ButtonSize,
-        /// 外側の箱に指定する高さ
-        height: Option<Pixels>,
-        /// 外側の箱を縦方向の flex にして指定する幅
-        column_width: Option<Pixels>,
+        /// ボタンに加える設定
+        configure: fn(Button) -> Button,
         clicks: Rc<Cell<usize>>,
     }
 
@@ -597,64 +589,73 @@ mod tests {
             let clicks = self.clicks.clone();
             // ウィンドウのルートはウィンドウいっぱいに広がるため、ボタンは内側の箱に置く
             div().child(
-                Button::new("button")
-                    .size(self.size)
-                    .when_some(self.height, |this, height| this.h(height))
-                    .when_some(self.column_width, |this, width| this.flex_col().w(width))
-                    .on_click(move |_, _, _| clicks.set(clicks.get() + 1))
-                    .child("Save"),
+                (self.configure)(Button::new("button"))
+                    .on_click(move |_, _, _| clicks.set(clicks.get() + 1)),
             )
         }
     }
 
     fn setup(
         cx: &mut TestAppContext,
-        size: ButtonSize,
-        height: Option<Pixels>,
+        configure: fn(Button) -> Button,
     ) -> (Rc<Cell<usize>>, &mut VisualTestContext) {
         cx.update(crate::init);
         let clicks = Rc::new(Cell::new(0));
         let (_, cx) = cx.add_window_view(|window, cx| {
             cx.init_md3_theme(window);
             ButtonView {
-                size,
-                height,
-                column_width: None,
+                configure,
                 clicks: clicks.clone(),
             }
         });
         (clicks, cx)
     }
 
-    /// 描いた容器の上端と高さ。Filled の有効なボタンは、hover もフォーカスもなければ容器だけを矩形として描く
-    fn container_top_and_height(cx: &mut VisualTestContext) -> (Pixels, Pixels) {
+    /// 描いた容器の範囲。Filled の有効なボタンは、hover もフォーカスもなければ容器だけを矩形として描く
+    fn container_bounds(cx: &mut VisualTestContext) -> Bounds<Pixels> {
         cx.update(|window, _| {
             let scale = window.scale_factor();
             let quads = window.painted_quads();
             assert_eq!(quads.len(), 1, "容器だけを描くこと");
             let bounds = quads[0].bounds;
-            (
-                px(bounds.origin.y.0 / scale),
-                px(bounds.size.height.0 / scale),
+            Bounds::new(
+                point(px(bounds.origin.x.0 / scale), px(bounds.origin.y.0 / scale)),
+                size(
+                    px(bounds.size.width.0 / scale),
+                    px(bounds.size.height.0 / scale),
+                ),
             )
         })
     }
 
     #[gpui::test]
     fn 見た目より低いサイズは上下の余白まで押せる(cx: &mut TestAppContext) {
-        for (size, height) in [(ButtonSize::ExtraSmall, 32.), (ButtonSize::Small, 40.)] {
-            let (clicks, cx) = setup(cx, size, None);
+        let cases: [(fn(Button) -> Button, f32); 2] = [
+            (|b| b.size(ButtonSize::ExtraSmall).child("Save"), 32.),
+            (|b| b.size(ButtonSize::Small).child("Save"), 40.),
+        ];
+        for (configure, height) in cases {
+            let (clicks, cx) = setup(cx, configure);
             // 操作領域は上端から 48px で、形はその中央に置かれる
+            let bounds = container_bounds(cx);
             assert_eq!(
-                container_top_and_height(cx),
+                (bounds.origin.y, bounds.size.height),
                 (px((48. - height) / 2.), px(height)),
-                "{size:?} の形は見た目の高さのまま操作領域の中央に描くこと"
+                "高さ {height} の形は見た目の高さのまま操作領域の中央に描くこと"
             );
             cx.simulate_click(point(px(10.), px(1.)), Modifiers::none());
             cx.simulate_click(point(px(10.), px(47.)), Modifiers::none());
-            assert_eq!(clicks.get(), 2, "{size:?} の形の上下の余白でも押せること");
+            assert_eq!(
+                clicks.get(),
+                2,
+                "高さ {height} の形の上下の余白でも押せること"
+            );
             cx.simulate_click(point(px(10.), px(50.)), Modifiers::none());
-            assert_eq!(clicks.get(), 2, "{size:?} の操作領域の外側では押せないこと");
+            assert_eq!(
+                clicks.get(),
+                2,
+                "高さ {height} の操作領域の外側では押せないこと"
+            );
         }
     }
 
@@ -662,9 +663,10 @@ mod tests {
     fn 箱が操作領域より低くても形と上下の余白まで押せる(
         cx: &mut TestAppContext,
     ) {
-        let (clicks, cx) = setup(cx, ButtonSize::Small, Some(px(40.)));
+        let (clicks, cx) = setup(cx, |b| b.h(px(40.)).child("Save"));
+        let bounds = container_bounds(cx);
         assert_eq!(
-            container_top_and_height(cx),
+            (bounds.origin.y, bounds.size.height),
             (px(4.), px(40.)),
             "形は縮まずに描くこと"
         );
@@ -674,27 +676,32 @@ mod tests {
     }
 
     #[gpui::test]
-    fn 箱が最小の幅より狭くても形の右端まで押せる(cx: &mut TestAppContext) {
-        cx.update(crate::init);
-        let clicks = Rc::new(Cell::new(0));
-        let (_, cx) = cx.add_window_view(|window, cx| {
-            cx.init_md3_theme(window);
-            // 縦方向の flex では、押せる要素の幅が箱の幅に引き伸ばされる
-            ButtonView {
-                size: ButtonSize::Small,
-                height: None,
-                column_width: Some(px(40.)),
-                clicks: clicks.clone(),
-            }
-        });
-        // 形は最小の幅 58px で描かれる
-        cx.simulate_click(point(px(55.), px(24.)), Modifiers::none());
-        assert_eq!(clicks.get(), 1, "箱からはみ出した形の右端でも押せること");
+    fn 箱が内容より狭くても形の右端まで押せる(cx: &mut TestAppContext) {
+        // 縦方向の flex では、ボタンの幅が箱の幅に引き伸ばされる
+        let cases: [fn(Button) -> Button; 2] = [
+            |b| b.flex_col().w(px(40.)).child("Save"),
+            |b| {
+                b.size(ButtonSize::Large)
+                    .aria_label("Save")
+                    .flex_col()
+                    .w(px(80.))
+            },
+        ];
+        for configure in cases {
+            let (clicks, cx) = setup(cx, configure);
+            let bounds = container_bounds(cx);
+            cx.simulate_click(
+                point(bounds.right() - px(1.), bounds.center().y),
+                Modifiers::none(),
+            );
+            assert_eq!(clicks.get(), 1, "形の右端でも押せること: {bounds:?}");
+        }
     }
 
     #[gpui::test]
     fn 箱を広げると形は上下の余白を除いて広がる(cx: &mut TestAppContext) {
-        let (_, cx) = setup(cx, ButtonSize::Small, Some(px(80.)));
-        assert_eq!(container_top_and_height(cx), (px(4.), px(72.)));
+        let (_, cx) = setup(cx, |b| b.h(px(80.)).child("Save"));
+        let bounds = container_bounds(cx);
+        assert_eq!((bounds.origin.y, bounds.size.height), (px(4.), px(72.)));
     }
 }
