@@ -15,8 +15,8 @@
 
 use gpui::{
     App, CornersRefinement, ElementId, FocusHandle, Hsla, InteractiveElement, IntoElement,
-    ParentElement, Refineable, RenderOnce, SharedString, StatefulInteractiveElement, Styled,
-    Window, div, prelude::FluentBuilder, size, svg,
+    ParentElement, RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window, div,
+    prelude::FluentBuilder, size, svg,
 };
 use gpui_headless::choice::{Checkbox as HeadlessCheckbox, CheckedState};
 
@@ -24,7 +24,6 @@ use crate::util;
 use md3_icons::IconStyle;
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::checkbox;
-use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::md3_tokens::{focus_ring, state};
 use md3_theme::{SharedTheme, Theme, ThemeExt, dp, shape_radii};
 
@@ -45,6 +44,26 @@ pub enum CheckboxState {
     Indeterminate,
 }
 
+impl From<CheckedState> for CheckboxState {
+    fn from(value: CheckedState) -> Self {
+        match value {
+            CheckedState::Unchecked => CheckboxState::Unchecked,
+            CheckedState::Checked => CheckboxState::Checked,
+            CheckedState::Mixed => CheckboxState::Indeterminate,
+        }
+    }
+}
+
+impl From<CheckboxState> for CheckedState {
+    fn from(value: CheckboxState) -> Self {
+        match value {
+            CheckboxState::Unchecked => CheckedState::Unchecked,
+            CheckboxState::Checked => CheckedState::Checked,
+            CheckboxState::Indeterminate => CheckedState::Mixed,
+        }
+    }
+}
+
 type ClickHandler = Box<dyn Fn(&CheckboxState, &mut Window, &mut App)>;
 
 /// MD3 のチェックボックス
@@ -52,18 +71,16 @@ type ClickHandler = Box<dyn Fn(&CheckboxState, &mut Window, &mut App)>;
 /// 状態は呼び出し側が持ち、[`Checkbox::new`] に毎回渡す。部品自身は状態を変えない。
 /// 押されると [`Checkbox::on_click`] のハンドラに押した後の状態を渡すため、ハンドラで呼び出し側の状態を更新すること
 ///
-/// 支援技術には role `checkbox` として公開され、[`Checkbox::label`] か [`Checkbox::aria_label`] が
-/// アクセシブルな名前になる。どちらかを必ず与えること
+/// 支援技術には role `checkbox` として公開され、[`Checkbox::aria_label`] がアクセシブルな名前になる。
+/// ラベルは表示しないため、名前は必ず [`Checkbox::aria_label`] で与えること
 ///
-/// 大きさは状態レイヤーの 40dp 四方の箱で、ラベルを付けるとその右に並ぶ。押せる範囲は箱とラベルの全体。
-/// フォーカスリングは箱の外側にはみ出して描く
+/// 大きさと押せる範囲は状態レイヤーの 40dp 四方の箱。フォーカスリングは箱の外側にはみ出して描く
 ///
 /// [`Styled`] で指定したスタイルはチェックボックスの外側の箱に付く
 #[derive(IntoElement)]
 pub struct Checkbox {
     id: ElementId,
     state: CheckboxState,
-    label: Option<SharedString>,
     on_click: Option<ClickHandler>,
     aria_label: Option<SharedString>,
     disabled: bool,
@@ -82,7 +99,6 @@ impl Checkbox {
         Self {
             id: id.into(),
             state,
-            label: None,
             on_click: None,
             aria_label: None,
             disabled: false,
@@ -94,15 +110,7 @@ impl Checkbox {
         }
     }
 
-    /// チェックボックスの右に `label` を表示し、アクセシブルな名前にする
-    pub fn label(mut self, label: impl Into<SharedString>) -> Self {
-        self.label = Some(label.into());
-        self
-    }
-
-    /// ラベルの代わりに `label` をアクセシブルな名前にする
-    ///
-    /// ラベルを表示しない場合に使う
+    /// `label` をアクセシブルな名前にする
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
         self.aria_label = Some(label.into());
         self
@@ -258,34 +266,17 @@ impl RenderOnce for Checkbox {
             });
 
         let on_click = self.on_click;
-        let state = match self.state {
-            CheckboxState::Unchecked => CheckedState::Unchecked,
-            CheckboxState::Checked => CheckedState::Checked,
-            CheckboxState::Indeterminate => CheckedState::Mixed,
-        };
-        let mut root = HeadlessCheckbox::new(self.id, state)
+        let root = HeadlessCheckbox::new(self.id, self.state.into())
             .track_focus(&focus_handle)
             .disabled(disabled)
             .error(self.error)
             .group(GROUP)
             .flex()
-            .items_center()
-            .text_color(colors.label)
             .child(indicator)
-            .when_some(self.label, |this, label| this.child(label))
             .when_some(self.aria_label, |this, label| this.aria_label(label))
             .when_some(on_click, |this, on_click| {
-                this.on_change(move |next, window, cx| {
-                    let next = match next {
-                        CheckedState::Unchecked => CheckboxState::Unchecked,
-                        CheckedState::Checked => CheckboxState::Checked,
-                        CheckedState::Mixed => CheckboxState::Indeterminate,
-                    };
-                    on_click(&next, window, cx)
-                })
+                this.on_change(move |next, window, cx| on_click(&next.into(), window, cx))
             });
-        root.text_style()
-            .refine(&theme.text_style(TypeScale::BodyLarge));
 
         self.outer.child(root)
     }
@@ -307,8 +298,6 @@ struct Colors {
     hover_state_layer: Option<Hsla>,
     /// フォーカスリング。`None` は描かない
     focus_ring: Option<Hsla>,
-    /// ラベル
-    label: Hsla,
 }
 
 impl Colors {
@@ -386,7 +375,6 @@ impl Colors {
                 ColorRole::OnSurface
             })
         });
-        let label = theme.color(ColorRole::OnSurface);
         Self {
             fill,
             outline,
@@ -398,11 +386,6 @@ impl Colors {
             hover_state_layer: state_layer
                 .map(|layer| layer.opacity(state::HOVER_STATE_LAYER_OPACITY)),
             focus_ring: focus_visible.then(|| theme.color(focus_ring::COLOR)),
-            label: if disabled {
-                label.opacity(checkbox::UNSELECTED_DISABLED_CONTAINER_OPACITY)
-            } else {
-                label
-            },
         }
     }
 }

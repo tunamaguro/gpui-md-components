@@ -42,18 +42,29 @@ impl Render for CheckboxPage {
             [false, false] => CheckboxState::Unchecked,
             _ => CheckboxState::Indeterminate,
         };
+        // チェックボックスはラベルを表示しないため、名前と同じテキストを横に並べる
+        let labeled = |checkbox: Checkbox, text: &'static str| {
+            div()
+                .flex()
+                .items_center()
+                .child(checkbox.aria_label(text))
+                .child(label(&theme, text))
+        };
         let child = |index: usize, name: &'static str, cx: &mut Context<Self>| {
             let state = if self.children[index] {
                 CheckboxState::Checked
             } else {
                 CheckboxState::Unchecked
             };
-            Checkbox::new(name, state).label(name).on_click(cx.listener(
-                move |this, state: &CheckboxState, _, cx| {
-                    this.children[index] = *state == CheckboxState::Checked;
-                    cx.notify();
-                },
-            ))
+            labeled(
+                Checkbox::new(name, state).on_click(cx.listener(
+                    move |this, state: &CheckboxState, _, cx| {
+                        this.children[index] = *state == CheckboxState::Checked;
+                        cx.notify();
+                    },
+                )),
+                name,
+            )
         };
 
         div()
@@ -71,22 +82,24 @@ impl Render for CheckboxPage {
                 checkbox.error(Some("Required".into()))
             }))
             .child(row("Disabled", |checkbox| checkbox.disabled(true)))
-            .child(
-                Checkbox::new("single", self.single)
-                    .label("ラベル付きのチェックボックス")
-                    .on_click(cx.listener(|this, state: &CheckboxState, _, cx| {
+            .child(labeled(
+                Checkbox::new("single", self.single).on_click(cx.listener(
+                    |this, state: &CheckboxState, _, cx| {
                         this.single = *state;
                         cx.notify();
-                    })),
-            )
-            .child(
-                Checkbox::new("parent", parent)
-                    .label("すべて選択")
-                    .on_click(cx.listener(|this, state: &CheckboxState, _, cx| {
+                    },
+                )),
+                "テキストを横に並べたチェックボックス",
+            ))
+            .child(labeled(
+                Checkbox::new("parent", parent).on_click(cx.listener(
+                    |this, state: &CheckboxState, _, cx| {
                         this.children = [*state == CheckboxState::Checked; 2];
                         cx.notify();
-                    })),
-            )
+                    },
+                )),
+                "すべて選択",
+            ))
             .child(
                 div()
                     .pl_6()
