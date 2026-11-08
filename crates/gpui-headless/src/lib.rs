@@ -6,12 +6,14 @@ mod accessibility;
 pub mod button;
 pub mod choice;
 mod focus_visible;
+mod interaction;
 mod navigation;
 mod root;
 #[cfg(test)]
 mod test_window;
 
 pub use focus_visible::is_focus_visible;
+pub use interaction::InteractionSource;
 pub use root::{Root, root};
 
 /// 部品を操作できるかどうか

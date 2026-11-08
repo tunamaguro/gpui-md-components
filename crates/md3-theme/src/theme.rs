@@ -10,7 +10,7 @@ use md3_color::{Argb, ColorRole, CustomColorGroup, DynamicScheme, Hct, SchemeErr
 use md3_tokens::elevation::Elevation;
 use md3_tokens::motion::MotionSchemeKey;
 use md3_tokens::shadow;
-use md3_tokens::shape::{CornerSize, ShapeKey};
+use md3_tokens::shape::{CornerShape, CornerSize, ShapeKey};
 use md3_tokens::typography::TypeScale;
 use md3_tokens::{Dp, Sp};
 
@@ -32,6 +32,22 @@ pub(crate) fn to_hsla(argb: Argb) -> Hsla {
 /// 1dp は 1 論理ピクセルで、ウィンドウのスケールは gpui が掛ける。密度は掛けない
 pub fn dp(value: Dp) -> Pixels {
     px(value.0)
+}
+
+/// 大きさが `size` の要素を `shape` の形にするときの角の半径
+///
+/// 割合の角は `size` の短辺から求める。start / end の角は、左から右へ書く向きとして左右に当てる
+pub fn shape_radii(shape: CornerShape, size: Size<Pixels>) -> Corners<Pixels> {
+    let radius = |corner: CornerSize| match corner {
+        CornerSize::Dp(value) => dp(value),
+        CornerSize::Percent(percent) => size.width.min(size.height) * (percent / 100.0),
+    };
+    Corners {
+        top_left: radius(shape.top_start),
+        top_right: radius(shape.top_end),
+        bottom_right: radius(shape.bottom_end),
+        bottom_left: radius(shape.bottom_start),
+    }
 }
 
 /// 文字に求めるコントラスト比。WCAG 2.2 の達成基準 1.4.3 (AA) の通常の文字の値
@@ -311,17 +327,7 @@ impl Theme {
     ///
     /// 割合の角は `size` の短辺から求める。start / end の角は、左から右へ書く向きとして左右に当てる
     pub fn corner_radii(&self, key: ShapeKey, size: Size<Pixels>) -> Corners<Pixels> {
-        let shape = key.resolve(&self.settings.shapes);
-        let radius = |corner: CornerSize| match corner {
-            CornerSize::Dp(value) => dp(value),
-            CornerSize::Percent(percent) => size.width.min(size.height) * (percent / 100.0),
-        };
-        Corners {
-            top_left: radius(shape.top_start),
-            top_right: radius(shape.top_end),
-            bottom_right: radius(shape.bottom_end),
-            bottom_left: radius(shape.bottom_start),
-        }
+        shape_radii(key.resolve(&self.settings.shapes), size)
     }
 
     /// 高さの段階 `elevation` の影。key shadow、ambient shadow の順

@@ -4,14 +4,26 @@
 
 #[cfg(feature = "button")]
 mod button;
+#[cfg(feature = "checkbox")]
+mod checkbox;
+// 使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
+#[cfg(feature = "checkbox")]
+mod interaction;
 // 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(feature = "button")]
 mod shape;
+// 使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
+#[cfg(any(feature = "button", feature = "checkbox"))]
+mod util;
 
 #[cfg(feature = "button")]
 pub use button::{Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant};
+#[cfg(feature = "checkbox")]
+pub use checkbox::{Checkbox, CheckboxRow, CheckboxState};
 pub use gpui;
 pub use gpui_platform;
+#[cfg(feature = "checkbox")]
+pub use interaction::InteractionSource;
 
 /// この crate の部品が使うキー割り当てと操作を登録する。アプリの起動時に、ウィンドウを開く前に 1 回呼ぶ
 pub fn init(cx: &mut gpui::App) {

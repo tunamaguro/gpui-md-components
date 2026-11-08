@@ -7,7 +7,7 @@ use gpui::{
     div, prelude::FluentBuilder,
 };
 
-use crate::{Availability, accessibility::A11yInfoExt};
+use crate::{Availability, InteractionSource, accessibility::A11yInfoExt};
 
 /// チェックボックスの状態
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
@@ -133,6 +133,7 @@ pub struct Choice<K: ChoiceKind> {
     provided_focus_handle: Option<FocusHandle>,
     availability: Availability,
     error: Option<SharedString>,
+    group: Option<SharedString>,
 }
 
 impl<K: ChoiceKind> Choice<K> {
@@ -150,6 +151,7 @@ impl<K: ChoiceKind> Choice<K> {
             provided_focus_handle: None,
             availability: Availability::Enabled,
             error: None,
+            group: None,
         }
     }
 
@@ -208,6 +210,16 @@ impl<K: ChoiceKind> Choice<K> {
         self
     }
 
+    /// `source` のフォーカスをこの部品のフォーカスとして使い、`source` の group の名前をこの部品に付ける
+    ///
+    /// 子孫の要素から、`source` を通してこの部品の hover とフォーカスを参照できる。
+    /// [`Choice::track_focus`] と両方を呼んだ場合は、後に呼んだ方のフォーカスを使う
+    pub fn interaction_source(mut self, source: &InteractionSource) -> Self {
+        self.provided_focus_handle = Some(source.focus_handle().clone());
+        self.group = Some(source.group().clone());
+        self
+    }
+
     fn focus_handle(&self, window: &mut Window, cx: &mut App) -> FocusHandle {
         self.provided_focus_handle.clone().unwrap_or_else(|| {
             window
@@ -232,6 +244,7 @@ impl<K: ChoiceKind> RenderOnce for Choice<K> {
         self.inner
             .role(K::ROLE)
             .aria_toggled(self.state.into())
+            .when_some(self.group, |this, group| this.group(group))
             .when(disabled, |this| {
                 let focus_handle = focus_handle.clone();
                 // 押下を親に伝えず、親の on_click を呼ばせない。

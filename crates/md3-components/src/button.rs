@@ -15,6 +15,7 @@ use gpui::{
 use gpui_headless::button::Button as HeadlessButton;
 
 use crate::shape::Shaped;
+use crate::util;
 use md3_icons::{Icon, IconStyle};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::{
@@ -24,11 +25,8 @@ use md3_theme::md3_tokens::component::{
 use md3_theme::md3_tokens::elevation::Elevation;
 use md3_theme::md3_tokens::shape::ShapeKey;
 use md3_theme::md3_tokens::typography::TypeScale;
-use md3_theme::md3_tokens::{Dp, focus_ring, state};
+use md3_theme::md3_tokens::{Dp, focus_ring, state, supplement};
 use md3_theme::{SharedTheme, ThemeExt, dp};
-
-/// `ButtonDefaults.MinWidth`。どのサイズにも使う
-const MIN_WIDTH: Dp = Dp(58.0);
 
 /// 容器の層がボタンの hover を知るための group 名
 const GROUP: &str = "md3-button";
@@ -91,19 +89,17 @@ struct SizeTokens {
 
 impl ButtonSize {
     // 余白は `ButtonDefaults.contentPaddingFor`、アイコンは `iconSizeFor` と `iconSpacingFor`、
-    // 書体は `textStyleFor` が高さから選ぶ値。精密なポインタ向けの値は Compose でも既定で使われないため採らない。
+    // 書体は `textStyleFor` が高さから選ぶ値。
     // 枠線の太さは、Compose の `outlinedButtonBorder` はどのサイズにも Small の値を使うが、サイズごとのトークンに従う
     fn tokens(self) -> SizeTokens {
         match self {
-            // `ExtraSmallContentPadding` と `ExtraSmallIconSpacing` は、Compose が TODO 付きで
-            // ButtonXSmallTokens (余白 16dp、間隔 8dp) と異なる値を使っている
             Self::ExtraSmall => SizeTokens {
                 height: button_x_small::CONTAINER_HEIGHT,
-                horizontal_padding: Dp(12.0),
-                vertical_padding: Dp(6.0),
+                horizontal_padding: supplement::button::EXTRA_SMALL_HORIZONTAL_PADDING,
+                vertical_padding: supplement::button::EXTRA_SMALL_VERTICAL_PADDING,
                 icon_size: button_x_small::ICON_SIZE,
-                icon_spacing: Dp(4.0),
-                label: TypeScale::LabelLarge,
+                icon_spacing: supplement::button::EXTRA_SMALL_ICON_SPACING,
+                label: supplement::button::SMALL_LABEL_TEXT,
                 outline_width: button_x_small::OUTLINED_OUTLINE_WIDTH,
                 round: button_x_small::CONTAINER_SHAPE_ROUND,
                 square: button_x_small::CONTAINER_SHAPE_SQUARE,
@@ -111,10 +107,10 @@ impl ButtonSize {
             Self::Small => SizeTokens {
                 height: button_small::CONTAINER_HEIGHT,
                 horizontal_padding: button_small::LEADING_SPACE,
-                vertical_padding: Dp(10.0),
+                vertical_padding: supplement::button::SMALL_VERTICAL_PADDING,
                 icon_size: button_small::ICON_SIZE,
                 icon_spacing: button_small::ICON_LABEL_SPACE,
-                label: TypeScale::LabelLarge,
+                label: supplement::button::SMALL_LABEL_TEXT,
                 outline_width: button_small::OUTLINED_OUTLINE_WIDTH,
                 round: button_small::CONTAINER_SHAPE_ROUND,
                 square: button_small::CONTAINER_SHAPE_SQUARE,
@@ -122,10 +118,10 @@ impl ButtonSize {
             Self::Medium => SizeTokens {
                 height: button_medium::CONTAINER_HEIGHT,
                 horizontal_padding: button_medium::LEADING_SPACE,
-                vertical_padding: Dp(16.0),
+                vertical_padding: supplement::button::MEDIUM_VERTICAL_PADDING,
                 icon_size: button_medium::ICON_SIZE,
                 icon_spacing: button_medium::ICON_LABEL_SPACE,
-                label: TypeScale::TitleMedium,
+                label: supplement::button::MEDIUM_LABEL_TEXT,
                 outline_width: button_medium::OUTLINED_OUTLINE_WIDTH,
                 round: button_medium::CONTAINER_SHAPE_ROUND,
                 square: button_medium::CONTAINER_SHAPE_SQUARE,
@@ -133,10 +129,10 @@ impl ButtonSize {
             Self::Large => SizeTokens {
                 height: button_large::CONTAINER_HEIGHT,
                 horizontal_padding: button_large::LEADING_SPACE,
-                vertical_padding: Dp(32.0),
+                vertical_padding: supplement::button::LARGE_VERTICAL_PADDING,
                 icon_size: button_large::ICON_SIZE,
                 icon_spacing: button_large::ICON_LABEL_SPACE,
-                label: TypeScale::HeadlineSmall,
+                label: supplement::button::LARGE_LABEL_TEXT,
                 outline_width: button_large::OUTLINED_OUTLINE_WIDTH,
                 round: button_large::CONTAINER_SHAPE_ROUND,
                 square: button_large::CONTAINER_SHAPE_SQUARE,
@@ -144,10 +140,10 @@ impl ButtonSize {
             Self::ExtraLarge => SizeTokens {
                 height: button_x_large::CONTAINER_HEIGHT,
                 horizontal_padding: button_x_large::LEADING_SPACE,
-                vertical_padding: Dp(48.0),
+                vertical_padding: supplement::button::EXTRA_LARGE_VERTICAL_PADDING,
                 icon_size: button_x_large::ICON_SIZE,
                 icon_spacing: button_x_large::ICON_LABEL_SPACE,
-                label: TypeScale::HeadlineLarge,
+                label: supplement::button::EXTRA_LARGE_LABEL_TEXT,
                 outline_width: button_x_large::OUTLINED_OUTLINE_WIDTH,
                 round: button_x_large::CONTAINER_SHAPE_ROUND,
                 square: button_x_large::CONTAINER_SHAPE_SQUARE,
@@ -256,8 +252,7 @@ impl ButtonVariant {
             // `defaultTextButtonColors`
             Self::Text => VariantTokens {
                 container: None,
-                // Compose は TextButtonTokens.LabelColor (OnSurfaceVariant) ではなく Primary を使う
-                content: ColorRole::Primary,
+                content: supplement::button::TEXT_BUTTON_CONTENT_COLOR,
                 disabled_container: None,
                 disabled_content: (
                     text_button::DISABLED_LABEL_COLOR,
@@ -432,12 +427,9 @@ impl RenderOnce for Button {
         let size = self.size.tokens();
         let disabled = self.disabled;
 
-        let focus_handle = self.focus_handle.unwrap_or_else(|| {
-            window
-                .use_keyed_state(self.id.clone(), cx, |_, cx| cx.focus_handle())
-                .read(cx)
-                .clone()
-        });
+        let focus_handle = self
+            .focus_handle
+            .unwrap_or_else(|| util::keyed_focus_handle(&self.id, window, cx));
         // リングはボタンの外側に描くため、ボタン自身のスタイルでは表せない
         let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
 
@@ -517,7 +509,7 @@ impl RenderOnce for Button {
             .items_center()
             .justify_center()
             .gap(dp(size.icon_spacing))
-            .min_w(dp(MIN_WIDTH))
+            .min_w(dp(supplement::button::MIN_WIDTH))
             .min_h(dp(size.height))
             .px(dp(size.horizontal_padding))
             .py(dp(size.vertical_padding))
