@@ -6,7 +6,7 @@
 
 //! `BottomAppBarTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::units::Dp;
 use md3_color::ColorRole;
@@ -14,7 +14,7 @@ use md3_color::ColorRole;
 /// `ContainerColor`
 pub const CONTAINER_COLOR: ColorRole = ColorRole::SurfaceContainer;
 /// `ContainerElevation`
-pub const CONTAINER_ELEVATION: Dp = elevation::LEVEL2;
+pub const CONTAINER_ELEVATION: Elevation = Elevation::Level2;
 /// `ContainerHeight`
 pub const CONTAINER_HEIGHT: Dp = Dp(80.0);
 /// `ContainerShape`

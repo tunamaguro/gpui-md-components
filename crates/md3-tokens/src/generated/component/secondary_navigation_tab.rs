@@ -6,7 +6,7 @@
 
 //! `SecondaryNavigationTabTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::typography::TypeScale;
 use crate::units::Dp;
@@ -17,7 +17,7 @@ pub const ACTIVE_LABEL_TEXT_COLOR: ColorRole = ColorRole::OnSurface;
 /// `ContainerColor`
 pub const CONTAINER_COLOR: ColorRole = ColorRole::Surface;
 /// `ContainerElevation`
-pub const CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `ContainerHeight`
 pub const CONTAINER_HEIGHT: Dp = Dp(48.0);
 /// `ContainerShape`

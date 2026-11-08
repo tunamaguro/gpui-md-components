@@ -6,7 +6,7 @@
 
 //! `ElevatedCardTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::units::Dp;
 use md3_color::ColorRole;
@@ -14,26 +14,26 @@ use md3_color::ColorRole;
 /// `ContainerColor`
 pub const CONTAINER_COLOR: ColorRole = ColorRole::SurfaceContainerLow;
 /// `ContainerElevation`
-pub const CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `ContainerShape`
 pub const CONTAINER_SHAPE: ShapeKey = ShapeKey::CornerMedium;
 /// `DisabledContainerColor`
 pub const DISABLED_CONTAINER_COLOR: ColorRole = ColorRole::Surface;
 /// `DisabledContainerElevation`
-pub const DISABLED_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const DISABLED_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `DisabledContainerOpacity`
 pub const DISABLED_CONTAINER_OPACITY: f32 = 0.38;
 /// `DraggedContainerElevation`
-pub const DRAGGED_CONTAINER_ELEVATION: Dp = elevation::LEVEL4;
+pub const DRAGGED_CONTAINER_ELEVATION: Elevation = Elevation::Level4;
 /// `FocusContainerElevation`
-pub const FOCUS_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const FOCUS_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `FocusIndicatorColor`
 pub const FOCUS_INDICATOR_COLOR: ColorRole = ColorRole::Secondary;
 /// `HoverContainerElevation`
-pub const HOVER_CONTAINER_ELEVATION: Dp = elevation::LEVEL2;
+pub const HOVER_CONTAINER_ELEVATION: Elevation = Elevation::Level2;
 /// `IconColor`
 pub const ICON_COLOR: ColorRole = ColorRole::Primary;
 /// `IconSize`
 pub const ICON_SIZE: Dp = Dp(24.0);
 /// `PressedContainerElevation`
-pub const PRESSED_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const PRESSED_CONTAINER_ELEVATION: Elevation = Elevation::Level1;

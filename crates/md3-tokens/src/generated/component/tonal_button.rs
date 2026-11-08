@@ -6,18 +6,17 @@
 
 //! `TonalButtonTokens` の転記
 
-use crate::generated::elevation;
-use crate::units::Dp;
+use crate::elevation::Elevation;
 use md3_color::ColorRole;
 
 /// `ContainerColor`
 pub const CONTAINER_COLOR: ColorRole = ColorRole::SecondaryContainer;
 /// `ContainerElevation`
-pub const CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `DisabledContainerColor`
 pub const DISABLED_CONTAINER_COLOR: ColorRole = ColorRole::OnSurface;
 /// `DisabledContainerElevation`
-pub const DISABLED_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const DISABLED_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `DisabledContainerOpacity`
 pub const DISABLED_CONTAINER_OPACITY: f32 = 0.1;
 /// `DisabledIconColor`
@@ -29,13 +28,13 @@ pub const DISABLED_LABEL_TEXT_COLOR: ColorRole = ColorRole::OnSurfaceVariant;
 /// `DisabledLabelTextOpacity`
 pub const DISABLED_LABEL_TEXT_OPACITY: f32 = 0.38;
 /// `FocusedContainerElevation`
-pub const FOCUSED_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const FOCUSED_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `FocusedIconColor`
 pub const FOCUSED_ICON_COLOR: ColorRole = ColorRole::OnSecondaryContainer;
 /// `FocusedLabelTextColor`
 pub const FOCUSED_LABEL_TEXT_COLOR: ColorRole = ColorRole::OnSecondaryContainer;
 /// `HoveredContainerElevation`
-pub const HOVERED_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const HOVERED_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `HoveredIconColor`
 pub const HOVERED_ICON_COLOR: ColorRole = ColorRole::OnSecondaryContainer;
 /// `HoveredLabelTextColor`
@@ -45,7 +44,7 @@ pub const ICON_COLOR: ColorRole = ColorRole::OnSecondaryContainer;
 /// `LabelTextColor`
 pub const LABEL_TEXT_COLOR: ColorRole = ColorRole::OnSecondaryContainer;
 /// `PressedContainerElevation`
-pub const PRESSED_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const PRESSED_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `PressedIconColor`
 pub const PRESSED_ICON_COLOR: ColorRole = ColorRole::OnSecondaryContainer;
 /// `PressedLabelTextColor`

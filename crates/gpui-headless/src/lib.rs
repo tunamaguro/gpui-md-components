@@ -5,6 +5,14 @@
 mod accessibility;
 pub mod button;
 pub mod choice;
+mod focus_visible;
+mod navigation;
+mod root;
+#[cfg(test)]
+mod test_window;
+
+pub use focus_visible::is_focus_visible;
+pub use root::{Root, root};
 
 /// 部品を操作できるかどうか
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
@@ -36,4 +44,9 @@ impl Availability {
             Availability::Disabled | Availability::DisabledFocusable
         )
     }
+}
+/// この crate の部品が使うキー割り当てと操作を登録する。アプリの起動時に 1 回呼ぶ
+pub fn init(cx: &mut gpui::App) {
+    navigation::init(cx);
+    focus_visible::init(cx);
 }

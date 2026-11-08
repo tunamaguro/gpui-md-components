@@ -158,6 +158,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::test_window::add_test_window;
 
     struct ButtonView {
         has_handler: bool,
@@ -199,7 +200,7 @@ mod tests {
         cx: &mut TestAppContext,
         availability: Availability,
     ) -> (Entity<ButtonView>, &mut VisualTestContext) {
-        cx.add_window_view(|_, cx| ButtonView {
+        add_test_window(cx, |_, cx| ButtonView {
             has_handler: true,
             availability,
             focus_handle: cx.focus_handle(),
@@ -225,11 +226,6 @@ mod tests {
     fn is_focused(view: &Entity<ButtonView>, cx: &mut VisualTestContext) -> bool {
         let focus_handle = view.read_with(cx, |view, _| view.focus_handle.clone());
         cx.update(|window, _| focus_handle.is_focused(window))
-    }
-
-    fn focus_next(cx: &mut VisualTestContext) {
-        cx.update(|window, cx| window.focus_next(cx));
-        cx.run_until_parked();
     }
 
     fn set_availability(
@@ -273,14 +269,14 @@ mod tests {
     #[gpui::test]
     fn tab_で到達できる(cx: &mut TestAppContext) {
         let (view, cx) = setup(cx, Availability::Enabled);
-        focus_next(cx);
+        cx.simulate_keystrokes("tab");
         assert!(is_focused(&view, cx), "Tab でボタンにフォーカスが移ること");
     }
 
     #[gpui::test]
     fn enter_で押せる(cx: &mut TestAppContext) {
         let (view, cx) = setup(cx, Availability::Enabled);
-        focus_next(cx);
+        cx.simulate_keystrokes("tab");
         press_key(cx, "enter");
         assert_eq!(clicks(&view, cx), 1);
     }
@@ -288,7 +284,7 @@ mod tests {
     #[gpui::test]
     fn space_で押せる(cx: &mut TestAppContext) {
         let (view, cx) = setup(cx, Availability::Enabled);
-        focus_next(cx);
+        cx.simulate_keystrokes("tab");
         press_key(cx, "space");
         assert_eq!(clicks(&view, cx), 1);
     }
@@ -303,7 +299,7 @@ mod tests {
     #[gpui::test]
     fn 押した後もフォーカスはボタンに残る(cx: &mut TestAppContext) {
         let (view, cx) = setup(cx, Availability::Enabled);
-        focus_next(cx);
+        cx.simulate_keystrokes("tab");
         press_key(cx, "enter");
         press_key(cx, "space");
         assert_eq!(clicks(&view, cx), 2);
@@ -339,7 +335,7 @@ mod tests {
     #[gpui::test]
     fn 無効なボタンは_tab_で到達できず押せない(cx: &mut TestAppContext) {
         let (view, cx) = setup(cx, Availability::Disabled);
-        focus_next(cx);
+        cx.simulate_keystrokes("tab");
         assert!(!is_focused(&view, cx), "Tab でボタンに到達しないこと");
         click(cx);
         assert_eq!(clicks(&view, cx), 0);
@@ -367,7 +363,7 @@ mod tests {
         cx: &mut TestAppContext,
     ) {
         let (view, cx) = setup(cx, Availability::Enabled);
-        focus_next(cx);
+        cx.simulate_keystrokes("tab");
         set_availability(&view, Availability::Disabled, cx);
         assert!(is_focused(&view, cx), "無効になってもフォーカスが残ること");
 
@@ -391,7 +387,7 @@ mod tests {
         cx: &mut TestAppContext,
     ) {
         let (view, cx) = setup(cx, Availability::DisabledFocusable);
-        focus_next(cx);
+        cx.simulate_keystrokes("tab");
         assert!(is_focused(&view, cx), "Tab でボタンに到達すること");
 
         press_key(cx, "enter");

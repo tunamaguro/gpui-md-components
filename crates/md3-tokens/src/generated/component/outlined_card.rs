@@ -6,7 +6,7 @@
 
 //! `OutlinedCardTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::units::Dp;
 use md3_color::ColorRole;
@@ -14,25 +14,25 @@ use md3_color::ColorRole;
 /// `ContainerColor`
 pub const CONTAINER_COLOR: ColorRole = ColorRole::Surface;
 /// `ContainerElevation`
-pub const CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `ContainerShape`
 pub const CONTAINER_SHAPE: ShapeKey = ShapeKey::CornerMedium;
 /// `DisabledContainerElevation`
-pub const DISABLED_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const DISABLED_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `DisabledOutlineColor`
 pub const DISABLED_OUTLINE_COLOR: ColorRole = ColorRole::Outline;
 /// `DisabledOutlineOpacity`
 pub const DISABLED_OUTLINE_OPACITY: f32 = 0.12;
 /// `DraggedContainerElevation`
-pub const DRAGGED_CONTAINER_ELEVATION: Dp = elevation::LEVEL3;
+pub const DRAGGED_CONTAINER_ELEVATION: Elevation = Elevation::Level3;
 /// `DraggedOutlineColor`
 pub const DRAGGED_OUTLINE_COLOR: ColorRole = ColorRole::OutlineVariant;
 /// `FocusContainerElevation`
-pub const FOCUS_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const FOCUS_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `FocusOutlineColor`
 pub const FOCUS_OUTLINE_COLOR: ColorRole = ColorRole::OnSurface;
 /// `HoverContainerElevation`
-pub const HOVER_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const HOVER_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `HoverOutlineColor`
 pub const HOVER_OUTLINE_COLOR: ColorRole = ColorRole::OutlineVariant;
 /// `IconColor`
@@ -44,6 +44,6 @@ pub const OUTLINE_COLOR: ColorRole = ColorRole::OutlineVariant;
 /// `OutlineWidth`
 pub const OUTLINE_WIDTH: Dp = Dp(1.0);
 /// `PressedContainerElevation`
-pub const PRESSED_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const PRESSED_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `PressedOutlineColor`
 pub const PRESSED_OUTLINE_COLOR: ColorRole = ColorRole::OutlineVariant;

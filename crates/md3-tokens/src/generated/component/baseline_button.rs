@@ -6,7 +6,7 @@
 
 //! `BaselineButtonTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::units::Dp;
 use md3_color::ColorRole;
@@ -14,7 +14,7 @@ use md3_color::ColorRole;
 /// `ContainerColor`
 pub const CONTAINER_COLOR: ColorRole = ColorRole::Primary;
 /// `ContainerElevation`
-pub const CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `ContainerHeight`
 pub const CONTAINER_HEIGHT: Dp = Dp(40.0);
 /// `ContainerShapeRound`
@@ -24,7 +24,7 @@ pub const CONTAINER_SHAPE_SQUARE: ShapeKey = ShapeKey::CornerMedium;
 /// `DisabledContainerColor`
 pub const DISABLED_CONTAINER_COLOR: ColorRole = ColorRole::OnSurface;
 /// `DisabledContainerElevation`
-pub const DISABLED_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const DISABLED_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `DisabledContainerOpacity`
 pub const DISABLED_CONTAINER_OPACITY: f32 = 0.1;
 /// `DisabledIconColor`
@@ -36,13 +36,13 @@ pub const DISABLED_LABEL_TEXT_COLOR: ColorRole = ColorRole::OnSurfaceVariant;
 /// `DisabledLabelTextOpacity`
 pub const DISABLED_LABEL_TEXT_OPACITY: f32 = 0.38;
 /// `FocusedContainerElevation`
-pub const FOCUSED_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const FOCUSED_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `FocusedIconColor`
 pub const FOCUSED_ICON_COLOR: ColorRole = ColorRole::OnPrimary;
 /// `FocusedLabelTextColor`
 pub const FOCUSED_LABEL_TEXT_COLOR: ColorRole = ColorRole::OnPrimary;
 /// `HoveredContainerElevation`
-pub const HOVERED_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const HOVERED_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `HoveredIconColor`
 pub const HOVERED_ICON_COLOR: ColorRole = ColorRole::OnPrimary;
 /// `HoveredLabelTextColor`
@@ -62,7 +62,7 @@ pub const LABEL_TEXT_UNSELECTED_COLOR: ColorRole = ColorRole::OnSurfaceVariant;
 /// `LeadingSpace`
 pub const LEADING_SPACE: Dp = Dp(24.0);
 /// `PressedContainerElevation`
-pub const PRESSED_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const PRESSED_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `PressedContainerShape`
 pub const PRESSED_CONTAINER_SHAPE: ShapeKey = ShapeKey::CornerSmall;
 /// `PressedIconColor`

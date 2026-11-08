@@ -309,6 +309,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::test_window::add_test_window;
 
     struct ChoiceView<K: ChoiceKind> {
         state: K::State,
@@ -349,7 +350,7 @@ mod tests {
         state: K::State,
         availability: Availability,
     ) -> (Entity<ChoiceView<K>>, &mut VisualTestContext) {
-        cx.add_window_view(|_, cx| ChoiceView {
+        add_test_window(cx, |_, cx| ChoiceView {
             state,
             availability,
             error: None,
@@ -386,11 +387,6 @@ mod tests {
             view.description = description.map(SharedString::from);
             cx.notify();
         });
-        cx.run_until_parked();
-    }
-
-    fn focus_next(cx: &mut VisualTestContext) {
-        cx.update(|window, cx| window.focus_next(cx));
         cx.run_until_parked();
     }
 
@@ -455,7 +451,7 @@ mod tests {
             (CheckedState::Mixed, CheckedState::Checked),
         ] {
             let (view, cx) = setup::<CheckboxKind>(cx, state, Availability::Enabled);
-            focus_next(cx);
+            cx.simulate_keystrokes("tab");
             press_key(cx, "space");
             assert_eq!(changes(&view, cx), vec![next], "{state:?}");
         }
@@ -465,7 +461,7 @@ mod tests {
     fn switch_は_space_で切り替え後の値が渡される(cx: &mut TestAppContext) {
         for (state, next) in [(false, true), (true, false)] {
             let (view, cx) = setup::<SwitchKind>(cx, state, Availability::Enabled);
-            focus_next(cx);
+            cx.simulate_keystrokes("tab");
             press_key(cx, "space");
             assert_eq!(changes(&view, cx), vec![next], "{state:?}");
         }
@@ -481,7 +477,7 @@ mod tests {
     #[gpui::test]
     fn enter_では操作しない(cx: &mut TestAppContext) {
         let (view, cx) = setup::<CheckboxKind>(cx, CheckedState::Unchecked, Availability::Enabled);
-        focus_next(cx);
+        cx.simulate_keystrokes("tab");
         press_key(cx, "enter");
         assert!(changes(&view, cx).is_empty());
     }
@@ -507,7 +503,7 @@ mod tests {
         cx: &mut TestAppContext,
     ) {
         let (view, cx) = setup::<CheckboxKind>(cx, CheckedState::Unchecked, Availability::Disabled);
-        focus_next(cx);
+        cx.simulate_keystrokes("tab");
         press_key(cx, "space");
         click(cx);
         assert!(changes(&view, cx).is_empty());

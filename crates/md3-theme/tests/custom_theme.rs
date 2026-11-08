@@ -5,6 +5,7 @@ use std::sync::Arc;
 use gpui::{Empty, TestAppContext, WindowHandle, px, size};
 use md3_theme::md3_color::{Argb, ColorRole, ContrastLevel, TonalPalette, Variant};
 use md3_theme::md3_tokens::component::filled_button;
+use md3_theme::md3_tokens::elevation::Elevation;
 use md3_theme::md3_tokens::motion::{MotionScheme, MotionSchemeKey};
 use md3_theme::md3_tokens::shape::{CornerShape, CornerSize, ShapeKey, Shapes};
 use md3_theme::md3_tokens::typography::TypeScale;
@@ -123,7 +124,7 @@ fn ブランドの色から作ったテーマを細かく調整できる(cx: &mu
     assert_eq!(full.bottom_right, px(20.0));
 
     // 影とモーション
-    assert_eq!(theme.shadow(2.0).len(), 2);
+    assert_eq!(theme.shadow(Elevation::Level2).len(), 2);
     let spring = theme.spring(MotionSchemeKey::FastSpatial);
     let expected = MotionScheme::Expressive.spring(MotionSchemeKey::FastSpatial);
     assert_eq!(spring.stiffness, expected.stiffness);

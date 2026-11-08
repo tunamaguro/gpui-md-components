@@ -27,3 +27,8 @@ allow = ["MPL-2.0"]
 [[licenses.exceptions]]
 crate = "option-ext"
 allow = ["MPL-2.0"]
+
+# 見本アプリに同梱するフォント (assets/OFL.txt)。ライブラリの crate には入れない
+[[licenses.exceptions]]
+crate = "example-support"
+allow = ["OFL-1.1"]

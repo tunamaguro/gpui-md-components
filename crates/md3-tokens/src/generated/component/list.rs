@@ -6,7 +6,7 @@
 
 //! `ListTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::typography::TypeScale;
 use crate::units::Dp;
@@ -31,7 +31,7 @@ pub const ITEM_BOTTOM_SPACE: Dp = Dp(10.0);
 /// `ItemContainerColor`
 pub const ITEM_CONTAINER_COLOR: ColorRole = ColorRole::Surface;
 /// `ItemContainerElevation`
-pub const ITEM_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const ITEM_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `ItemContainerExpressiveShape`
 pub const ITEM_CONTAINER_EXPRESSIVE_SHAPE: ShapeKey = ShapeKey::CornerExtraSmall;
 /// `ItemContainerShape`
@@ -61,7 +61,7 @@ pub const ITEM_DISABLED_TRAILING_ICON_COLOR: ColorRole = ColorRole::OnSurface;
 /// `ItemDisabledTrailingIconOpacity`
 pub const ITEM_DISABLED_TRAILING_ICON_OPACITY: f32 = 0.38;
 /// `ItemDraggedContainerElevation`
-pub const ITEM_DRAGGED_CONTAINER_ELEVATION: Dp = elevation::LEVEL4;
+pub const ITEM_DRAGGED_CONTAINER_ELEVATION: Elevation = Elevation::Level4;
 /// `ItemDraggedContainerExpressiveShape`
 pub const ITEM_DRAGGED_CONTAINER_EXPRESSIVE_SHAPE: ShapeKey = ShapeKey::CornerLarge;
 /// `ItemDraggedLabelTextColor`

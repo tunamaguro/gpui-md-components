@@ -6,7 +6,7 @@
 
 //! `DragHandleTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::units::Dp;
 use md3_color::ColorRole;
@@ -18,7 +18,7 @@ pub const CONTAINER_WIDTH: Dp = Dp(24.0);
 /// `DraggedColor`
 pub const DRAGGED_COLOR: ColorRole = ColorRole::OnSurface;
 /// `DraggedElevation`
-pub const DRAGGED_ELEVATION: Dp = elevation::LEVEL0;
+pub const DRAGGED_ELEVATION: Elevation = Elevation::Level0;
 /// `DraggedHeight`
 pub const DRAGGED_HEIGHT: Dp = Dp(52.0);
 /// `DraggedShape`
@@ -26,13 +26,13 @@ pub const DRAGGED_SHAPE: ShapeKey = ShapeKey::CornerMedium;
 /// `DraggedWidth`
 pub const DRAGGED_WIDTH: Dp = Dp(12.0);
 /// `Elevation`
-pub const ELEVATION: Dp = elevation::LEVEL0;
+pub const ELEVATION: Elevation = Elevation::Level0;
 /// `Height`
 pub const HEIGHT: Dp = Dp(48.0);
 /// `PressedColor`
 pub const PRESSED_COLOR: ColorRole = ColorRole::OnSurface;
 /// `PressedElevation`
-pub const PRESSED_ELEVATION: Dp = elevation::LEVEL0;
+pub const PRESSED_ELEVATION: Elevation = Elevation::Level0;
 /// `PressedHeight`
 pub const PRESSED_HEIGHT: Dp = Dp(52.0);
 /// `PressedShape`

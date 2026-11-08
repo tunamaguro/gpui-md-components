@@ -6,7 +6,7 @@
 
 //! `ExtendedFabPrimaryTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::typography::TypeScale;
 use crate::units::Dp;
@@ -15,19 +15,19 @@ use md3_color::ColorRole;
 /// `ContainerColor`
 pub const CONTAINER_COLOR: ColorRole = ColorRole::PrimaryContainer;
 /// `ContainerElevation`
-pub const CONTAINER_ELEVATION: Dp = elevation::LEVEL3;
+pub const CONTAINER_ELEVATION: Elevation = Elevation::Level3;
 /// `ContainerHeight`
 pub const CONTAINER_HEIGHT: Dp = Dp(56.0);
 /// `ContainerShape`
 pub const CONTAINER_SHAPE: ShapeKey = ShapeKey::CornerLarge;
 /// `FocusContainerElevation`
-pub const FOCUS_CONTAINER_ELEVATION: Dp = elevation::LEVEL3;
+pub const FOCUS_CONTAINER_ELEVATION: Elevation = Elevation::Level3;
 /// `FocusIconColor`
 pub const FOCUS_ICON_COLOR: ColorRole = ColorRole::OnPrimaryContainer;
 /// `FocusLabelTextColor`
 pub const FOCUS_LABEL_TEXT_COLOR: ColorRole = ColorRole::OnPrimaryContainer;
 /// `HoverContainerElevation`
-pub const HOVER_CONTAINER_ELEVATION: Dp = elevation::LEVEL4;
+pub const HOVER_CONTAINER_ELEVATION: Elevation = Elevation::Level4;
 /// `HoverIconColor`
 pub const HOVER_ICON_COLOR: ColorRole = ColorRole::OnPrimaryContainer;
 /// `HoverLabelTextColor`
@@ -41,15 +41,15 @@ pub const LABEL_TEXT_COLOR: ColorRole = ColorRole::OnPrimaryContainer;
 /// `LabelTextFont`
 pub const LABEL_TEXT_FONT: TypeScale = TypeScale::LabelLarge;
 /// `LoweredContainerElevation`
-pub const LOWERED_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const LOWERED_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `LoweredFocusContainerElevation`
-pub const LOWERED_FOCUS_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const LOWERED_FOCUS_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `LoweredHoverContainerElevation`
-pub const LOWERED_HOVER_CONTAINER_ELEVATION: Dp = elevation::LEVEL2;
+pub const LOWERED_HOVER_CONTAINER_ELEVATION: Elevation = Elevation::Level2;
 /// `LoweredPressedContainerElevation`
-pub const LOWERED_PRESSED_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const LOWERED_PRESSED_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `PressedContainerElevation`
-pub const PRESSED_CONTAINER_ELEVATION: Dp = elevation::LEVEL3;
+pub const PRESSED_CONTAINER_ELEVATION: Elevation = Elevation::Level3;
 /// `PressedIconColor`
 pub const PRESSED_ICON_COLOR: ColorRole = ColorRole::OnPrimaryContainer;
 /// `PressedLabelTextColor`

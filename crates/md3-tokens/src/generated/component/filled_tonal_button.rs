@@ -6,7 +6,7 @@
 
 //! `FilledTonalButtonTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::typography::TypeScale;
 use crate::units::Dp;
@@ -15,7 +15,7 @@ use md3_color::ColorRole;
 /// `ContainerColor`
 pub const CONTAINER_COLOR: ColorRole = ColorRole::SecondaryContainer;
 /// `ContainerElevation`
-pub const CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `ContainerHeight`
 pub const CONTAINER_HEIGHT: Dp = Dp(40.0);
 /// `ContainerShape`
@@ -23,7 +23,7 @@ pub const CONTAINER_SHAPE: ShapeKey = ShapeKey::CornerFull;
 /// `DisabledContainerColor`
 pub const DISABLED_CONTAINER_COLOR: ColorRole = ColorRole::OnSurface;
 /// `DisabledContainerElevation`
-pub const DISABLED_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const DISABLED_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `DisabledContainerOpacity`
 pub const DISABLED_CONTAINER_OPACITY: f32 = 0.12;
 /// `DisabledLabelTextColor`
@@ -31,11 +31,11 @@ pub const DISABLED_LABEL_TEXT_COLOR: ColorRole = ColorRole::OnSurface;
 /// `DisabledLabelTextOpacity`
 pub const DISABLED_LABEL_TEXT_OPACITY: f32 = 0.38;
 /// `FocusContainerElevation`
-pub const FOCUS_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const FOCUS_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `FocusLabelTextColor`
 pub const FOCUS_LABEL_TEXT_COLOR: ColorRole = ColorRole::OnSecondaryContainer;
 /// `HoverContainerElevation`
-pub const HOVER_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const HOVER_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `HoverLabelTextColor`
 pub const HOVER_LABEL_TEXT_COLOR: ColorRole = ColorRole::OnSecondaryContainer;
 /// `LabelTextColor`
@@ -43,7 +43,7 @@ pub const LABEL_TEXT_COLOR: ColorRole = ColorRole::OnSecondaryContainer;
 /// `LabelTextFont`
 pub const LABEL_TEXT_FONT: TypeScale = TypeScale::LabelLarge;
 /// `PressedContainerElevation`
-pub const PRESSED_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const PRESSED_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `PressedLabelTextColor`
 pub const PRESSED_LABEL_TEXT_COLOR: ColorRole = ColorRole::OnSecondaryContainer;
 /// `DisabledIconColor`

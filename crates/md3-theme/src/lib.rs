@@ -25,7 +25,7 @@ mod global;
 mod settings;
 mod theme;
 
-pub use global::ThemeExt;
+pub use global::{SharedTheme, ThemeExt};
 pub use settings::{
     AppearanceMode, ColorSettings, CustomColor, Fonts, PaletteOverrides, RoleOverrides, TextScale,
     ThemeSettings,

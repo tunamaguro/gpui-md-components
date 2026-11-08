@@ -6,7 +6,7 @@
 
 //! `SuggestionChipTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::typography::TypeScale;
 use crate::units::Dp;
@@ -21,27 +21,27 @@ pub const DISABLED_LABEL_TEXT_COLOR: ColorRole = ColorRole::OnSurface;
 /// `DisabledLabelTextOpacity`
 pub const DISABLED_LABEL_TEXT_OPACITY: f32 = 0.38;
 /// `DraggedContainerElevation`
-pub const DRAGGED_CONTAINER_ELEVATION: Dp = elevation::LEVEL4;
+pub const DRAGGED_CONTAINER_ELEVATION: Elevation = Elevation::Level4;
 /// `DraggedLabelTextColor`
 pub const DRAGGED_LABEL_TEXT_COLOR: ColorRole = ColorRole::OnSurfaceVariant;
 /// `ElevatedContainerColor`
 pub const ELEVATED_CONTAINER_COLOR: ColorRole = ColorRole::SurfaceContainerLow;
 /// `ElevatedContainerElevation`
-pub const ELEVATED_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const ELEVATED_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `ElevatedDisabledContainerColor`
 pub const ELEVATED_DISABLED_CONTAINER_COLOR: ColorRole = ColorRole::OnSurface;
 /// `ElevatedDisabledContainerElevation`
-pub const ELEVATED_DISABLED_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const ELEVATED_DISABLED_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `ElevatedDisabledContainerOpacity`
 pub const ELEVATED_DISABLED_CONTAINER_OPACITY: f32 = 0.12;
 /// `ElevatedFocusContainerElevation`
-pub const ELEVATED_FOCUS_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const ELEVATED_FOCUS_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `ElevatedHoverContainerElevation`
-pub const ELEVATED_HOVER_CONTAINER_ELEVATION: Dp = elevation::LEVEL2;
+pub const ELEVATED_HOVER_CONTAINER_ELEVATION: Elevation = Elevation::Level2;
 /// `ElevatedPressedContainerElevation`
-pub const ELEVATED_PRESSED_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const ELEVATED_PRESSED_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `FlatContainerElevation`
-pub const FLAT_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const FLAT_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `FlatDisabledOutlineColor`
 pub const FLAT_DISABLED_OUTLINE_COLOR: ColorRole = ColorRole::OnSurface;
 /// `FlatDisabledOutlineOpacity`

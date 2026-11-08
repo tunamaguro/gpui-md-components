@@ -6,14 +6,14 @@
 
 //! `FabMenuBaselineTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::units::Dp;
 
 /// `CloseButtonBetweenSpace`
 pub const CLOSE_BUTTON_BETWEEN_SPACE: Dp = Dp(8.0);
 /// `CloseButtonContainerElevation`
-pub const CLOSE_BUTTON_CONTAINER_ELEVATION: Dp = elevation::LEVEL3;
+pub const CLOSE_BUTTON_CONTAINER_ELEVATION: Elevation = Elevation::Level3;
 /// `CloseButtonContainerHeight`
 pub const CLOSE_BUTTON_CONTAINER_HEIGHT: Dp = Dp(56.0);
 /// `CloseButtonContainerShape`
@@ -25,7 +25,7 @@ pub const CLOSE_BUTTON_ICON_SIZE: Dp = Dp(20.0);
 /// `ListItemBetweenSpace`
 pub const LIST_ITEM_BETWEEN_SPACE: Dp = Dp(4.0);
 /// `ListItemContainerElevation`
-pub const LIST_ITEM_CONTAINER_ELEVATION: Dp = elevation::LEVEL3;
+pub const LIST_ITEM_CONTAINER_ELEVATION: Elevation = Elevation::Level3;
 /// `ListItemContainerHeight`
 pub const LIST_ITEM_CONTAINER_HEIGHT: Dp = Dp(56.0);
 /// `ListItemContainerShape`
