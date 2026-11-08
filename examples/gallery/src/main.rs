@@ -3,6 +3,7 @@
 #![cfg_attr(target_family = "wasm", no_main)]
 
 mod button_page;
+mod switch_page;
 mod theme_page;
 
 use gpui::{
@@ -14,6 +15,7 @@ use md3_theme::ThemeExt as _;
 use md3_theme::md3_color::ColorRole;
 
 use crate::button_page::ButtonPage;
+use crate::switch_page::SwitchPage;
 use crate::theme_page::ThemePage;
 
 /// 表示するページ
@@ -21,6 +23,7 @@ use crate::theme_page::ThemePage;
 enum Page {
     Theme,
     Button,
+    Switch,
 }
 
 /// ギャラリーのルート。各ページの状態は持たず、ページのエンティティと表示中のページだけを持つ
@@ -28,6 +31,7 @@ struct Gallery {
     page: Page,
     theme_page: Entity<ThemePage>,
     button_page: Entity<ButtonPage>,
+    switch_page: Entity<SwitchPage>,
 }
 
 impl Gallery {
@@ -36,6 +40,7 @@ impl Gallery {
             page: Page::Theme,
             theme_page: cx.new(|_| ThemePage),
             button_page: cx.new(|_| ButtonPage::default()),
+            switch_page: cx.new(|_| SwitchPage::default()),
         }
     }
 }
@@ -58,6 +63,7 @@ impl Render for Gallery {
         let page: AnyView = match self.page {
             Page::Theme => self.theme_page.clone().into(),
             Page::Button => self.button_page.clone().into(),
+            Page::Switch => self.switch_page.clone().into(),
         };
         md3_components::root(
             div()
@@ -71,7 +77,8 @@ impl Render for Gallery {
                         .gap_2()
                         .p_2()
                         .child(tab(Page::Theme, "Theme", cx))
-                        .child(tab(Page::Button, "Button", cx)),
+                        .child(tab(Page::Button, "Button", cx))
+                        .child(tab(Page::Switch, "Switch", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )

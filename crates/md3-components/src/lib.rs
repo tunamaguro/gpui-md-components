@@ -5,13 +5,17 @@
 #[cfg(feature = "button")]
 mod button;
 // 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
-#[cfg(feature = "button")]
+#[cfg(any(feature = "button", feature = "switch"))]
 mod shape;
+#[cfg(feature = "switch")]
+mod switch;
 
 #[cfg(feature = "button")]
 pub use button::{Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant};
 pub use gpui;
 pub use gpui_platform;
+#[cfg(feature = "switch")]
+pub use switch::Switch;
 
 /// この crate の部品が使うキー割り当てと操作を登録する。アプリの起動時に、ウィンドウを開く前に 1 回呼ぶ
 pub fn init(cx: &mut gpui::App) {
