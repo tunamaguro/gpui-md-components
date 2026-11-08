@@ -564,12 +564,17 @@ mod tests {
     impl Render for RowView {
         fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
             let changes = self.changes.clone();
-            // 箱は左端の 40px 四方、テキストはその右に並ぶ
-            CheckboxRow::new("row", CheckboxState::Unchecked, &self.source)
-                .on_click(move |state, _, _| changes.borrow_mut().push(*state))
-                .w(px(200.))
-                .checkbox(Checkbox::new("box", CheckboxState::Unchecked))
-                .child(gpui::text!("Lettuce"))
+            // 箱は左端の 40px 四方、テキストはその右に並ぶ。
+            // ウィンドウのルートはウィンドウいっぱいに広がるため、行は内側の箱に置く
+            div().child(
+                CheckboxRow::new("row", CheckboxState::Unchecked, &self.source)
+                    .on_click(move |state, _, _| changes.borrow_mut().push(*state))
+                    .flex()
+                    .items_center()
+                    .w(px(200.))
+                    .checkbox(Checkbox::new("box", CheckboxState::Unchecked))
+                    .child(gpui::text!("Lettuce")),
+            )
         }
     }
 
@@ -616,8 +621,11 @@ mod tests {
     #[gpui::test]
     fn 行は既定で高さ_48px_まで押せる(cx: &mut TestAppContext) {
         let (changes, _, cx) = setup(cx);
-        cx.simulate_click(point(px(100.), px(46.)), Modifiers::none());
+        // 内容の高さは箱の 40px
+        cx.simulate_click(point(px(100.), px(47.)), Modifiers::none());
         assert_eq!(*changes.borrow(), vec![CheckboxState::Checked]);
+        cx.simulate_click(point(px(100.), px(49.)), Modifiers::none());
+        assert_eq!(changes.borrow().len(), 1, "行の外側では押せないこと");
     }
 
     #[gpui::test]

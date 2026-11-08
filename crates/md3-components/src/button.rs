@@ -548,7 +548,8 @@ impl RenderOnce for Button {
             .group(GROUP)
             .flex_grow_1()
             .flex()
-            // 外側の箱の高さが足りずに引き伸ばしで縮められても、操作領域が形と上下の余白を覆うようにする
+            // 外側の箱が小さく引き伸ばしで縮められても、操作領域が形と上下の余白を覆うようにする
+            .min_w(dp(supplement::button::MIN_WIDTH))
             .min_h(dp(size.height) + margin * 2.0)
             .py(margin)
             .text_color(content)
@@ -586,6 +587,8 @@ mod tests {
         size: ButtonSize,
         /// 外側の箱に指定する高さ
         height: Option<Pixels>,
+        /// 外側の箱を縦方向の flex にして指定する幅
+        column_width: Option<Pixels>,
         clicks: Rc<Cell<usize>>,
     }
 
@@ -597,6 +600,7 @@ mod tests {
                 Button::new("button")
                     .size(self.size)
                     .when_some(self.height, |this, height| this.h(height))
+                    .when_some(self.column_width, |this, width| this.flex_col().w(width))
                     .on_click(move |_, _, _| clicks.set(clicks.get() + 1))
                     .child("Save"),
             )
@@ -615,6 +619,7 @@ mod tests {
             ButtonView {
                 size,
                 height,
+                column_width: None,
                 clicks: clicks.clone(),
             }
         });
@@ -666,6 +671,25 @@ mod tests {
         cx.simulate_click(point(px(10.), px(42.)), Modifiers::none());
         cx.simulate_click(point(px(10.), px(47.)), Modifiers::none());
         assert_eq!(clicks.get(), 2, "箱からはみ出した操作領域でも押せること");
+    }
+
+    #[gpui::test]
+    fn 箱が最小の幅より狭くても形の右端まで押せる(cx: &mut TestAppContext) {
+        cx.update(crate::init);
+        let clicks = Rc::new(Cell::new(0));
+        let (_, cx) = cx.add_window_view(|window, cx| {
+            cx.init_md3_theme(window);
+            // 縦方向の flex では、押せる要素の幅が箱の幅に引き伸ばされる
+            ButtonView {
+                size: ButtonSize::Small,
+                height: None,
+                column_width: Some(px(40.)),
+                clicks: clicks.clone(),
+            }
+        });
+        // 形は最小の幅 58px で描かれる
+        cx.simulate_click(point(px(55.), px(24.)), Modifiers::none());
+        assert_eq!(clicks.get(), 1, "箱からはみ出した形の右端でも押せること");
     }
 
     #[gpui::test]
