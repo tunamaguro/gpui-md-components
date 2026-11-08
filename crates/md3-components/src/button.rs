@@ -578,9 +578,11 @@ mod tests {
 
     use super::*;
 
+    /// テストするボタンに加える設定
+    type Configure = fn(Button) -> Button;
+
     struct ButtonView {
-        /// ボタンに加える設定
-        configure: fn(Button) -> Button,
+        configure: Configure,
         clicks: Rc<Cell<usize>>,
     }
 
@@ -597,7 +599,7 @@ mod tests {
 
     fn setup(
         cx: &mut TestAppContext,
-        configure: fn(Button) -> Button,
+        configure: Configure,
     ) -> (Rc<Cell<usize>>, &mut VisualTestContext) {
         cx.update(crate::init);
         let clicks = Rc::new(Cell::new(0));
@@ -630,7 +632,7 @@ mod tests {
 
     #[gpui::test]
     fn 見た目より低いサイズは上下の余白まで押せる(cx: &mut TestAppContext) {
-        let cases: [(fn(Button) -> Button, f32); 2] = [
+        let cases: [(Configure, f32); 2] = [
             (|b| b.size(ButtonSize::ExtraSmall).child("Save"), 32.),
             (|b| b.size(ButtonSize::Small).child("Save"), 40.),
         ];
@@ -678,7 +680,7 @@ mod tests {
     #[gpui::test]
     fn 箱が内容より狭くても形の右端まで押せる(cx: &mut TestAppContext) {
         // 縦方向の flex では、ボタンの幅が箱の幅に引き伸ばされる
-        let cases: [fn(Button) -> Button; 2] = [
+        let cases: [Configure; 2] = [
             |b| b.flex_col().w(px(40.)).child("Save"),
             |b| {
                 b.size(ButtonSize::Large)
