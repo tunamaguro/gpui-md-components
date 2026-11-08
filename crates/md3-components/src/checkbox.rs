@@ -337,6 +337,9 @@ impl Styled for Checkbox {
 /// 無効とエラーは子のチェックボックスにも同じ値を渡すこと。
 /// レイアウトは [`Styled`] で呼び出し側が付ける
 ///
+/// 行全体が押せる範囲 (操作領域) になり、既定で幅と高さを 48dp 以上にする。
+/// [`Styled`] で最小の幅と高さを指定すると、その値で置き換わる
+///
 /// ```ignore
 /// CheckboxRow::new("row", state, &source)
 ///     .on_click(|next, _, _| { /* 状態を更新する */ })
@@ -356,7 +359,10 @@ impl CheckboxRow {
     /// 行は `source` のフォーカスを使い、`source` を通して行の hover とフォーカスを子に伝える
     pub fn new(id: impl Into<ElementId>, state: CheckboxState, source: &InteractionSource) -> Self {
         Self {
-            inner: HeadlessCheckbox::new(id, state.into()).interaction_source(source.inner()),
+            inner: HeadlessCheckbox::new(id, state.into())
+                .interaction_source(source.inner())
+                .min_w(dp(interactive::MIN_SIZE))
+                .min_h(dp(interactive::MIN_SIZE)),
             source: source.clone(),
         }
     }
@@ -608,6 +614,13 @@ mod tests {
     }
 
     #[gpui::test]
+    fn 行は既定で高さ_48px_まで押せる(cx: &mut TestAppContext) {
+        let (changes, _, cx) = setup(cx);
+        cx.simulate_click(point(px(100.), px(46.)), Modifiers::none());
+        assert_eq!(*changes.borrow(), vec![CheckboxState::Checked]);
+    }
+
+    #[gpui::test]
     fn tab_で止まるのは行だけ(cx: &mut TestAppContext) {
         let (_, source, cx) = setup(cx);
         cx.simulate_keystrokes("tab");
@@ -666,6 +679,31 @@ mod tests {
             }
         });
         // 操作領域は左上の 48px 四方で、40px の状態レイヤーはその中央 (4px から 44px) に置かれる
+        cx.simulate_mouse_move(point(px(24.), px(24.)), None, Modifiers::none());
+        cx.update(|window, _| {
+            let scale = window.scale_factor();
+            let bounds: Vec<_> = window
+                .painted_quads()
+                .into_iter()
+                .map(|quad| {
+                    let b = quad.bounds;
+                    (
+                        b.origin.x.0 / scale,
+                        b.origin.y.0 / scale,
+                        b.size.width.0 / scale,
+                        b.size.height.0 / scale,
+                    )
+                })
+                .collect();
+            assert!(
+                bounds.contains(&(4., 4., 40., 40.)),
+                "hover 中の状態レイヤーは 40px のまま中央に描くこと: {bounds:?}"
+            );
+            assert!(
+                bounds.contains(&(15., 15., 18., 18.)),
+                "箱は 18px のまま中央に描くこと: {bounds:?}"
+            );
+        });
         cx.simulate_click(point(px(1.), px(1.)), Modifiers::none());
         cx.simulate_click(point(px(46.), px(46.)), Modifiers::none());
         assert_eq!(

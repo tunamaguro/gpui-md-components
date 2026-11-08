@@ -295,6 +295,8 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 ///
 /// [`Styled`] で指定したスタイルはボタンの外側の箱に付く。箱は操作領域を含む。大きさや外側の余白、flex の指定に使い、
 /// 箱を広げると操作領域が箱いっぱいに広がり、形は操作領域から上下の余白を除いた範囲に広がる。
+/// 上下の余白はサイズで決まり、箱の大きさでは変わらない。
+/// 箱を操作領域の最小より小さくした場合、操作領域と形は縮まずに箱からはみ出す。
 /// 色や形は変えられないため、[`Button::colors`] と [`Button::shape`] を使う
 ///
 /// テーマの密度 ([`ThemeSettings::density`](md3_theme::ThemeSettings::density)) は反映しない。
@@ -546,6 +548,8 @@ impl RenderOnce for Button {
             .group(GROUP)
             .flex_grow_1()
             .flex()
+            // 外側の箱の高さが足りずに引き伸ばしで縮められても、操作領域が形と上下の余白を覆うようにする
+            .min_h(dp(size.height) + margin * 2.0)
             .py(margin)
             .text_color(content)
             .whitespace_nowrap()
@@ -574,12 +578,14 @@ impl ParentElement for Button {
 mod tests {
     use std::{cell::Cell, rc::Rc};
 
-    use gpui::{Context, Modifiers, Render, TestAppContext, point};
+    use gpui::{Context, Modifiers, Pixels, Render, TestAppContext, VisualTestContext, point};
 
     use super::*;
 
     struct ButtonView {
         size: ButtonSize,
+        /// 外側の箱に指定する高さ
+        height: Option<Pixels>,
         clicks: Rc<Cell<usize>>,
     }
 
@@ -590,30 +596,81 @@ mod tests {
             div().child(
                 Button::new("button")
                     .size(self.size)
+                    .when_some(self.height, |this, height| this.h(height))
                     .on_click(move |_, _, _| clicks.set(clicks.get() + 1))
                     .child("Save"),
             )
         }
     }
 
+    fn setup(
+        cx: &mut TestAppContext,
+        size: ButtonSize,
+        height: Option<Pixels>,
+    ) -> (Rc<Cell<usize>>, &mut VisualTestContext) {
+        cx.update(crate::init);
+        let clicks = Rc::new(Cell::new(0));
+        let (_, cx) = cx.add_window_view(|window, cx| {
+            cx.init_md3_theme(window);
+            ButtonView {
+                size,
+                height,
+                clicks: clicks.clone(),
+            }
+        });
+        (clicks, cx)
+    }
+
+    /// 描いた容器の上端と高さ。Filled の有効なボタンは、hover もフォーカスもなければ容器だけを矩形として描く
+    fn container_top_and_height(cx: &mut VisualTestContext) -> (Pixels, Pixels) {
+        cx.update(|window, _| {
+            let scale = window.scale_factor();
+            let quads = window.painted_quads();
+            assert_eq!(quads.len(), 1, "容器だけを描くこと");
+            let bounds = quads[0].bounds;
+            (
+                px(bounds.origin.y.0 / scale),
+                px(bounds.size.height.0 / scale),
+            )
+        })
+    }
+
     #[gpui::test]
     fn 見た目より低いサイズは上下の余白まで押せる(cx: &mut TestAppContext) {
-        for size in [ButtonSize::ExtraSmall, ButtonSize::Small] {
-            cx.update(crate::init);
-            let clicks = Rc::new(Cell::new(0));
-            let (_, cx) = cx.add_window_view(|window, cx| {
-                cx.init_md3_theme(window);
-                ButtonView {
-                    size,
-                    clicks: clicks.clone(),
-                }
-            });
+        for (size, height) in [(ButtonSize::ExtraSmall, 32.), (ButtonSize::Small, 40.)] {
+            let (clicks, cx) = setup(cx, size, None);
             // 操作領域は上端から 48px で、形はその中央に置かれる
+            assert_eq!(
+                container_top_and_height(cx),
+                (px((48. - height) / 2.), px(height)),
+                "{size:?} の形は見た目の高さのまま操作領域の中央に描くこと"
+            );
             cx.simulate_click(point(px(10.), px(1.)), Modifiers::none());
             cx.simulate_click(point(px(10.), px(47.)), Modifiers::none());
             assert_eq!(clicks.get(), 2, "{size:?} の形の上下の余白でも押せること");
             cx.simulate_click(point(px(10.), px(50.)), Modifiers::none());
             assert_eq!(clicks.get(), 2, "{size:?} の操作領域の外側では押せないこと");
         }
+    }
+
+    #[gpui::test]
+    fn 箱が操作領域より低くても形と上下の余白まで押せる(
+        cx: &mut TestAppContext,
+    ) {
+        let (clicks, cx) = setup(cx, ButtonSize::Small, Some(px(40.)));
+        assert_eq!(
+            container_top_and_height(cx),
+            (px(4.), px(40.)),
+            "形は縮まずに描くこと"
+        );
+        cx.simulate_click(point(px(10.), px(42.)), Modifiers::none());
+        cx.simulate_click(point(px(10.), px(47.)), Modifiers::none());
+        assert_eq!(clicks.get(), 2, "箱からはみ出した操作領域でも押せること");
+    }
+
+    #[gpui::test]
+    fn 箱を広げると形は上下の余白を除いて広がる(cx: &mut TestAppContext) {
+        let (_, cx) = setup(cx, ButtonSize::Small, Some(px(80.)));
+        assert_eq!(container_top_and_height(cx), (px(4.), px(72.)));
     }
 }
