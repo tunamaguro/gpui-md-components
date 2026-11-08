@@ -402,12 +402,14 @@ impl RenderOnce for Button {
         let size = self.size.tokens();
         let disabled = self.disabled;
 
-        let mut headless = HeadlessButton::new(self.id).disabled(disabled);
-        if let Some(focus_handle) = &self.focus_handle {
-            headless = headless.track_focus(focus_handle);
-        }
+        let focus_handle = self.focus_handle.unwrap_or_else(|| {
+            window
+                .use_keyed_state(self.id.clone(), cx, |_, cx| cx.focus_handle())
+                .read(cx)
+                .clone()
+        });
         // リングはボタンの外側に描くため、ボタン自身のスタイルでは表せない
-        let focus_visible = headless.is_focus_visible(window, cx);
+        let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
 
         let (container, content) = if disabled {
             (
@@ -486,7 +488,9 @@ impl RenderOnce for Button {
                 })
             });
 
-        let mut button = headless
+        let mut button = HeadlessButton::new(self.id)
+            .track_focus(&focus_handle)
+            .disabled(disabled)
             .group(GROUP)
             .relative()
             .flex_grow_1()
