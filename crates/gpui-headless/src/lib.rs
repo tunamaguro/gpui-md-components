@@ -7,10 +7,12 @@ pub mod button;
 pub mod choice;
 mod focus_visible;
 mod navigation;
+mod root;
 #[cfg(test)]
 mod test_window;
 
 pub use focus_visible::is_focus_visible;
+pub use root::{Root, root};
 
 /// 部品を操作できるかどうか
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]

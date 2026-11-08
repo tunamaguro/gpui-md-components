@@ -6,7 +6,7 @@ use gpui::{
     StyleRefinement, Styled, Window, accesskit, div, prelude::FluentBuilder,
 };
 
-use crate::{Availability, accessibility::A11yInfoExt, focus_visible};
+use crate::{Availability, accessibility::A11yInfoExt};
 
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
@@ -119,8 +119,6 @@ impl RenderOnce for Button {
                 this.track_focus(&focus_handle.tab_stop(true))
             })
             .when_some(on_click, |this, on_click| this.on_click(on_click))
-            .capture_any_mouse_down(focus_visible::record_mouse_down)
-            .on_mouse_down_out(focus_visible::record_mouse_down)
             .a11y_info(move |node: &mut accesskit::Node| {
                 if disabled {
                     node.set_disabled();
