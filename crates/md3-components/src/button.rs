@@ -10,7 +10,7 @@
 use gpui::{
     AnyElement, App, ClickEvent, Div, ElementId, FocusHandle, Hsla, InteractiveElement,
     IntoElement, ParentElement, Refineable, RenderOnce, SharedString, StatefulInteractiveElement,
-    StyleRefinement, Styled, Window, div, prelude::FluentBuilder, svg,
+    StyleRefinement, Styled, Window, div, prelude::FluentBuilder, px, svg,
 };
 use gpui_headless::button::Button as HeadlessButton;
 
@@ -25,7 +25,7 @@ use md3_theme::md3_tokens::component::{
 use md3_theme::md3_tokens::elevation::Elevation;
 use md3_theme::md3_tokens::shape::ShapeKey;
 use md3_theme::md3_tokens::typography::TypeScale;
-use md3_theme::md3_tokens::{Dp, focus_ring, state, supplement};
+use md3_theme::md3_tokens::{Dp, focus_ring, interactive, state, supplement};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
 /// 容器の層がボタンの hover を知るための group 名
@@ -50,9 +50,9 @@ pub enum ButtonVariant {
 /// ボタンの大きさ。高さ・余白・アイコン・ラベルの書体が大きさに合わせて決まる
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum ButtonSize {
-    /// 高さ 32dp
+    /// 高さ 32dp。操作領域は上下に余白をとって 48dp にする
     ExtraSmall,
-    /// 高さ 40dp
+    /// 高さ 40dp。操作領域は上下に余白をとって 48dp にする
     #[default]
     Small,
     /// 高さ 56dp
@@ -289,13 +289,16 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 /// 支援技術には role `button` として公開され、子の内容がアクセシブルな名前になる。
 /// マウスのクリック・フォーカス中の Enter と Space で [`Button::on_click`] のハンドラを呼ぶ。
 ///
-/// [`Styled`] で指定したスタイルはボタンの外側の箱に付く。大きさや外側の余白、flex の指定に使い、
-/// 箱を広げるとボタンも箱いっぱいに広がる。色や形は変えられないため、[`Button::colors`] と [`Button::shape`] を使う
+/// 押せる範囲 (操作領域) は幅と高さが 48dp 以上の矩形で、ボタンの形を中央に置き、形の周囲も含む。
+/// 高さが 48dp 未満のサイズ ([`ButtonSize::ExtraSmall`] と [`ButtonSize::Small`]) は、形の上下に余白をとる。
+/// hover の表示も操作領域に従う
+///
+/// [`Styled`] で指定したスタイルはボタンの外側の箱に付く。箱は操作領域を含む。大きさや外側の余白、flex の指定に使い、
+/// 箱を広げると操作領域が箱いっぱいに広がり、形は操作領域から上下の余白を除いた範囲に広がる。
+/// 色や形は変えられないため、[`Button::colors`] と [`Button::shape`] を使う
 ///
 /// テーマの密度 ([`ThemeSettings::density`](md3_theme::ThemeSettings::density)) は反映しない。
 /// 大きさは [`Button::size`] で選ぶ
-///
-/// 押せる範囲はボタンの形を囲む矩形で、角丸の外側も含む
 #[derive(IntoElement)]
 pub struct Button {
     id: ElementId,
@@ -499,10 +502,7 @@ impl RenderOnce for Button {
                 })
             });
 
-        let mut button = HeadlessButton::new(self.id)
-            .track_focus(&focus_handle)
-            .disabled(disabled)
-            .group(GROUP)
+        let visual = div()
             .relative()
             .flex_grow_1()
             .flex()
@@ -513,8 +513,6 @@ impl RenderOnce for Button {
             .min_h(dp(size.height))
             .px(dp(size.horizontal_padding))
             .py(dp(size.vertical_padding))
-            .text_color(content)
-            .whitespace_nowrap()
             .child(Shaped::new(container, theme.clone(), shape))
             .when_some(self.icon, |this, icon| {
                 this.child(
@@ -537,7 +535,21 @@ impl RenderOnce for Button {
                     .border(dp(focus_ring::WIDTH))
                     .border_color(theme.color(focus_ring::COLOR));
                 this.child(Shaped::new(ring, theme.clone(), shape).outset(outset))
-            })
+            });
+
+        // 高さが操作領域の最小に満たないサイズは、上下に余白をとって操作領域を広げる。
+        // 幅は MIN_WIDTH が操作領域の最小以上のため広げない
+        let margin = ((dp(interactive::MIN_SIZE) - dp(size.height)) / 2.0).max(px(0.0));
+        let mut button = HeadlessButton::new(self.id)
+            .track_focus(&focus_handle)
+            .disabled(disabled)
+            .group(GROUP)
+            .flex_grow_1()
+            .flex()
+            .py(margin)
+            .text_color(content)
+            .whitespace_nowrap()
+            .child(visual)
             .when_some(self.aria_label, |this, label| this.aria_label(label))
             .when_some(self.on_click, |this, on_click| this.on_click(on_click));
         button.text_style().refine(&theme.text_style(size.label));
@@ -555,5 +567,53 @@ impl Styled for Button {
 impl ParentElement for Button {
     fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
         self.children.extend(elements);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{cell::Cell, rc::Rc};
+
+    use gpui::{Context, Modifiers, Render, TestAppContext, point};
+
+    use super::*;
+
+    struct ButtonView {
+        size: ButtonSize,
+        clicks: Rc<Cell<usize>>,
+    }
+
+    impl Render for ButtonView {
+        fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+            let clicks = self.clicks.clone();
+            // ウィンドウのルートはウィンドウいっぱいに広がるため、ボタンは内側の箱に置く
+            div().child(
+                Button::new("button")
+                    .size(self.size)
+                    .on_click(move |_, _, _| clicks.set(clicks.get() + 1))
+                    .child("Save"),
+            )
+        }
+    }
+
+    #[gpui::test]
+    fn 見た目より低いサイズは上下の余白まで押せる(cx: &mut TestAppContext) {
+        for size in [ButtonSize::ExtraSmall, ButtonSize::Small] {
+            cx.update(crate::init);
+            let clicks = Rc::new(Cell::new(0));
+            let (_, cx) = cx.add_window_view(|window, cx| {
+                cx.init_md3_theme(window);
+                ButtonView {
+                    size,
+                    clicks: clicks.clone(),
+                }
+            });
+            // 操作領域は上端から 48px で、形はその中央に置かれる
+            cx.simulate_click(point(px(10.), px(1.)), Modifiers::none());
+            cx.simulate_click(point(px(10.), px(47.)), Modifiers::none());
+            assert_eq!(clicks.get(), 2, "{size:?} の形の上下の余白でも押せること");
+            cx.simulate_click(point(px(10.), px(50.)), Modifiers::none());
+            assert_eq!(clicks.get(), 2, "{size:?} の操作領域の外側では押せないこと");
+        }
     }
 }

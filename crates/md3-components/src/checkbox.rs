@@ -21,7 +21,7 @@ use gpui_headless::choice::{Checkbox as HeadlessCheckbox, CheckedState};
 use crate::{InteractionSource, util};
 use md3_icons::IconStyle;
 use md3_theme::md3_tokens::component::checkbox;
-use md3_theme::md3_tokens::{focus_ring, state, supplement};
+use md3_theme::md3_tokens::{focus_ring, interactive, state, supplement};
 use md3_theme::{SharedTheme, Theme, ThemeExt, dp, shape_radii};
 
 /// [`CheckboxRow`] の子でないとき、状態レイヤーがチェックボックスの hover を知るための group 名
@@ -75,8 +75,9 @@ type ClickHandler = Box<dyn Fn(&CheckboxState, &mut Window, &mut App)>;
 /// 設定しない場合は見た目だけのチェックボックスになり、押せず、フォーカスを受けず、支援技術にも公開されない。
 /// [`CheckboxRow::checkbox`] に渡して、行全体を 1 つのチェックボックスとして操作させる場合に使う
 ///
-/// 大きさは状態レイヤーの 40dp 四方の箱で、操作できる場合はこの箱が押せる範囲になる。
-/// フォーカスリングは箱の外側にはみ出して描く
+/// 見た目は状態レイヤーの 40dp 四方の箱で、見た目だけのチェックボックスはこの大きさになる。
+/// 操作できる場合は、箱を中央に置いた 48dp 四方の矩形が押せる範囲 (操作領域) と大きさになる。
+/// hover の表示も操作領域に従う。フォーカスリングは 40dp の箱の外側に描く
 ///
 /// [`Styled`] で指定したスタイルはチェックボックスの外側の箱に付く
 #[derive(IntoElement)]
@@ -302,6 +303,10 @@ impl RenderOnce for Checkbox {
             .disabled(disabled)
             .error(self.error)
             .flex()
+            .flex_none()
+            .items_center()
+            .justify_center()
+            .size(dp(interactive::MIN_SIZE))
             .child(indicator)
             .when_some(focus_handle, |this, focus_handle| {
                 this.track_focus(&focus_handle)
@@ -633,5 +638,42 @@ mod tests {
         cx.simulate_keystrokes("tab");
         cx.simulate_click(point(px(20.), px(20.)), Modifiers::none());
         cx.update(|window, cx| assert!(window.focused(cx).is_none()));
+    }
+
+    struct StandaloneView {
+        changes: Rc<RefCell<Vec<CheckboxState>>>,
+    }
+
+    impl Render for StandaloneView {
+        fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+            let changes = self.changes.clone();
+            Checkbox::new("box", CheckboxState::Unchecked)
+                .aria_label("Lettuce")
+                .on_click(move |state, _, _| changes.borrow_mut().push(*state))
+        }
+    }
+
+    #[gpui::test]
+    fn 操作できるチェックボックスは状態レイヤーの外側まで押せる(
+        cx: &mut TestAppContext,
+    ) {
+        cx.update(crate::init);
+        let changes = Rc::<RefCell<Vec<CheckboxState>>>::default();
+        let (_, cx) = cx.add_window_view(|window, cx| {
+            cx.init_md3_theme(window);
+            StandaloneView {
+                changes: changes.clone(),
+            }
+        });
+        // 操作領域は左上の 48px 四方で、40px の状態レイヤーはその中央 (4px から 44px) に置かれる
+        cx.simulate_click(point(px(1.), px(1.)), Modifiers::none());
+        cx.simulate_click(point(px(46.), px(46.)), Modifiers::none());
+        assert_eq!(
+            *changes.borrow(),
+            vec![CheckboxState::Checked, CheckboxState::Checked],
+            "状態レイヤーの外側の余白でも押せること"
+        );
+        cx.simulate_click(point(px(50.), px(24.)), Modifiers::none());
+        assert_eq!(changes.borrow().len(), 2, "操作領域の外側では押せないこと");
     }
 }
