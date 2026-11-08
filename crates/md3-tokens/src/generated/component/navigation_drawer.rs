@@ -6,7 +6,7 @@
 
 //! `NavigationDrawerTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::typography::TypeScale;
 use crate::units::Dp;
@@ -77,8 +77,8 @@ pub const LARGE_BADGE_LABEL_FONT: TypeScale = TypeScale::LabelLarge;
 /// `ModalContainerColor`
 pub const MODAL_CONTAINER_COLOR: ColorRole = ColorRole::SurfaceContainerLow;
 /// `ModalContainerElevation`
-pub const MODAL_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const MODAL_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `StandardContainerColor`
 pub const STANDARD_CONTAINER_COLOR: ColorRole = ColorRole::Surface;
 /// `StandardContainerElevation`
-pub const STANDARD_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const STANDARD_CONTAINER_ELEVATION: Elevation = Elevation::Level0;

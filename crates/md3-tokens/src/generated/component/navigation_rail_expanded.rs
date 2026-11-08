@@ -6,13 +6,13 @@
 
 //! `NavigationRailExpandedTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::units::Dp;
 use md3_color::ColorRole;
 
 /// `ContainerElevation`
-pub const CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `ContainerShape`
 pub const CONTAINER_SHAPE: ShapeKey = ShapeKey::CornerNone;
 /// `ContainerWidthMaximum`
@@ -20,7 +20,7 @@ pub const CONTAINER_WIDTH_MAXIMUM: Dp = Dp(360.0);
 /// `ContainerWidthMinimum`
 pub const CONTAINER_WIDTH_MINIMUM: Dp = Dp(220.0);
 /// `ModalContainerElevation`
-pub const MODAL_CONTAINER_ELEVATION: Dp = elevation::LEVEL2;
+pub const MODAL_CONTAINER_ELEVATION: Elevation = Elevation::Level2;
 /// `ModalContainerShape`
 pub const MODAL_CONTAINER_SHAPE: ShapeKey = ShapeKey::CornerLarge;
 /// `TopSpace`

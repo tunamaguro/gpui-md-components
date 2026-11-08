@@ -48,7 +48,7 @@ pub struct ElevationShadow {
 
 /// 段階 `level` の影を求める
 ///
-/// `level` は段階の番号 (0〜5) で、dp の値ではない。高さからは [`elevation::level_of`](crate::elevation::level_of) で求める。
+/// `level` は段階の番号 (0〜5) で、dp の値ではない。段階からは [`Elevation::level`](crate::elevation::Elevation::level) で求める。
 /// 段階の間の値は補間され、0 未満は 0、5 を超える値は 5 と同じ影になる。NaN は 0 として扱う
 pub fn shadow(level: f32) -> ElevationShadow {
     let level = if level.is_nan() { 0.0 } else { level };

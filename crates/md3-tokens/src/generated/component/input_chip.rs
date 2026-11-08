@@ -6,14 +6,14 @@
 
 //! `InputChipTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::typography::TypeScale;
 use crate::units::Dp;
 use md3_color::ColorRole;
 
 /// `ContainerElevation`
-pub const CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `ContainerHeight`
 pub const CONTAINER_HEIGHT: Dp = Dp(32.0);
 /// `ContainerShape`
@@ -31,7 +31,7 @@ pub const DISABLED_UNSELECTED_OUTLINE_COLOR: ColorRole = ColorRole::OnSurface;
 /// `DisabledUnselectedOutlineOpacity`
 pub const DISABLED_UNSELECTED_OUTLINE_OPACITY: f32 = 0.12;
 /// `DraggedContainerElevation`
-pub const DRAGGED_CONTAINER_ELEVATION: Dp = elevation::LEVEL4;
+pub const DRAGGED_CONTAINER_ELEVATION: Elevation = Elevation::Level4;
 /// `FocusIndicatorColor`
 pub const FOCUS_INDICATOR_COLOR: ColorRole = ColorRole::Secondary;
 /// `LabelTextFont`

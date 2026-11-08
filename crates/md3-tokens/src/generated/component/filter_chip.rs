@@ -6,7 +6,7 @@
 
 //! `FilterChipTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::typography::TypeScale;
 use crate::units::Dp;
@@ -21,27 +21,27 @@ pub const DISABLED_LABEL_TEXT_COLOR: ColorRole = ColorRole::OnSurface;
 /// `DisabledLabelTextOpacity`
 pub const DISABLED_LABEL_TEXT_OPACITY: f32 = 0.38;
 /// `DraggedContainerElevation`
-pub const DRAGGED_CONTAINER_ELEVATION: Dp = elevation::LEVEL4;
+pub const DRAGGED_CONTAINER_ELEVATION: Elevation = Elevation::Level4;
 /// `ElevatedContainerElevation`
-pub const ELEVATED_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const ELEVATED_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `ElevatedDisabledContainerColor`
 pub const ELEVATED_DISABLED_CONTAINER_COLOR: ColorRole = ColorRole::OnSurface;
 /// `ElevatedDisabledContainerElevation`
-pub const ELEVATED_DISABLED_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const ELEVATED_DISABLED_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `ElevatedDisabledContainerOpacity`
 pub const ELEVATED_DISABLED_CONTAINER_OPACITY: f32 = 0.12;
 /// `ElevatedFocusContainerElevation`
-pub const ELEVATED_FOCUS_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const ELEVATED_FOCUS_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `ElevatedHoverContainerElevation`
-pub const ELEVATED_HOVER_CONTAINER_ELEVATION: Dp = elevation::LEVEL2;
+pub const ELEVATED_HOVER_CONTAINER_ELEVATION: Elevation = Elevation::Level2;
 /// `ElevatedPressedContainerElevation`
-pub const ELEVATED_PRESSED_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const ELEVATED_PRESSED_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `ElevatedSelectedContainerColor`
 pub const ELEVATED_SELECTED_CONTAINER_COLOR: ColorRole = ColorRole::SecondaryContainer;
 /// `ElevatedUnselectedContainerColor`
 pub const ELEVATED_UNSELECTED_CONTAINER_COLOR: ColorRole = ColorRole::SurfaceContainerLow;
 /// `FlatContainerElevation`
-pub const FLAT_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const FLAT_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `FlatDisabledSelectedContainerColor`
 pub const FLAT_DISABLED_SELECTED_CONTAINER_COLOR: ColorRole = ColorRole::OnSurface;
 /// `FlatDisabledSelectedContainerOpacity`
@@ -53,25 +53,25 @@ pub const FLAT_DISABLED_UNSELECTED_OUTLINE_OPACITY: f32 = 0.12;
 /// `FlatSelectedContainerColor`
 pub const FLAT_SELECTED_CONTAINER_COLOR: ColorRole = ColorRole::SecondaryContainer;
 /// `FlatSelectedFocusContainerElevation`
-pub const FLAT_SELECTED_FOCUS_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const FLAT_SELECTED_FOCUS_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `FlatSelectedHoverContainerElevation`
-pub const FLAT_SELECTED_HOVER_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const FLAT_SELECTED_HOVER_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `FlatSelectedOutlineWidth`
 pub const FLAT_SELECTED_OUTLINE_WIDTH: Dp = Dp(0.0);
 /// `FlatSelectedPressedContainerElevation`
-pub const FLAT_SELECTED_PRESSED_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const FLAT_SELECTED_PRESSED_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `FlatUnselectedFocusContainerElevation`
-pub const FLAT_UNSELECTED_FOCUS_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const FLAT_UNSELECTED_FOCUS_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `FlatUnselectedFocusOutlineColor`
 pub const FLAT_UNSELECTED_FOCUS_OUTLINE_COLOR: ColorRole = ColorRole::OnSurfaceVariant;
 /// `FlatUnselectedHoverContainerElevation`
-pub const FLAT_UNSELECTED_HOVER_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const FLAT_UNSELECTED_HOVER_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `FlatUnselectedOutlineColor`
 pub const FLAT_UNSELECTED_OUTLINE_COLOR: ColorRole = ColorRole::OutlineVariant;
 /// `FlatUnselectedOutlineWidth`
 pub const FLAT_UNSELECTED_OUTLINE_WIDTH: Dp = Dp(1.0);
 /// `FlatUnselectedPressedContainerElevation`
-pub const FLAT_UNSELECTED_PRESSED_CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const FLAT_UNSELECTED_PRESSED_CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `FocusIndicatorColor`
 pub const FOCUS_INDICATOR_COLOR: ColorRole = ColorRole::Secondary;
 /// `LabelTextFont`

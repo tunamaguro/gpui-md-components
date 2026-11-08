@@ -6,7 +6,7 @@
 
 //! `ChipsTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::typography::TypeScale;
 use crate::units::Dp;
@@ -17,7 +17,7 @@ pub const AVATAR_SHAPE: ShapeKey = ShapeKey::CornerFull;
 /// `AvatarSize`
 pub const AVATAR_SIZE: Dp = Dp(24.0);
 /// `ContainerElevation`
-pub const CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `DisabledLabelTextColor`
 pub const DISABLED_LABEL_TEXT_COLOR: ColorRole = ColorRole::OnSurface;
 /// `DisabledLeadingIconColor`
@@ -25,7 +25,7 @@ pub const DISABLED_LEADING_ICON_COLOR: ColorRole = ColorRole::OnSurface;
 /// `DisabledTrailingIconColor`
 pub const DISABLED_TRAILING_ICON_COLOR: ColorRole = ColorRole::OnSurface;
 /// `DraggedContainerElevation`
-pub const DRAGGED_CONTAINER_ELEVATION: Dp = elevation::LEVEL4;
+pub const DRAGGED_CONTAINER_ELEVATION: Elevation = Elevation::Level4;
 /// `FocusedIndicatorColor`
 pub const FOCUSED_INDICATOR_COLOR: ColorRole = ColorRole::Secondary;
 /// `Height`

@@ -6,7 +6,7 @@
 
 //! `PrimaryNavigationTabTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::CornerShape;
 use crate::shape::CornerSize;
 use crate::shape::ShapeKey;
@@ -28,7 +28,7 @@ pub const ACTIVE_INDICATOR_SHAPE: CornerShape = CornerShape {
 /// `ContainerColor`
 pub const CONTAINER_COLOR: ColorRole = ColorRole::Surface;
 /// `ContainerElevation`
-pub const CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `ContainerHeight`
 pub const CONTAINER_HEIGHT: Dp = Dp(48.0);
 /// `ContainerShape`

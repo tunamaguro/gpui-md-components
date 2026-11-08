@@ -6,7 +6,7 @@
 
 //! `SheetBottomTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::units::Dp;
 use md3_color::ColorRole;
@@ -24,8 +24,8 @@ pub const DOCKED_DRAG_HANDLE_WIDTH: Dp = Dp(32.0);
 /// `DockedMinimizedContainerShape`
 pub const DOCKED_MINIMIZED_CONTAINER_SHAPE: ShapeKey = ShapeKey::CornerNone;
 /// `DockedModalContainerElevation`
-pub const DOCKED_MODAL_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const DOCKED_MODAL_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `DockedStandardContainerElevation`
-pub const DOCKED_STANDARD_CONTAINER_ELEVATION: Dp = elevation::LEVEL1;
+pub const DOCKED_STANDARD_CONTAINER_ELEVATION: Elevation = Elevation::Level1;
 /// `FocusIndicatorColor`
 pub const FOCUS_INDICATOR_COLOR: ColorRole = ColorRole::Secondary;

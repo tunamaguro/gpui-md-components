@@ -6,7 +6,7 @@
 
 //! `TimeInputTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::typography::TypeScale;
 use crate::units::Dp;
@@ -15,7 +15,7 @@ use md3_color::ColorRole;
 /// `ContainerColor`
 pub const CONTAINER_COLOR: ColorRole = ColorRole::SurfaceContainerHigh;
 /// `ContainerElevation`
-pub const CONTAINER_ELEVATION: Dp = elevation::LEVEL3;
+pub const CONTAINER_ELEVATION: Elevation = Elevation::Level3;
 /// `ContainerShape`
 pub const CONTAINER_SHAPE: ShapeKey = ShapeKey::CornerExtraLarge;
 /// `FocusIndicatorColor`

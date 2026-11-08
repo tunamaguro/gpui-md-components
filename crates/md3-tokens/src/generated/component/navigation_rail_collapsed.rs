@@ -6,13 +6,13 @@
 
 //! `NavigationRailCollapsedTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::units::Dp;
 use md3_color::ColorRole;
 
 /// `ContainerElevation`
-pub const CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `ContainerShape`
 pub const CONTAINER_SHAPE: ShapeKey = ShapeKey::CornerNone;
 /// `ContainerWidth`

@@ -154,10 +154,10 @@ pub(super) fn convert(
             expr: format!("MotionSchemeKey::{key}"),
         }
     } else if let Some(level) = expr.strip_prefix("ElevationTokens.") {
-        import("crate::generated::elevation");
+        import("crate::elevation::Elevation");
         Value {
-            rust_type: "Dp",
-            expr: format!("elevation::{}", screaming_snake_case(level)),
+            rust_type: "Elevation",
+            expr: format!("Elevation::{level}"),
         }
     } else if let Some(shape) = expr.strip_prefix("ShapeTokens.") {
         import("crate::generated::shape");
@@ -306,6 +306,8 @@ pub(super) fn convert(
             "ColorToken" => "ColorRole",
             "ShapeToken" => "ShapeKey",
             "TypographyToken" => "TypeScale",
+            // ElevationTokens の参照は段階として残す
+            "Dp" if value.rust_type == "Elevation" => "Elevation",
             "Dp" => "Dp",
             "TextUnit" => "Sp",
             "FontFamily" if value.rust_type == "Typeface" => "Typeface",
@@ -337,6 +339,7 @@ pub(super) fn type_path(rust_type: &str) -> Option<&'static str> {
         "TypeScale" => Some("crate::typography::TypeScale"),
         "MotionSchemeKey" => Some("crate::motion::MotionSchemeKey"),
         "Dp" => Some("crate::units::Dp"),
+        "Elevation" => Some("crate::elevation::Elevation"),
         "Sp" => Some("crate::units::Sp"),
         "CornerSize" => Some("crate::shape::CornerSize"),
         "CornerShape" => Some("crate::shape::CornerShape"),

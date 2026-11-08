@@ -6,7 +6,7 @@
 
 //! `AppBarTokens` の転記
 
-use crate::generated::elevation;
+use crate::elevation::Elevation;
 use crate::shape::ShapeKey;
 use crate::units::Dp;
 use md3_color::ColorRole;
@@ -16,7 +16,7 @@ pub const AVATAR_SIZE: Dp = Dp(32.0);
 /// `ContainerColor`
 pub const CONTAINER_COLOR: ColorRole = ColorRole::Surface;
 /// `ContainerElevation`
-pub const CONTAINER_ELEVATION: Dp = elevation::LEVEL0;
+pub const CONTAINER_ELEVATION: Elevation = Elevation::Level0;
 /// `ContainerShape`
 pub const CONTAINER_SHAPE: ShapeKey = ShapeKey::CornerNone;
 /// `IconButtonSpace`
@@ -30,7 +30,7 @@ pub const LEADING_SPACE: Dp = Dp(4.0);
 /// `OnScrollContainerColor`
 pub const ON_SCROLL_CONTAINER_COLOR: ColorRole = ColorRole::SurfaceContainer;
 /// `OnScrollContainerElevation`
-pub const ON_SCROLL_CONTAINER_ELEVATION: Dp = elevation::LEVEL2;
+pub const ON_SCROLL_CONTAINER_ELEVATION: Elevation = Elevation::Level2;
 /// `SubtitleColor`
 pub const SUBTITLE_COLOR: ColorRole = ColorRole::OnSurfaceVariant;
 /// `TitleColor`
