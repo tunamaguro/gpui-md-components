@@ -9,8 +9,9 @@
 
 use gpui::{
     AnyElement, App, ClickEvent, Corners, Div, ElementId, FocusHandle, Hsla, InteractiveElement,
-    IntoElement, ParentElement, Pixels, Refineable, RenderOnce, StatefulInteractiveElement,
-    StyleRefinement, Styled, Window, div, prelude::FluentBuilder, px, size, svg,
+    IntoElement, ParentElement, Pixels, Refineable, RenderOnce, SharedString,
+    StatefulInteractiveElement, StyleRefinement, Styled, Window, div, prelude::FluentBuilder, px,
+    size, svg,
 };
 use gpui_headless::button::Button as HeadlessButton;
 use md3_icons::{Icon, IconStyle};
@@ -275,6 +276,7 @@ pub struct Button {
     size: ButtonSize,
     icon: Option<Icon>,
     on_click: Option<ClickHandler>,
+    aria_label: Option<SharedString>,
     disabled: bool,
     focus_handle: Option<FocusHandle>,
     theme: Option<SharedTheme>,
@@ -294,6 +296,7 @@ impl Button {
             size: ButtonSize::default(),
             icon: None,
             on_click: None,
+            aria_label: None,
             disabled: false,
             focus_handle: None,
             theme: None,
@@ -318,6 +321,14 @@ impl Button {
     /// アイコンは装飾として扱い、アクセシブルな名前には含めない
     pub fn icon(mut self, icon: Icon) -> Self {
         self.icon = Some(icon);
+        self
+    }
+
+    /// 子の内容の代わりに `label` をアクセシブルな名前にする
+    ///
+    /// 子にテキストがなく、名前を子の内容から決められない場合に使う
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
         self
     }
 
@@ -485,6 +496,7 @@ impl RenderOnce for Button {
                         .border_color(theme.color(focus_ring::COLOR)),
                 )
             })
+            .when_some(self.aria_label, |this, label| this.aria_label(label))
             .when_some(self.on_click, |this, on_click| this.on_click(on_click));
         button.text_style().refine(&theme.text_style(size.label));
 
