@@ -4,6 +4,7 @@
 
 mod button_page;
 mod checkbox_page;
+mod switch_page;
 mod theme_page;
 
 use gpui::{
@@ -16,6 +17,7 @@ use md3_theme::md3_color::ColorRole;
 
 use crate::button_page::ButtonPage;
 use crate::checkbox_page::CheckboxPage;
+use crate::switch_page::SwitchPage;
 use crate::theme_page::ThemePage;
 
 /// 表示するページ
@@ -24,6 +26,7 @@ enum Page {
     Theme,
     Button,
     Checkbox,
+    Switch,
 }
 
 /// ギャラリーのルート。各ページの状態は持たず、ページのエンティティと表示中のページだけを持つ
@@ -32,6 +35,7 @@ struct Gallery {
     theme_page: Entity<ThemePage>,
     button_page: Entity<ButtonPage>,
     checkbox_page: Entity<CheckboxPage>,
+    switch_page: Entity<SwitchPage>,
 }
 
 impl Gallery {
@@ -41,6 +45,7 @@ impl Gallery {
             theme_page: cx.new(|_| ThemePage),
             button_page: cx.new(|_| ButtonPage::default()),
             checkbox_page: cx.new(CheckboxPage::new),
+            switch_page: cx.new(|_| SwitchPage::default()),
         }
     }
 }
@@ -64,6 +69,7 @@ impl Render for Gallery {
             Page::Theme => self.theme_page.clone().into(),
             Page::Button => self.button_page.clone().into(),
             Page::Checkbox => self.checkbox_page.clone().into(),
+            Page::Switch => self.switch_page.clone().into(),
         };
         md3_components::root(
             div()
@@ -78,7 +84,8 @@ impl Render for Gallery {
                         .p_2()
                         .child(tab(Page::Theme, "Theme", cx))
                         .child(tab(Page::Button, "Button", cx))
-                        .child(tab(Page::Checkbox, "Checkbox", cx)),
+                        .child(tab(Page::Checkbox, "Checkbox", cx))
+                        .child(tab(Page::Switch, "Switch", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )
