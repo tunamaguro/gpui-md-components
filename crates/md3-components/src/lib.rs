@@ -19,7 +19,7 @@ mod util;
 #[cfg(feature = "button")]
 pub use button::{Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant};
 #[cfg(feature = "checkbox")]
-pub use checkbox::{Checkbox, CheckboxRow, CheckboxState};
+pub use checkbox::{Checkbox, CheckboxIndicator, CheckboxRow, CheckboxState};
 pub use gpui;
 pub use gpui_platform;
 #[cfg(feature = "checkbox")]
