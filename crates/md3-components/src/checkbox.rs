@@ -183,8 +183,8 @@ impl Styled for Checkbox {
 ///
 /// 状態を表示するだけで、押せず、フォーカスを受けず、支援技術にも公開されない。
 /// 単独で置いて状態を伝える場合は、状態をテキストなどで支援技術にも伝えること。
-/// [`CheckboxIndicator::interaction_source`] を設定すると、その部品の hover とフォーカスを表示する。
-/// 設定しない場合は hover とフォーカスを表示しない
+/// [`CheckboxRow::checkbox`] で置くと、行の hover とフォーカスを表示する。
+/// それ以外の場所に置いた場合は hover とフォーカスを表示しない
 ///
 /// 大きさは状態レイヤーの 40dp 四方の箱で、フォーカスリングは箱の外側にはみ出して描く
 ///
@@ -227,17 +227,6 @@ impl CheckboxIndicator {
     /// 色だけが変わるため、エラーは [`CheckboxRow::error`] などで支援技術にも伝えること
     pub fn error(mut self, error: bool) -> Self {
         self.error = error;
-        self
-    }
-
-    /// `source` を渡した部品の hover とフォーカスを表示する
-    ///
-    /// `source` を渡した部品の子孫に置くこと。子孫でない場合、hover は表示しない
-    pub fn interaction_source(mut self, source: &InteractionSource) -> Self {
-        self.interaction = Some((
-            source.inner().group().clone(),
-            source.focus_handle().clone(),
-        ));
         self
     }
 
@@ -372,8 +361,8 @@ impl Styled for CheckboxIndicator {
 /// 文字列を直接子にしても支援技術には公開されないため、名前にするテキストは [`gpui::text!`] で作ること。
 /// 状態は呼び出し側が持ち、[`CheckboxRow::new`] に毎回渡す
 ///
-/// 行自身は見た目を持たない。行に渡したのと同じ [`InteractionSource`] を
-/// [`CheckboxIndicator::interaction_source`] に渡して子に置くと、行の hover とフォーカスがそこに表示される。
+/// 行自身は見た目を持たない。[`CheckboxRow::checkbox`] で [`CheckboxIndicator`] を置くと、
+/// 行の hover とフォーカスがその [`CheckboxIndicator`] に表示される。
 /// 状態と無効は [`CheckboxIndicator`] にも同じ値を、エラーはメッセージの有無を渡すこと。
 /// レイアウトは [`Styled`] で呼び出し側が付ける
 ///
@@ -381,16 +370,13 @@ impl Styled for CheckboxIndicator {
 /// CheckboxRow::new("row", state, &source)
 ///     .on_click(|next, _, _| { /* 状態を更新する */ })
 ///     .error(message.clone())
-///     .child(
-///         CheckboxIndicator::new(state)
-///             .error(message.is_some())
-///             .interaction_source(&source),
-///     )
+///     .checkbox(CheckboxIndicator::new(state).error(message.is_some()))
 ///     .child(gpui::text!("ラベル"))
 /// ```
 #[derive(IntoElement)]
 pub struct CheckboxRow {
     inner: HeadlessCheckbox,
+    source: InteractionSource,
 }
 
 impl CheckboxRow {
@@ -401,6 +387,7 @@ impl CheckboxRow {
     pub fn new(id: impl Into<ElementId>, state: CheckboxState, source: &InteractionSource) -> Self {
         Self {
             inner: HeadlessCheckbox::new(id, state.into()).interaction_source(source.inner()),
+            source: source.clone(),
         }
     }
 
@@ -414,6 +401,16 @@ impl CheckboxRow {
         self.inner = self
             .inner
             .on_change(move |next, window, cx| handler(&next.into(), window, cx));
+        self
+    }
+
+    /// 行の hover とフォーカスを表示する `indicator` を子に加える
+    pub fn checkbox(mut self, mut indicator: CheckboxIndicator) -> Self {
+        indicator.interaction = Some((
+            self.source.inner().group().clone(),
+            self.source.focus_handle().clone(),
+        ));
+        self.inner = self.inner.child(indicator);
         self
     }
 
@@ -596,10 +593,7 @@ mod tests {
             CheckboxRow::new("row", CheckboxState::Unchecked, &self.source)
                 .on_click(move |state, _, _| changes.borrow_mut().push(*state))
                 .w(px(200.))
-                .child(
-                    CheckboxIndicator::new(CheckboxState::Unchecked)
-                        .interaction_source(&self.source),
-                )
+                .checkbox(CheckboxIndicator::new(CheckboxState::Unchecked))
                 .child(gpui::text!("Lettuce"))
         }
     }
@@ -688,9 +682,7 @@ mod tests {
                     .flex()
                     .items_center()
                     .w(px(200.))
-                    .child(
-                        CheckboxIndicator::new(CheckboxState::Unchecked).interaction_source(source),
-                    )
+                    .checkbox(CheckboxIndicator::new(CheckboxState::Unchecked))
                     .child(text)
             };
             div()

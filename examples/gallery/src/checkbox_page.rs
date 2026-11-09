@@ -63,7 +63,7 @@ impl Render for CheckboxPage {
                 .flex()
                 .items_center()
                 .pr_4()
-                .child(CheckboxIndicator::new(state).interaction_source(source))
+                .checkbox(CheckboxIndicator::new(state))
                 .child(label(&theme, text))
         };
         let child = |index: usize, text: &'static str, cx: &mut Context<Self>| {
