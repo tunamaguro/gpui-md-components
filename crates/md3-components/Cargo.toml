@@ -18,10 +18,11 @@ md3-icons.workspace = true
 md3-theme.workspace = true
 
 [features]
-default = ["platform", "button", "checkbox"]
+default = ["platform", "button", "checkbox", "switch"]
 platform = ["dep:gpui_platform"]
 button = []
 checkbox = []
+switch = []
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }
