@@ -286,7 +286,8 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 /// MD3 のボタン
 ///
 /// 子の内容をラベルとして、サイズの書体とバリアントの内容の色で描く。
-/// 支援技術には role `button` として公開され、子の内容がアクセシブルな名前になる。
+/// 支援技術には role `button` として公開され、子孫に置いたテキストがアクセシブルな名前になる。
+/// テキストは `gpui::text!` のように id を持つ要素にする。`&str`・`String`・`SharedString` をそのまま置いても名前にならない。
 /// マウスのクリック・フォーカス中の Enter と Space で [`Button::on_click`] のハンドラを呼ぶ。
 ///
 /// [`Styled`] で指定したスタイルはボタンの外側の箱に付く。大きさや外側の余白、flex の指定に使い、
@@ -374,7 +375,7 @@ impl Button {
 
     /// 子の内容の代わりに `label` をアクセシブルな名前にする
     ///
-    /// 子にテキストがなく、名前を子の内容から決められない場合に使う
+    /// 子孫に id を持つテキストがなく、名前を子の内容から決められない場合に使う
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
         self.aria_label = Some(label.into());
         self

@@ -63,7 +63,7 @@ impl Render for Gallery {
                     this.page = page;
                     cx.notify();
                 }))
-                .child(label)
+                .child(gpui::text!(label))
         };
         let page: AnyView = match self.page {
             Page::Theme => self.theme_page.clone().into(),
