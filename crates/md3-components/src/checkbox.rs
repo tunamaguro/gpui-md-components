@@ -110,7 +110,8 @@ impl Checkbox {
     ///
     /// `handler` には押した後に求められる状態を渡す。[`CheckboxState::Checked`] なら
     /// [`CheckboxState::Unchecked`] を、それ以外なら [`CheckboxState::Checked`] を渡す。
-    /// 設定しない場合、押されても何も呼ばない
+    /// 設定しない場合、押されても何も呼ばないが、Tab では到達できる。
+    /// 操作させない場合は [`Checkbox::disabled`] か [`CheckboxIndicator`] を使うこと
     pub fn on_click(
         mut self,
         handler: impl Fn(&CheckboxState, &mut Window, &mut App) + 'static,
@@ -181,6 +182,7 @@ impl Styled for Checkbox {
 /// MD3 のチェックボックスの見た目
 ///
 /// 状態を表示するだけで、押せず、フォーカスを受けず、支援技術にも公開されない。
+/// 単独で置いて状態を伝える場合は、状態をテキストなどで支援技術にも伝えること。
 /// [`CheckboxIndicator::interaction_source`] を設定すると、その部品の hover とフォーカスを表示する。
 /// 設定しない場合は hover とフォーカスを表示しない
 ///
@@ -372,13 +374,18 @@ impl Styled for CheckboxIndicator {
 ///
 /// 行自身は見た目を持たない。行に渡したのと同じ [`InteractionSource`] を
 /// [`CheckboxIndicator::interaction_source`] に渡して子に置くと、行の hover とフォーカスがそこに表示される。
-/// 状態・無効・エラーは [`CheckboxIndicator`] にも同じ値を渡すこと。
+/// 状態と無効は [`CheckboxIndicator`] にも同じ値を、エラーはメッセージの有無を渡すこと。
 /// レイアウトは [`Styled`] で呼び出し側が付ける
 ///
 /// ```ignore
 /// CheckboxRow::new("row", state, &source)
 ///     .on_click(|next, _, _| { /* 状態を更新する */ })
-///     .child(CheckboxIndicator::new(state).interaction_source(&source))
+///     .error(message.clone())
+///     .child(
+///         CheckboxIndicator::new(state)
+///             .error(message.is_some())
+///             .interaction_source(&source),
+///     )
 ///     .child(gpui::text!("ラベル"))
 /// ```
 #[derive(IntoElement)]
@@ -571,7 +578,9 @@ impl Colors {
 mod tests {
     use std::{cell::RefCell, rc::Rc};
 
-    use gpui::{Context, Modifiers, Render, TestAppContext, VisualTestContext, point, px};
+    use gpui::{
+        AnyElement, Context, Modifiers, Render, TestAppContext, VisualTestContext, point, px,
+    };
 
     use super::*;
 
@@ -665,6 +674,131 @@ mod tests {
         assert!(!ring_painted(cx), "フォーカスの前はリングを描かないこと");
         cx.simulate_keystrokes("tab");
         assert!(ring_painted(cx), "行にフォーカスが移るとリングを描くこと");
+    }
+
+    struct TwoRowsView {
+        sources: [InteractionSource; 2],
+    }
+
+    impl Render for TwoRowsView {
+        fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+            // 行は高さ 40px で、上から 0px と 40px に並ぶ
+            let row = |id: &'static str, source: &InteractionSource, text: AnyElement| {
+                CheckboxRow::new(id, CheckboxState::Unchecked, source)
+                    .flex()
+                    .items_center()
+                    .w(px(200.))
+                    .child(
+                        CheckboxIndicator::new(CheckboxState::Unchecked).interaction_source(source),
+                    )
+                    .child(text)
+            };
+            div()
+                .flex()
+                .flex_col()
+                .child(row(
+                    "first",
+                    &self.sources[0],
+                    gpui::text!("Lettuce").into_any_element(),
+                ))
+                .child(row(
+                    "second",
+                    &self.sources[1],
+                    gpui::text!("Tomato").into_any_element(),
+                ))
+        }
+    }
+
+    #[gpui::test]
+    fn 行の_hover_はその行の_checkbox_indicator_にだけ表示される(
+        cx: &mut TestAppContext,
+    ) {
+        cx.update(crate::init);
+        let sources = cx.update(|cx| [InteractionSource::new(cx), InteractionSource::new(cx)]);
+        let (_, cx) = cx.add_window_view(|window, cx| {
+            cx.init_md3_theme(window);
+            TwoRowsView { sources }
+        });
+        // 上端が `top` 以上 `bottom` 未満の矩形の数
+        let count = |cx: &mut VisualTestContext, top: f32, bottom: f32| {
+            cx.update(|window, _| {
+                let scale = window.scale_factor();
+                window
+                    .painted_quads()
+                    .into_iter()
+                    .filter(|quad| (top..bottom).contains(&(quad.bounds.origin.y.0 / scale)))
+                    .count()
+            })
+        };
+        cx.simulate_mouse_move(point(px(300.), px(300.)), None, Modifiers::none());
+        let (first, second) = (count(cx, 0., 40.), count(cx, 40., 80.));
+
+        cx.simulate_mouse_move(point(px(100.), px(20.)), None, Modifiers::none());
+        assert!(
+            count(cx, 0., 40.) > first,
+            "上の行のテキストに乗ると上の箱に hover を描くこと"
+        );
+        assert_eq!(count(cx, 40., 80.), second, "下の行には描かないこと");
+
+        cx.simulate_mouse_move(point(px(100.), px(60.)), None, Modifiers::none());
+        assert_eq!(
+            count(cx, 0., 40.),
+            first,
+            "上の行から外れると hover を消すこと"
+        );
+        assert!(
+            count(cx, 40., 80.) > second,
+            "下の行のテキストに乗ると下の箱に hover を描くこと"
+        );
+    }
+
+    struct ElementView(Box<dyn Fn() -> AnyElement>);
+
+    impl Render for ElementView {
+        fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+            (self.0)()
+        }
+    }
+
+    /// `element` だけを描いたときの矩形。ポインターは要素の外に置く
+    fn painted_quads(
+        cx: &mut TestAppContext,
+        element: impl Fn() -> AnyElement + 'static,
+    ) -> String {
+        let (_, cx) = cx.add_window_view(|window, cx| {
+            cx.init_md3_theme(window);
+            ElementView(Box::new(element))
+        });
+        cx.simulate_mouse_move(point(px(300.), px(300.)), None, Modifiers::none());
+        cx.update(|window, _| format!("{:?}", window.painted_quads()))
+    }
+
+    #[gpui::test]
+    fn checkbox_は無効とエラーを見た目に渡す(cx: &mut TestAppContext) {
+        cx.update(crate::init);
+        for state in [CheckboxState::Unchecked, CheckboxState::Checked] {
+            for disabled in [false, true] {
+                for error in [false, true] {
+                    let checkbox = painted_quads(cx, move || {
+                        Checkbox::new("box", state)
+                            .aria_label("Lettuce")
+                            .disabled(disabled)
+                            .error(error.then(|| "Required".into()))
+                            .into_any_element()
+                    });
+                    let indicator = painted_quads(cx, move || {
+                        CheckboxIndicator::new(state)
+                            .disabled(disabled)
+                            .error(error)
+                            .into_any_element()
+                    });
+                    assert_eq!(
+                        checkbox, indicator,
+                        "{state:?} disabled={disabled} error={error} で同じ見た目になること"
+                    );
+                }
+            }
+        }
     }
 
     struct DecorativeView;
