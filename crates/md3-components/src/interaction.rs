@@ -5,7 +5,7 @@ use gpui::{App, FocusHandle};
 /// 操作できる部品の hover とフォーカスを、その部品の子孫の部品に表示するための値
 ///
 /// [`crate::CheckboxRow`] に渡すと、行の hover とフォーカスが [`crate::CheckboxRow::checkbox`] で置いた
-/// チェックボックスに表示される
+/// [`crate::CheckboxIndicator`] に表示される
 ///
 /// 呼び出し側の状態として作って持ち、描画のたびに同じ値を渡すこと。1 つの値を渡す行は 1 つにすること
 #[derive(Debug, Clone)]

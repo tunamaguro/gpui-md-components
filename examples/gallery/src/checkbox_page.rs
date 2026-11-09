@@ -4,7 +4,7 @@ use gpui::{
     Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
     StatefulInteractiveElement as _, Styled as _, Window, div,
 };
-use md3_components::{Checkbox, CheckboxRow, CheckboxState, InteractionSource};
+use md3_components::{Checkbox, CheckboxIndicator, CheckboxRow, CheckboxState, InteractionSource};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{Theme, ThemeExt as _};
@@ -44,10 +44,8 @@ impl Render for CheckboxPage {
                 .gap_4()
                 .child(label(&theme, name).w_32())
                 .children(STATES.map(|(state, state_name)| {
-                    // hover とフォーカスを見せるため、何もしないハンドラで操作できるチェックボックスにする
                     configure(Checkbox::new(format!("{name}-{state_name}"), state))
                         .aria_label(format!("{name} {state_name}"))
-                        .on_click(|_, _, _| {})
                 }))
         };
 
@@ -65,7 +63,7 @@ impl Render for CheckboxPage {
                 .flex()
                 .items_center()
                 .pr_4()
-                .checkbox(Checkbox::new(format!("{id}-box"), state))
+                .checkbox(CheckboxIndicator::new(state))
                 .child(label(&theme, text))
         };
         let child = |index: usize, text: &'static str, cx: &mut Context<Self>| {
