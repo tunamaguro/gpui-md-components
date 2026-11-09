@@ -17,7 +17,7 @@
 - [ ] M1: Toggle 系
 - [ ] M2: md3-components で M0・M1 を使う
 - [x] M3: 調査 (関連付け・テスト・モーダル・フォーカス)
-- [ ] M4: 矢印キー移動の基盤と RadioGroup / ToggleGroup
+- [x] M4: 矢印キー移動の基盤と RadioGroup / ToggleGroup
 - [ ] M5: Slider
 - [ ] M6: Tabs
 - [ ] M7: 非モーダルのオーバーレイ基盤と Tooltip
@@ -31,7 +31,7 @@
 すべてのマイルストーンで満たす
 
 - キーボードフォーカスを装飾側が可視化できる (複合部品ではアクティブな項目にも付けられる)
-- フォーカスの移動先がスクロール領域の外に隠れない
+- フォーカスの移動先がスクロール領域の外に隠れない。部品の外にあるスクロールする祖先は、gpui に手段ができるまで対象外とする (後回し)
 - 部品に名前を与える手段があり、テストで確かめる
 - 状態を変える部品は、呼び出し側が状態を持つ API を基本とする
   - `on_change` は変更の要求であり、表示と公開する状態は渡された値に従う
@@ -168,22 +168,43 @@ headless 部品だけを先に増やすと、装飾側で使ったときに API 
 
 対象: RadioGroup、ToggleGroup (複数選択。MD3 の Segmented button の複数選択で使う)、Toggle Button (押下状態を持つボタン。単体でも使い、ToggleGroup の項目にもなる)
 
-決めること:
+決めたこと:
 
-- [ ] 矢印キー移動の共通部品の形 (グループがフォーカスを持つ項目を管理する)
-- [ ] 項目の追加・削除・無効化と、すべて無効なときのフォーカスの移動先
-- [ ] 選択数の上限、選択の解除を許すか、フォーカスの移動で選択を変えるか (RadioGroup と ToggleGroup で別々に決める)
+- 単一選択の RadioGroup と、複数選択の ToggleGroup を別の部品にする (Compose の SingleChoice / MultiChoiceSegmentedButtonRow と同じ分け方)
+- グループが項目を持つ。項目は `item` / `items` で渡した順に並び、グループが Tab stop と矢印キーの移動先を決める
+  - 項目のフォーカスは、グループが項目の id ごとに内部で持つ。呼び出し側が渡した場合 (`interaction_source`、`track_focus`) はそれを使う
+  - Tab で到達できる項目は 1 つだけ。項目にフォーカスがある間はその項目にする。呼び出し側が値を反映しなくても、Tab でグループの外へ出られる
+  - フォーカスがないときは、RadioGroup は選ばれている項目、どちらも最初の有効な項目、最初のフォーカスできる項目の順に選ぶ。ToggleGroup で最後にフォーカスがあった項目に戻すこと (APG の Toolbar では任意) はしない
+- 項目の追加・削除・無効化は描画のたびに決め直す。フォーカス中に無効になった項目は、フォーカスが外れるまでフォーカスを保つ
+- フォーカス中の項目が消えると、キー入力はどの項目にも届かなくなり、Tab はウィンドウの最初の Tab stop へ、Shift+Tab は最後の Tab stop へ移る。グループは隣の項目へ移さない。グループが内部で持つフォーカスは捨て、呼び出し側が渡したフォーカスは同じフォーカスで描き直すと戻る。APG の Persistence of focus に沿わせるには、項目を消す呼び出し側が、消す項目と移す先の項目に渡したフォーカス (`interaction_source`、`track_focus`) で隣の項目へ移す。radio や toggle の項目は、その項目の操作で消えることがほとんど無いため、グループでは扱わない
+- すべての項目が無効 (`Availability::Disabled`) ならグループに Tab で入らない。`DisabledFocusable` の項目には Tab と矢印キーで到達できるが、操作はできない
+- 矢印キーの移動は端で反対の端に戻る。移れる項目がほかに無い場合は、キー入力を祖先に渡す
+- キー割り当ては key context ごとに `crate::init` で登録する。グループの `key_context` はその値で上書きされる (gpui の `Interactivity::key_context` は crate の外から足せない)
+- RadioGroup
+  - 選べるのは 1 つまでで、どれも選ばない状態から始められる。操作で選択を解除する手段は持たない
+  - 上下左右の矢印キーで移り、移った先を選ぶよう求める。Space で選ぶよう求め、Enter では求めない。選ばれている項目では求めない
+- ToggleGroup
+  - 支援技術には role `toolbar` として公開する。項目は Toggle Button だけを持つ
+  - 押されている数は制限しない。制限は呼び出し側が各項目の `on_change` で判断する
+  - 左右の矢印キーで移り、押下状態は変えない。上下の矢印キーと Home / End は使わない (APG の Toolbar では任意)
+- Toggle Button は role `button` と押下状態 (`aria_toggled`) で公開し、Enter と Space とクリックで反転した値を求める。単体では M0 の Button と同じく Tab で到達でき、ToggleGroup の項目ではグループが Tab stop を決める
 
 気を付けること:
 
 - Toggle Button は状態によってラベルを変えない。ラベルを変える場合は押下状態を公開しない
 - Toggle Button は M1 の `Choice` に含めない
+- フォーカスの移動先をスクロールで見える位置に出す汎用の API が gpui に無い (`ScrollHandle::scroll_to_item` は直下の子の番号を指定する)。共通の完了条件の「フォーカスの移動先がスクロール領域の外に隠れない」は満たせていない。スクロールする祖先の中にグループを置くと、矢印キーや Tab で移った先が隠れる (M0 の Button の Tab 移動も同じ)。部品ごとには解決できない gpui 全体の不足として後回しに入れ、この条件を除いて M4 を完了とする
+- 最も深い context でも成り立つキー割り当て (context の指定なし、`!Foo` など) は、`crate::init` より後に登録したか、項目に `key_context` を付けた場合に、グループのキー割り当てより優先される (gpui はこれらを最も深い context と同じ深さとして扱い、同じ深さでは後に登録したものを先に試す)。その action を祖先か `App::on_action` のリスナーが処理すると、矢印キーで項目の間を移れない。避けるには、その割り当てにグループの祖先の context を付ける
+- 支援技術の Click は `on_a11y_action` で受け、ノードの位置に依存しない。受けたときは、マウスのクリックと同じく項目にフォーカスを移す。テスト用の platform は a11y を有効にできず、`on_a11y_action` を外してもテストは失敗しない。この部分を変えたときは 3 段目で確かめる
+- 3 段目のうち、項目の名前、checked・pressed の状態、支援技術の Click (上を別の要素で覆った項目を含む) で状態が変わりフォーカスが移ることは、一時的に gallery に載せて実機で確かめた。残り (キーボード操作に伴う focused の移り方など) は、対応する MD3 部品 (Radio button、Segmented button、Icon button の toggle) を gallery に載せるときに確かめる
+- AT-SPI のアダプタ (accesskit_atspi_common 0.19.1) は、role `radiogroup` を panel として渡す
 
 参照する APG:
 
 - [Keyboard Interface (グループ内のフォーカス移動)](../../.agents/skills/a11y/references/aria-practices/content/practices/keyboard-interface/keyboard-interface-practice.html)
 - [Radio Group](../../.agents/skills/a11y/references/aria-practices/content/patterns/radio/radio-group-pattern.html)
 - [Button (Toggle Button と ToggleGroup の各項目)](../../.agents/skills/a11y/references/aria-practices/content/patterns/button/button-pattern.html)
+- [Toolbar (ToggleGroup)](../../.agents/skills/a11y/references/aria-practices/content/patterns/toolbar/toolbar-pattern.html)
 
 ## M5: Slider
 
@@ -275,7 +296,7 @@ gpui の `EntityInputHandler` を前提にする。最初は単一行に限る�
 
 操作がほとんど無く、他のマイルストーンに依存しないもの。手が空いたときに入れる
 
-- [ ] 支援技術の Click を `on_a11y_action` で受ける (M0 の Button、M1 の Choice、M4 の部品。M3)
+- [ ] 支援技術の Click を `on_a11y_action` で受ける (M0 の Button、M1 の Choice。M3)
 - [ ] Progress indicator (対応する APG のパターンは無い)
 - [ ] Link ([APG](../../.agents/skills/a11y/references/aria-practices/content/patterns/link/link-pattern.html))
 - [ ] Disclosure ([APG](../../.agents/skills/a11y/references/aria-practices/content/patterns/disclosure/disclosure-pattern.html))
@@ -290,3 +311,4 @@ gpui の `EntityInputHandler` を前提にする。最初は単一行に限る�
 - [ ] Accordion
 - [ ] Field: ラベル・説明・エラーと required / invalid の公開
 - [ ] Status / Alert: フォーカスを奪わない通知 (Snackbar で使う)
+- [ ] フォーカスの移動先を、スクロールする祖先の中で見える位置に出す (gpui に汎用の API が無い。`ScrollHandle::scroll_to_item` は直下の子の番号を指定する。M4)

@@ -48,6 +48,7 @@ gpui のテスト用 platform は a11y を初期化しないため、`#[gpui::te
   - checkbox・radio button・slider などは `read-only` になり、`sensitive` が外れる
   - button などは `sensitive` のまま。手掛かりは Click 操作が無いことと、`Availability::Disabled` では `focusable` が無いことだけ
 - AccessKit のアダプタは invalid を OS に渡さない
+- AT-SPI のアダプタは role `RadioGroup` を `panel` として渡す
 - role が無い要素と id が無い要素はツリーに出ない。`&str`・`String`・`SharedString` をそのまま子にしたテキストも出ず、親の名前にもならない
 - 子孫のテキストから名前を求めるのは Button、CheckBox、Link、MenuItem 系、RadioButton などに限られる。Switch や Tab の名前は `aria_label` で与える
 - 支援技術の click は、部品が `on_a11y_action` で受けない限り、ノードの中央へのマウス操作として届く。覆われた部品には届かず、その位置の別の要素が押される
