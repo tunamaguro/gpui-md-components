@@ -41,15 +41,23 @@ impl Render for ButtonPage {
                 .flex()
                 .items_center()
                 .gap_4()
-                .child(label(&theme, name).w_32())
-                .child(button("plain").child(name))
-                .child(button("icon").icon(md3_icons::ADD).child("With icon"))
-                .child(button("disabled").disabled(true).child("Disabled"))
+                .child(label(&theme, name, name).w_32())
+                .child(button("plain").child(gpui::text!(name)))
+                .child(
+                    button("icon")
+                        .icon(md3_icons::ADD)
+                        .child(gpui::text!("With icon")),
+                )
+                .child(
+                    button("disabled")
+                        .disabled(true)
+                        .child(gpui::text!("Disabled")),
+                )
                 .child(
                     button("disabled-icon")
                         .disabled(true)
                         .icon(md3_icons::ADD)
-                        .child("Disabled"),
+                        .child(gpui::text!("Disabled")),
                 )
         });
         div()
@@ -64,6 +72,7 @@ impl Render for ButtonPage {
             .gap_4()
             .child(label(
                 &theme,
+                "clicks",
                 format!(
                     "押した回数: {} / 最後に押したボタン: {}",
                     self.clicks,
@@ -76,7 +85,7 @@ impl Render for ButtonPage {
                     .flex()
                     .items_center()
                     .gap_4()
-                    .child(label(&theme, "Error colors").w_32())
+                    .child(label(&theme, "error-colors", "Error colors").w_32())
                     .child(
                         button("error-filled", cx)
                             .colors(ButtonColors {
@@ -85,7 +94,7 @@ impl Render for ButtonPage {
                                 ..ButtonColors::default()
                             })
                             .icon(md3_icons::DELETE)
-                            .child("Delete"),
+                            .child(gpui::text!("Delete")),
                     )
                     .child(
                         button("error-tonal", cx)
@@ -95,7 +104,7 @@ impl Render for ButtonPage {
                                 content: Some(ColorRole::OnErrorContainer),
                                 ..ButtonColors::default()
                             })
-                            .child("Delete"),
+                            .child(gpui::text!("Delete")),
                     )
                     .child(
                         button("error-text", cx)
@@ -104,7 +113,7 @@ impl Render for ButtonPage {
                                 content: Some(ColorRole::Error),
                                 ..ButtonColors::default()
                             })
-                            .child("Delete"),
+                            .child(gpui::text!("Delete")),
                     )
                     .child(
                         button("error-disabled", cx)
@@ -114,7 +123,7 @@ impl Render for ButtonPage {
                                 ..ButtonColors::default()
                             })
                             .disabled(true)
-                            .child("Disabled"),
+                            .child(gpui::text!("Disabled")),
                     ),
             )
             .children(SIZES.map(|(size, name)| {
@@ -122,34 +131,38 @@ impl Render for ButtonPage {
                     .flex()
                     .items_center()
                     .gap_4()
-                    .child(label(&theme, name).w_32())
-                    .child(button(format!("size-{name}"), cx).size(size).child(name))
+                    .child(label(&theme, name, name).w_32())
+                    .child(
+                        button(format!("size-{name}"), cx)
+                            .size(size)
+                            .child(gpui::text!(name)),
+                    )
                     .child(
                         button(format!("size-{name}-icon"), cx)
                             .size(size)
                             .variant(ButtonVariant::Outlined)
                             .icon(md3_icons::ADD)
-                            .child("With icon"),
+                            .child(gpui::text!("With icon")),
                     )
                     .child(
                         button(format!("size-{name}-square"), cx)
                             .size(size)
                             .shape(ButtonShape::Square)
-                            .child("Square"),
+                            .child(gpui::text!("Square")),
                     )
                     .child(
                         button(format!("size-{name}-square-outlined"), cx)
                             .size(size)
                             .shape(ButtonShape::Square)
                             .variant(ButtonVariant::Outlined)
-                            .child("Square"),
+                            .child(gpui::text!("Square")),
                     )
             }))
             .child(
                 button("full-width", cx)
                     .variant(ButtonVariant::Outlined)
                     .w_full()
-                    .child("幅いっぱいのボタン"),
+                    .child(gpui::text!("幅いっぱいのボタン")),
             )
     }
 }
@@ -164,10 +177,17 @@ fn button(id: impl Into<SharedString>, cx: &Context<ButtonPage>) -> Button {
     }))
 }
 
-fn label(theme: &Theme, text: impl Into<gpui::SharedString>) -> gpui::Div {
+/// 支援技術に公開されるテキスト
+///
+/// `id` は支援技術のノードの id に使うため、ページ内で重ならない値を渡し、テキストが変わっても同じ値を渡すこと
+fn label(
+    theme: &Theme,
+    id: impl Into<gpui::ElementId>,
+    text: impl Into<gpui::SharedString>,
+) -> gpui::Div {
     let mut element = div();
     element
         .text_style()
         .refine(&theme.text_style(TypeScale::BodyMedium));
-    element.child(text.into())
+    element.child(gpui::text!(id = id.into(), text.into()))
 }

@@ -6,6 +6,8 @@
 mod button;
 #[cfg(feature = "checkbox")]
 mod checkbox;
+#[cfg(feature = "icon-button")]
+mod icon_button;
 // 使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(feature = "checkbox")]
 mod interaction;
@@ -24,6 +26,8 @@ pub use button::{Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant};
 pub use checkbox::{Checkbox, CheckboxIndicator, CheckboxRow, CheckboxState};
 pub use gpui;
 pub use gpui_platform;
+#[cfg(feature = "icon-button")]
+pub use icon_button::{IconButton, IconButtonVariant, IconButtonWidth};
 #[cfg(feature = "checkbox")]
 pub use interaction::InteractionSource;
 #[cfg(feature = "switch")]
