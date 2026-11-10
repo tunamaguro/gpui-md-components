@@ -14,8 +14,8 @@
 ## マイルストーン
 
 - [x] M0: Button
-- [ ] M1: Toggle 系
-- [ ] M2: md3-components で M0・M1 を使う
+- [x] M1: Toggle 系
+- [x] M2: md3-components で M0・M1 を使う
 - [x] M3: 調査 (関連付け・テスト・モーダル・フォーカス)
 - [ ] M4: 矢印キー移動の基盤と RadioGroup / ToggleGroup
 - [ ] M5: Slider
@@ -90,9 +90,9 @@ headless 部品だけを先に増やすと、装飾側で使ったときに API 
 
 完了条件:
 
-- [ ] state layer、ripple、focus ring を headless の `Styled` / `InteractiveElement` 経由で付けられる
-- [ ] 装飾のために headless 側へ追加した API があれば、M1 の部品にも反映する
-- [ ] gallery に表示する
+- [x] state layer と focus ring を headless の `Styled` / `InteractiveElement` 経由で付けられる (ripple は後回し)
+- [x] 装飾のために headless 側へ追加した API があれば、M1 の部品にも反映する
+- [x] gallery に表示する
 
 ## M3: 調査 (関連付け・テスト・モーダル・フォーカス)
 
@@ -290,3 +290,4 @@ gpui の `EntityInputHandler` を前提にする。最初は単一行に限る�
 - [ ] Accordion
 - [ ] Field: ラベル・説明・エラーと required / invalid の公開
 - [ ] Status / Alert: フォーカスを奪わない通知 (Snackbar で使う)
+- [ ] ripple と押している間の状態レイヤー: 押している状態を装飾側に渡す。M2 の部品 (Button、Icon button、Checkbox、Switch) に付ける
