@@ -196,7 +196,9 @@ headless 部品だけを先に増やすと、装飾側で使ったときに API 
 - Toggle Button は状態によってラベルを変えない。ラベルを変える場合は押下状態を公開しない
 - Toggle Button は M1 の `Choice` に含めない
 - アプリが矢印キーに割り当てた action をいずれかのリスナー (項目の祖先の `on_action` か `App::on_action`) が処理すると、グループの `on_key_down` は呼ばれず項目の間を移れない (gpui はキー割り当ての action を先に配送し、処理されなかったキー入力だけを要素に渡す)
-- 3 段目 (実際の a11y ツリーと支援技術からの操作) は、対応する MD3 部品 (Radio button、Segmented button、Icon button の toggle) を gallery に載せるときに確かめる
+- 3 段目 (実際の a11y ツリーと支援技術からの操作) は、対応する MD3 部品を gallery に載せるときに確かめる
+  - RadioGroup は MD3 の Radio button で確かめた。項目の名前は子のテキストから求まり、支援技術の click で checked が移る。無効な項目は read-only になり click と focusable を持たない。AT-SPI のアダプタは role `radiogroup` を panel として渡す
+  - ToggleGroup と Toggle Button は未確認 (Segmented button、Icon button の toggle で確かめる)
 
 参照する APG:
 

@@ -5,4 +5,5 @@
 
 pub mod button;
 pub mod checkbox;
+pub mod radio_button;
 pub mod switch;

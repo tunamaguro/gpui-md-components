@@ -5,6 +5,7 @@
 mod button_page;
 mod checkbox_page;
 mod icon_button_page;
+mod radio_button_page;
 mod switch_page;
 mod theme_page;
 
@@ -19,6 +20,7 @@ use md3_theme::md3_color::ColorRole;
 use crate::button_page::ButtonPage;
 use crate::checkbox_page::CheckboxPage;
 use crate::icon_button_page::IconButtonPage;
+use crate::radio_button_page::RadioButtonPage;
 use crate::switch_page::SwitchPage;
 use crate::theme_page::ThemePage;
 
@@ -29,6 +31,7 @@ enum Page {
     Button,
     IconButton,
     Checkbox,
+    RadioButton,
     Switch,
 }
 
@@ -39,6 +42,7 @@ struct Gallery {
     button_page: Entity<ButtonPage>,
     icon_button_page: Entity<IconButtonPage>,
     checkbox_page: Entity<CheckboxPage>,
+    radio_button_page: Entity<RadioButtonPage>,
     switch_page: Entity<SwitchPage>,
 }
 
@@ -50,6 +54,7 @@ impl Gallery {
             button_page: cx.new(|_| ButtonPage::default()),
             icon_button_page: cx.new(|_| IconButtonPage::default()),
             checkbox_page: cx.new(CheckboxPage::new),
+            radio_button_page: cx.new(|_| RadioButtonPage::default()),
             switch_page: cx.new(|_| SwitchPage::default()),
         }
     }
@@ -75,6 +80,7 @@ impl Render for Gallery {
             Page::Button => self.button_page.clone().into(),
             Page::IconButton => self.icon_button_page.clone().into(),
             Page::Checkbox => self.checkbox_page.clone().into(),
+            Page::RadioButton => self.radio_button_page.clone().into(),
             Page::Switch => self.switch_page.clone().into(),
         };
         md3_components::root(
@@ -92,6 +98,7 @@ impl Render for Gallery {
                         .child(tab(Page::Button, "Button", cx))
                         .child(tab(Page::IconButton, "Icon button", cx))
                         .child(tab(Page::Checkbox, "Checkbox", cx))
+                        .child(tab(Page::RadioButton, "Radio button", cx))
                         .child(tab(Page::Switch, "Switch", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
