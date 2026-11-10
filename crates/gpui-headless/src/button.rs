@@ -12,8 +12,7 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
 /// 見た目を持たないボタン
 ///
-/// 支援技術には role `button` として公開される。アクセシブルな名前は、子孫に置いたテキストか `aria_label` で与えること。
-/// テキストは `gpui::text!` のように id を持つ要素にする。`&str`・`String`・`SharedString` をそのまま置いても名前にならない。
+/// 支援技術には role `button` として公開される。アクセシブルな名前は、子の内容か `aria_label` で与えること。
 /// マウスのクリック・フォーカス中の Enter と Space・支援技術からのクリック操作で [`Button::on_click`] のハンドラを呼ぶ。
 /// 見た目は [`Styled`] と [`InteractiveElement`] で呼び出し側が付ける
 #[derive(IntoElement)]

@@ -104,8 +104,7 @@ impl ChoiceKind for SwitchKind {
 /// 見た目を持たないチェックボックス
 ///
 /// 支援技術には role `checkbox` と、[`CheckedState`] に対応する checked の状態として公開される。
-/// アクセシブルな名前は、子孫に置いたテキストか `aria_label` で与えること。
-/// テキストは `gpui::text!` のように id を持つ要素にする。`&str`・`String`・`SharedString` をそのまま置いても名前にならない
+/// アクセシブルな名前は、子の内容か `aria_label` で与えること
 pub type Checkbox = Choice<CheckboxKind>;
 
 /// 見た目を持たないスイッチ

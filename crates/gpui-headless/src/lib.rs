@@ -8,12 +8,9 @@ pub mod choice;
 mod focus_visible;
 mod interaction;
 mod navigation;
-pub mod radio;
 mod root;
-mod roving;
 #[cfg(test)]
 mod test_window;
-pub mod toggle;
 
 pub use focus_visible::is_focus_visible;
 pub use interaction::InteractionSource;
@@ -53,6 +50,5 @@ impl Availability {
 /// この crate の部品が使うキー割り当てと操作を登録する。アプリの起動時に 1 回呼ぶ
 pub fn init(cx: &mut gpui::App) {
     navigation::init(cx);
-    roving::init(cx);
     focus_visible::init(cx);
 }
