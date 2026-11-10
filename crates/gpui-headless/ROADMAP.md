@@ -17,7 +17,7 @@
 - [x] M1: Toggle 系
 - [x] M2: md3-components で M0・M1 を使う
 - [x] M3: 調査 (関連付け・テスト・モーダル・フォーカス)
-- [ ] M4: 矢印キー移動の基盤と RadioGroup / ToggleGroup
+- [x] M4: 矢印キー移動の基盤と RadioGroup / ToggleGroup
 - [ ] M5: Slider
 - [ ] M6: Tabs
 - [ ] M7: 非モーダルのオーバーレイ基盤と Tooltip
@@ -168,22 +168,42 @@ headless 部品だけを先に増やすと、装飾側で使ったときに API 
 
 対象: RadioGroup、ToggleGroup (複数選択。MD3 の Segmented button の複数選択で使う)、Toggle Button (押下状態を持つボタン。単体でも使い、ToggleGroup の項目にもなる)
 
-決めること:
+決めたこと:
 
-- [ ] 矢印キー移動の共通部品の形 (グループがフォーカスを持つ項目を管理する)
-- [ ] 項目の追加・削除・無効化と、すべて無効なときのフォーカスの移動先
-- [ ] 選択数の上限、選択の解除を許すか、フォーカスの移動で選択を変えるか (RadioGroup と ToggleGroup で別々に決める)
+- グループが型付きの項目を持つ。項目は `item` / `items` で、項目でない要素 (区切りなど) は `child` で渡し、渡した順にグループの直下に並ぶ。
+  項目を別の要素で包んで入れ子にする配置はできない
+  - グループが全項目の値・無効状態・フォーカスを描画のたびに見て、Tab stop と矢印キーの移動先を決める。フレームをまたぐ状態は項目のフォーカスだけで、グループの id と項目の id ごとに持つ
+  - 描画の関数を渡す形 (gpui の `list`) は採らない。全項目を毎回描くため関数にする利点が無く、関数が返した要素からは無効状態を読めない
+  - 呼び出し側が持つ値をグループと項目の両方に渡す形 (`InteractionSource` と同じ) は採らない。項目を自由に配置できるが、Tab stop は全項目が揃うまで決まらない
+- Tab で到達できる項目は 1 つだけ。項目にフォーカスがある間はその項目にする。呼び出し側が値を反映しなくても、Tab でグループの外へ出られる
+  - フォーカスがないときは、RadioGroup は選ばれている項目、どちらも最初のフォーカスできる項目の順に選ぶ。ToggleGroup で最後にフォーカスがあった項目に戻すこと (APG の Toolbar では任意) はしない
+- 項目の追加・削除・無効化は描画のたびに決め直す。フォーカス中に無効になった項目は、フォーカスが外れるまでフォーカスを保つ。フォーカス中の項目が消えたときに隣へ移すことはしない
+- すべての項目が `Availability::Disabled` ならグループに Tab で入らない。`DisabledFocusable` の項目には Tab と矢印キーで到達できるが、操作はできない
+- 矢印キーはグループの `on_key_down` で受け、修飾キー付きは扱わない。端では反対の端に戻る。移れる項目がほかに無い場合は、キー入力を祖先に渡す
+- RadioGroup
+  - 選べるのは 1 つまでで、どれも選ばない状態から始められる。操作で選択を解除する手段は持たない
+  - 項目は値で見分ける。値はグループの中で一意にする
+  - 上下左右の矢印キーで移り、移った先を選ぶよう求める。Space で選ぶよう求め、Enter では求めない。選ばれている項目では求めない
+- ToggleGroup
+  - 支援技術には role `toolbar` として公開する。項目は Toggle Button だけを持つ
+  - 押されている数は制限しない。制限は呼び出し側が各項目の `on_change` で判断する
+  - 横に並べる配置だけを扱う。左右の矢印キーで移り、押下状態は変えない。縦に並べる配置 (APG の Toolbar では上下の矢印キーで移り、向きを vertical と公開する) と Home / End (任意) は扱わない
+- Toggle Button は role `button` と押下状態 (`aria_toggled`) で公開し、Enter と Space とクリックで反転した値を求める。単体では M0 の Button と同じく Tab で到達でき、ToggleGroup の項目ではグループが Tab stop を決める
+- `on_change` は値を参照で受け取る (`Fn(&T, &mut Window, &mut App)`)。`cx.listener` をそのまま渡せる。M1 の `Choice` は値で受け取るままにしている
 
 気を付けること:
 
 - Toggle Button は状態によってラベルを変えない。ラベルを変える場合は押下状態を公開しない
 - Toggle Button は M1 の `Choice` に含めない
+- アプリが矢印キーに割り当てた action をいずれかのリスナー (項目の祖先の `on_action` か `App::on_action`) が処理すると、グループの `on_key_down` は呼ばれず項目の間を移れない (gpui はキー割り当ての action を先に配送し、処理されなかったキー入力だけを要素に渡す)
+- 3 段目 (実際の a11y ツリーと支援技術からの操作) は、対応する MD3 部品 (Radio button、Segmented button、Icon button の toggle) を gallery に載せるときに確かめる
 
 参照する APG:
 
 - [Keyboard Interface (グループ内のフォーカス移動)](../../.agents/skills/a11y/references/aria-practices/content/practices/keyboard-interface/keyboard-interface-practice.html)
 - [Radio Group](../../.agents/skills/a11y/references/aria-practices/content/patterns/radio/radio-group-pattern.html)
 - [Button (Toggle Button と ToggleGroup の各項目)](../../.agents/skills/a11y/references/aria-practices/content/patterns/button/button-pattern.html)
+- [Toolbar (ToggleGroup の矢印キー移動)](../../.agents/skills/a11y/references/aria-practices/content/patterns/toolbar/toolbar-pattern.html)
 
 ## M5: Slider
 
