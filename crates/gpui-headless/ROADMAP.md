@@ -31,7 +31,7 @@
 すべてのマイルストーンで満たす
 
 - キーボードフォーカスを装飾側が可視化できる (複合部品ではアクティブな項目にも付けられる)
-- フォーカスの移動先がスクロール領域の外に隠れない
+- フォーカスの移動先がスクロール領域の外に隠れない (gpui に汎用の手段が無いため後回し。#95)
 - 部品に名前を与える手段があり、テストで確かめる
 - 状態を変える部品は、呼び出し側が状態を持つ API を基本とする
   - `on_change` は変更の要求であり、表示と公開する状態は渡された値に従う
@@ -137,7 +137,7 @@ headless 部品だけを先に増やすと、装飾側で使ったときに API 
 
 確かめた結果から決めたこと:
 
-- 部品は支援技術の Click を `on_a11y_action` で受け、位置に依存しないようにする。M0・M1 の部品にも入れる (随時)
+- 部品は支援技術の Click を `on_a11y_action` で受け、位置に依存しないようにする。M0・M1 の部品にも入れる (後回し。#94)
 
 ### モーダル
 
@@ -275,7 +275,6 @@ gpui の `EntityInputHandler` を前提にする。最初は単一行に限る�
 
 操作がほとんど無く、他のマイルストーンに依存しないもの。手が空いたときに入れる
 
-- [ ] 支援技術の Click を `on_a11y_action` で受ける (M0 の Button、M1 の Choice、M4 の部品。M3)
 - [ ] Progress indicator (対応する APG のパターンは無い)
 - [ ] Link ([APG](../../.agents/skills/a11y/references/aria-practices/content/patterns/link/link-pattern.html))
 - [ ] Disclosure ([APG](../../.agents/skills/a11y/references/aria-practices/content/patterns/disclosure/disclosure-pattern.html))
@@ -291,3 +290,5 @@ gpui の `EntityInputHandler` を前提にする。最初は単一行に限る�
 - [ ] Field: ラベル・説明・エラーと required / invalid の公開
 - [ ] Status / Alert: フォーカスを奪わない通知 (Snackbar で使う)
 - [ ] ripple と押している間の状態レイヤー: 押している状態を装飾側に渡す。M2 の部品 (Button、Icon button、Checkbox、Switch) に付ける
+- [ ] 支援技術の Click を `on_a11y_action` で受ける (M0 の Button、M1 の Choice、M4 の部品。M3、#94)
+- [ ] フォーカスの移動先を、スクロールする祖先の中で見える位置に出す (gpui に汎用の API が無い。`ScrollHandle::scroll_to_item` は直下の子の番号を指定する。#95)
