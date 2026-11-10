@@ -4,6 +4,7 @@
 
 mod button_page;
 mod checkbox_page;
+mod icon_button_page;
 mod switch_page;
 mod theme_page;
 
@@ -17,6 +18,7 @@ use md3_theme::md3_color::ColorRole;
 
 use crate::button_page::ButtonPage;
 use crate::checkbox_page::CheckboxPage;
+use crate::icon_button_page::IconButtonPage;
 use crate::switch_page::SwitchPage;
 use crate::theme_page::ThemePage;
 
@@ -25,6 +27,7 @@ use crate::theme_page::ThemePage;
 enum Page {
     Theme,
     Button,
+    IconButton,
     Checkbox,
     Switch,
 }
@@ -34,6 +37,7 @@ struct Gallery {
     page: Page,
     theme_page: Entity<ThemePage>,
     button_page: Entity<ButtonPage>,
+    icon_button_page: Entity<IconButtonPage>,
     checkbox_page: Entity<CheckboxPage>,
     switch_page: Entity<SwitchPage>,
 }
@@ -44,6 +48,7 @@ impl Gallery {
             page: Page::Theme,
             theme_page: cx.new(|_| ThemePage),
             button_page: cx.new(|_| ButtonPage::default()),
+            icon_button_page: cx.new(|_| IconButtonPage::default()),
             checkbox_page: cx.new(CheckboxPage::new),
             switch_page: cx.new(|_| SwitchPage::default()),
         }
@@ -68,6 +73,7 @@ impl Render for Gallery {
         let page: AnyView = match self.page {
             Page::Theme => self.theme_page.clone().into(),
             Page::Button => self.button_page.clone().into(),
+            Page::IconButton => self.icon_button_page.clone().into(),
             Page::Checkbox => self.checkbox_page.clone().into(),
             Page::Switch => self.switch_page.clone().into(),
         };
@@ -84,6 +90,7 @@ impl Render for Gallery {
                         .p_2()
                         .child(tab(Page::Theme, "Theme", cx))
                         .child(tab(Page::Button, "Button", cx))
+                        .child(tab(Page::IconButton, "Icon button", cx))
                         .child(tab(Page::Checkbox, "Checkbox", cx))
                         .child(tab(Page::Switch, "Switch", cx)),
                 )

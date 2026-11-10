@@ -16,7 +16,7 @@ use gpui_headless::button::Button as HeadlessButton;
 
 use crate::shape::Shaped;
 use crate::util;
-use md3_icons::{Icon, IconStyle};
+use md3_icons::StyledIcon;
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::{
     button_large, button_medium, button_small, button_x_large, button_x_small, elevated_button,
@@ -306,7 +306,7 @@ pub struct Button {
     colors: ButtonColors,
     size: ButtonSize,
     shape: ButtonShape,
-    icon: Option<Icon>,
+    icon: Option<StyledIcon>,
     on_click: Option<ClickHandler>,
     aria_label: Option<SharedString>,
     disabled: bool,
@@ -367,9 +367,10 @@ impl Button {
     /// ラベルの前にアイコンを置く
     ///
     /// アイコンはラベルと同じ色になり、大きさとラベルとの間隔はサイズに合わせる。
+    /// [`md3_icons::Icon`] を渡すと Outlined の塗りのない形で描く。スタイルや塗りは [`StyledIcon`] で指定する。
     /// アイコンは装飾として扱い、アクセシブルな名前には含めない
-    pub fn icon(mut self, icon: Icon) -> Self {
-        self.icon = Some(icon);
+    pub fn icon(mut self, icon: impl Into<StyledIcon>) -> Self {
+        self.icon = Some(icon.into());
         self
     }
 
@@ -520,7 +521,7 @@ impl RenderOnce for Button {
             .when_some(self.icon, |this, icon| {
                 this.child(
                     svg()
-                        .data(icon.svg(IconStyle::Outlined, false).as_bytes())
+                        .data(icon.svg().as_bytes())
                         .flex_none()
                         .size(dp(size.icon_size))
                         .text_color(content),

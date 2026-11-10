@@ -54,6 +54,50 @@ impl Icon {
     }
 }
 
+/// スタイルと塗りの有無を決めたアイコン
+///
+/// [`Icon`] から変換すると、[`IconStyle::Outlined`] の塗りのない形になる
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct StyledIcon {
+    icon: Icon,
+    style: IconStyle,
+    filled: bool,
+}
+
+impl StyledIcon {
+    /// `icon` を [`IconStyle::Outlined`] の塗りのない形で使う
+    pub const fn new(icon: Icon) -> Self {
+        Self {
+            icon,
+            style: IconStyle::Outlined,
+            filled: false,
+        }
+    }
+
+    /// スタイルを `style` にする
+    pub const fn style(mut self, style: IconStyle) -> Self {
+        self.style = style;
+        self
+    }
+
+    /// `filled` が `true` なら塗りのある形にする
+    pub const fn filled(mut self, filled: bool) -> Self {
+        self.filled = filled;
+        self
+    }
+
+    /// 決めたスタイルと塗りの SVG。幅と高さは 24 で、色は指定していない
+    pub const fn svg(self) -> &'static str {
+        self.icon.svg(self.style, self.filled)
+    }
+}
+
+impl From<Icon> for StyledIcon {
+    fn from(icon: Icon) -> Self {
+        Self::new(icon)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -96,6 +140,22 @@ mod tests {
         assert_ne!(
             HOME.svg(IconStyle::Rounded, false),
             HOME.svg(IconStyle::Rounded, true)
+        );
+    }
+
+    #[test]
+    fn styled_icon_は決めたスタイルと塗りの_svg_を返す() {
+        assert_eq!(
+            StyledIcon::from(HOME).svg(),
+            HOME.svg(IconStyle::Outlined, false),
+            "既定は Outlined の塗りなし"
+        );
+        assert_eq!(
+            StyledIcon::new(HOME)
+                .style(IconStyle::Sharp)
+                .filled(true)
+                .svg(),
+            HOME.svg(IconStyle::Sharp, true)
         );
     }
 }
