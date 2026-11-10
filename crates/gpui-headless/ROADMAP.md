@@ -189,7 +189,7 @@ headless 部品だけを先に増やすと、装飾側で使ったときに API 
   - 押されている数は制限しない。制限は呼び出し側が各項目の `on_change` で判断する
   - 横に並べる配置だけを扱う。左右の矢印キーで移り、押下状態は変えない。縦に並べる配置 (APG の Toolbar では上下の矢印キーで移り、向きを vertical と公開する) と Home / End (任意) は扱わない
 - Toggle Button は role `button` と押下状態 (`aria_toggled`) で公開し、Enter と Space とクリックで反転した値を求める。単体では M0 の Button と同じく Tab で到達でき、ToggleGroup の項目ではグループが Tab stop を決める
-- `on_change` は値を参照で受け取る (`Fn(&T, &mut Window, &mut App)`)。`cx.listener` をそのまま渡せる。M1 の `Choice` は値で受け取るままにしている
+- `on_change` は値を参照で受け取る (`Fn(&T, &mut Window, &mut App)`)。`cx.listener` をそのまま渡せる。M1 の `Choice` も同じ形にする
 
 気を付けること:
 
