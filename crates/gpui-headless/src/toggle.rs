@@ -674,6 +674,32 @@ mod tests {
     }
 
     #[gpui::test]
+    fn フォーカス中に無効になってもフォーカスを保つ(cx: &mut TestAppContext) {
+        let (view, cx) = setup_group(cx, ALL_ENABLED);
+        cx.simulate_keystrokes("tab");
+        view.update(cx, |view, cx| {
+            view.availability[0] = Availability::Disabled;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        assert_eq!(focused(&view, cx), Some("bold"));
+        press_key(cx, "space");
+        assert!(
+            changes(&view, cx).is_empty(),
+            "無効な項目は操作できないこと"
+        );
+
+        cx.simulate_keystrokes("right");
+        assert_eq!(focused(&view, cx), Some("italic"));
+        cx.simulate_keystrokes("left");
+        assert_eq!(
+            focused(&view, cx),
+            Some("underline"),
+            "フォーカスが外れた後は無効な項目を飛ばすこと"
+        );
+    }
+
+    #[gpui::test]
     fn 項目は独立に押下状態を切り替える(cx: &mut TestAppContext) {
         let (view, cx) = setup_group(cx, ALL_ENABLED);
         cx.simulate_keystrokes("tab");

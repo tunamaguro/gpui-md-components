@@ -367,6 +367,8 @@ mod tests {
         accept: bool,
         /// 最初の項目の後に、項目でない要素を置く
         divider: bool,
+        /// 描画する項目
+        shown: [bool; 3],
         handles: [FocusHandle; 3],
         after: FocusHandle,
         changes: Rc<RefCell<Vec<&'static str>>>,
@@ -375,14 +377,20 @@ mod tests {
 
     impl Render for GroupView {
         fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-            let mut radios = VALUES.iter().enumerate().map(|(ix, value)| {
-                Radio::new(*value, *value)
-                    .availability(self.availability[ix])
-                    .track_focus(&self.handles[ix])
-                    .aria_label(*value)
-                    .w(px(50.))
-                    .h(px(20.))
-            });
+            let shown = self.shown;
+            let mut radios =
+                VALUES
+                    .iter()
+                    .enumerate()
+                    .filter(|(ix, _)| shown[*ix])
+                    .map(|(ix, value)| {
+                        Radio::new(*value, *value)
+                            .availability(self.availability[ix])
+                            .track_focus(&self.handles[ix])
+                            .aria_label(*value)
+                            .w(px(50.))
+                            .h(px(20.))
+                    });
             let group = RadioGroup::new("fruit", self.selected)
                 .on_change(cx.listener(|this, value: &&'static str, _, cx| {
                     this.changes.borrow_mut().push(*value);
@@ -421,6 +429,7 @@ mod tests {
             availability,
             accept: true,
             divider: false,
+            shown: [true; 3],
             handles: [cx.focus_handle(), cx.focus_handle(), cx.focus_handle()],
             after: cx.focus_handle(),
             changes: Rc::default(),
@@ -862,6 +871,44 @@ mod tests {
             *view.read_with(cx, |view, _| view.changes.clone()).borrow(),
             vec![("first", "no"), ("first", "yes")]
         );
+    }
+
+    #[gpui::test]
+    fn 加えた項目に矢印キーで移れる(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, Some("apple"), ALL_ENABLED);
+        update(&view, cx, |view| view.shown = [true, false, true]);
+        cx.simulate_keystrokes("tab down");
+        assert_eq!(focused(&view, cx), Some("plum"));
+
+        update(&view, cx, |view| view.shown = [true; 3]);
+        cx.simulate_keystrokes("up");
+        assert_eq!(focused(&view, cx), Some("pear"));
+        assert_eq!(changes(&view, cx), vec!["plum", "pear"]);
+    }
+
+    #[gpui::test]
+    fn フォーカス中の項目を消すと_tab_で残った項目に入る(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some("apple"), ALL_ENABLED);
+        cx.simulate_keystrokes("tab down");
+        assert_eq!(focused(&view, cx), Some("pear"));
+
+        update(&view, cx, |view| view.shown = [true, false, true]);
+        cx.simulate_keystrokes("down");
+        assert_eq!(
+            changes(&view, cx),
+            vec!["pear"],
+            "消えた項目からは矢印キーで移らないこと"
+        );
+        cx.simulate_keystrokes("tab");
+        assert_eq!(
+            focused(&view, cx),
+            Some("apple"),
+            "選ばれている値の項目が無ければ最初の項目に入ること"
+        );
+        cx.simulate_keystrokes("down");
+        assert_eq!(focused(&view, cx), Some("plum"));
     }
 
     #[gpui::test]
