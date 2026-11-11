@@ -4,7 +4,11 @@ use gpui::{
     Context, IntoElement, ParentElement as _, Refineable as _, Render, SharedString, Styled as _,
     Window, div, prelude::*,
 };
-use md3_components::{ButtonShape, ButtonSize, IconButton, IconButtonVariant, IconButtonWidth};
+use std::collections::HashSet;
+
+use md3_components::{
+    ButtonShape, ButtonSize, IconButton, IconButtonVariant, IconButtonWidth, IconToggleButton,
+};
 use md3_icons::{IconStyle, StyledIcon};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::typography::TypeScale;
@@ -37,11 +41,12 @@ const WIDTHS: [(IconButtonWidth, &str); 3] = [
     (IconButtonWidth::Wide, "wide"),
 ];
 
-/// アイコンボタンを並べるページ。押した回数と最後に押したボタンを持つ
+/// アイコンボタンを並べるページ。押した回数と最後に押したボタン、選ばれている toggle を持つ
 #[derive(Default)]
 pub struct IconButtonPage {
     clicks: usize,
     last_clicked: Option<SharedString>,
+    selected: HashSet<SharedString>,
 }
 
 impl Render for IconButtonPage {
@@ -66,6 +71,36 @@ impl Render for IconButtonPage {
                         .disabled(true),
                 )
         });
+        let toggle_rows = VARIANTS.map(|(variant, name)| {
+            let toggle = |suffix: &str| toggle_button(format!("{name}-toggle-{suffix}"), self, cx);
+            div()
+                .flex()
+                .items_center()
+                .gap_4()
+                .child(label(&theme, format!("{name}-toggle"), format!("{name} toggle")).w_32())
+                .child(toggle("round").variant(variant))
+                .child(toggle("square").variant(variant).shape(ButtonShape::Square))
+                .child(
+                    IconToggleButton::new(
+                        format!("{name}-toggle-disabled"),
+                        md3_icons::FAVORITE,
+                        "Favorite",
+                        false,
+                    )
+                    .variant(variant)
+                    .disabled(true),
+                )
+                .child(
+                    IconToggleButton::new(
+                        format!("{name}-toggle-disabled-selected"),
+                        StyledIcon::new(md3_icons::FAVORITE).filled(true),
+                        "Favorite",
+                        true,
+                    )
+                    .variant(variant)
+                    .disabled(true),
+                )
+        });
         div()
             .id("icon-button-page")
             .size_full()
@@ -86,6 +121,7 @@ impl Render for IconButtonPage {
                 ),
             ))
             .children(rows)
+            .children(toggle_rows)
             .child(
                 div()
                     .flex()
@@ -149,6 +185,30 @@ fn icon_button(
     IconButton::new(id.clone(), icon, label).on_click(cx.listener(move |this, _, _, cx| {
         this.clicks += 1;
         this.last_clicked = Some(id.clone());
+        cx.notify();
+    }))
+}
+
+/// 押すと選ばれている状態を切り替える toggle。選ばれているときは塗ったアイコンを描く
+fn toggle_button(
+    id: impl Into<SharedString>,
+    page: &IconButtonPage,
+    cx: &Context<IconButtonPage>,
+) -> IconToggleButton {
+    let id = id.into();
+    let selected = page.selected.contains(&id);
+    IconToggleButton::new(
+        id.clone(),
+        StyledIcon::new(md3_icons::FAVORITE).filled(selected),
+        "Favorite",
+        selected,
+    )
+    .on_change(cx.listener(move |this, selected: &bool, _, cx| {
+        if *selected {
+            this.selected.insert(id.clone());
+        } else {
+            this.selected.remove(&id);
+        }
         cx.notify();
     }))
 }

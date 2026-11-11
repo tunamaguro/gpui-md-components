@@ -1,8 +1,8 @@
 //! 描画時の大きさで角丸を決める要素
 
 use gpui::{
-    App, Bounds, CornersRefinement, Div, Element, ElementId, GlobalElementId, InspectorElementId,
-    IntoElement, LayoutId, Pixels, Styled, Window, px, size,
+    App, Bounds, Corners, CornersRefinement, Div, Element, ElementId, GlobalElementId,
+    InspectorElementId, IntoElement, LayoutId, Pixels, Styled, Window, px, size,
 };
 use md3_theme::SharedTheme;
 use md3_theme::md3_tokens::shape::ShapeKey;
@@ -16,6 +16,7 @@ pub(crate) struct Shaped {
     inner: Div,
     theme: SharedTheme,
     key: ShapeKey,
+    morph: Option<(ShapeKey, f32)>,
     outset: Pixels,
 }
 
@@ -25,6 +26,7 @@ impl Shaped {
             inner,
             theme,
             key,
+            morph: None,
             outset: px(0.0),
         }
     }
@@ -33,6 +35,13 @@ impl Shaped {
     #[cfg(feature = "button")]
     pub(crate) fn outset(mut self, outset: Pixels) -> Self {
         self.outset = outset;
+        self
+    }
+
+    /// 形を `key` から `target` へ `phase` だけ近づける。`phase` が 0 なら `key`、1 なら `target` の角丸で描く
+    #[cfg(feature = "icon-button")]
+    pub(crate) fn morph(mut self, target: ShapeKey, phase: f32) -> Self {
+        self.morph = Some((target, phase));
         self
     }
 }
@@ -82,7 +91,18 @@ impl Element for Shaped {
             bounds.size.width - self.outset * 2.0,
             bounds.size.height - self.outset * 2.0,
         );
-        let radii = self.theme.corner_radii(self.key, shape_size);
+        let mut radii = self.theme.corner_radii(self.key, shape_size);
+        if let Some((target, phase)) = self.morph {
+            // Compose の `rememberAnimatedShape` と同じく、角ごとの半径を線形に補間する
+            let target = self.theme.corner_radii(target, shape_size);
+            radii = Corners {
+                top_left: radii.top_left + (target.top_left - radii.top_left) * phase,
+                top_right: radii.top_right + (target.top_right - radii.top_right) * phase,
+                bottom_right: radii.bottom_right
+                    + (target.bottom_right - radii.bottom_right) * phase,
+                bottom_left: radii.bottom_left + (target.bottom_left - radii.bottom_left) * phase,
+            };
+        }
         let outset = self.outset;
         self.inner.style().corner_radii = CornersRefinement {
             top_left: Some((radii.top_left + outset).into()),
