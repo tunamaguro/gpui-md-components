@@ -2,6 +2,7 @@
 // Web 版は `start` から起動するので、wasm では `main` を置かない。
 #![cfg_attr(target_family = "wasm", no_main)]
 
+mod badge_page;
 mod button_page;
 mod checkbox_page;
 mod divider_page;
@@ -19,6 +20,7 @@ use md3_components::{Button, ButtonVariant};
 use md3_theme::ThemeExt as _;
 use md3_theme::md3_color::ColorRole;
 
+use crate::badge_page::BadgePage;
 use crate::button_page::ButtonPage;
 use crate::checkbox_page::CheckboxPage;
 use crate::divider_page::DividerPage;
@@ -39,6 +41,7 @@ enum Page {
     Switch,
     Divider,
     ProgressIndicator,
+    Badge,
 }
 
 /// ギャラリーのルート。各ページの状態は持たず、ページのエンティティと表示中のページだけを持つ
@@ -52,6 +55,7 @@ struct Gallery {
     switch_page: Entity<SwitchPage>,
     divider_page: Entity<DividerPage>,
     progress_indicator_page: Entity<ProgressIndicatorPage>,
+    badge_page: Entity<BadgePage>,
 }
 
 impl Gallery {
@@ -66,6 +70,7 @@ impl Gallery {
             switch_page: cx.new(|_| SwitchPage::default()),
             divider_page: cx.new(|_| DividerPage),
             progress_indicator_page: cx.new(|_| ProgressIndicatorPage::default()),
+            badge_page: cx.new(|_| BadgePage),
         }
     }
 }
@@ -94,6 +99,7 @@ impl Render for Gallery {
             Page::Switch => self.switch_page.clone().into(),
             Page::Divider => self.divider_page.clone().into(),
             Page::ProgressIndicator => self.progress_indicator_page.clone().into(),
+            Page::Badge => self.badge_page.clone().into(),
         };
         md3_components::root(
             div()
@@ -114,7 +120,8 @@ impl Render for Gallery {
                         .child(tab(Page::RadioButton, "Radio button", cx))
                         .child(tab(Page::Switch, "Switch", cx))
                         .child(tab(Page::Divider, "Divider", cx))
-                        .child(tab(Page::ProgressIndicator, "Progress indicator", cx)),
+                        .child(tab(Page::ProgressIndicator, "Progress indicator", cx))
+                        .child(tab(Page::Badge, "Badge", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )

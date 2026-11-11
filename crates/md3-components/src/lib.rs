@@ -2,6 +2,8 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+#[cfg(feature = "badge")]
+mod badge;
 #[cfg(feature = "button")]
 mod button;
 #[cfg(feature = "checkbox")]
@@ -18,7 +20,7 @@ mod progress_indicator;
 #[cfg(feature = "radio-button")]
 mod radio_button;
 // 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
-#[cfg(feature = "button")]
+#[cfg(any(feature = "badge", feature = "button"))]
 mod shape;
 #[cfg(feature = "switch")]
 mod switch;
@@ -31,6 +33,8 @@ mod switch;
 ))]
 mod util;
 
+#[cfg(feature = "badge")]
+pub use badge::{Badge, BadgeColors, BadgedBox};
 #[cfg(feature = "button")]
 pub use button::{Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant};
 #[cfg(feature = "checkbox")]

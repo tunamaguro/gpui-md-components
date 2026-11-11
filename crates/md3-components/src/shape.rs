@@ -29,6 +29,8 @@ impl Shaped {
         }
     }
 
+    // フォーカスリングを描く部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
+    #[cfg(feature = "button")]
     pub(crate) fn outset(mut self, outset: Pixels) -> Self {
         self.outset = outset;
         self
