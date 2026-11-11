@@ -23,6 +23,7 @@ default = [
   "button",
   "icon-button",
   "checkbox",
+  "divider",
   "radio-button",
   "switch",
 ]
@@ -31,6 +32,7 @@ button = []
 # 色・大きさ・形の型を Button と共有する
 icon-button = ["button"]
 checkbox = []
+divider = []
 radio-button = []
 switch = []
 

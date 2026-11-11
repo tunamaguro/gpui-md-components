@@ -4,6 +4,7 @@
 
 mod button_page;
 mod checkbox_page;
+mod divider_page;
 mod icon_button_page;
 mod radio_button_page;
 mod switch_page;
@@ -19,6 +20,7 @@ use md3_theme::md3_color::ColorRole;
 
 use crate::button_page::ButtonPage;
 use crate::checkbox_page::CheckboxPage;
+use crate::divider_page::DividerPage;
 use crate::icon_button_page::IconButtonPage;
 use crate::radio_button_page::RadioButtonPage;
 use crate::switch_page::SwitchPage;
@@ -33,6 +35,7 @@ enum Page {
     Checkbox,
     RadioButton,
     Switch,
+    Divider,
 }
 
 /// ギャラリーのルート。各ページの状態は持たず、ページのエンティティと表示中のページだけを持つ
@@ -44,6 +47,7 @@ struct Gallery {
     checkbox_page: Entity<CheckboxPage>,
     radio_button_page: Entity<RadioButtonPage>,
     switch_page: Entity<SwitchPage>,
+    divider_page: Entity<DividerPage>,
 }
 
 impl Gallery {
@@ -56,6 +60,7 @@ impl Gallery {
             checkbox_page: cx.new(CheckboxPage::new),
             radio_button_page: cx.new(|_| RadioButtonPage::default()),
             switch_page: cx.new(|_| SwitchPage::default()),
+            divider_page: cx.new(|_| DividerPage),
         }
     }
 }
@@ -82,6 +87,7 @@ impl Render for Gallery {
             Page::Checkbox => self.checkbox_page.clone().into(),
             Page::RadioButton => self.radio_button_page.clone().into(),
             Page::Switch => self.switch_page.clone().into(),
+            Page::Divider => self.divider_page.clone().into(),
         };
         md3_components::root(
             div()
@@ -99,7 +105,8 @@ impl Render for Gallery {
                         .child(tab(Page::IconButton, "Icon button", cx))
                         .child(tab(Page::Checkbox, "Checkbox", cx))
                         .child(tab(Page::RadioButton, "Radio button", cx))
-                        .child(tab(Page::Switch, "Switch", cx)),
+                        .child(tab(Page::Switch, "Switch", cx))
+                        .child(tab(Page::Divider, "Divider", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )
