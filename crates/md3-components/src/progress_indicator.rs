@@ -386,7 +386,7 @@ fn circular_arcs(diameter: f32, stroke: f32, frame: Frame) -> Vec<Arc> {
             let global = supplement::CIRCULAR_GLOBAL_ROTATION_DEGREES * time.as_secs_f32()
                 / cycle.as_secs_f32();
             // 追加の回転は、区間ごとに 90 度ずつ線形に回り、次の区間まで止まる。
-            // Compose は `90f at 300 using EasingEmphasizedDecelerateCubicBezier` と書くが、
+            // Compose は回り終わる時刻のキーフレームに EmphasizedDecelerate のイージングを指定しているが、
             // `using` はその時刻から始まる止まっている区間に効き、回る区間は既定の線形になる
             let quarter = supplement::CIRCULAR_ADDITIONAL_ROTATION_DEGREES / 4.0;
             let interval = supplement::CIRCULAR_ADDITIONAL_ROTATION_INTERVAL;
@@ -722,6 +722,21 @@ mod tests {
         close(bounds(quarter), (18.0, 0.0, 22.0, 22.0));
 
         let ring = arc_path(center, 18.0, 4.0, 270.0, 360.0).expect("パスを作れること");
+        // 輪は内側を塗らない。塗る面積は π × (20² - 16²) ≈ 452.39 で、内側まで塗ると π × 20² ≈ 1256.6 になる。
+        // 頂点は 3 つずつ三角形を成す
+        let area: f32 = ring
+            .vertices
+            .chunks(3)
+            .map(|triangle| {
+                let p = |i: usize| {
+                    let v = triangle[i].xy_position;
+                    (f32::from(v.x), f32::from(v.y))
+                };
+                let ((ax, ay), (bx, by), (cx, cy)) = (p(0), p(1), p(2));
+                ((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)).abs() / 2.0
+            })
+            .sum();
+        assert!((area - 452.39).abs() < 1.0, "輪の面積: {area}");
         close(bounds(ring), (0.0, 0.0, 40.0, 40.0));
     }
 
