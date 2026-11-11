@@ -13,5 +13,5 @@ pub const WITH_CONTENT_HORIZONTAL_PADDING: Dp = Dp(4.0);
 pub const WITH_CONTENT_HORIZONTAL_OFFSET: Dp = Dp(12.0);
 /// 内容のあるバッジの下端を、アンカーの上端から下へずらす量。`BadgeWithContentVerticalOffset`
 pub const WITH_CONTENT_VERTICAL_OFFSET: Dp = Dp(14.0);
-/// 内容の無いバッジを、アンカーの右上の角から内側へずらす量。`BadgeOffset`
+/// 内容の無いバッジの左端をアンカーの右端から内側へ、下端をアンカーの上端から下へずらす量。`BadgeOffset`
 pub const OFFSET: Dp = Dp(6.0);

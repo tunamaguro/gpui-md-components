@@ -76,7 +76,7 @@ impl Render for BadgePage {
                     .child(icon(md3_icons::SHOPPING_CART)),
                 ),
             )
-            .child(row("Standalone").child(Badge::new("standalone").child("NEW")))
+            .child(row("Standalone").child(Badge::new("standalone").child("NEW").aria_label("New")))
     }
 }
 
