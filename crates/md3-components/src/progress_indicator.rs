@@ -386,7 +386,7 @@ fn circular_arcs(diameter: f32, stroke: f32, frame: Frame) -> Vec<Arc> {
             let global = supplement::CIRCULAR_GLOBAL_ROTATION_DEGREES * time.as_secs_f32()
                 / cycle.as_secs_f32();
             // 追加の回転は、区間ごとに 90 度ずつ線形に回り、次の区間まで止まる。
-            // Compose は回り終わる時刻のキーフレームに EmphasizedDecelerate のイージングを指定しているが、
+            // Compose は最初に回り終わる 300 ms のキーフレームに EmphasizedDecelerate のイージングを指定しているが、
             // `using` はその時刻から始まる止まっている区間に効き、回る区間は既定の線形になる
             let quarter = supplement::CIRCULAR_ADDITIONAL_ROTATION_DEGREES / 4.0;
             let interval = supplement::CIRCULAR_ADDITIONAL_ROTATION_INTERVAL;
