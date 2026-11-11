@@ -12,12 +12,19 @@ mod icon_button;
 #[cfg(feature = "checkbox")]
 mod interaction;
 // 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
+#[cfg(feature = "radio-button")]
+mod radio_button;
 #[cfg(feature = "button")]
 mod shape;
 #[cfg(feature = "switch")]
 mod switch;
 // 使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
-#[cfg(any(feature = "button", feature = "checkbox", feature = "switch"))]
+#[cfg(any(
+    feature = "button",
+    feature = "checkbox",
+    feature = "radio-button",
+    feature = "switch"
+))]
 mod util;
 
 #[cfg(feature = "button")]
@@ -30,6 +37,8 @@ pub use gpui_platform;
 pub use icon_button::{IconButton, IconButtonVariant, IconButtonWidth};
 #[cfg(feature = "checkbox")]
 pub use interaction::InteractionSource;
+#[cfg(feature = "radio-button")]
+pub use radio_button::{RadioButton, RadioButtonIndicator, RadioGroup};
 #[cfg(feature = "switch")]
 pub use switch::Switch;
 

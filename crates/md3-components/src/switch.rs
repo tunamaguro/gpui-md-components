@@ -81,9 +81,7 @@ impl Switch {
     /// 設定しない場合、押されても何も呼ばないが、Tab では到達できる。
     /// 操作させない場合は [`Switch::disabled`] を使うこと
     pub fn on_click(mut self, handler: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
-        self.inner = self
-            .inner
-            .on_change(move |next, window, cx| handler(&next, window, cx));
+        self.inner = self.inner.on_change(handler);
         self
     }
 

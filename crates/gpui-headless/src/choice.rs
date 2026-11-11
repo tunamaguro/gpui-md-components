@@ -114,7 +114,7 @@ pub type Checkbox = Choice<CheckboxKind>;
 /// 状態によって名前を変えないこと
 pub type Switch = Choice<SwitchKind>;
 
-type ChangeHandler<S> = Box<dyn Fn(S, &mut Window, &mut App)>;
+type ChangeHandler<S> = Box<dyn Fn(&S, &mut Window, &mut App)>;
 
 /// オンとオフを切り替える、見た目を持たない部品
 ///
@@ -162,7 +162,7 @@ impl<K: ChoiceKind> Choice<K> {
     /// 設定しない場合、部品は操作されても何も呼ばず、支援技術にクリック操作を公開しない
     pub fn on_change(
         mut self,
-        handler: impl Fn(K::State, &mut Window, &mut App) + 'static,
+        handler: impl Fn(&K::State, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_change = Some(Box::new(handler));
         self
@@ -269,7 +269,7 @@ impl<K: ChoiceKind> RenderOnce for Choice<K> {
                     {
                         return;
                     }
-                    on_change(next, window, cx);
+                    on_change(&next, window, cx);
                 })
             })
             .a11y_info(move |node: &mut accesskit::Node| {
@@ -338,7 +338,7 @@ mod tests {
         fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
             let changes = self.changes.clone();
             let element = Choice::<K>::new("choice", self.state)
-                .on_change(move |state, _, _| changes.borrow_mut().push(state))
+                .on_change(move |state, _, _| changes.borrow_mut().push(*state))
                 .track_focus(&self.focus_handle)
                 .availability(self.availability)
                 .error(self.error.clone())

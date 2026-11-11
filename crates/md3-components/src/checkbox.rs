@@ -118,7 +118,7 @@ impl Checkbox {
     ) -> Self {
         self.inner = self
             .inner
-            .on_change(move |next, window, cx| handler(&next.into(), window, cx));
+            .on_change(move |next, window, cx| handler(&(*next).into(), window, cx));
         self
     }
 
@@ -400,7 +400,7 @@ impl CheckboxRow {
     ) -> Self {
         self.inner = self
             .inner
-            .on_change(move |next, window, cx| handler(&next.into(), window, cx));
+            .on_change(move |next, window, cx| handler(&(*next).into(), window, cx));
         self
     }
 
