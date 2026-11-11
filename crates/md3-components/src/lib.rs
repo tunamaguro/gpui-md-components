@@ -13,11 +13,11 @@ mod icon_button;
 // 使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(feature = "checkbox")]
 mod interaction;
-// 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(feature = "progress-indicator")]
 mod progress_indicator;
 #[cfg(feature = "radio-button")]
 mod radio_button;
+// 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(feature = "button")]
 mod shape;
 #[cfg(feature = "switch")]

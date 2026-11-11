@@ -12,23 +12,25 @@ use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{Theme, ThemeExt as _};
 
-const STEP: f32 = 0.1;
+/// 1 回の操作で変える進み具合 (%)
+const STEP: i32 = 10;
 
 /// 進捗インジケーターを並べるページ。操作で変える進み具合を持つ
 pub struct ProgressIndicatorPage {
-    progress: f32,
+    /// 進み具合 (%)。小数の足し引きで 0 や 100 から誤差がずれないよう整数で持つ
+    percent: i32,
 }
 
 impl Default for ProgressIndicatorPage {
     fn default() -> Self {
-        Self { progress: 0.3 }
+        Self { percent: 30 }
     }
 }
 
 impl Render for ProgressIndicatorPage {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.md3_theme().clone();
-        let progress = Progress::Determinate(self.progress);
+        let progress = Progress::Determinate(self.percent as f32 / 100.0);
         let row = |name: &'static str| {
             div()
                 .flex()
@@ -36,11 +38,11 @@ impl Render for ProgressIndicatorPage {
                 .gap_6()
                 .child(label(&theme, name).w_32())
         };
-        let step = |id: &'static str, text: &'static str, delta: f32, cx: &mut Context<Self>| {
+        let step = |id: &'static str, text: &'static str, delta: i32, cx: &mut Context<Self>| {
             Button::new(id)
                 .variant(ButtonVariant::Outlined)
                 .on_click(cx.listener(move |this, _, _, cx| {
-                    this.progress = (this.progress + delta).clamp(0.0, 1.0);
+                    this.percent = (this.percent + delta).clamp(0, 100);
                     cx.notify();
                 }))
                 .child(gpui::text!(id = id, text))

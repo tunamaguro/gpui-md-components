@@ -28,7 +28,7 @@ use md3_theme::{SharedTheme, ThemeExt, dp, easing};
 /// 進捗インジケーターが表す進み具合
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Progress {
-    /// 進み具合が分からない。線が動き続ける
+    /// 進み具合が分からない。線が動き続け、モーション低減の設定では止まる
     Indeterminate,
     /// 全体のうち進んだ割合。0.0 で未着手、1.0 で完了
     ///
@@ -164,17 +164,12 @@ impl RenderOnce for ProgressIndicator {
         };
         bar.style().refine(&self.style);
 
-        match self.progress {
-            Progress::Determinate(_) => {
-                let fraction = HeadlessProgress::from(self.progress)
-                    .fraction()
-                    .unwrap_or(0.0);
-                bar.child(painter.canvas(Frame::Determinate(fraction)))
-            }
-            Progress::Indeterminate if reduce_motion => {
+        match HeadlessProgress::from(self.progress).fraction() {
+            Some(fraction) => bar.child(painter.canvas(Frame::Determinate(fraction))),
+            None if reduce_motion => {
                 bar.child(painter.canvas(Frame::Indeterminate(self.variant.static_time())))
             }
-            Progress::Indeterminate => {
+            None => {
                 let cycle = self.variant.indeterminate_cycle();
                 bar.child(
                     div()
@@ -390,7 +385,9 @@ fn circular_arcs(diameter: f32, stroke: f32, frame: Frame) -> Vec<Arc> {
             let cycle = supplement::CIRCULAR_INDETERMINATE_DURATION;
             let global = supplement::CIRCULAR_GLOBAL_ROTATION_DEGREES * time.as_secs_f32()
                 / cycle.as_secs_f32();
-            // 追加の回転は、区間ごとに 90 度ずつ線形に回り、次の区間まで止まる
+            // 追加の回転は、区間ごとに 90 度ずつ線形に回り、次の区間まで止まる。
+            // Compose は `90f at 300 using EasingEmphasizedDecelerateCubicBezier` と書くが、
+            // `using` はその時刻から始まる止まっている区間に効き、回る区間は既定の線形になる
             let quarter = supplement::CIRCULAR_ADDITIONAL_ROTATION_DEGREES / 4.0;
             let interval = supplement::CIRCULAR_ADDITIONAL_ROTATION_INTERVAL;
             let step = (time.as_secs_f32() / interval.as_secs_f32())
@@ -522,9 +519,9 @@ impl Painter {
     }
 }
 
-/// 中心 `center`、半径 `radius` の円の上を `start` 度から `sweep` 度だけ進む、太さ `stroke` の丸い端の弧
+/// 中心 `center`、半径 `radius` の円の上を `start` 度から時計回りに `sweep` 度だけ進む、太さ `stroke` の丸い端の弧
 ///
-/// 一周以上なら端のない輪にする
+/// `sweep` は正の値にすること。一周以上なら端のない輪にする
 fn arc_path(
     center: Point<Pixels>,
     radius: f32,
@@ -555,7 +552,8 @@ fn arc_path(
             let middle = at(angle.to_radians(), radius);
             let (sin, cos) = angle.to_radians().sin_cos();
             (0..=12).map(move |i| {
-                // 半径の向きと進む向き (時計回りの接線) を軸に、外側から内側へ半円を描く
+                // 半径の向き (0 度) と進む向き (90 度) を軸に、`from` 度から 180 度の半円を描く。
+                // 終わりの端は外側から進む向きを回って内側へ、始まりの端は内側から戻る向きを回って外側へ描く
                 let theta = (from + 180.0 * i as f32 / 12.0).to_radians();
                 let (radial, tangent) = (theta.cos() * stroke / 2.0, theta.sin() * stroke / 2.0);
                 middle
@@ -692,6 +690,39 @@ mod tests {
             rects.iter().any(|(_, color, _)| *color == primary.into()),
             "進んだ部分を描くこと: {rects:?}"
         );
+    }
+
+    /// 期待値は、12 時から 3 時までの線の中心 (半径 18) に、太さ 4 の丸い端を足した範囲から手で求めた。
+    /// 始まりの端は (20, 2) を中心に左へ、終わりの端は (38, 20) を中心に下へ 2 だけはみ出す
+    #[test]
+    fn 弧のパスは丸い端を含む範囲を塗る() {
+        let center = point(px(20.0), px(20.0));
+        let bounds = |path: gpui::Path<Pixels>| {
+            let b = path.bounds;
+            (
+                f32::from(b.origin.x),
+                f32::from(b.origin.y),
+                f32::from(b.size.width),
+                f32::from(b.size.height),
+            )
+        };
+        let close = |actual: (f32, f32, f32, f32), expected: (f32, f32, f32, f32)| {
+            let pairs = [
+                (actual.0, expected.0),
+                (actual.1, expected.1),
+                (actual.2, expected.2),
+                (actual.3, expected.3),
+            ];
+            assert!(
+                pairs.iter().all(|(a, e)| (a - e).abs() < 1e-3),
+                "{actual:?} は {expected:?} に近いこと"
+            );
+        };
+        let quarter = arc_path(center, 18.0, 4.0, 270.0, 90.0).expect("パスを作れること");
+        close(bounds(quarter), (18.0, 0.0, 22.0, 22.0));
+
+        let ring = arc_path(center, 18.0, 4.0, 270.0, 360.0).expect("パスを作れること");
+        close(bounds(ring), (0.0, 0.0, 40.0, 40.0));
     }
 
     fn ms(value: u64) -> Duration {
