@@ -6,6 +6,8 @@
 mod button;
 #[cfg(feature = "checkbox")]
 mod checkbox;
+#[cfg(feature = "divider")]
+mod divider;
 #[cfg(feature = "icon-button")]
 mod icon_button;
 // 使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
@@ -31,6 +33,8 @@ mod util;
 pub use button::{Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant};
 #[cfg(feature = "checkbox")]
 pub use checkbox::{Checkbox, CheckboxIndicator, CheckboxRow, CheckboxState};
+#[cfg(feature = "divider")]
+pub use divider::{Divider, DividerOrientation};
 pub use gpui;
 pub use gpui_platform;
 #[cfg(feature = "icon-button")]
