@@ -157,7 +157,8 @@ impl ParentElement for Badge {
 
 /// [`Badge`] をアンカーの右上に重ねる箱
 ///
-/// 子の内容をアンカーとして中央に置き、箱の大きさはアンカーの大きさになる。バッジはレイアウトに影響しない。
+/// 子の内容をアンカーとして中央に置く。アンカーには要素を 1 つ渡すこと (複数渡すと横に並ぶ)。
+/// 大きさを [`Styled`] で指定しなければ、箱の大きさはアンカーの大きさになる。バッジはレイアウトに影響しない。
 /// 箱は flex の親の中に置き、交差軸に伸ばさない配置 (`items_center` など) にすること。
 /// flex でない親の中や交差軸に伸ばす配置では、箱が親いっぱいに広がり、バッジもその右上に移る。
 /// 内容の無いバッジ (点) は、右端と上端を箱の右上の角に合わせて箱の内側に置く。
@@ -389,6 +390,24 @@ mod tests {
             let ((x, y, width, _), _, _) = painted_quads(cx)[0];
             assert_eq!((x + width, y), (200.0, 0.0), "labelled={labelled}");
         }
+    }
+
+    // 名前の a11y ノードの属性は gpui-headless の StaticText のテストで確かめる。
+    // StaticText の描画は外から取り出せないため、ここでは名前を与えると StaticText で包むことだけを確かめる
+    #[gpui::test]
+    fn 名前を与えると_static_text_で公開する(cx: &mut TestAppContext) {
+        let cx = add_view(cx, |_| div().into_any_element());
+        let uses_static_text = cx.update(|window, cx| {
+            let mut element = Badge::new("badge")
+                .child("3")
+                .aria_label("3 new messages")
+                .render(window, cx)
+                .into_any_element();
+            element
+                .downcast_mut::<gpui::ViewElement<StaticText>>()
+                .is_some()
+        });
+        assert!(uses_static_text);
     }
 
     #[gpui::test]
