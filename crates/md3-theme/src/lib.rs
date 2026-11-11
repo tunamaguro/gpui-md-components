@@ -30,7 +30,7 @@ pub use settings::{
     AppearanceMode, ColorSettings, CustomColor, Fonts, PaletteOverrides, RoleOverrides, TextScale,
     ThemeSettings,
 };
-pub use theme::{ContrastIssue, CustomColorRoles, Theme, dp, shape_radii};
+pub use theme::{ContrastIssue, CustomColorRoles, Theme, dp, easing, shape_radii};
 
 pub use md3_color;
 pub use md3_tokens;

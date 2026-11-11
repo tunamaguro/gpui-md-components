@@ -14,6 +14,8 @@ mod icon_button;
 #[cfg(feature = "checkbox")]
 mod interaction;
 // 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
+#[cfg(feature = "progress-indicator")]
+mod progress_indicator;
 #[cfg(feature = "radio-button")]
 mod radio_button;
 #[cfg(feature = "button")]
@@ -41,6 +43,10 @@ pub use gpui_platform;
 pub use icon_button::{IconButton, IconButtonVariant, IconButtonWidth};
 #[cfg(feature = "checkbox")]
 pub use interaction::InteractionSource;
+#[cfg(feature = "progress-indicator")]
+pub use progress_indicator::{
+    Progress, ProgressIndicator, ProgressIndicatorColors, ProgressIndicatorVariant,
+};
 #[cfg(feature = "radio-button")]
 pub use radio_button::{RadioButton, RadioButtonIndicator, RadioGroup};
 #[cfg(feature = "switch")]

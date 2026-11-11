@@ -297,7 +297,11 @@ gpui の `EntityInputHandler` を前提にする。最初は単一行に限る�
 
 操作がほとんど無く、他のマイルストーンに依存しないもの。手が空いたときに入れる
 
-- [ ] Progress indicator (対応する APG のパターンは無い)
+- [x] Progress indicator (対応する APG のパターンは無い)
+  - `progress::ProgressBar` は role `progressbar` と進捗を公開するだけで、フォーカスも操作も持たない
+  - 進み具合が分かるときは、割合を WAI-ARIA の既定の範囲 0〜100 の値として公開する。分からないときは値を公開しない
+  - AccessKit は progressbar の名前を子の内容から求めないため、名前は `aria_label` で与える
+  - 実機 (AT-SPI) で MD3 の Progress indicator を確かめた。role は progress bar、値は 0〜100 で渡り、値を公開しないものは indeterminate の状態になる
 - [ ] Link ([APG](../../.agents/skills/a11y/references/aria-practices/content/patterns/link/link-pattern.html))
 - [ ] Disclosure ([APG](../../.agents/skills/a11y/references/aria-practices/content/patterns/disclosure/disclosure-pattern.html))
 
