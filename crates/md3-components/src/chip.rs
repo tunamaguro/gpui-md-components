@@ -4,9 +4,10 @@
 //         (`AssistChip`、`FilterChip`、`SuggestionChip`、`SelectableChip`、`ChipContent`、`AnimatingChipContent`、
 //         `AssistChipDefaults`、`FilterChipDefaults`、`SuggestionChipDefaults`) @ 2a941dd11aabd9bb7d2016ed159764b220117c20
 // Copyright 2022 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
-// フォーカス中の枠線の色と、Filter の選択の印を選ばれていないときのアイコンと置き換える振る舞いは、
+// フォーカス中の枠線の色、状態レイヤーの色、Filter の選択の印を選ばれていないときのアイコンと置き換える振る舞いは、
 // Compose にないため Material Web から移植している (https://github.com/material-components/material-web)
-// Source: chips/internal/_shared.scss (`:where(:focus) .outline`)、chips/internal/filter-chip.ts (`renderLeadingIcon`)
+// Source: chips/internal/_shared.scss (`:where(:focus) .outline`)、chips/internal/filter-chip.ts (`renderLeadingIcon`)、
+//         tokens/versions/v0_192 の各チップの `hover-state-layer-color`・`focus-state-layer-color`
 //         @ de5470f7ed6a653457ca8f5cc0e7f7602c7a8391
 // Copyright 2023 Google LLC. Licensed under the Apache License, Version 2.0.
 // トークンの値と版は md3-tokens の各ファイルにある
@@ -85,7 +86,7 @@ fn decorate<E>(
 where
     E: Styled + ParentElement + InteractiveElement + FluentBuilder,
 {
-    // 状態レイヤーはラベルの色を重ねる (Compose の `ripple()` は LocalContentColor を使う)
+    // 状態レイヤーはラベルの色を重ねる。Material Web のトークンでは、どのチップも状態レイヤーの色がラベルの色と同じ
     let state_layer = |opacity: f32| -> Hsla {
         let layer = look.label.opacity(opacity);
         match look.container {
@@ -298,18 +299,13 @@ impl RenderOnce for Chip {
         // リングはチップの外側に描くため、チップ自身のスタイルでは表せない
         let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
 
-        // Assist と Suggestion のトークンはラベルの色だけが異なる
+        // Assist と Suggestion のトークンは、ラベルの色とフォーカス中の枠線の色だけが異なる
         let label = match self.kind {
             ChipKind::Assist => assist_chip::LABEL_TEXT_COLOR,
             ChipKind::Suggestion => suggestion_chip::LABEL_TEXT_COLOR,
         };
-        let disabled_content = |role| {
-            theme
-                .color(role)
-                .opacity(assist_chip::DISABLED_LABEL_TEXT_OPACITY)
-        };
         // `defaultAssistChipColors`、`defaultElevatedAssistChipColors`、`assistChipBorder`、
-        // `assistChipElevation`、`elevatedAssistChipElevation` (Suggestion も同じ値)
+        // `assistChipElevation`、`elevatedAssistChipElevation` (上の 2 つの色を除き、Suggestion も同じ値)
         let look = Look {
             container: match (self.variant, disabled) {
                 (ChipVariant::Flat, _) => None,
@@ -337,12 +333,16 @@ impl RenderOnce for Chip {
                 }),
             }),
             label: if disabled {
-                disabled_content(assist_chip::DISABLED_LABEL_TEXT_COLOR)
+                theme
+                    .color(assist_chip::DISABLED_LABEL_TEXT_COLOR)
+                    .opacity(assist_chip::DISABLED_LABEL_TEXT_OPACITY)
             } else {
                 theme.color(label)
             },
             icon: if disabled {
-                disabled_content(assist_chip::DISABLED_ICON_COLOR)
+                theme
+                    .color(assist_chip::DISABLED_ICON_COLOR)
+                    .opacity(assist_chip::DISABLED_ICON_OPACITY)
             } else {
                 theme.color(assist_chip::ICON_COLOR)
             },
@@ -563,7 +563,14 @@ impl RenderOnce for FilterChip {
             },
         };
 
-        let check = icon_svg(StyledIcon::new(md3_icons::CHECK), look.icon);
+        // 印は選ばれているときにだけ見えるため、選ばれなくなって消えていく間も選ばれているときの色で描く。
+        // Compose も消える前の内容を保ったまま消す
+        let check_color = if disabled {
+            look.icon
+        } else {
+            theme.color(filter_chip::SELECTED_LEADING_ICON_COLOR)
+        };
+        let check = icon_svg(StyledIcon::new(md3_icons::CHECK), check_color);
         let leading = match self.icon {
             Some(icon) if !selected => icon_svg(icon, look.icon).into_any_element(),
             Some(_) => check.into_any_element(),
@@ -766,13 +773,16 @@ mod tests {
 
     #[gpui::test]
     fn 改行を含むラベルは空白に置き換えて_1_行で描く(cx: &mut TestAppContext) {
-        let cx = add_view(cx, "Call back", || Chip::new("chip", "Call\nback"));
-        let width = probe_width(cx) + 32.0;
-        let outline_variant = color(cx, ColorRole::OutlineVariant);
-        assert_eq!(
-            outlines(cx),
-            vec![((0.0, 0.0, width, 32.0), 1.0, outline_variant, 8.0)]
-        );
+        for label in ["Call\nback", "Call\r\nback"] {
+            let cx = add_view(cx, "Call back", move || Chip::new("chip", label));
+            let width = probe_width(cx) + 32.0;
+            let outline_variant = color(cx, ColorRole::OutlineVariant);
+            assert_eq!(
+                outlines(cx),
+                vec![((0.0, 0.0, width, 32.0), 1.0, outline_variant, 8.0)],
+                "label: {label:?}"
+            );
+        }
     }
 
     /// 期待値は Compose の `defaultElevatedAssistChipColors` と `defaultElevatedSuggestionChipColors` の容器の色
