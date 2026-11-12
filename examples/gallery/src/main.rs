@@ -7,6 +7,7 @@ mod button_page;
 mod card_page;
 mod checkbox_page;
 mod divider_page;
+mod fab_page;
 mod icon_button_page;
 mod progress_indicator_page;
 mod radio_button_page;
@@ -26,6 +27,7 @@ use crate::button_page::ButtonPage;
 use crate::card_page::CardPage;
 use crate::checkbox_page::CheckboxPage;
 use crate::divider_page::DividerPage;
+use crate::fab_page::FabPage;
 use crate::icon_button_page::IconButtonPage;
 use crate::progress_indicator_page::ProgressIndicatorPage;
 use crate::radio_button_page::RadioButtonPage;
@@ -45,6 +47,7 @@ enum Page {
     ProgressIndicator,
     Badge,
     Card,
+    Fab,
 }
 
 /// ギャラリーのルート。各ページの状態は持たず、ページのエンティティと表示中のページだけを持つ
@@ -60,6 +63,7 @@ struct Gallery {
     progress_indicator_page: Entity<ProgressIndicatorPage>,
     badge_page: Entity<BadgePage>,
     card_page: Entity<CardPage>,
+    fab_page: Entity<FabPage>,
 }
 
 impl Gallery {
@@ -76,6 +80,7 @@ impl Gallery {
             progress_indicator_page: cx.new(|_| ProgressIndicatorPage::default()),
             badge_page: cx.new(|_| BadgePage),
             card_page: cx.new(|_| CardPage::default()),
+            fab_page: cx.new(|_| FabPage::default()),
         }
     }
 }
@@ -106,6 +111,7 @@ impl Render for Gallery {
             Page::ProgressIndicator => self.progress_indicator_page.clone().into(),
             Page::Badge => self.badge_page.clone().into(),
             Page::Card => self.card_page.clone().into(),
+            Page::Fab => self.fab_page.clone().into(),
         };
         md3_components::root(
             div()
@@ -128,7 +134,8 @@ impl Render for Gallery {
                         .child(tab(Page::Divider, "Divider", cx))
                         .child(tab(Page::ProgressIndicator, "Progress indicator", cx))
                         .child(tab(Page::Badge, "Badge", cx))
-                        .child(tab(Page::Card, "Card", cx)),
+                        .child(tab(Page::Card, "Card", cx))
+                        .child(tab(Page::Fab, "FAB", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )

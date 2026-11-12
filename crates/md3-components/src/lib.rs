@@ -12,6 +12,8 @@ mod card;
 mod checkbox;
 #[cfg(feature = "divider")]
 mod divider;
+#[cfg(feature = "fab")]
+mod fab;
 #[cfg(feature = "icon-button")]
 mod icon_button;
 // 使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
@@ -22,7 +24,7 @@ mod progress_indicator;
 #[cfg(feature = "radio-button")]
 mod radio_button;
 // 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
-#[cfg(any(feature = "badge", feature = "button", feature = "card"))]
+#[cfg(any(feature = "badge", feature = "button", feature = "card", feature = "fab"))]
 mod shape;
 #[cfg(feature = "switch")]
 mod switch;
@@ -31,6 +33,7 @@ mod switch;
     feature = "button",
     feature = "card",
     feature = "checkbox",
+    feature = "fab",
     feature = "radio-button",
     feature = "switch"
 ))]
@@ -46,6 +49,8 @@ pub use card::{Card, CardVariant};
 pub use checkbox::{Checkbox, CheckboxIndicator, CheckboxRow, CheckboxState};
 #[cfg(feature = "divider")]
 pub use divider::{Divider, DividerOrientation};
+#[cfg(feature = "fab")]
+pub use fab::{ExtendedFab, ExtendedFabSize, Fab, FabColor, FabSize};
 pub use gpui;
 pub use gpui_platform;
 #[cfg(feature = "icon-button")]
