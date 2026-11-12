@@ -22,11 +22,12 @@ const PRIORITY: usize = usize::MAX;
 ///
 /// マウスが乗っているかは、キー入力の後も、マウスを動かさずに配置が変わった後も、最後に伝わったマウスの位置で決める。
 /// マウスが移動を伝えずにウィンドウから出た場合も、その位置に残っているものとして扱う。
-/// 表示中のツールチップの上では、クリックや hover は背後の要素に届かず、スクロールは届く
+/// 表示中のツールチップの内容と、その周りの間隔の幅の帯の上では、クリックや hover は背後の要素に届かず、スクロールは届く
 ///
 /// 内容に与える幅はウィンドウの幅までにする。
 /// 上にウィンドウの端まで収まらなければ下に表示し、ウィンドウの左右と下の端からはみ出さないようずらす。
 /// 表示中に Escape を押すと、フォーカスとマウスを動かさずに閉じる。その Escape はほかの要素やキー割り当てに届かない。
+/// 修飾キー付きの Escape では閉じず、ほかの要素に届く。
 /// 閉じた後は、トリガーとツールチップからマウスが外れ、トリガーのフォーカスの表示が消えるまで表示しない
 ///
 /// 支援技術には、[`Tooltip::relation`] に従って `text` をトリガーの説明か名前として公開する。
@@ -109,6 +110,8 @@ struct State {
     popup_hovered: bool,
     /// Escape で閉じた後、表示の条件が一度すべて外れるまで `true`
     dismissed: bool,
+    /// Escape で閉じてから、次の描画で表示の条件を決めるまで `true`
+    just_dismissed: bool,
     /// 表示中だけ持つ、Escape を受ける購読
     escape: Option<Subscription>,
     /// 最後に描いたトリガーの範囲
@@ -184,8 +187,11 @@ impl Element for Anchor {
         let mouse_position = window.mouse_position();
         let visible = state.update(cx, |state, cx| {
             let requested = state.trigger_hovered || state.popup_hovered || focus_visible;
-            // ツールチップがトリガーを覆っていた場合、閉じた直後はトリガーの hover がまだ届いていないため、マウスの位置でも確かめる
-            if !requested && !state.trigger_bounds.contains(&mouse_position) {
+            // ツールチップがトリガーを覆っていた場合、閉じた直後の描画ではトリガーの hover がまだ届いていないため、マウスの位置で代える。
+            // その描画でトリガーの hover が届けば、次の描画からは hover で決まる
+            let pointer_on_trigger = std::mem::take(&mut state.just_dismissed)
+                && state.trigger_bounds.contains(&mouse_position);
+            if !requested && !pointer_on_trigger {
                 state.dismissed = false;
             }
             let visible = requested && !state.dismissed;
@@ -207,6 +213,7 @@ impl Element for Anchor {
                     };
                     this.update(cx, |state, cx| {
                         state.dismissed = true;
+                        state.just_dismissed = true;
                         // 消えたツールチップからは hover の解除が届かないため、ここで外す
                         state.popup_hovered = false;
                         cx.notify();
@@ -300,6 +307,7 @@ mod tests {
 
     use gpui::{
         AppContext, Context, Entity, Modifiers, Point, Render, TestAppContext, VisualTestContext,
+        prelude::FluentBuilder,
     };
 
     use super::*;
@@ -308,11 +316,12 @@ mod tests {
     const DESCRIPTION: &str = "Add to favorites";
 
     /// 40px 四方のトリガーと、黒い内容のツールチップ。フォーカスを移す先の要素を右下に、
-    /// クリックを数える要素を上に置く
+    /// クリックを数える要素を上に置く。`cover` ならトリガーの下半分をマウスの操作を遮る要素で覆う
     ///
     /// 内容は 40x20 の箱を 2 つ横に並べた 80x20 で、幅が足りなければ折り返す
     struct TooltipView {
         trigger_origin: Point<Pixels>,
+        cover: bool,
         focus_handle: FocusHandle,
         other_focus_handle: FocusHandle,
         escapes: Rc<Cell<usize>>,
@@ -360,6 +369,18 @@ mod tests {
                         .top(px(400.))
                         .size(px(40.)),
                 )
+                .when(self.cover, |this| {
+                    this.child(
+                        div()
+                            .id("cover")
+                            .absolute()
+                            .left(self.trigger_origin.x)
+                            .top(self.trigger_origin.y + px(20.))
+                            .w(px(40.))
+                            .h(px(20.))
+                            .occlude(),
+                    )
+                })
                 .child(
                     div()
                         .id("behind")
@@ -379,6 +400,7 @@ mod tests {
     ) -> (Entity<TooltipView>, &mut VisualTestContext) {
         add_test_window(cx, |_, cx| TooltipView {
             trigger_origin,
+            cover: false,
             focus_handle: cx.focus_handle(),
             other_focus_handle: cx.focus_handle(),
             escapes: Rc::default(),
@@ -575,6 +597,28 @@ mod tests {
         move_mouse(cx, 250., 10.);
         move_mouse(cx, 120., 30.);
         assert_eq!(popup_bounds(cx), Some((80.0, 40.0, 80.0, 20.0)));
+    }
+
+    /// 覆う要素の上のマウスはトリガーの範囲の中にあるが、トリガーには乗っていない
+    #[gpui::test]
+    fn キーボードで出したツールチップを_escape_で閉じてもフォーカスし直すと表示する(
+        cx: &mut TestAppContext,
+    ) {
+        for (cover, (x, y)) in [(false, (300., 300.)), (true, (120., 130.))] {
+            let (view, cx) = setup(cx, point(px(100.), px(100.)));
+            view.update(cx, |view, cx| {
+                view.cover = cover;
+                cx.notify();
+            });
+            move_mouse(cx, x, y);
+            assert_eq!(popup_bounds(cx), None, "cover: {cover}");
+            cx.simulate_keystrokes("tab");
+            assert_eq!(popup_bounds(cx), ABOVE, "cover: {cover}");
+            cx.simulate_keystrokes("escape");
+            assert_eq!(popup_bounds(cx), None, "cover: {cover}");
+            cx.simulate_keystrokes("tab shift-tab");
+            assert_eq!(popup_bounds(cx), ABOVE, "cover: {cover}");
+        }
     }
 
     #[gpui::test]

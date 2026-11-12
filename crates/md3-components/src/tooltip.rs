@@ -353,9 +353,11 @@ mod tests {
         assert_eq!((x, width), (0.0, 240.0));
     }
 
-    /// 文字列がボタンの名前と同じなら名前のままにし、違えば説明として公開する
+    /// 文字列がボタンの名前と同じなら名前のままにし、違えば説明として公開する。Rich の見出しは本文と改行でつなぐ
     #[gpui::test]
-    fn ボタンの名前と同じ文字列は説明にしない(cx: &mut TestAppContext) {
+    fn ボタンの名前と異なる文字列を説明として公開する(
+        cx: &mut TestAppContext,
+    ) {
         cx.update(crate::init);
         let (_, cx) = cx.add_window_view(|window, cx| {
             cx.init_md3_theme(window);
@@ -365,15 +367,21 @@ mod tests {
                 toggle: false,
             }
         });
-        for (text, description) in [
-            ("Favorite", None),
-            ("Add to favorites", Some("Add to favorites")),
+        for (tooltip, description) in [
+            (Tooltip::new("Favorite"), None),
+            (Tooltip::new("Add to favorites"), Some("Add to favorites")),
+            (
+                Tooltip::new("Free up space").variant(TooltipVariant::Rich {
+                    title: Some("Storage".into()),
+                }),
+                Some("Storage\nFree up space"),
+            ),
         ] {
             let node = cx.update(|window, cx| {
                 let focus_handle = cx.focus_handle();
                 let theme = cx.md3_theme().clone();
                 // Element にも id があるため、InteractiveElement の id を指定して呼ぶ
-                let trigger = Tooltip::new(text).attach(
+                let trigger = tooltip.clone().attach(
                     InteractiveElement::id(div(), "trigger")
                         .role(accesskit::Role::Button)
                         .aria_label("Favorite"),
@@ -386,8 +394,8 @@ mod tests {
                 trigger.write_a11y_info(&mut node);
                 node
             });
-            assert_eq!(node.label(), Some("Favorite"), "{text}");
-            assert_eq!(node.description(), description, "{text}");
+            assert_eq!(node.label(), Some("Favorite"), "{tooltip:?}");
+            assert_eq!(node.description(), description, "{tooltip:?}");
         }
     }
 }
