@@ -151,7 +151,7 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 /// MD3 のカード
 ///
 /// 1 つの話題についての内容と操作をまとめる容器。子を縦に並べ、バリアントの容器の色・枠線・影の上に描く。
-/// 内容の色は OnSurface で、子のテキストはこの色を受け継ぐ。余白は持たないため、[`Styled`] で付ける。
+/// 内容の色は OnSurface で、子のテキストはこの色を受け継ぐ。余白は持たないため、[`Styled`] で付ける
 ///
 /// [`Card::on_click`] を指定すると押せるカードになり、支援技術には role `button` として公開される。
 /// アクセシブルな名前は子孫に置いたテキストか [`Card::aria_label`] で与える。
