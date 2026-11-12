@@ -32,6 +32,7 @@ default = [
   "segmented-button",
   "slider",
   "switch",
+  "tabs",
 ]
 platform = ["dep:gpui_platform"]
 badge = []
@@ -47,6 +48,7 @@ radio-button = []
 segmented-button = []
 slider = []
 switch = []
+tabs = []
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }

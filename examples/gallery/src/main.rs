@@ -14,6 +14,7 @@ mod radio_button_page;
 mod segmented_button_page;
 mod slider_page;
 mod switch_page;
+mod tabs_page;
 mod theme_page;
 
 use gpui::{
@@ -36,6 +37,7 @@ use crate::radio_button_page::RadioButtonPage;
 use crate::segmented_button_page::SegmentedButtonPage;
 use crate::slider_page::SliderPage;
 use crate::switch_page::SwitchPage;
+use crate::tabs_page::TabsPage;
 use crate::theme_page::ThemePage;
 
 /// 表示するページ
@@ -54,6 +56,7 @@ enum Page {
     Fab,
     SegmentedButton,
     Slider,
+    Tabs,
 }
 
 /// ギャラリーのルート。各ページの状態は持たず、ページのエンティティと表示中のページだけを持つ
@@ -72,6 +75,7 @@ struct Gallery {
     fab_page: Entity<FabPage>,
     segmented_button_page: Entity<SegmentedButtonPage>,
     slider_page: Entity<SliderPage>,
+    tabs_page: Entity<TabsPage>,
 }
 
 impl Gallery {
@@ -91,6 +95,7 @@ impl Gallery {
             fab_page: cx.new(|_| FabPage::default()),
             segmented_button_page: cx.new(|_| SegmentedButtonPage::default()),
             slider_page: cx.new(|_| SliderPage::default()),
+            tabs_page: cx.new(TabsPage::new),
         }
     }
 }
@@ -124,6 +129,7 @@ impl Render for Gallery {
             Page::Fab => self.fab_page.clone().into(),
             Page::SegmentedButton => self.segmented_button_page.clone().into(),
             Page::Slider => self.slider_page.clone().into(),
+            Page::Tabs => self.tabs_page.clone().into(),
         };
         md3_components::root(
             div()
@@ -149,7 +155,8 @@ impl Render for Gallery {
                         .child(tab(Page::Card, "Card", cx))
                         .child(tab(Page::Fab, "FAB", cx))
                         .child(tab(Page::SegmentedButton, "Segmented button", cx))
-                        .child(tab(Page::Slider, "Slider", cx)),
+                        .child(tab(Page::Slider, "Slider", cx))
+                        .child(tab(Page::Tabs, "Tabs", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )
