@@ -629,7 +629,7 @@ type ChangeHandler = Box<dyn Fn(&bool, &mut Window, &mut App)>;
 /// 選ばれると容器の形が [`ButtonShape`] ごとの選ばれた形に変わる。形はテーマのバネで滑らかに変わる。
 /// 選ばれている状態は呼び出し側が持ち、[`IconToggleButton::new`] に毎回渡す。ボタン自身は状態を変えない。
 /// 支援技術には role `button` と押されているかどうかの状態として公開され、`label` がアクセシブルな名前になる。
-/// マウスのクリック・フォーカス中の Enter と Space で [`IconToggleButton::on_change`] のハンドラを呼ぶ。
+/// マウスのクリック・フォーカス中の Enter と Space で [`IconToggleButton::on_change`] のハンドラを呼ぶ
 ///
 /// [`Styled`] で指定したスタイルはボタンの外側の箱に付く。外側の余白や flex の指定に使い、
 /// 箱を広げるとボタンも箱いっぱいに広がる。色や形は変えられないため、[`IconToggleButton::colors`] と
