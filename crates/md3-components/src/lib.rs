@@ -24,7 +24,12 @@ mod progress_indicator;
 #[cfg(feature = "radio-button")]
 mod radio_button;
 // 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
-#[cfg(any(feature = "badge", feature = "button", feature = "card", feature = "fab"))]
+#[cfg(any(
+    feature = "badge",
+    feature = "button",
+    feature = "card",
+    feature = "fab"
+))]
 mod shape;
 #[cfg(feature = "switch")]
 mod switch;

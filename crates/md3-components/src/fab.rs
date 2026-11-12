@@ -116,8 +116,8 @@ fn container_layer(
     let content = theme.color(content);
     // 状態レイヤーは内容の色を重ねる (Compose の `ripple()` は LocalContentColor を使う)
     let state_layer = |opacity: f32| container.blend(content.opacity(opacity));
-    // 影は `FloatingActionButtonDefaults.elevation()` と同じく、色によらず FabPrimaryContainerTokens の段階を使う
     let hovered_shadow = theme.shadow(fab_primary_container::HOVERED_CONTAINER_ELEVATION);
+    // 影は `FloatingActionButtonDefaults.elevation()` と同じく、色によらず FabPrimaryContainerTokens の段階を使う
     let layer = div()
         .absolute()
         .top_0()
@@ -161,7 +161,7 @@ fn focus_ring(theme: &SharedTheme, shape: ShapeKey) -> Shaped {
 /// 画面の主な操作を、影で浮かせた容器のアイコンで示す。
 /// 支援技術には role `button` として公開され、[`Fab::new`] の `label` がアクセシブルな名前になる。
 /// マウスのクリック・フォーカス中の Enter と Space で [`Fab::on_click`] のハンドラを呼ぶ。
-/// 押せる範囲は形を囲む矩形で、角丸の外側も含む。48dp より小さい大きさでも 48dp には広げない。
+/// 押せる範囲は形を囲む矩形で、角丸の外側も含む。[`FabSize::Small`] でも 48dp には広げない。
 /// 無効にする手段は持たない
 ///
 /// [`Styled`] で指定したスタイルは FAB の外側の箱に付く。位置や外側の余白、flex の指定に使い、
@@ -316,8 +316,8 @@ impl Styled for Fab {
 /// 無効にする手段は持たない
 ///
 /// [`Styled`] で指定したスタイルは FAB の外側の箱に付く。位置や外側の余白、flex の指定に使う。
-/// FAB の幅と高さはラベルと展開の状態と大きさで決まり、箱を広げても変わらない。色や形は変えられないため、
-/// [`ExtendedFab::color`] と [`ExtendedFab::size`] を使う
+/// FAB の高さは [`ExtendedFab::size`] で、幅はそれに加えてラベルと展開の状態で決まり、箱を広げても変わらない。
+/// 色や形は変えられないため、[`ExtendedFab::color`] と [`ExtendedFab::size`] を使う
 #[derive(IntoElement)]
 pub struct ExtendedFab {
     id: ElementId,
@@ -702,7 +702,7 @@ mod tests {
         );
     }
 
-    /// 展開の状態を持つ Extended FAB と、比べる用にラベルと同じ書体で描いたラベルの文字列
+    /// 展開の状態と大きさを持つ Extended FAB と、比べる用にラベルと同じ書体で描いたラベルの文字列
     struct ExtendedView {
         expanded: bool,
         size: ExtendedFabSize,
@@ -785,8 +785,9 @@ mod tests {
     }
 
     /// 期待値は Compose の Medium と Large の Extended FAB の高さ・左右の余白 (ExtendedFabMediumTokens、
-    /// ExtendedFabLargeTokens)、ファイル末尾の private な定数の間隔 (12dp・16dp) と書体 (TitleLarge・HeadlineSmall)、
-    /// サンプルが指定するアイコンの大きさ (`MediumIconSize` の 28dp、`LargeIconSize` の 36dp)
+    /// ExtendedFabLargeTokens)、FloatingActionButton.kt 末尾の private な定数 (`MediumExtendedFabIconPadding`・
+    /// `LargeExtendedFabIconPadding` の間隔 12dp・16dp、`MediumExtendedFabTextStyle`・`LargeExtendedFabTextStyle` の書体)、
+    /// サンプルが指定するアイコンの大きさ (`FloatingActionButtonDefaults.MediumIconSize` の 28dp、`LargeIconSize` の 36dp)
     #[gpui::test]
     fn medium_と_large_の_extended_fab_は大きさごとの寸法で並べる(
         cx: &mut TestAppContext,
@@ -813,6 +814,14 @@ mod tests {
             let (width, actual_height, label_width) = extended_widths(cx);
             assert_eq!(actual_height, height, "{size:?}");
             assert_eq!(width, side + icon + space + label_width + side, "{size:?}");
+            // アイコンは描画から幅を測れず、Large ではアイコンと間隔を ExtendedFabLargeTokens の値
+            // (32dp・20dp) に取り違えても和が変わらないため、寸法を直接確かめる
+            let tokens = size.tokens();
+            assert_eq!(
+                (tokens.icon_size, tokens.icon_label_space),
+                (Dp(icon), Dp(space)),
+                "{size:?}"
+            );
         }
     }
 
