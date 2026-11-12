@@ -24,6 +24,7 @@ const PRIORITY: usize = usize::MAX;
 /// マウスが移動を伝えずにウィンドウから出た場合も、その位置に残っているものとして扱う。
 /// 表示中のツールチップの内容と、その周りの間隔の幅の帯の上では、クリックや hover は背後の要素に届かず、スクロールは届く
 ///
+/// トリガーが祖先の領域の外に切り取られて見えない間は表示せず、Escape も受けない。
 /// 内容に与える幅はウィンドウの幅までにする。
 /// 上にウィンドウの端まで収まらなければ下に表示し、ウィンドウの左右と下の端からはみ出さないようずらす。
 /// 表示中に Escape を押すと、フォーカスとマウスを動かさずに閉じる。その Escape はほかの要素やキー割り当てに届かない。
@@ -112,6 +113,8 @@ struct State {
     dismissed: bool,
     /// Escape で閉じてから、次にトリガーを描き終えるまで `true`
     just_dismissed: bool,
+    /// 最後のフレームでツールチップを描いたか
+    shown: bool,
     /// 表示中だけ持つ、Escape を受ける購読
     escape: Option<Subscription>,
     /// 最後に描いたトリガーの範囲
@@ -163,7 +166,8 @@ impl IntoElement for Anchor {
 impl Element for Anchor {
     /// 状態と、トリガーと同じ範囲でマウスの出入りを受ける要素と、表示中のツールチップ
     type RequestLayoutState = (Entity<State>, AnyElement, Option<AnyElement>);
-    type PrepaintState = ();
+    /// ツールチップを描いたか
+    type PrepaintState = bool;
 
     fn id(&self) -> Option<ElementId> {
         None
@@ -186,6 +190,8 @@ impl Element for Anchor {
         let window_id = window.window_handle().window_id();
         let mouse_position = window.mouse_position();
         let visible = state.update(cx, |state, cx| {
+            // 大きさを測るためだけにレイアウトされ描かれない場合 (uniform_list の測る項目) は paint が呼ばれないため、ここで外しておく
+            state.shown = false;
             let requested = state.trigger_hovered || state.popup_hovered || focus_visible;
             // ツールチップがトリガーを覆っていた場合、閉じた直後の描画ではトリガーの hover がまだ届いていないため、マウスの位置で代える。
             // その描画でトリガーの hover が届けば、次の描画からは hover で決まる
@@ -211,6 +217,9 @@ impl Element for Anchor {
                     let Some(this) = this.upgrade() else {
                         return;
                     };
+                    if !this.read(cx).shown {
+                        return;
+                    }
                     this.update(cx, |state, cx| {
                         state.dismissed = true;
                         state.just_dismissed = true;
@@ -260,29 +269,34 @@ impl Element for Anchor {
     ) -> Self::PrepaintState {
         state.update(cx, |state, _| state.trigger_bounds = bounds);
         area.prepaint(window, cx);
-        if let Some(mut popup) = popup.take() {
-            let spacing = self.spacing;
-            // トリガーの幅に縛られないよう、ウィンドウのルートと同じく独立に大きさを決める
-            let popup_size = popup.layout_as_root(
-                size(AvailableSpace::MaxContent, AvailableSpace::MaxContent),
-                window,
-                cx,
-            );
-            let content_size = size(
-                popup_size.width - spacing * 2.,
-                popup_size.height - spacing * 2.,
-            );
-            let viewport = window.viewport_size();
-            let x = (bounds.center().x - content_size.width / 2.)
-                .min(viewport.width - content_size.width)
-                .max(px(0.));
-            let mut y = bounds.top() - spacing - content_size.height;
-            if y < px(0.) {
-                y = bounds.bottom() + spacing;
-            }
-            let y = y.min(viewport.height - content_size.height).max(px(0.));
-            window.defer_draw(popup, point(x - spacing, y - spacing), PRIORITY, None);
+        let Some(mut popup) = popup
+            .take()
+            .filter(|_| window.content_mask().bounds.intersects(&bounds))
+        else {
+            return false;
+        };
+        let spacing = self.spacing;
+        // トリガーの幅に縛られないよう、ウィンドウのルートと同じく独立に大きさを決める
+        let popup_size = popup.layout_as_root(
+            size(AvailableSpace::MaxContent, AvailableSpace::MaxContent),
+            window,
+            cx,
+        );
+        let content_size = size(
+            popup_size.width - spacing * 2.,
+            popup_size.height - spacing * 2.,
+        );
+        let viewport = window.viewport_size();
+        let x = (bounds.center().x - content_size.width / 2.)
+            .min(viewport.width - content_size.width)
+            .max(px(0.));
+        let mut y = bounds.top() - spacing - content_size.height;
+        if y < px(0.) {
+            y = bounds.bottom() + spacing;
         }
+        let y = y.min(viewport.height - content_size.height).max(px(0.));
+        window.defer_draw(popup, point(x - spacing, y - spacing), PRIORITY, None);
+        true
     }
 
     fn paint(
@@ -291,13 +305,16 @@ impl Element for Anchor {
         _inspector_id: Option<&InspectorElementId>,
         _bounds: Bounds<Pixels>,
         (state, area, _): &mut Self::RequestLayoutState,
-        _prepaint: &mut Self::PrepaintState,
+        shown: &mut Self::PrepaintState,
         window: &mut Window,
         cx: &mut App,
     ) {
         area.paint(window, cx);
-        // uniform_list などは測るために 1 フレームに何度もレイアウトするため、1 フレームに 1 回だけ呼ばれる paint で戻す
-        state.update(cx, |state, _| state.just_dismissed = false);
+        state.update(cx, |state, _| {
+            state.shown = *shown;
+            // uniform_list などは測るために 1 フレームに何度もレイアウトするため、1 フレームに 1 回だけ呼ばれる paint で戻す
+            state.just_dismissed = false;
+        });
     }
 }
 
@@ -308,8 +325,8 @@ mod tests {
     use std::{cell::Cell, rc::Rc};
 
     use gpui::{
-        AppContext, Context, Entity, Modifiers, Point, Render, TestAppContext, VisualTestContext,
-        prelude::FluentBuilder,
+        AppContext, Context, Entity, Modifiers, Point, Render, ScrollDelta, ScrollEvent,
+        TestAppContext, VisualTestContext, prelude::FluentBuilder,
     };
 
     use super::*;
@@ -318,12 +335,14 @@ mod tests {
     const DESCRIPTION: &str = "Add to favorites";
 
     /// 40px 四方のトリガーと、黒い内容のツールチップ。フォーカスを移す先の要素を右下に、
-    /// クリックを数える要素を上に置く。`cover` ならトリガーの下半分をマウスの操作を遮る要素で覆う
+    /// クリックを数える要素を上に置く。`cover` ならトリガーの下半分をマウスの操作を遮る要素で覆い、
+    /// `clip` ならトリガーを左上の 50px 四方の外を切り取る要素の中に置いて見えなくする
     ///
     /// 内容は 40x20 の箱を 2 つ横に並べた 80x20 で、幅が足りなければ折り返す
     struct TooltipView {
         trigger_origin: Point<Pixels>,
         cover: bool,
+        clip: bool,
         focus_handle: FocusHandle,
         other_focus_handle: FocusHandle,
         escapes: Rc<Cell<usize>>,
@@ -349,8 +368,8 @@ mod tests {
                         escapes.set(escapes.get() + 1);
                     }
                 })
-                .child(
-                    Tooltip::new(
+                .map(|this| {
+                    let trigger = Tooltip::new(
                         &self.focus_handle,
                         DESCRIPTION,
                         div()
@@ -360,8 +379,19 @@ mod tests {
                             .children((0..2).map(|_| div().size(px(40.)).h(px(20.)))),
                     )
                     .spacing(px(4.))
-                    .attach(trigger),
-                )
+                    .attach(trigger);
+                    if self.clip {
+                        this.child(
+                            div()
+                                .absolute()
+                                .size(px(50.))
+                                .overflow_hidden()
+                                .child(trigger),
+                        )
+                    } else {
+                        this.child(trigger)
+                    }
+                })
                 .child(
                     div()
                         .id("other")
@@ -403,6 +433,7 @@ mod tests {
         add_test_window(cx, |_, cx| TooltipView {
             trigger_origin,
             cover: false,
+            clip: false,
             focus_handle: cx.focus_handle(),
             other_focus_handle: cx.focus_handle(),
             escapes: Rc::default(),
@@ -601,6 +632,28 @@ mod tests {
         assert_eq!(popup_bounds(cx), Some((80.0, 40.0, 80.0, 20.0)));
     }
 
+    #[gpui::test]
+    fn トリガーが切り取られて見えない間は表示せず_escape_も受けない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, point(px(100.), px(100.)));
+        view.update(cx, |view, cx| {
+            view.clip = true;
+            cx.notify();
+        });
+        cx.simulate_keystrokes("tab");
+        assert_eq!(popup_bounds(cx), None);
+        cx.simulate_keystrokes("escape");
+        let escapes = view.read_with(cx, |view, _| view.escapes.clone());
+        assert_eq!(escapes.get(), 1, "Escape はほかに届くこと");
+        view.update(cx, |view, cx| {
+            view.clip = false;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        assert_eq!(popup_bounds(cx), ABOVE, "見えるようになると表示すること");
+    }
+
     /// 覆う要素の上のマウスはトリガーの範囲の中にあるが、トリガーには乗っていない
     #[gpui::test]
     fn キーボードで出したツールチップを_escape_で閉じてもフォーカスし直すと表示する(
@@ -623,17 +676,26 @@ mod tests {
         }
     }
 
-    /// `uniform_list` の 1 項目に置いたトリガー。項目の左上は (100, 20)
+    /// 高さ 40 の `uniform_list` に高さ 40 の項目を `count` 個並べ、0 番の項目にだけトリガーを置く。
+    /// トリガーの左上は (100, 20)
     struct ListView {
+        count: usize,
         focus_handle: FocusHandle,
         other_focus_handle: FocusHandle,
+        escapes: Rc<Cell<usize>>,
     }
 
     impl Render for ListView {
         fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
             let focus_handle = self.focus_handle.clone();
+            let escapes = self.escapes.clone();
             div()
                 .size_full()
+                .on_key_down(move |event, _, _| {
+                    if event.keystroke.key == "escape" {
+                        escapes.set(escapes.get() + 1);
+                    }
+                })
                 .child(
                     div()
                         .id("other")
@@ -643,9 +705,12 @@ mod tests {
                         .size(px(10.)),
                 )
                 .child(
-                    gpui::uniform_list("list", 1, move |range, _, _| {
+                    gpui::uniform_list("list", self.count, move |range, _, _| {
                         range
-                            .map(|_| {
+                            .map(|ix| {
+                                if ix > 0 {
+                                    return div().h(px(40.));
+                                }
                                 let trigger = div()
                                     .id("trigger")
                                     .track_focus(&focus_handle.clone().tab_stop(true))
@@ -670,22 +735,52 @@ mod tests {
         }
     }
 
+    fn setup_list(
+        cx: &mut TestAppContext,
+        count: usize,
+    ) -> (Entity<ListView>, &mut VisualTestContext) {
+        let (view, cx) = add_test_window(cx, |_, cx| ListView {
+            count,
+            focus_handle: cx.focus_handle(),
+            other_focus_handle: cx.focus_handle(),
+            escapes: Rc::default(),
+        });
+        let other = view.read_with(cx, |view, _| view.other_focus_handle.clone());
+        cx.update(|window, cx| other.focus(window, cx));
+        (view, cx)
+    }
+
     /// `uniform_list` は項目の大きさを測るために、同じフレームで項目を何度もレイアウトする
     #[gpui::test]
     fn 一覧の中でもトリガーを覆うツールチップを_escape_で閉じた直後に表示しない(
         cx: &mut TestAppContext,
     ) {
-        let (view, cx) = add_test_window(cx, |_, cx| ListView {
-            focus_handle: cx.focus_handle(),
-            other_focus_handle: cx.focus_handle(),
-        });
+        let (_, cx) = setup_list(cx, 1);
         cx.simulate_resize(size(px(300.), px(60.)));
-        let other = view.read_with(cx, |view, _| view.other_focus_handle.clone());
-        cx.update(|window, cx| other.focus(window, cx));
         move_mouse(cx, 120., 50.);
         assert_eq!(popup_bounds(cx), Some((80.0, 40.0, 80.0, 20.0)));
         cx.simulate_keystrokes("escape");
         assert_eq!(popup_bounds(cx), None);
+    }
+
+    /// `uniform_list` は見えない 0 番の項目も、大きさを測るために描かずにレイアウトする。
+    /// トリガーはマウスの下から外れても hover の解除が届かず、表示の条件を満たしたままになる
+    #[gpui::test]
+    fn 一覧の外へスクロールしたトリガーのツールチップは_escape_を受けない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup_list(cx, 3);
+        move_mouse(cx, 120., 40.);
+        assert!(popup_bounds(cx).is_some());
+        cx.simulate_event(ScrollEvent {
+            position: point(px(120.), px(40.)),
+            delta: ScrollDelta::Pixels(point(px(0.), px(-40.))),
+            ..Default::default()
+        });
+        assert_eq!(popup_bounds(cx), None);
+        cx.simulate_keystrokes("escape");
+        let escapes = view.read_with(cx, |view, _| view.escapes.clone());
+        assert_eq!(escapes.get(), 1);
     }
 
     #[gpui::test]
