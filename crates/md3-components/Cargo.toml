@@ -26,6 +26,7 @@ default = [
   "card",
   "checkbox",
   "divider",
+  "fab",
   "progress-indicator",
   "radio-button",
   "switch",
@@ -38,6 +39,7 @@ icon-button = ["button"]
 card = []
 checkbox = []
 divider = []
+fab = []
 progress-indicator = []
 radio-button = []
 switch = []
