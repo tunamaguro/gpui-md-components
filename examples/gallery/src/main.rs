@@ -6,6 +6,7 @@ mod badge_page;
 mod button_page;
 mod card_page;
 mod checkbox_page;
+mod chip_page;
 mod divider_page;
 mod fab_page;
 mod icon_button_page;
@@ -29,6 +30,7 @@ use crate::badge_page::BadgePage;
 use crate::button_page::ButtonPage;
 use crate::card_page::CardPage;
 use crate::checkbox_page::CheckboxPage;
+use crate::chip_page::ChipPage;
 use crate::divider_page::DividerPage;
 use crate::fab_page::FabPage;
 use crate::icon_button_page::IconButtonPage;
@@ -57,6 +59,7 @@ enum Page {
     SegmentedButton,
     Slider,
     Tabs,
+    Chip,
 }
 
 /// ギャラリーのルート。各ページの状態は持たず、ページのエンティティと表示中のページだけを持つ
@@ -76,6 +79,7 @@ struct Gallery {
     segmented_button_page: Entity<SegmentedButtonPage>,
     slider_page: Entity<SliderPage>,
     tabs_page: Entity<TabsPage>,
+    chip_page: Entity<ChipPage>,
 }
 
 impl Gallery {
@@ -96,6 +100,7 @@ impl Gallery {
             segmented_button_page: cx.new(|_| SegmentedButtonPage::default()),
             slider_page: cx.new(|_| SliderPage::default()),
             tabs_page: cx.new(TabsPage::new),
+            chip_page: cx.new(|_| ChipPage::default()),
         }
     }
 }
@@ -130,6 +135,7 @@ impl Render for Gallery {
             Page::SegmentedButton => self.segmented_button_page.clone().into(),
             Page::Slider => self.slider_page.clone().into(),
             Page::Tabs => self.tabs_page.clone().into(),
+            Page::Chip => self.chip_page.clone().into(),
         };
         md3_components::root(
             div()
@@ -156,7 +162,8 @@ impl Render for Gallery {
                         .child(tab(Page::Fab, "FAB", cx))
                         .child(tab(Page::SegmentedButton, "Segmented button", cx))
                         .child(tab(Page::Slider, "Slider", cx))
-                        .child(tab(Page::Tabs, "Tabs", cx)),
+                        .child(tab(Page::Tabs, "Tabs", cx))
+                        .child(tab(Page::Chip, "Chips", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )
