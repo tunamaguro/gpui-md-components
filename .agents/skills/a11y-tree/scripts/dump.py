@@ -2,7 +2,7 @@
 
 使い方: python3 -I dump.py <アプリ名>
 
-各行は `<パス> [role] 'name' {states} desc='...' rel=[...] actions=[...]`。
+各行は `<パス> [role] 'name' {states} value=... desc='...' rel=[...] actions=[...]`。
 パスは act.py に渡す子の番号の列
 """
 
@@ -43,6 +43,11 @@ def describe(acc):
     except NotImplementedError:
         actions = []
     line = f"[{acc.getRoleName()}] {acc.name!r} {{{', '.join(names)}}}"
+    try:
+        value = acc.queryValue()
+        line += f" value={value.currentValue} [{value.minimumValue}..{value.maximumValue}]"
+    except NotImplementedError:
+        pass
     if acc.description:
         line += f" desc={acc.description!r}"
     if relations:

@@ -8,7 +8,7 @@ use gpui::{
 };
 use md3_color::{Argb, ColorRole, CustomColorGroup, DynamicScheme, Hct, SchemeError, contrast};
 use md3_tokens::elevation::Elevation;
-use md3_tokens::motion::MotionSchemeKey;
+use md3_tokens::motion::{CubicBezier, MotionSchemeKey};
 use md3_tokens::shadow;
 use md3_tokens::shape::{CornerShape, CornerSize, ShapeKey};
 use md3_tokens::typography::TypeScale;
@@ -32,6 +32,37 @@ pub(crate) fn to_hsla(argb: Argb) -> Hsla {
 /// 1dp は 1 論理ピクセルで、ウィンドウのスケールは gpui が掛ける。密度は掛けない
 pub fn dp(value: Dp) -> Pixels {
     px(value.0)
+}
+
+/// `curve` のイージングを、経過の割合から進み具合を返す関数にする
+///
+/// 返す関数は 0 以下と 1 以上の割合をそのまま返し、その間では曲線の x が割合に一致する点の y を返す。
+/// y は 0〜1 を超えることがある。x の制御点 (`x1`、`x2`) は 0〜1 の範囲にあること。
+/// 範囲外のときは x が割合に一致する点が複数あり、どれの y を返すかは決まらない。
+/// gpui の [`Animation::with_easing`](gpui::Animation::with_easing) にそのまま渡せる
+pub fn easing(curve: CubicBezier) -> impl Fn(f32) -> f32 + Copy {
+    // 制御点の x を 0〜1 に限れば x(t) は単調増加するため、Compose の `CubicBezierEasing` が
+    // 求める最初の解と同じ解になる
+    let bezier = |p1: f32, p2: f32, t: f32| {
+        let u = 1.0 - t;
+        3.0 * u * u * t * p1 + 3.0 * u * t * t * p2 + t * t * t
+    };
+    move |fraction: f32| {
+        if !(fraction > 0.0 && fraction < 1.0) {
+            return fraction;
+        }
+        let (mut low, mut high) = (0.0_f32, 1.0_f32);
+        // 二分法の 1 回で区間が半分になるため、f32 の精度に届く回数で打ち切る
+        for _ in 0..32 {
+            let t = (low + high) / 2.0;
+            if bezier(curve.x1, curve.x2, t) < fraction {
+                low = t;
+            } else {
+                high = t;
+            }
+        }
+        bezier(curve.y1, curve.y2, (low + high) / 2.0)
+    }
 }
 
 /// 大きさが `size` の要素を `shape` の形にするときの角の半径
@@ -382,6 +413,45 @@ mod tests {
             .contrast_level(settings.contrast)
             .build()
             .expect("テストの配色は作れる")
+    }
+
+    /// 期待値は曲線の定義 (媒介変数 t での x と y) から独立に求める
+    #[test]
+    fn イージングは曲線の_x_に対応する_y_を返す() {
+        let curves = [
+            md3_tokens::motion::EASING_STANDARD_CUBIC_BEZIER,
+            md3_tokens::motion::EASING_EMPHASIZED_ACCELERATE_CUBIC_BEZIER,
+            md3_tokens::motion::EASING_EMPHASIZED_DECELERATE_CUBIC_BEZIER,
+            CubicBezier::new(0.34, 1.56, 0.64, 1.0),
+        ];
+        let point = |c: CubicBezier, t: f64| {
+            let b = |p1: f32, p2: f32| {
+                let (p1, p2, u) = (f64::from(p1), f64::from(p2), 1.0 - t);
+                3.0 * u * u * t * p1 + 3.0 * u * t * t * p2 + t * t * t
+            };
+            (b(c.x1, c.x2), b(c.y1, c.y2))
+        };
+        for curve in curves {
+            let ease = easing(curve);
+            for step in 1..100 {
+                let (x, y) = point(curve, f64::from(step) / 100.0);
+                let actual = f64::from(ease(x as f32));
+                assert!(
+                    (actual - y).abs() < 1e-4,
+                    "{curve:?} の x={x} で {actual} は {y} に近いこと"
+                );
+            }
+        }
+    }
+
+    /// Compose の `EasingUnitTest` (animation-core) の条件
+    #[test]
+    fn イージングは端で_0_と_1_を返し_行き過ぎを保つ() {
+        let ease = easing(CubicBezier::new(0.0, 0.0, 0.15, 1.0));
+        assert_eq!(ease(0.0), 0.0);
+        assert_eq!(ease(1.0), 1.0);
+        assert!(ease(0.999_999) <= 1.0);
+        assert!(easing(CubicBezier::new(0.34, 1.56, 0.64, 1.0))(0.6) > 1.0);
     }
 
     #[test]

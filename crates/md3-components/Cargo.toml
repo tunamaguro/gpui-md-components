@@ -24,6 +24,7 @@ default = [
   "icon-button",
   "checkbox",
   "divider",
+  "progress-indicator",
   "radio-button",
   "switch",
 ]
@@ -33,6 +34,7 @@ button = []
 icon-button = ["button"]
 checkbox = []
 divider = []
+progress-indicator = []
 radio-button = []
 switch = []
 

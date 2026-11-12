@@ -6,6 +6,7 @@ mod button_page;
 mod checkbox_page;
 mod divider_page;
 mod icon_button_page;
+mod progress_indicator_page;
 mod radio_button_page;
 mod switch_page;
 mod theme_page;
@@ -22,6 +23,7 @@ use crate::button_page::ButtonPage;
 use crate::checkbox_page::CheckboxPage;
 use crate::divider_page::DividerPage;
 use crate::icon_button_page::IconButtonPage;
+use crate::progress_indicator_page::ProgressIndicatorPage;
 use crate::radio_button_page::RadioButtonPage;
 use crate::switch_page::SwitchPage;
 use crate::theme_page::ThemePage;
@@ -36,6 +38,7 @@ enum Page {
     RadioButton,
     Switch,
     Divider,
+    ProgressIndicator,
 }
 
 /// ギャラリーのルート。各ページの状態は持たず、ページのエンティティと表示中のページだけを持つ
@@ -48,6 +51,7 @@ struct Gallery {
     radio_button_page: Entity<RadioButtonPage>,
     switch_page: Entity<SwitchPage>,
     divider_page: Entity<DividerPage>,
+    progress_indicator_page: Entity<ProgressIndicatorPage>,
 }
 
 impl Gallery {
@@ -61,6 +65,7 @@ impl Gallery {
             radio_button_page: cx.new(|_| RadioButtonPage::default()),
             switch_page: cx.new(|_| SwitchPage::default()),
             divider_page: cx.new(|_| DividerPage),
+            progress_indicator_page: cx.new(|_| ProgressIndicatorPage::default()),
         }
     }
 }
@@ -88,6 +93,7 @@ impl Render for Gallery {
             Page::RadioButton => self.radio_button_page.clone().into(),
             Page::Switch => self.switch_page.clone().into(),
             Page::Divider => self.divider_page.clone().into(),
+            Page::ProgressIndicator => self.progress_indicator_page.clone().into(),
         };
         md3_components::root(
             div()
@@ -98,6 +104,7 @@ impl Render for Gallery {
                 .child(
                     div()
                         .flex()
+                        .flex_wrap()
                         .gap_2()
                         .p_2()
                         .child(tab(Page::Theme, "Theme", cx))
@@ -106,7 +113,8 @@ impl Render for Gallery {
                         .child(tab(Page::Checkbox, "Checkbox", cx))
                         .child(tab(Page::RadioButton, "Radio button", cx))
                         .child(tab(Page::Switch, "Switch", cx))
-                        .child(tab(Page::Divider, "Divider", cx)),
+                        .child(tab(Page::Divider, "Divider", cx))
+                        .child(tab(Page::ProgressIndicator, "Progress indicator", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )

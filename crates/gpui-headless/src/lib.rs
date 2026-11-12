@@ -8,6 +8,7 @@ pub mod choice;
 mod focus_visible;
 mod interaction;
 mod navigation;
+pub mod progress;
 pub mod radio;
 mod root;
 mod roving;
