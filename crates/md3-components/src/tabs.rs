@@ -167,14 +167,14 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
         text_style.refine(&label_font);
         let font_size = text_style.font_size.to_pixels(window.rem_size());
         let line_height = text_style.line_height_in_pixels(window.rem_size());
-        // タブの幅はレイアウトで決まるため、前の描画で測った並びの幅から求める。
+        // タブの幅はレイアウトで決まるため、前の描画で測った幅を使う。
         // ラベルが折り返すかと、インジケーターの幅の上限に使う。最初の描画ではまだ測っていない
-        let row_width = window.with_element_namespace(self.id.clone(), |window| {
-            window.use_keyed_state("row-width", cx, |_, _| None::<Pixels>)
+        let tab_width = window.with_element_namespace(self.id.clone(), |window| {
+            window.use_keyed_state("tab-width", cx, |_, _| None::<Pixels>)
         });
-        let label_space = row_width.read(cx).map(|width| {
-            width / count as f32 - dp(supplement::tabs::HORIZONTAL_TEXT_PADDING) * 2.0
-        });
+        let label_space = tab_width
+            .read(cx)
+            .map(|width| width - dp(supplement::tabs::HORIZONTAL_TEXT_PADDING) * 2.0);
 
         // 同じ値のタブが複数あっても、支援技術に公開する状態と同じく最初のタブだけを選ばれた見た目にする
         let mut selected = self.selected.as_ref();
@@ -198,10 +198,8 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
                 if is_selected {
                     // gpui のテキストの要素は幅を切り上げてレイアウトし、折り返すと置ける幅いっぱいに広がる。
                     // Compose はタブの内容の幅に 24dp の最小値を課す (`TabRowImpl`)
-                    let width = match label_space {
-                        Some(space) if wrapped => space,
-                        _ => line.width.ceil(),
-                    };
+                    let width = line.width.ceil();
+                    let width = label_space.map_or(width, |space| width.min(space));
                     indicator = Some((
                         index,
                         width.max(dp(supplement::tabs::PRIMARY_INDICATOR_MIN_WIDTH)),
@@ -351,8 +349,8 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
         let measure = canvas(
             move |bounds, window, cx| {
                 let width = Some(bounds.size.width);
-                if *row_width.read(cx) != width {
-                    row_width.update(cx, |row_width, _| *row_width = width);
+                if *tab_width.read(cx) != width {
+                    tab_width.update(cx, |tab_width, _| *tab_width = width);
                     // 測った幅で描き直す
                     window.request_animation_frame();
                 }
@@ -361,57 +359,67 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
         )
         .absolute()
         .size_full();
-        list.items(tabs).child(measure).child(divider).when_some(
-            indicator,
-            |this, (index, label_width)| {
-                let indicator_height = dp(primary::ACTIVE_INDICATOR_HEIGHT);
-                let color = theme.color(primary::ACTIVE_INDICATOR_COLOR);
-                // インジケーターは選ばれたタブの下端に置き、位置と幅を DefaultSpatial のバネで動かす
-                let spatial = theme.spring(MotionSchemeKey::DefaultSpatial);
-                let slot = div()
-                    .absolute()
-                    .bottom_0()
-                    .w(relative(1.0 / count as f32))
-                    .h(indicator_height);
-                let slot = match self.variant {
-                    // Compose の Primary のインジケーターは、タブの幅から左右の余白を除いた幅を上限とするラベルの幅で、
-                    // 最小 24dp にしてタブの中央に置く。幅はバネに渡す前に上限に収める。
-                    // 並びの幅をまだ測っていない最初の描画では、上限をレイアウトで課す
-                    TabRowVariant::Primary => {
-                        let min_width = dp(supplement::tabs::PRIMARY_INDICATOR_MIN_WIDTH);
-                        let radii = shape_radii(
-                            primary::ACTIVE_INDICATOR_SHAPE,
-                            size(min_width, indicator_height),
-                        );
-                        let bar = div()
-                            .flex_none()
-                            .h_full()
-                            .min_w(min_width)
-                            .max_w_full()
-                            .rounded_tl(radii.top_left)
-                            .rounded_tr(radii.top_right)
-                            .rounded_br(radii.bottom_right)
-                            .rounded_bl(radii.bottom_left)
-                            .bg(color)
-                            .with_spring(
-                                "indicator-width",
-                                SpringAnimation::new(spatial).to(label_width),
-                                |this, width| this.w(width),
-                            );
-                        slot.flex()
-                            .justify_center()
-                            .px(dp(supplement::tabs::HORIZONTAL_TEXT_PADDING))
-                            .child(bar)
-                    }
-                    TabRowVariant::Secondary => slot.bg(color),
-                };
-                this.child(slot.with_spring(
-                    "indicator-position",
-                    SpringAnimation::new(spatial).to(index as f32),
-                    move |this, position| this.left(relative(position / count as f32)),
-                ))
-            },
-        )
+        let indicator = indicator.map(|(index, label_width)| {
+            let indicator_height = dp(primary::ACTIVE_INDICATOR_HEIGHT);
+            let color = theme.color(primary::ACTIVE_INDICATOR_COLOR);
+            // インジケーターは選ばれたタブの下端に置き、位置と幅を DefaultSpatial のバネで動かす
+            let spatial = theme.spring(MotionSchemeKey::DefaultSpatial);
+            let slot = div()
+                .absolute()
+                .bottom_0()
+                .w(relative(1.0))
+                .h(indicator_height);
+            let slot = match self.variant {
+                // Compose の Primary のインジケーターは、タブの幅から左右の余白を除いた幅を上限とするラベルの幅で、
+                // 最小 24dp にしてタブの中央に置く
+                TabRowVariant::Primary => {
+                    let min_width = dp(supplement::tabs::PRIMARY_INDICATOR_MIN_WIDTH);
+                    let radii = shape_radii(
+                        primary::ACTIVE_INDICATOR_SHAPE,
+                        size(min_width, indicator_height),
+                    );
+                    let bar = div()
+                        .flex_none()
+                        .h_full()
+                        .min_w(min_width)
+                        .max_w_full()
+                        .rounded_tl(radii.top_left)
+                        .rounded_tr(radii.top_right)
+                        .rounded_br(radii.bottom_right)
+                        .rounded_bl(radii.bottom_left)
+                        .bg(color);
+                    // 幅は上限に収めてからバネに渡す。タブの幅をまだ測っていない最初の描画では、上限をレイアウトで課し、
+                    // バネは測った後の描画で上限に収めた幅から始める
+                    let bar = if label_space.is_some() {
+                        bar.with_spring(
+                            "indicator-width",
+                            SpringAnimation::new(spatial).to(label_width),
+                            |this, width| this.w(width),
+                        )
+                        .into_any_element()
+                    } else {
+                        bar.w(label_width).into_any_element()
+                    };
+                    slot.flex()
+                        .justify_center()
+                        .px(dp(supplement::tabs::HORIZONTAL_TEXT_PADDING))
+                        .child(bar)
+                }
+                TabRowVariant::Secondary => slot.bg(color),
+            };
+            slot.with_spring(
+                "indicator-position",
+                SpringAnimation::new(spatial).to(index as f32),
+                |this, position| this.left(relative(position)),
+            )
+        });
+        // タブはどれも同じ幅のため、測る要素とインジケーターは最初のタブに置き、タブの幅を単位に位置を決める。
+        // こうすると並びに padding を付けても、padding の内側に並ぶタブと同じ基準になる
+        let mut tabs = tabs.into_iter();
+        let first = tabs
+            .next()
+            .map(|first| first.child(measure).children(indicator));
+        list.items(first.into_iter().chain(tabs)).child(divider)
     }
 }
 
@@ -534,6 +542,8 @@ mod tests {
         labels: &'static [&'static str],
         icons: bool,
         width: f32,
+        /// 並びの左右の padding
+        padding: f32,
         changes: Rc<RefCell<Vec<usize>>>,
     }
 
@@ -557,6 +567,7 @@ mod tests {
                     div().w(px(self.width)).child(
                         TabRow::new("row", Some(self.selected))
                             .variant(self.variant)
+                            .px(px(self.padding))
                             .aria_label("Tabs")
                             .on_change(move |value, _, _| changes.borrow_mut().push(*value))
                             .tabs(self.labels.iter().enumerate().map(|(index, label)| {
@@ -599,6 +610,7 @@ mod tests {
             labels,
             icons: false,
             width,
+            padding: 0.0,
             changes,
         }
     }
@@ -830,6 +842,23 @@ mod tests {
         assert_eq!(
             filled(cx, primary.into()),
             vec![((200.0, 45.0, 200.0, 3.0), 0.0)]
+        );
+    }
+
+    #[gpui::test]
+    fn インジケーターは並びの_padding_の内側に並ぶタブに合わせる(
+        cx: &mut TestAppContext,
+    ) {
+        // 幅 240dp から左右の padding 20dp を除いた 200dp に、幅 100dp のタブが並ぶ
+        let (_, cx) = add_row(cx, |changes| RowView {
+            variant: TabRowVariant::Secondary,
+            padding: 20.0,
+            ..row(1, &["Overview", "Reviews"], 240.0)(changes)
+        });
+        let primary = color(cx, ColorRole::Primary);
+        assert_eq!(
+            filled(cx, primary.into()),
+            vec![((120.0, 45.0, 100.0, 3.0), 0.0)]
         );
     }
 
