@@ -7,7 +7,7 @@ pub mod badge;
 pub mod button;
 pub mod card;
 pub mod checkbox;
-pub mod progress_indicator;
 pub mod fab;
+pub mod progress_indicator;
 pub mod radio_button;
 pub mod switch;
