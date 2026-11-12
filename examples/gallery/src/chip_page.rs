@@ -66,6 +66,8 @@ pub struct ChipPage {
     flat_filters: [bool; 4],
     elevated_filters: [bool; 4],
     recipients: Vec<Recipient>,
+    /// 最後の宛先を削除したときにフォーカスを移すための、宛先を元に戻すボタンのフォーカス
+    reset_focus: FocusHandle,
     last_pressed: Option<SharedString>,
 }
 
@@ -75,6 +77,7 @@ impl ChipPage {
             flat_filters: [true, false, false, false],
             elevated_filters: [false, true, false, false],
             recipients: recipients(cx),
+            reset_focus: cx.focus_handle(),
             last_pressed: None,
         }
     }
@@ -147,14 +150,13 @@ impl ChipPage {
                             format!("Remove {name}"),
                             cx.listener(move |this, _, window, cx| {
                                 this.recipients.remove(index);
-                                // 削除ボタンはチップと一緒に消えるため、次の宛先か、無ければ前の宛先へフォーカスを移す
+                                // 削除ボタンはチップと一緒に消えるため、次の宛先、前の宛先、元に戻すボタンの順にフォーカスを移す
                                 let next = this
                                     .recipients
                                     .get(index)
-                                    .or_else(|| this.recipients.get(index.wrapping_sub(1)));
-                                if let Some(next) = next {
-                                    next.focus.focus(window, cx);
-                                }
+                                    .or_else(|| this.recipients.get(index.wrapping_sub(1)))
+                                    .map_or(&this.reset_focus, |next| &next.focus);
+                                next.focus(window, cx);
                                 cx.notify();
                             }),
                         );
@@ -173,6 +175,7 @@ impl ChipPage {
             .child(
                 Button::new("input-reset")
                     .variant(ButtonVariant::Text)
+                    .track_focus(&self.reset_focus)
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.recipients = recipients(cx);
                         cx.notify();
