@@ -38,9 +38,10 @@ type ChangeHandler = Box<dyn Fn(&f32, &mut Window, &mut App)>;
 /// 値は呼び出し側が持ち、[`Slider::new`] に毎回渡す。部品自身は値を変えない。
 /// 次の操作で [`Slider::on_change`] のハンドラに新しい値を求める
 ///
-/// - マウスの左ボタンを押した位置の値。押したまま動かすと、ボタンを離すまで部品の外でも位置を追う
+/// - マウスの左ボタンを押した位置の値。押したまま動かすと、ボタンを離すまで部品の外でも位置を追う。
+///   値を変えられる間は、左ボタンの押下を親に伝えない
 /// - フォーカス中の右と上の矢印キーで 1 段階増やし、左と下の矢印キーで 1 段階減らす。段階が無ければ範囲の 1% ずつ増減する
-/// - Page Up と Page Down で、段階の数の 1/10 (1 から 10 段階) だけ増減する
+/// - Page Up と Page Down で、段階の数の 1/10 を 2 から 10 段階に収めた量だけ増減する。段階が無ければ範囲の 10% ずつ増減する
 /// - Home で最小の値、End で最大の値にする
 /// - 支援技術からの増減と値の設定
 ///
@@ -204,8 +205,14 @@ impl RenderOnce for Slider {
             let fraction = (value - start) / (end - start);
             if steps > 0 {
                 let index = (fraction * (steps + 1) as f32).round();
-                // 段階の値は、headless の Slider が求める値と同じく、始まりに段階の大きさの倍数を足して求める
-                ((start + step * index).min(end), index / (steps + 1) as f32)
+                // headless の Slider の段階で選べる値 (始まりから段階ごとの値と終わり) に合わせる。
+                // 最後の段階は、浮動小数点の誤差で終わりに届かないことがあるため終わりにする
+                let value = if index as usize > steps {
+                    end
+                } else {
+                    (start + step * index).min(end)
+                };
+                (value, index / (steps + 1) as f32)
             } else {
                 (value, fraction)
             }
@@ -382,6 +389,7 @@ mod tests {
 
     struct SliderView {
         value: f32,
+        range: RangeInclusive<f32>,
         steps: usize,
         disabled: bool,
         changes: Rc<RefCell<Vec<f32>>>,
@@ -392,6 +400,7 @@ mod tests {
             let changes = self.changes.clone();
             div().flex().flex_col().w(px(WIDTH)).child(
                 Slider::new("slider", self.value)
+                    .range(self.range.clone())
                     .steps(self.steps)
                     .disabled(self.disabled)
                     .aria_label("Volume")
@@ -411,6 +420,7 @@ mod tests {
             cx.init_md3_theme(window);
             SliderView {
                 value,
+                range: 0.0..=1.0,
                 steps,
                 disabled,
                 changes: Rc::default(),
@@ -657,5 +667,19 @@ mod tests {
         cx.simulate_keystrokes("left");
         let changes = view.read_with(cx, |view, _| view.changes.clone());
         assert_eq!(*changes.borrow(), vec![0.5, 0.5]);
+    }
+
+    /// f32 では 0.7 / 9 * 9 が 0.7 に届かない
+    #[gpui::test]
+    fn 最大の値では_end_と右の矢印キーで値を求めない(cx: &mut TestAppContext) {
+        let (view, cx) = add_slider(cx, 0.7, 8, false);
+        view.update(cx, |view, cx| {
+            view.range = 0.0..=0.7;
+            cx.notify();
+        });
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_keystrokes("tab end right");
+        let changes = view.read_with(cx, |view, _| view.changes.clone());
+        assert_eq!(*changes.borrow(), Vec::<f32>::new());
     }
 }

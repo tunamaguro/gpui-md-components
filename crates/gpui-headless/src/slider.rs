@@ -43,7 +43,7 @@ impl Scale {
         self.step.unwrap_or((self.end - self.start) / 100.0)
     }
 
-    /// Page Up と Page Down で増減する量。範囲の段階の数の 1/10 を、1 から 10 段階に収めた量
+    /// Page Up と Page Down で増減する量。範囲の段階の数の 1/10 を、2 から 10 段階に収めた量
     fn page_delta(self) -> f32 {
         let delta = self.key_delta();
         let count = if delta > 0.0 {
@@ -51,7 +51,8 @@ impl Scale {
         } else {
             0.0
         };
-        (count / 10.0).floor().clamp(1.0, 10.0) * delta
+        // APG は Page Up と Page Down で矢印キーより大きく変えるよう求めるため、最小を 2 段階にする
+        (count / 10.0).floor().clamp(2.0, 10.0) * delta
     }
 
     /// `bounds` の左右の端から `inset` だけ内側の範囲で、位置 `x` に対応する値
@@ -78,9 +79,12 @@ struct PointerState {
 /// 値は呼び出し側が持ち、[`Slider::new`] に毎回渡す。部品自身は値を変えない。
 /// 次の操作で、[`Slider::on_change`] のハンドラに新しい値を求める
 ///
-/// - マウスの左ボタンを押した位置の値。押したまま動かすと、ボタンを離すまで部品の外でも位置を追う
-/// - フォーカス中の右と上の矢印キーで 1 段階増やし、左と下の矢印キーで 1 段階減らす
-/// - Page Up と Page Down で、範囲の段階の数の 1/10 (1 から 10 段階) だけ増減する
+/// - マウスの左ボタンを押した位置の値。押したまま動かすと、ボタンを離すまで部品の外でも位置を追う。
+///   値を変えられる部品は、左ボタンの押下を親に伝えない
+/// - フォーカス中の右と上の矢印キーで 1 段階増やし、左と下の矢印キーで 1 段階減らす。
+///   段階が無ければ範囲の 1% だけ増減する
+/// - Page Up と Page Down で、範囲の段階の数の 1/10 を 2 から 10 段階に収めた量だけ増減する。
+///   段階が無ければ範囲の 10% だけ増減する
 /// - Home で最小の値、End で最大の値にする
 /// - 支援技術からの増減 (Increment・Decrement) と値の設定 (SetValue)
 ///
@@ -262,14 +266,19 @@ impl RenderOnce for Slider {
                 })
             })
             .when(focusable, |this| {
-                this.track_focus(&focus_handle.tab_stop(true))
+                this.track_focus(&focus_handle.clone().tab_stop(true))
             })
             .when_some(request.clone(), |this, request| {
                 let on_mouse_down = {
                     let request = request.clone();
                     let pointer = pointer.clone();
                     let bounds = bounds.clone();
+                    let focus_handle = focus_handle.clone();
                     move |event: &gpui::MouseDownEvent, window: &mut Window, cx: &mut App| {
+                        // ドラッグで親の on_click や on_drag を動かさないよう、押下を親に伝えない。
+                        // 伝播を止めると track_focus によるクリック時のフォーカス移動も呼ばれないため、ここで移す
+                        cx.stop_propagation();
+                        window.focus(&focus_handle, cx);
                         let Some(bounds) = bounds.get() else {
                             return;
                         };
@@ -357,8 +366,6 @@ impl StatefulInteractiveElement for Slider {}
 type DragHandler = Rc<dyn Fn(Pixels, Bounds<Pixels>, &mut Window, &mut App)>;
 
 /// `inner` の位置を記録し、ドラッグ中のマウスの移動とボタンを離す操作を、部品の外でも受ける要素
-///
-/// gpui の要素のマウスのリスナーは、ポインタが要素の上にある間しか移動を受けないため、ウィンドウ全体で受ける
 struct PointerLayer<E> {
     inner: E,
     bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
@@ -430,12 +437,12 @@ impl<E: Element> Element for PointerLayer<E> {
             window,
             cx,
         );
-        let Some(drag) = self.drag.clone() else {
-            return;
-        };
+        // gpui の要素のマウスのリスナーは、ポインタが要素の上にある間しか移動を受けないため、ウィンドウ全体で受ける。
+        // ほかの要素が伝播を止めても受けるよう Capture で受け、ドラッグ中に値を変えられなくなっても押下の状態を戻す
+        let drag = self.drag.clone();
         let pointer = self.pointer.clone();
         window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
-            if phase != DispatchPhase::Bubble || !pointer.read(cx).dragging {
+            if phase != DispatchPhase::Capture || !pointer.read(cx).dragging {
                 return;
             }
             // ウィンドウの外でボタンを離した場合は離す操作が届かないため、移動のときにも確かめる
@@ -443,11 +450,13 @@ impl<E: Element> Element for PointerLayer<E> {
                 pointer.update(cx, |pointer, _| pointer.dragging = false);
                 return;
             }
-            drag(event.position.x, bounds, window, cx);
+            if let Some(drag) = &drag {
+                drag(event.position.x, bounds, window, cx);
+            }
         });
         let pointer = self.pointer.clone();
         window.on_mouse_event(move |event: &MouseUpEvent, phase, _, cx| {
-            if phase == DispatchPhase::Bubble
+            if phase == DispatchPhase::Capture
                 && event.button == MouseButton::Left
                 && pointer.read(cx).dragging
             {
@@ -604,7 +613,8 @@ mod tests {
         assert_eq!(changes(&view, cx), vec![102.0, 100.0, 98.0]);
     }
 
-    /// 増減する段階の数は Compose の `slideOnKeyEvents` と同じく、段階の数の 1/10 を 1 から 10 に収めた数
+    /// 増減する段階の数は、段階の数の 1/10 を 2 から 10 に収めた数。
+    /// Compose の `slideOnKeyEvents` は最小を 1 にするが、APG に合わせて矢印キーより大きく変える
     #[gpui::test]
     fn page_up_と_page_down_で段階の数の_10_分の_1_だけ増減する(
         cx: &mut TestAppContext,
@@ -612,10 +622,12 @@ mod tests {
         for (range, step, expected) in [
             // 100 段階なら 10 段階
             (0.0..=100.0, Some(1.0), [60.0, 50.0]),
-            // 10 段階なら 1 段階
-            (0.0..=100.0, Some(10.0), [60.0, 50.0]),
-            // 4 段階でも 1 段階
-            (0.0..=100.0, Some(25.0), [75.0, 50.0]),
+            // 20 段階なら 2 段階
+            (0.0..=100.0, Some(5.0), [60.0, 50.0]),
+            // 10 段階でも 2 段階
+            (0.0..=100.0, Some(10.0), [70.0, 50.0]),
+            // 4 段階でも 2 段階
+            (0.0..=100.0, Some(25.0), [100.0, 50.0]),
             // 1000 段階でも 10 段階
             (0.0..=1000.0, Some(1.0), [60.0, 50.0]),
             // 段階が無ければ範囲の 10%
@@ -675,6 +687,54 @@ mod tests {
         // 離した後は追わない
         cx.simulate_mouse_move(at(INSET + 100.0), None, Modifiers::none());
         assert_eq!(changes(&view, cx), vec![25.0, 100.0, 0.0]);
+    }
+
+    #[gpui::test]
+    fn 押下を親に伝えずフォーカスを移す(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, 0.0, 0.0..=100.0, None);
+        cx.simulate_click(at(INSET + 100.0), Modifiers::none());
+        assert_eq!(changes(&view, cx), vec![50.0]);
+        assert_eq!(
+            view.read_with(cx, |view, _| view.parent_mouse_downs.get()),
+            0
+        );
+        let focus_handle = view.read_with(cx, |view, _| view.focus_handle.clone());
+        assert!(cx.update(|window, _| focus_handle.is_focused(window)));
+    }
+
+    #[gpui::test]
+    fn ボタンを押していない移動が来たらドラッグを終える(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, 0.0, 0.0..=100.0, None);
+        cx.simulate_mouse_down(at(INSET + 50.0), MouseButton::Left, Modifiers::none());
+        // ウィンドウの外でボタンを離し、押さずに戻ってきた
+        cx.simulate_mouse_move(at(INSET + 100.0), None, Modifiers::none());
+        // 部品の外で別の押下を始めた
+        cx.simulate_mouse_move(
+            point(px(INSET + 150.0), px(300.)),
+            MouseButton::Left,
+            Modifiers::none(),
+        );
+        assert_eq!(changes(&view, cx), vec![25.0]);
+    }
+
+    #[gpui::test]
+    fn ドラッグ中に無効になってもボタンを離せばドラッグを終える(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, 0.0, 0.0..=100.0, None);
+        cx.simulate_mouse_down(at(INSET + 50.0), MouseButton::Left, Modifiers::none());
+        update(&view, cx, |view| view.availability = Availability::Disabled);
+        cx.simulate_mouse_up(at(INSET + 50.0), MouseButton::Left, Modifiers::none());
+        update(&view, cx, |view| view.availability = Availability::Enabled);
+        // 部品の外で別の押下を始めた
+        cx.simulate_mouse_move(
+            point(px(INSET + 150.0), px(300.)),
+            MouseButton::Left,
+            Modifiers::none(),
+        );
+        assert_eq!(changes(&view, cx), vec![25.0]);
     }
 
     #[gpui::test]
