@@ -94,6 +94,13 @@ where
         }
     };
     let [rest, hovered, focused] = look.elevations.map(|elevation| theme.shadow(elevation));
+    // Material Web はラベルを `white-space: nowrap` で描き、改行も空白として 1 行に並べる。
+    // gpui のテキストは改行で行を分けるため、改行を空白に置き換える
+    let label: SharedString = if label.contains('\n') {
+        label.lines().collect::<Vec<_>>().join(" ").into()
+    } else {
+        label
+    };
     // 角丸は描画時の大きさで決まるため、背景・枠線・影は Shaped で包んだ層に描き、チップ自身は透明な箱にする
     let container = div()
         .absolute()
@@ -184,12 +191,12 @@ type ChangeHandler = Box<dyn Fn(&bool, &mut Window, &mut App)>;
 
 /// 押すと操作を実行する MD3 のチップ (Assist chip と Suggestion chip)
 ///
-/// `label` を 1 行で描き、収まらない部分は省略記号にする。
+/// `label` は改行を空白に置き換えて 1 行で描き、収まらない部分は省略記号にする。
 /// 支援技術には role `button` として公開され、`label` がアクセシブルな名前になる。
-/// マウスのクリック・フォーカス中の Enter と Space で [`Chip::on_click`] のハンドラを呼ぶ。
+/// マウスのクリック・フォーカス中の Enter と Space で [`Chip::on_click`] のハンドラを呼ぶ
 ///
 /// [`Styled`] で指定したスタイルはチップの外側の箱に付く。大きさや外側の余白、flex の指定に使い、
-/// 箱を広げるとチップも箱いっぱいに広がる。
+/// 箱を広げるとチップも箱いっぱいに広がる
 ///
 /// テーマの密度 ([`ThemeSettings::density`](md3_theme::ThemeSettings::density)) は反映しない
 #[derive(IntoElement)]
@@ -379,13 +386,13 @@ impl Styled for Chip {
 ///
 /// 選ばれているかどうかは呼び出し側が持ち、[`FilterChip::new`] に毎回渡す。チップ自身は状態を変えない。
 /// 選ばれていると容器を塗り、ラベルの前に選択の印を出す。
-/// `label` を 1 行で描き、収まらない部分は省略記号にする。
+/// `label` は改行を空白に置き換えて 1 行で描き、収まらない部分は省略記号にする
 ///
 /// 支援技術には role `button` と押されているかどうかの状態 (トグルボタン) として公開され、`label` がアクセシブルな名前になる。
-/// マウスのクリック・フォーカス中の Enter と Space で、反転した値を [`FilterChip::on_change`] に渡す。
+/// マウスのクリック・フォーカス中の Enter と Space で、反転した値を [`FilterChip::on_change`] に渡す
 ///
 /// [`Styled`] で指定したスタイルはチップの外側の箱に付く。大きさや外側の余白、flex の指定に使い、
-/// 箱を広げるとチップも箱いっぱいに広がる。
+/// 箱を広げるとチップも箱いっぱいに広がる
 ///
 /// テーマの密度 ([`ThemeSettings::density`](md3_theme::ThemeSettings::density)) は反映しない
 #[derive(IntoElement)]
@@ -755,6 +762,17 @@ mod tests {
                 "icon: {icon}"
             );
         }
+    }
+
+    #[gpui::test]
+    fn 改行を含むラベルは空白に置き換えて_1_行で描く(cx: &mut TestAppContext) {
+        let cx = add_view(cx, "Call back", || Chip::new("chip", "Call\nback"));
+        let width = probe_width(cx) + 32.0;
+        let outline_variant = color(cx, ColorRole::OutlineVariant);
+        assert_eq!(
+            outlines(cx),
+            vec![((0.0, 0.0, width, 32.0), 1.0, outline_variant, 8.0)]
+        );
     }
 
     /// 期待値は Compose の `defaultElevatedAssistChipColors` と `defaultElevatedSuggestionChipColors` の容器の色
