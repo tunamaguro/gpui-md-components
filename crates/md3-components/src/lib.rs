@@ -44,7 +44,9 @@ pub use divider::{Divider, DividerOrientation};
 pub use gpui;
 pub use gpui_platform;
 #[cfg(feature = "icon-button")]
-pub use icon_button::{IconButton, IconButtonVariant, IconButtonWidth};
+pub use icon_button::{
+    IconButton, IconButtonVariant, IconButtonWidth, IconToggleButton, IconToggleButtonColors,
+};
 #[cfg(feature = "checkbox")]
 pub use interaction::InteractionSource;
 #[cfg(feature = "progress-indicator")]
