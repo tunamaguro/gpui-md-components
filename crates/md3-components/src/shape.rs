@@ -43,6 +43,7 @@ impl Shaped {
     #[cfg(any(
         feature = "button",
         feature = "card",
+        feature = "chip",
         feature = "fab",
         feature = "slider"
     ))]

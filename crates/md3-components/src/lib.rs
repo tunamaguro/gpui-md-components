@@ -10,6 +10,8 @@ mod button;
 mod card;
 #[cfg(feature = "checkbox")]
 mod checkbox;
+#[cfg(feature = "chip")]
+mod chip;
 #[cfg(feature = "divider")]
 mod divider;
 #[cfg(feature = "fab")]
@@ -30,6 +32,7 @@ mod segmented_button;
     feature = "badge",
     feature = "button",
     feature = "card",
+    feature = "chip",
     feature = "fab",
     feature = "segmented-button",
     feature = "slider"
@@ -46,6 +49,7 @@ mod tabs;
     feature = "button",
     feature = "card",
     feature = "checkbox",
+    feature = "chip",
     feature = "fab",
     feature = "radio-button",
     feature = "segmented-button",
@@ -63,6 +67,8 @@ pub use button::{Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant};
 pub use card::{Card, CardVariant};
 #[cfg(feature = "checkbox")]
 pub use checkbox::{Checkbox, CheckboxIndicator, CheckboxRow, CheckboxState};
+#[cfg(feature = "chip")]
+pub use chip::{Chip, ChipKind, ChipVariant, FilterChip};
 #[cfg(feature = "divider")]
 pub use divider::{Divider, DividerOrientation};
 #[cfg(feature = "fab")]
