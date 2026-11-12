@@ -100,7 +100,7 @@ impl Gallery {
             segmented_button_page: cx.new(|_| SegmentedButtonPage::default()),
             slider_page: cx.new(|_| SliderPage::default()),
             tabs_page: cx.new(TabsPage::new),
-            chip_page: cx.new(|_| ChipPage::default()),
+            chip_page: cx.new(ChipPage::new),
         }
     }
 }

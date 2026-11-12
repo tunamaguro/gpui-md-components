@@ -1,10 +1,13 @@
 //! チップを並べるページ
 
+use std::sync::Arc;
+
 use gpui::{
-    Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
-    SharedString, StatefulInteractiveElement as _, Styled as _, Window, div, px,
+    App, Context, ElementId, FocusHandle, Image, ImageFormat, InteractiveElement as _, IntoElement,
+    ParentElement as _, Refineable as _, Render, SharedString, StatefulInteractiveElement as _,
+    Styled as _, Window, div, px,
 };
-use md3_components::{Chip, ChipKind, ChipVariant, FilterChip};
+use md3_components::{Button, ButtonVariant, Chip, ChipKind, ChipVariant, FilterChip, InputChip};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{Theme, ThemeExt as _};
@@ -22,18 +25,56 @@ const REPLIES: [&str; 3] = ["Sounds good", "See you soon", "Thanks!"];
 /// 絞り込みの条件を表す Filter chip のラベル。最後の 1 つはアイコンを持つ
 const FILTERS: [&str; 4] = ["Vegetarian", "Vegan", "Gluten-free", "Open now"];
 
-/// チップを並べるページ。Filter chip の選ばれている状態と、最後に押したチップのラベルを持つ
+/// Input chip で表す宛先
+struct Recipient {
+    name: SharedString,
+    selected: bool,
+    /// アバターの背景色。`None` ならアバターの代わりにアイコンを置く
+    avatar: Option<&'static str>,
+    /// 隣の宛先を削除したときにフォーカスを移すための、チップのフォーカス
+    focus: FocusHandle,
+}
+
+/// 最初に並べる宛先
+fn recipients(cx: &mut App) -> Vec<Recipient> {
+    [
+        ("Alice", Some("#7d5260")),
+        ("Bob", Some("#386a20")),
+        ("Design team", None),
+        ("carol@example.com", None),
+    ]
+    .into_iter()
+    .map(|(name, avatar)| Recipient {
+        name: name.into(),
+        selected: false,
+        avatar,
+        focus: cx.focus_handle(),
+    })
+    .collect()
+}
+
+/// 人の形を白で描いた、`background` の色のアバター
+fn avatar_image(background: &str) -> Arc<Image> {
+    let svg = format!(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"><rect width="48" height="48" fill="{background}"/><circle cx="24" cy="18" r="8" fill="#ffffff"/><path d="M8 46c0-9 7-15 16-15s16 6 16 15z" fill="#ffffff"/></svg>"##
+    );
+    Arc::new(Image::from_bytes(ImageFormat::Svg, svg.into_bytes()))
+}
+
+/// チップを並べるページ。Filter chip の選ばれている状態、Input chip の宛先、最後に押したチップのラベルを持つ
 pub struct ChipPage {
     flat_filters: [bool; 4],
     elevated_filters: [bool; 4],
+    recipients: Vec<Recipient>,
     last_pressed: Option<SharedString>,
 }
 
-impl Default for ChipPage {
-    fn default() -> Self {
+impl ChipPage {
+    pub fn new(cx: &mut Context<Self>) -> Self {
         Self {
             flat_filters: [true, false, false, false],
             elevated_filters: [false, true, false, false],
+            recipients: recipients(cx),
             last_pressed: None,
         }
     }
@@ -77,6 +118,66 @@ impl ChipPage {
                 FilterChip::new((id, FILTERS.len() + 1), "Pickup", false)
                     .variant(variant)
                     .disabled(true),
+            )
+    }
+
+    fn inputs(&self, cx: &mut Context<Self>) -> gpui::Div {
+        div()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap_2()
+            .children(
+                self.recipients
+                    .iter()
+                    .enumerate()
+                    .map(|(index, recipient)| {
+                        let name = recipient.name.clone();
+                        let chip = InputChip::new(
+                            (ElementId::from("input"), name.clone()),
+                            name.clone(),
+                            recipient.selected,
+                        )
+                        .track_focus(&recipient.focus)
+                        .on_change(cx.listener(move |this, value: &bool, _, cx| {
+                            this.recipients[index].selected = *value;
+                            cx.notify();
+                        }))
+                        .on_remove(
+                            format!("Remove {name}"),
+                            cx.listener(move |this, _, window, cx| {
+                                this.recipients.remove(index);
+                                // 削除ボタンはチップと一緒に消えるため、次の宛先か、無ければ前の宛先へフォーカスを移す
+                                let next = this
+                                    .recipients
+                                    .get(index)
+                                    .or_else(|| this.recipients.get(index.wrapping_sub(1)));
+                                if let Some(next) = next {
+                                    next.focus.focus(window, cx);
+                                }
+                                cx.notify();
+                            }),
+                        );
+                        match recipient.avatar {
+                            Some(background) => chip.avatar(avatar_image(background)),
+                            None => chip.icon(md3_icons::GROUP),
+                        }
+                    }),
+            )
+            .child(
+                InputChip::new("input-disabled", "Archived", false)
+                    .icon(md3_icons::ARCHIVE)
+                    .on_remove("Remove Archived", |_, _, _| {})
+                    .disabled(true),
+            )
+            .child(
+                Button::new("input-reset")
+                    .variant(ButtonVariant::Text)
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.recipients = recipients(cx);
+                        cx.notify();
+                    }))
+                    .child(gpui::text!("Reset")),
             )
     }
 }
@@ -173,6 +274,8 @@ impl Render for ChipPage {
                 |this| &mut this.elevated_filters,
                 cx,
             ))
+            .child(label(&theme, "input", "Input"))
+            .child(self.inputs(cx))
             .child(label(&theme, "narrow", "Narrowed to 160px"))
             .child(
                 Chip::new("narrow", "A label too long to fit in the chip")

@@ -68,7 +68,7 @@ pub use card::{Card, CardVariant};
 #[cfg(feature = "checkbox")]
 pub use checkbox::{Checkbox, CheckboxIndicator, CheckboxRow, CheckboxState};
 #[cfg(feature = "chip")]
-pub use chip::{Chip, ChipKind, ChipVariant, FilterChip};
+pub use chip::{Chip, ChipKind, ChipVariant, FilterChip, InputChip};
 #[cfg(feature = "divider")]
 pub use divider::{Divider, DividerOrientation};
 #[cfg(feature = "fab")]
