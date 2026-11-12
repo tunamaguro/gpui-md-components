@@ -20,6 +20,7 @@ md3-theme.workspace = true
 [features]
 default = [
   "platform",
+  "badge",
   "button",
   "icon-button",
   "checkbox",
@@ -29,6 +30,7 @@ default = [
   "switch",
 ]
 platform = ["dep:gpui_platform"]
+badge = []
 button = []
 # 色・大きさ・形の型を Button と共有する
 icon-button = ["button"]

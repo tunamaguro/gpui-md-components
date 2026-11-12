@@ -14,6 +14,7 @@ mod root;
 mod roving;
 #[cfg(test)]
 mod test_window;
+pub mod text;
 pub mod toggle;
 
 pub use focus_visible::is_focus_visible;

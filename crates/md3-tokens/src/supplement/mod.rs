@@ -3,6 +3,7 @@
 //! Compose の実装が持つ固定値と、Compose に無く Material Web にある値を手で転記している。
 //! 各モジュールの先頭に出典とコミットを記録している
 
+pub mod badge;
 pub mod button;
 pub mod checkbox;
 pub mod progress_indicator;
