@@ -6,6 +6,8 @@
 mod badge;
 #[cfg(feature = "button")]
 mod button;
+#[cfg(feature = "card")]
+mod card;
 #[cfg(feature = "checkbox")]
 mod checkbox;
 #[cfg(feature = "divider")]
@@ -20,13 +22,14 @@ mod progress_indicator;
 #[cfg(feature = "radio-button")]
 mod radio_button;
 // 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
-#[cfg(any(feature = "badge", feature = "button"))]
+#[cfg(any(feature = "badge", feature = "button", feature = "card"))]
 mod shape;
 #[cfg(feature = "switch")]
 mod switch;
 // 使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(any(
     feature = "button",
+    feature = "card",
     feature = "checkbox",
     feature = "radio-button",
     feature = "switch"
@@ -37,6 +40,8 @@ mod util;
 pub use badge::{Badge, BadgeColors, BadgedBox};
 #[cfg(feature = "button")]
 pub use button::{Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant};
+#[cfg(feature = "card")]
+pub use card::{Card, CardVariant};
 #[cfg(feature = "checkbox")]
 pub use checkbox::{Checkbox, CheckboxIndicator, CheckboxRow, CheckboxState};
 #[cfg(feature = "divider")]
