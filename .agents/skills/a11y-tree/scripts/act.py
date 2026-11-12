@@ -3,8 +3,10 @@
 使い方: python3 -I act.py <アプリ名> <パス> <操作>
 
 <パス> は dump.py が出す子の番号の列 (例: 0.2)。`-` はアプリ自身。
-<操作> は dump.py の actions に出る名前 (例: click)、または focus (フォーカスの要求)。
-操作を受け付けられなかった場合は終了コード 1 で終わる
+<操作> は dump.py の actions に出る名前 (例: click)、focus (フォーカスの要求)、
+または set=<数値> (slider などの値の設定)。
+操作を受け付けられなかった場合は終了コード 1 で終わる。
+set= は AT-SPI が受け付けたかを返さないため、送れれば成功として終わる。値が変わったかは dump し直して確かめる
 """
 
 import sys
@@ -30,6 +32,10 @@ def main():
     try:
         if action_name == "focus":
             ok = acc.queryComponent().grabFocus()
+        elif action_name.startswith("set="):
+            # AT-SPI の Value.CurrentValue の設定は、AccessKit の SetValue 操作として届く
+            acc.queryValue().currentValue = float(action_name.removeprefix("set="))
+            ok = True
         else:
             action = acc.queryAction()
             names = [action.getName(i) for i in range(action.nActions)]

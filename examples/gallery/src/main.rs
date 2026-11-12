@@ -12,6 +12,7 @@ mod icon_button_page;
 mod progress_indicator_page;
 mod radio_button_page;
 mod segmented_button_page;
+mod slider_page;
 mod switch_page;
 mod theme_page;
 
@@ -33,6 +34,7 @@ use crate::icon_button_page::IconButtonPage;
 use crate::progress_indicator_page::ProgressIndicatorPage;
 use crate::radio_button_page::RadioButtonPage;
 use crate::segmented_button_page::SegmentedButtonPage;
+use crate::slider_page::SliderPage;
 use crate::switch_page::SwitchPage;
 use crate::theme_page::ThemePage;
 
@@ -51,6 +53,7 @@ enum Page {
     Card,
     Fab,
     SegmentedButton,
+    Slider,
 }
 
 /// ギャラリーのルート。各ページの状態は持たず、ページのエンティティと表示中のページだけを持つ
@@ -68,6 +71,7 @@ struct Gallery {
     card_page: Entity<CardPage>,
     fab_page: Entity<FabPage>,
     segmented_button_page: Entity<SegmentedButtonPage>,
+    slider_page: Entity<SliderPage>,
 }
 
 impl Gallery {
@@ -86,6 +90,7 @@ impl Gallery {
             card_page: cx.new(|_| CardPage::default()),
             fab_page: cx.new(|_| FabPage::default()),
             segmented_button_page: cx.new(|_| SegmentedButtonPage::default()),
+            slider_page: cx.new(|_| SliderPage::default()),
         }
     }
 }
@@ -118,6 +123,7 @@ impl Render for Gallery {
             Page::Card => self.card_page.clone().into(),
             Page::Fab => self.fab_page.clone().into(),
             Page::SegmentedButton => self.segmented_button_page.clone().into(),
+            Page::Slider => self.slider_page.clone().into(),
         };
         md3_components::root(
             div()
@@ -142,7 +148,8 @@ impl Render for Gallery {
                         .child(tab(Page::Badge, "Badge", cx))
                         .child(tab(Page::Card, "Card", cx))
                         .child(tab(Page::Fab, "FAB", cx))
-                        .child(tab(Page::SegmentedButton, "Segmented button", cx)),
+                        .child(tab(Page::SegmentedButton, "Segmented button", cx))
+                        .child(tab(Page::Slider, "Slider", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )
