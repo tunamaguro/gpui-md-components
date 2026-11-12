@@ -302,6 +302,10 @@ gpui の `EntityInputHandler` を前提にする。最初は単一行に限る�
   - 進み具合が分かるときは、割合を WAI-ARIA の既定の範囲 0〜100 の値として公開する。分からないときは値を公開しない
   - AccessKit は progressbar の名前を子の内容から求めないため、名前は `aria_label` で与える
   - 実機 (AT-SPI) で MD3 の Progress indicator を確かめた。role は progress bar、値は 0〜100 で渡り、値を公開しないものは indeterminate の状態になる
+- [x] 静的なテキスト (対応する APG のパターンは無い)
+  - `text::StaticText` は子の内容の代わりに渡した文字列を role `label` として公開する。件数の数字だけのバッジのように、表示が意味を伝えきれない内容に使う
+  - AccessKit は Label の名前を値から求めるため、文字列は値に書く。子孫から名前を求める祖先 (`aria_label` の無いボタンなど) の名前にも含まれる
+  - 実機 (AT-SPI) で MD3 の Badge を確かめた。名前を与えたバッジは渡した文字列の label になる
 - [ ] Link ([APG](../../.agents/skills/a11y/references/aria-practices/content/patterns/link/link-pattern.html))
 - [ ] Disclosure ([APG](../../.agents/skills/a11y/references/aria-practices/content/patterns/disclosure/disclosure-pattern.html))
 
