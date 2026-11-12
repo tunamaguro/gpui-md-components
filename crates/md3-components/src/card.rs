@@ -127,6 +127,7 @@ impl CardVariant {
                 outline: Some((
                     outlined_card::OUTLINE_WIDTH,
                     outlined_card::OUTLINE_COLOR,
+                    // `outlinedCardBorder` は無効な枠線を Outlined ではなく ElevatedCardTokens の容器の色に重ねる
                     Layered {
                         base: elevated_card::CONTAINER_COLOR,
                         overlay: Some((
@@ -154,13 +155,16 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 /// 内容の色は OnSurface で、子のテキストはこの色を受け継ぐ。余白は持たないため、[`Styled`] で付ける
 ///
 /// [`Card::on_click`] を指定すると押せるカードになり、支援技術には role `button` として公開される。
-/// アクセシブルな名前は子孫に置いたテキストか [`Card::aria_label`] で与える。
-/// マウスのクリック・フォーカス中の Enter と Space で [`Card::on_click`] のハンドラを呼び、hover とフォーカスを状態レイヤーと影で示す。
+/// アクセシブルな名前は子孫に置いた id を持つテキスト (`gpui::text!` など) か [`Card::aria_label`] で与える。
+/// `&str`・`String`・`SharedString` をそのまま置いたテキストは名前にならない。
+/// マウスのクリック・フォーカス中の Enter と Space で [`Card::on_click`] のハンドラを呼び、
+/// hover とフォーカスを状態レイヤーと、バリアントによっては影で示す。
 /// 押せるカードの子に、ボタンなどの操作できる要素を置かないこと。
 /// 指定しない場合は見た目だけの容器で、支援技術には子だけが公開される
 ///
 /// [`Styled`] で指定したスタイルはカードの箱に付く。大きさ・余白・子の並べ方の指定に使う。
-/// 色や形は変えられないため、[`Card::variant`] を使う。子は角丸で切り抜かない
+/// 色や形は変えられないため、[`Card::variant`] を使う。子は角丸で切り抜かず、Outlined の枠線より上に描く。
+/// `overflow_hidden` を付けると、カードの外側に描く影とフォーカスリングも切り取られる
 #[derive(IntoElement)]
 pub struct Card {
     id: ElementId,
@@ -211,16 +215,17 @@ impl Card {
     /// 押せるカードで、子の内容の代わりに `label` をアクセシブルな名前にする
     ///
     /// 子孫のテキストをすべて並べた名前が長すぎる場合や、子孫に id を持つテキストが無い場合に使う。
-    /// 押せないカードでは使わない
+    /// 押せないカードでは何も起きない
     pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
         self.aria_label = Some(label.into());
         self
     }
 
-    /// カードを無効にする。`false` を渡すと有効に戻す
+    /// 押せるカードを無効にする。`false` を渡すと有効に戻す
     ///
-    /// 無効なカードは無効の色と影で描かれる。押せるカードは押されてもハンドラを呼ばず、Tab でも到達できず、
-    /// 支援技術には disabled として公開される。フォーカス中に無効になった場合は、フォーカスが外れるまでフォーカスを保つ
+    /// 無効なカードは無効の色と影で描かれ、押されてもハンドラを呼ばず、Tab でも到達できず、
+    /// 支援技術には disabled として公開される。フォーカス中に無効になった場合は、フォーカスが外れるまでフォーカスを保つ。
+    /// 押せないカードでは何も起きない
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
         self
@@ -245,7 +250,8 @@ impl RenderOnce for Card {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
         let tokens = self.variant.tokens();
-        let disabled = self.disabled;
+        // Compose の押せない `Card` は `enabled` を持たず、常に有効な色と影で描く
+        let disabled = self.disabled && self.on_click.is_some();
         let content = theme.color(supplement::card::CONTENT_COLOR);
         let content = if disabled {
             content.opacity(supplement::card::DISABLED_CONTENT_OPACITY)
@@ -287,7 +293,8 @@ impl RenderOnce for Card {
                         this.bg(container).shadow(theme.shadow(elevations.default))
                     }
                 })
-                // gpui は group_hover を自身のスタイルの後に重ねるため、hover がフォーカスより優先される
+                // gpui は group_hover を自身のスタイルの後に重ねるため、hover がフォーカスより優先される。
+                // Compose の `animateElevation` は最後に起きた操作を採るため、hover 中にフォーカスした場合はフォーカスの値になる
                 .when(interactive, |this| {
                     let hovered_shadow = theme.shadow(elevations.hovered);
                     this.group_hover(GROUP, |style| {
@@ -365,7 +372,7 @@ impl ParentElement for Card {
 mod tests {
     use std::{cell::Cell, rc::Rc};
 
-    use gpui::{Context, Modifiers, Render, TestAppContext, VisualTestContext, point, px};
+    use gpui::{Context, Element, Modifiers, Render, TestAppContext, VisualTestContext, point, px};
 
     use super::*;
 
@@ -437,6 +444,7 @@ mod tests {
             let cx = add_view(cx, move || {
                 Card::new("card")
                     .variant(CardVariant::Outlined)
+                    .on_click(|_, _, _| {})
                     .disabled(disabled)
             });
             let expected = if disabled {
@@ -563,6 +571,65 @@ mod tests {
                 })
             });
             assert_eq!(ring, clickable, "clickable: {clickable}");
+            // フォーカス中の状態レイヤーは内容の色 (OnSurface) を 10% 重ねる
+            let container = color(cx, ColorRole::SurfaceContainerHighest);
+            let expected = if clickable {
+                container.blend(color(cx, ColorRole::OnSurface).opacity(0.1))
+            } else {
+                container
+            };
+            // フォーカス中は外側のリングも描くため、容器の位置と幅の矩形を探す
+            let container = cx.update(|window, _| {
+                window
+                    .painted_quads()
+                    .into_iter()
+                    .find(|quad| {
+                        let b = quad.bounds;
+                        (b.origin.x.0, b.size.width.0 / scale) == (0., 200.)
+                    })
+                    .expect("容器を描くこと")
+            });
+            assert_eq!(
+                container.background,
+                expected.into(),
+                "clickable: {clickable}"
+            );
         }
+    }
+
+    /// Compose の押せない `Card` は `enabled` を持たない
+    #[gpui::test]
+    fn 押せないカードは_disabled_を指定しても有効の色で描く(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = add_view(cx, || Card::new("card").disabled(true));
+        let expected = color(cx, ColorRole::SurfaceContainerHighest);
+        assert_eq!(container_quad(cx).background, expected.into());
+    }
+
+    // role・名前・disabled の a11y ノードの属性は gpui-headless の Button のテストで確かめる。
+    // Button の描画は外から取り出せないため、ここでは押せるカードだけを Button で包むことを確かめる
+    #[gpui::test]
+    fn 押せるカードだけを_button_として公開する(cx: &mut TestAppContext) {
+        let cx = add_view(cx, || Card::new("unused"));
+        let (uses_button, role) = cx.update(|window, cx| {
+            let mut clickable = Card::new("card")
+                .on_click(|_, _, _| {})
+                .track_focus(&cx.focus_handle())
+                .render(window, cx)
+                .into_any_element();
+            let mut plain = Card::new("card").render(window, cx).into_any_element();
+            (
+                clickable
+                    .downcast_mut::<gpui::ViewElement<HeadlessButton>>()
+                    .is_some(),
+                plain
+                    .downcast_mut::<gpui::Stateful<gpui::Div>>()
+                    .expect("押せないカードは id を持つ div になること")
+                    .a11y_role(),
+            )
+        });
+        assert!(uses_button);
+        assert_eq!(role, None);
     }
 }
