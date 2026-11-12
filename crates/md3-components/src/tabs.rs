@@ -63,7 +63,8 @@ pub enum TabRowVariant {
 ///
 /// [`Styled`] で指定したスタイルは並びの外側の箱に付き、タブは箱の padding の内側に並ぶ。
 /// 既定では親の幅いっぱいに広がり、タブの高さは 48dp で、アイコンを持つタブがあれば 72dp になる。
-/// ラベルが折り返すタブがあれば、その高さまで伸びる。タブの下端に区切り線を引く
+/// ラベルが折り返すタブがあれば、その高さまで伸びる。箱の高さはタブの最小の高さを下回らず、
+/// 高さを指定した箱に収まらないタブは箱からはみ出す。タブの下端に区切り線を引く
 #[derive(IntoElement)]
 pub struct TabRow<T: PartialEq + 'static> {
     id: ElementId,
@@ -307,14 +308,15 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
                     .flex_col()
                     .justify_center();
                 headless.text_style().refine(&label_font);
-                // Material Web はリングをタブの内側に描き、選ばれたタブではインジケーターの上まで下端を上げる
+                // Material Web はリングをタブの内側に描き、選ばれたタブではインジケーターの上まで下端を上げる。
+                // Material Web の区切り線はタブの下に並ぶため、選ばれていないタブでも区切り線の上で止める
                 let ring = focus_visible.then(|| {
                     let inset = dp(focus_ring::INWARD_OFFSET);
                     let bottom = if is_selected {
                         dp(primary::ACTIVE_INDICATOR_HEIGHT)
                             + dp(supplement::tabs::FOCUS_RING_ACTIVE_BOTTOM_GAP)
                     } else {
-                        inset
+                        inset + dp(divider::THICKNESS)
                     };
                     div()
                         .absolute()
@@ -332,13 +334,19 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
 
         // インジケーターと区切り線はタブを単位に置くため、padding の無い並びの箱に置き、
         // 呼び出し側のスタイルは外側の箱に付ける
-        let mut outer = div().flex().flex_col().w_full().bg(theme.color(container));
+        let mut outer = div()
+            .flex()
+            .flex_col()
+            .w_full()
+            .min_h(min_height)
+            .bg(theme.color(container));
         outer.style().refine(&self.style);
         let list = TabList::new(self.id, self.selected)
             .when_some(self.aria_label, |this, label| this.aria_label(label))
             .when_some(self.on_change, |this, on_change| this.on_change(on_change))
             .relative()
             .flex()
+            .w_full()
             .flex_grow_1()
             .min_h(min_height);
         let divider = div()
@@ -926,8 +934,8 @@ mod tests {
         // インジケーターの 3dp と隙間の 1dp だけ上げる
         assert_eq!(rings(cx, ring), vec![((0.0, 0.0, 200.0, 44.0), 8.0)]);
 
-        // 並びは選ばれた値を変えないため、フォーカスだけが選ばれていないタブへ移る
+        // 並びは選ばれた値を変えないため、フォーカスだけが選ばれていないタブへ移る。区切り線の 1dp だけ上げる
         cx.simulate_keystrokes("right");
-        assert_eq!(rings(cx, ring), vec![((200.0, 0.0, 200.0, 48.0), 8.0)]);
+        assert_eq!(rings(cx, ring), vec![((200.0, 0.0, 200.0, 47.0), 8.0)]);
     }
 }
