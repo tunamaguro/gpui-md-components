@@ -31,7 +31,9 @@ impl Scale {
             return value;
         };
         let snapped = (self.start + ((value - self.start) / step).round() * step).min(self.end);
-        if self.end - value < (value - snapped).abs() {
+        // 段階の倍数が浮動小数点の誤差で終わりに届かない場合も、終わりにする。
+        // 割り切れない範囲の最後の段階の値は終わりから十分に離れているため、終わりにしない
+        if self.end - snapped <= step * 1e-4 || self.end - value < (value - snapped).abs() {
             self.end
         } else {
             snapped
@@ -438,7 +440,8 @@ impl<E: Element> Element for PointerLayer<E> {
             cx,
         );
         // gpui の要素のマウスのリスナーは、ポインタが要素の上にある間しか移動を受けないため、ウィンドウ全体で受ける。
-        // ほかの要素が伝播を止めても受けるよう Capture で受け、ドラッグ中に値を変えられなくなっても押下の状態を戻す
+        // 後から描かれた要素が Bubble で伝播を止めても受けるよう Capture で受け、
+        // ドラッグ中に値を変えられなくなっても押下の状態を戻す
         let drag = self.drag.clone();
         let pointer = self.pointer.clone();
         window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
@@ -755,6 +758,21 @@ mod tests {
         cx.simulate_click(at(INSET + 190.0), Modifiers::none());
         cx.simulate_click(at(INSET + 170.0), Modifiers::none());
         assert_eq!(changes(&view, cx), vec![10.0, 8.0, 0.0, 10.0, 8.0]);
+    }
+
+    /// f32 では 0.7 / 9 * 9 が 0.7 に届かない
+    #[gpui::test]
+    fn 段階の倍数が誤差で終わりに届かなくても終わりの値を求める(
+        cx: &mut TestAppContext,
+    ) {
+        let step = 0.7_f32 / 9.0;
+        let (view, cx) = setup(cx, step * 8.0, 0.0..=0.7, Some(step));
+        focus(&view, cx);
+        cx.simulate_keystrokes("right");
+        update(&view, cx, |view| view.value = step * 8.0);
+        // 内側の範囲の 99%
+        cx.simulate_click(at(INSET + 198.0), Modifiers::none());
+        assert_eq!(changes(&view, cx), vec![0.7, 0.7]);
     }
 
     #[gpui::test]
