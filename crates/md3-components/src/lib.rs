@@ -23,12 +23,15 @@ mod interaction;
 mod progress_indicator;
 #[cfg(feature = "radio-button")]
 mod radio_button;
+#[cfg(feature = "segmented-button")]
+mod segmented_button;
 // 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(any(
     feature = "badge",
     feature = "button",
     feature = "card",
-    feature = "fab"
+    feature = "fab",
+    feature = "segmented-button"
 ))]
 mod shape;
 #[cfg(feature = "switch")]
@@ -40,6 +43,7 @@ mod switch;
     feature = "checkbox",
     feature = "fab",
     feature = "radio-button",
+    feature = "segmented-button",
     feature = "switch"
 ))]
 mod util;
@@ -70,6 +74,11 @@ pub use progress_indicator::{
 };
 #[cfg(feature = "radio-button")]
 pub use radio_button::{RadioButton, RadioButtonIndicator, RadioGroup};
+#[cfg(feature = "segmented-button")]
+pub use segmented_button::{
+    MultiChoiceSegmentedButtonRow, SegmentedButton, SingleChoiceSegmentedButtonRow,
+    ToggleSegmentedButton,
+};
 #[cfg(feature = "switch")]
 pub use switch::Switch;
 
