@@ -200,7 +200,8 @@ headless 部品だけを先に増やすと、装飾側で使ったときに API 
   - RadioGroup は MD3 の Radio button で確かめた。項目の名前は子のテキストから求まり、支援技術の click で checked が移る。無効な項目は read-only になり click と focusable を持たない。AT-SPI のアダプタは role `radiogroup` を panel として渡す
   - Toggle Button は MD3 の Icon button の toggle で確かめた。AT-SPI のアダプタは toggle button として渡し、押されているものに pressed が付く。
     支援技術の click で pressed が切り替わる。無効なものは click と focusable を持たない
-  - ToggleGroup は未確認 (Segmented button で確かめる)
+  - ToggleGroup は MD3 の Segmented button で確かめた。AT-SPI のアダプタは role `toolbar` を tool bar として渡し、`aria_label` が名前になる。
+    項目は toggle button として並び、支援技術の click でその項目の pressed だけが切り替わる
 
 参照する APG:
 

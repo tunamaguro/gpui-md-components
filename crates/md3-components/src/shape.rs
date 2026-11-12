@@ -18,6 +18,8 @@ pub(crate) struct Shaped {
     key: ShapeKey,
     morph: Option<(ShapeKey, f32)>,
     outset: Pixels,
+    /// 形の角丸を付ける角。`false` の角は直角にする
+    rounded: Corners<bool>,
 }
 
 impl Shaped {
@@ -28,6 +30,12 @@ impl Shaped {
             key,
             morph: None,
             outset: px(0.0),
+            rounded: Corners {
+                top_left: true,
+                top_right: true,
+                bottom_right: true,
+                bottom_left: true,
+            },
         }
     }
 
@@ -42,6 +50,13 @@ impl Shaped {
     #[cfg(feature = "icon-button")]
     pub(crate) fn morph(mut self, target: ShapeKey, phase: f32) -> Self {
         self.morph = Some((target, phase));
+        self
+    }
+
+    /// 形の角丸を `rounded` が `true` の角だけに付け、ほかの角は直角にする
+    #[cfg(feature = "segmented-button")]
+    pub(crate) fn only_corners(mut self, rounded: Corners<bool>) -> Self {
+        self.rounded = rounded;
         self
     }
 }
@@ -104,11 +119,15 @@ impl Element for Shaped {
             };
         }
         let outset = self.outset;
+        let rounded = self.rounded;
+        let radius = |radius: Pixels, rounded: bool| {
+            Some((if rounded { radius } else { px(0.0) } + outset).into())
+        };
         self.inner.style().corner_radii = CornersRefinement {
-            top_left: Some((radii.top_left + outset).into()),
-            top_right: Some((radii.top_right + outset).into()),
-            bottom_right: Some((radii.bottom_right + outset).into()),
-            bottom_left: Some((radii.bottom_left + outset).into()),
+            top_left: radius(radii.top_left, rounded.top_left),
+            top_right: radius(radii.top_right, rounded.top_right),
+            bottom_right: radius(radii.bottom_right, rounded.bottom_right),
+            bottom_left: radius(radii.bottom_left, rounded.bottom_left),
         };
         self.inner
             .prepaint(id, inspector_id, bounds, request_layout, window, cx)

@@ -11,6 +11,7 @@ mod fab_page;
 mod icon_button_page;
 mod progress_indicator_page;
 mod radio_button_page;
+mod segmented_button_page;
 mod switch_page;
 mod theme_page;
 
@@ -31,6 +32,7 @@ use crate::fab_page::FabPage;
 use crate::icon_button_page::IconButtonPage;
 use crate::progress_indicator_page::ProgressIndicatorPage;
 use crate::radio_button_page::RadioButtonPage;
+use crate::segmented_button_page::SegmentedButtonPage;
 use crate::switch_page::SwitchPage;
 use crate::theme_page::ThemePage;
 
@@ -48,6 +50,7 @@ enum Page {
     Badge,
     Card,
     Fab,
+    SegmentedButton,
 }
 
 /// ギャラリーのルート。各ページの状態は持たず、ページのエンティティと表示中のページだけを持つ
@@ -64,6 +67,7 @@ struct Gallery {
     badge_page: Entity<BadgePage>,
     card_page: Entity<CardPage>,
     fab_page: Entity<FabPage>,
+    segmented_button_page: Entity<SegmentedButtonPage>,
 }
 
 impl Gallery {
@@ -81,6 +85,7 @@ impl Gallery {
             badge_page: cx.new(|_| BadgePage),
             card_page: cx.new(|_| CardPage::default()),
             fab_page: cx.new(|_| FabPage::default()),
+            segmented_button_page: cx.new(|_| SegmentedButtonPage::default()),
         }
     }
 }
@@ -112,6 +117,7 @@ impl Render for Gallery {
             Page::Badge => self.badge_page.clone().into(),
             Page::Card => self.card_page.clone().into(),
             Page::Fab => self.fab_page.clone().into(),
+            Page::SegmentedButton => self.segmented_button_page.clone().into(),
         };
         md3_components::root(
             div()
@@ -135,7 +141,8 @@ impl Render for Gallery {
                         .child(tab(Page::ProgressIndicator, "Progress indicator", cx))
                         .child(tab(Page::Badge, "Badge", cx))
                         .child(tab(Page::Card, "Card", cx))
-                        .child(tab(Page::Fab, "FAB", cx)),
+                        .child(tab(Page::Fab, "FAB", cx))
+                        .child(tab(Page::SegmentedButton, "Segmented button", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )

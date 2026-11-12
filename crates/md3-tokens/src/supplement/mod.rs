@@ -10,4 +10,5 @@ pub mod checkbox;
 pub mod fab;
 pub mod progress_indicator;
 pub mod radio_button;
+pub mod segmented_button;
 pub mod switch;
