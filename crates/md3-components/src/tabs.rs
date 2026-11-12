@@ -15,9 +15,9 @@
 
 use gpui::{
     AnimationExt, AnyElement, App, ElementId, FocusHandle, Hsla, InteractiveElement, Interactivity,
-    IntoElement, ParentElement, Refineable, RenderOnce, SharedString, SpringAnimation,
-    StatefulInteractiveElement, StyleRefinement, Styled, Window, div, prelude::FluentBuilder,
-    relative, size, svg,
+    IntoElement, ParentElement, Pixels, Refineable, RenderOnce, SharedString, SpringAnimation,
+    StatefulInteractiveElement, StyleRefinement, Styled, Window, canvas, div,
+    prelude::FluentBuilder, px, relative, size, svg,
 };
 use gpui_headless::tabs::{Tab as HeadlessTab, TabList, TabPanel as HeadlessTabPanel};
 
@@ -167,6 +167,14 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
         text_style.refine(&label_font);
         let font_size = text_style.font_size.to_pixels(window.rem_size());
         let line_height = text_style.line_height_in_pixels(window.rem_size());
+        // タブの幅はレイアウトで決まるため、前の描画で測った並びの幅から求める。
+        // ラベルが折り返すかと、インジケーターの幅の上限に使う。最初の描画ではまだ測っていない
+        let row_width = window.with_element_namespace(self.id.clone(), |window| {
+            window.use_keyed_state("row-width", cx, |_, _| None::<Pixels>)
+        });
+        let label_space = row_width.read(cx).map(|width| {
+            width / count as f32 - dp(supplement::tabs::HORIZONTAL_TEXT_PADDING) * 2.0
+        });
 
         // 同じ値のタブが複数あっても、支援技術に公開する状態と同じく最初のタブだけを選ばれた見た目にする
         let mut selected = self.selected.as_ref();
@@ -186,9 +194,18 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
                     &[text_style.to_run(tab.label.len())],
                     None,
                 );
+                let wrapped = label_space.is_some_and(|space| line.width > space);
                 if is_selected {
-                    // gpui のテキストの要素は幅を切り上げてレイアウトする
-                    indicator = Some((index, line.width.ceil()));
+                    // gpui のテキストの要素は幅を切り上げてレイアウトし、折り返すと置ける幅いっぱいに広がる。
+                    // Compose はタブの内容の幅に 24dp の最小値を課す (`TabRowImpl`)
+                    let width = match label_space {
+                        Some(space) if wrapped => space,
+                        _ => line.width.ceil(),
+                    };
+                    indicator = Some((
+                        index,
+                        width.max(dp(supplement::tabs::PRIMARY_INDICATOR_MIN_WIDTH)),
+                    ));
                 }
                 let focus_handle = tab.focus_handle(&self.id, window, cx);
                 let focused = focus_handle.is_focused(window);
@@ -197,16 +214,23 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
                 let rest_color = theme.color(if focused { inactive_hover } else { inactive });
                 let hover_color = theme.color(if is_selected { active } else { inactive_hover });
 
-                // アイコンとラベルの両方を持つタブは、ラベルの基準線をタブの下端から、アイコンの下端をラベルの基準線から
-                // 決まった距離に置く (`placeTextAndIcon`)。gpui は行の高さの中で文字の上下の余白を等しくして基準線を置く。
-                // Compose は 2 行のラベルで基準線の距離を変えるが、ここでは 1 行の距離で置く
+                // アイコンとラベルの両方を持つタブは、ラベルの最後の基準線をタブの下端から、アイコンの下端をラベルの
+                // 最初の基準線から決まった距離に置く (`placeTextAndIcon`)。下端からの距離はラベルが折り返すと変わる。
+                // gpui は行の高さの中で文字の上下の余白を等しくして基準線を置く
                 let baseline = (line_height - line.ascent - line.descent) / 2.0 + line.ascent;
-                let label_bottom = dp(supplement::tabs::SINGLE_LINE_TEXT_BASELINE_WITH_ICON)
-                    + dp(primary::ACTIVE_INDICATOR_HEIGHT)
-                    - (line_height - baseline);
+                let last_baseline = dp(if wrapped {
+                    supplement::tabs::DOUBLE_LINE_TEXT_BASELINE_WITH_ICON
+                } else {
+                    supplement::tabs::SINGLE_LINE_TEXT_BASELINE_WITH_ICON
+                }) + dp(primary::ACTIVE_INDICATOR_HEIGHT);
+                let label_bottom = (last_baseline - (line_height - baseline)).max(px(0.));
                 let icon_distance = theme.sp(supplement::tabs::ICON_DISTANCE_FROM_BASELINE);
                 let icon_gap = icon_distance - baseline;
+                // Compose はタブを、アイコンとラベルの高さに `IconDistanceFromBaseline` を足した高さまで伸ばす。
+                // そのときアイコンの上に空く距離
+                let icon_top = (line_height - last_baseline).max(px(0.));
                 let label = div()
+                    .debug_selector(|| format!("md3-tab-label-{index}"))
                     .px(dp(supplement::tabs::HORIZONTAL_TEXT_PADDING))
                     .text_center()
                     .child(tab.label.clone());
@@ -218,7 +242,6 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
                     MotionSchemeKey::FastEffects
                 });
                 let content = div()
-                    .flex_grow(1.0)
                     .flex()
                     .flex_col()
                     .items_center()
@@ -234,17 +257,27 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
                                 ));
                             let this = this.text_color(color);
                             match icon {
-                                Some(icon) => this.justify_end().pb(label_bottom).child(
-                                    svg()
-                                        .data(icon.svg().as_bytes())
-                                        .flex_none()
-                                        .size(dp(primary::ICON_SIZE))
-                                        .mb(icon_gap)
-                                        .text_color(color)
-                                        .group_hover(GROUP, |style| style.text_color(hover_color)),
-                                ),
+                                // Compose は内容の高さのタブを並びの高さの中で上下中央に置く
+                                Some(icon) => this
+                                    .min_h(dp(supplement::tabs::LARGE_TAB_HEIGHT))
+                                    .justify_end()
+                                    .pt(icon_top)
+                                    .pb(label_bottom)
+                                    .child(
+                                        svg()
+                                            .data(icon.svg().as_bytes())
+                                            .flex_none()
+                                            .size(dp(primary::ICON_SIZE))
+                                            .mb(icon_gap)
+                                            .text_color(color)
+                                            .group_hover(GROUP, |style| {
+                                                style.text_color(hover_color)
+                                            }),
+                                    ),
                                 // Compose はアイコンの無いタブも、ラベルの高さに `IconDistanceFromBaseline` を足した高さまで伸ばす
-                                None => this.justify_center().py(icon_distance / 2.0),
+                                None => {
+                                    this.flex_grow(1.0).justify_center().py(icon_distance / 2.0)
+                                }
                             }
                             .child(label)
                         },
@@ -273,7 +306,8 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
                     .flex_none()
                     .w(relative(1.0 / count as f32))
                     .flex()
-                    .flex_col();
+                    .flex_col()
+                    .justify_center();
                 headless.text_style().refine(&label_font);
                 // Material Web はリングをタブの内側に描き、選ばれたタブではインジケーターの上まで下端を上げる
                 let ring = focus_visible.then(|| {
@@ -314,9 +348,22 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
             .bottom_0()
             .h(dp(divider::THICKNESS))
             .bg(theme.color(divider::COLOR));
-        list.items(tabs)
-            .child(divider)
-            .when_some(indicator, |this, (index, label_width)| {
+        let measure = canvas(
+            move |bounds, window, cx| {
+                let width = Some(bounds.size.width);
+                if *row_width.read(cx) != width {
+                    row_width.update(cx, |row_width, _| *row_width = width);
+                    // 測った幅で描き直す
+                    window.request_animation_frame();
+                }
+            },
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .size_full();
+        list.items(tabs).child(measure).child(divider).when_some(
+            indicator,
+            |this, (index, label_width)| {
                 let indicator_height = dp(primary::ACTIVE_INDICATOR_HEIGHT);
                 let color = theme.color(primary::ACTIVE_INDICATOR_COLOR);
                 // インジケーターは選ばれたタブの下端に置き、位置と幅を DefaultSpatial のバネで動かす
@@ -328,7 +375,8 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
                     .h(indicator_height);
                 let slot = match self.variant {
                     // Compose の Primary のインジケーターは、タブの幅から左右の余白を除いた幅を上限とするラベルの幅で、
-                    // 最小 24dp にしてタブの中央に置く
+                    // 最小 24dp にしてタブの中央に置く。幅はバネに渡す前に上限に収める。
+                    // 並びの幅をまだ測っていない最初の描画では、上限をレイアウトで課す
                     TabRowVariant::Primary => {
                         let min_width = dp(supplement::tabs::PRIMARY_INDICATOR_MIN_WIDTH);
                         let radii = shape_radii(
@@ -362,7 +410,8 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
                     SpringAnimation::new(spatial).to(index as f32),
                     move |this, position| this.left(relative(position / count as f32)),
                 ))
-            })
+            },
+        )
     }
 }
 
@@ -428,7 +477,8 @@ impl<T> Tab<T> {
 /// [`TabRow`] で選ばれたタブの内容を入れるパネル
 ///
 /// 支援技術には role `tabpanel` として公開される。名前は `aria_label` で、選ばれたタブのラベルと同じ名前を与えること。
-/// パネルの中にフォーカスできる要素が無い場合は、Tab でパネルに到達できるよう `track_focus` でフォーカスを付けること。
+/// パネル自身はフォーカスを持たない。パネルの中に Tab で到達できる要素が無い場合と、最初の内容がフォーカスできない場合は、
+/// `tab_stop(true)` にしたフォーカスを `track_focus` で渡し、Tab でパネルに到達できるようにすること。
 /// パネル自身は見た目を持たない。見た目は [`Styled`] と [`InteractiveElement`] で呼び出し側が付ける
 #[derive(IntoElement)]
 pub struct TabPanel(HeadlessTabPanel);
@@ -668,6 +718,66 @@ mod tests {
             divider_y,
             height - 1.0,
             "区切り線は伸びた並びの下端に引くこと"
+        );
+    }
+
+    /// 期待値は Compose の `TabBaselineLayout` の高さ。アイコン (24dp) とラベルの高さに
+    /// `IconDistanceFromBaseline` (20sp) を足した高さが `LargeTabHeight` (72dp) を超えると伸びる
+    #[gpui::test]
+    fn アイコンを持つタブのラベルが折り返すと_compose_と同じ高さまで伸びる(
+        cx: &mut TestAppContext,
+    ) {
+        // タブの幅 100dp から左右の余白を除いた 68dp に収まらず、2 行になる
+        let (_, cx) = add_row(cx, |changes| RowView {
+            icons: true,
+            ..row(0, &["Favorites list", "Music"], 200.0)(changes)
+        });
+        let (line_height, icon_distance) = cx.update(|window, cx| {
+            let theme = cx.md3_theme();
+            let mut text_style = window.text_style();
+            text_style.refine(&theme.text_style(primary::LABEL_TEXT_FONT));
+            (
+                f32::from(text_style.line_height_in_pixels(window.rem_size())),
+                f32::from(theme.sp(supplement::tabs::ICON_DISTANCE_FROM_BASELINE)),
+            )
+        });
+        let surface = color(cx, ColorRole::Surface);
+        let ((_, _, _, height), _) = filled(cx, surface.into())[0];
+        assert_eq!(height, 24.0 + line_height * 2.0 + icon_distance);
+    }
+
+    /// 期待値は Compose の `placeTextAndIcon`。最後の基準線からインジケーターの上端までの距離は、
+    /// 1 行なら `SingleLineTextBaselineWithIcon` (14dp)、2 行以上なら `DoubleLineTextBaselineWithIcon` (6dp)
+    // gpui は debug_assertions のあるビルドでだけ debug_selector の位置を記録する
+    #[cfg(debug_assertions)]
+    #[gpui::test]
+    fn アイコンを持つタブのラベルが折り返すと最後の基準線を下端に近づける(
+        cx: &mut TestAppContext,
+    ) {
+        // タブの幅 100dp から左右の余白を除いた 68dp に収まらず、2 行になる
+        let (_, cx) = add_row(cx, |changes| RowView {
+            icons: true,
+            ..row(0, &["Favorites list", "Music"], 200.0)(changes)
+        });
+        let surface = color(cx, ColorRole::Surface);
+        let ((_, _, _, height), _) = filled(cx, surface.into())[0];
+        let wrapped = cx
+            .debug_bounds("md3-tab-label-0")
+            .expect("ラベルを描くこと");
+
+        // 同じラベルが 1 行に収まる幅
+        let (_, cx) = add_row(cx, |changes| RowView {
+            icons: true,
+            ..row(0, &["Favorites list", "Music"], 600.0)(changes)
+        });
+        let single = cx
+            .debug_bounds("md3-tab-label-0")
+            .expect("ラベルを描くこと");
+        // 行の高さと基準線の位置は 1 行目も 2 行目も同じため、ラベルの下端からタブの下端までの距離は
+        // 2 つの距離の差だけ縮む
+        assert_eq!(
+            f32::from(px(72.) - single.bottom()) - f32::from(px(height) - wrapped.bottom()),
+            8.0
         );
     }
 

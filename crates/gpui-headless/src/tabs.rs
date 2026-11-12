@@ -345,7 +345,8 @@ impl<T> StatefulInteractiveElement for Tab<T> {}
 /// 選ばれたタブの内容を入れる、見た目を持たないパネル
 ///
 /// 支援技術には role `tabpanel` として公開される。名前は `aria_label` で、選ばれたタブと同じ名前を与えること。
-/// パネルの中にフォーカスできる要素が無い場合は、Tab でパネルに到達できるよう `track_focus` でフォーカスを付けること。
+/// パネル自身はフォーカスを持たない。パネルの中に Tab で到達できる要素が無い場合と、最初の内容がフォーカスできない場合は、
+/// `tab_stop(true)` にしたフォーカスを `track_focus` で渡し、Tab でパネルに到達できるようにすること。
 /// 見た目は [`Styled`] と [`InteractiveElement`] で呼び出し側が付ける
 #[derive(IntoElement)]
 pub struct TabPanel {
@@ -402,7 +403,6 @@ mod tests {
     };
 
     use super::*;
-    use crate::button::Button;
     use crate::test_window::add_test_window;
 
     const VALUES: [&str; 3] = ["apple", "pear", "plum"];
@@ -417,7 +417,8 @@ mod tests {
         /// 最初のタブの後に、タブでない要素を置く
         divider: bool,
         handles: [FocusHandle; 3],
-        after: FocusHandle,
+        /// 並びの後に置くパネルのフォーカス。パネルはフォーカスできる子を持たないため、Tab で到達できるようにする
+        panel: FocusHandle,
         changes: Rc<RefCell<Vec<&'static str>>>,
         /// 並びの親に届いたキー
         propagated: Rc<RefCell<Vec<String>>>,
@@ -463,7 +464,12 @@ mod tests {
                     propagated.borrow_mut().push(event.keystroke.key.clone())
                 })
                 .child(list)
-                .child(Button::new("after").track_focus(&self.after).h(px(20.)))
+                .child(
+                    TabPanel::new("panel")
+                        .aria_label("Panel")
+                        .track_focus(&self.panel)
+                        .h(px(20.)),
+                )
         }
     }
 
@@ -479,7 +485,7 @@ mod tests {
             handler: true,
             divider: false,
             handles: [cx.focus_handle(), cx.focus_handle(), cx.focus_handle()],
-            after: cx.focus_handle(),
+            panel: cx.focus_handle().tab_stop(true),
             changes: Rc::default(),
             propagated: Rc::default(),
             list_node: None,
@@ -499,9 +505,9 @@ mod tests {
         })
     }
 
-    fn is_after_focused(view: &Entity<ListView>, cx: &mut VisualTestContext) -> bool {
-        let after = view.read_with(cx, |view, _| view.after.clone());
-        cx.update(|window, _| after.is_focused(window))
+    fn is_panel_focused(view: &Entity<ListView>, cx: &mut VisualTestContext) -> bool {
+        let panel = view.read_with(cx, |view, _| view.panel.clone());
+        cx.update(|window, _| panel.is_focused(window))
     }
 
     fn changes(view: &Entity<ListView>, cx: &mut VisualTestContext) -> Vec<&'static str> {
@@ -634,7 +640,7 @@ mod tests {
     }
 
     #[gpui::test]
-    fn tab_で選ばれているタブに入り_もう一度の_tab_で並びの外へ出る(
+    fn tab_で選ばれているタブに入り_もう一度の_tab_でパネルへ移る(
         cx: &mut TestAppContext,
     ) {
         let (view, cx) = setup(cx, Some("pear"), ALL_ENABLED);
@@ -642,8 +648,8 @@ mod tests {
         assert_eq!(focused(&view, cx), Some("pear"));
         cx.simulate_keystrokes("tab");
         assert!(
-            is_after_focused(&view, cx),
-            "並びの中の Tab stop は 1 つだけであること"
+            is_panel_focused(&view, cx),
+            "並びの中の Tab stop は 1 つだけで、Tab で到達できるようにしたパネルへ移ること"
         );
         cx.simulate_keystrokes("shift-tab");
         assert_eq!(focused(&view, cx), Some("pear"));
@@ -869,7 +875,7 @@ mod tests {
         assert_eq!(focused(&view, cx), Some("pear"));
         cx.simulate_keystrokes("tab");
         assert!(
-            is_after_focused(&view, cx),
+            is_panel_focused(&view, cx),
             "値が反映されなくても Tab で並びの外へ出ること"
         );
         cx.simulate_keystrokes("shift-tab");

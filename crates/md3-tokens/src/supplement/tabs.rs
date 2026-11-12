@@ -21,6 +21,9 @@ pub const HORIZONTAL_TEXT_PADDING: Dp = Dp(16.0);
 /// アイコンとラベルの両方を持つタブで、インジケーターの上端から 1 行のラベルの基準線までの距離。
 /// `SingleLineTextBaselineWithIcon`
 pub const SINGLE_LINE_TEXT_BASELINE_WITH_ICON: Dp = Dp(14.0);
+/// アイコンとラベルの両方を持つタブで、インジケーターの上端から 2 行以上のラベルの最後の基準線までの距離。
+/// `DoubleLineTextBaselineWithIcon`
+pub const DOUBLE_LINE_TEXT_BASELINE_WITH_ICON: Dp = Dp(6.0);
 /// アイコンとラベルの両方を持つタブで、ラベルの最初の基準線からアイコンの下端までの距離。`IconDistanceFromBaseline`
 pub const ICON_DISTANCE_FROM_BASELINE: Sp = Sp(20.0);
 /// Primary のインジケーターの最小の幅。`TabRowImpl` がタブの内容の幅に課す最小値
