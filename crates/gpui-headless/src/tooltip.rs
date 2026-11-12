@@ -312,6 +312,10 @@ impl Element for Anchor {
         area.paint(window, cx);
         state.update(cx, |state, _| {
             state.shown = *shown;
+            // 描かなかったツールチップからは hover の解除が届かないため、ここで外す
+            if !*shown {
+                state.popup_hovered = false;
+            }
             // uniform_list などは測るために 1 フレームに何度もレイアウトするため、1 フレームに 1 回だけ呼ばれる paint で戻す
             state.just_dismissed = false;
         });
@@ -652,6 +656,33 @@ mod tests {
         });
         cx.run_until_parked();
         assert_eq!(popup_bounds(cx), ABOVE, "見えるようになると表示すること");
+    }
+
+    #[gpui::test]
+    fn ツールチップに乗ったままトリガーが見えなくなり戻るとマウスの位置で決める(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, point(px(100.), px(100.)));
+        move_mouse(cx, 120., 120.);
+        move_mouse(cx, 120., 86.);
+        assert_eq!(popup_bounds(cx), ABOVE);
+        view.update(cx, |view, cx| {
+            view.clip = true;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        assert_eq!(popup_bounds(cx), None);
+        move_mouse(cx, 300., 300.);
+        view.update(cx, |view, cx| {
+            view.clip = false;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        assert_eq!(
+            popup_bounds(cx),
+            None,
+            "どちらにも乗っていなければ表示しないこと"
+        );
     }
 
     /// 覆う要素の上のマウスはトリガーの範囲の中にあるが、トリガーには乗っていない
