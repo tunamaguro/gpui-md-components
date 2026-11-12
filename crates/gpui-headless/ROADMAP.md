@@ -321,6 +321,6 @@ gpui の `EntityInputHandler` を前提にする。最初は単一行に限る�
 - [ ] Accordion
 - [ ] Field: ラベル・説明・エラーと required / invalid の公開
 - [ ] Status / Alert: フォーカスを奪わない通知 (Snackbar で使う)
-- [ ] ripple と押している間の状態レイヤー: 押している状態を装飾側に渡す。M2 の部品 (Button、Icon button、Checkbox、Switch) に付ける
+- [ ] ripple と押している間の状態レイヤーと影: 押している状態を装飾側に渡す。M2 の部品 (Button、Icon button、Checkbox、Switch) と、後から作った押せる部品 (FAB など) に付ける
 - [ ] 支援技術の Click を `on_a11y_action` で受ける (M0 の Button、M1 の Choice、M4 の部品。M3、#94)
 - [ ] フォーカスの移動先を、スクロールする祖先の中で見える位置に出す (gpui に汎用の API が無い。`ScrollHandle::scroll_to_item` は直下の子の番号を指定する。#95)

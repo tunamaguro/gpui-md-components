@@ -125,13 +125,20 @@ impl Render for FabPage {
                 )
             }))
             .child(
-                row("extended-colors", "Extended colors").children(COLORS.map(|(color, name)| {
-                    let id = SharedString::from(format!("extended-color-{name}"));
-                    ExtendedFab::new(id.clone(), md3_icons::ADD, name)
-                        .color(color)
-                        .expanded(self.expanded)
-                        .on_click(record_click(id, cx))
-                })),
+                // ラベル付きの FAB は幅を縮めないため、ウィンドウの幅に収まるよう折り返す
+                row("extended-colors", "Extended colors").child(
+                    div()
+                        .flex()
+                        .flex_wrap()
+                        .gap_6()
+                        .children(COLORS.map(|(color, name)| {
+                            let id = SharedString::from(format!("extended-color-{name}"));
+                            ExtendedFab::new(id.clone(), md3_icons::ADD, name)
+                                .color(color)
+                                .expanded(self.expanded)
+                                .on_click(record_click(id, cx))
+                        })),
+                ),
             )
     }
 }
