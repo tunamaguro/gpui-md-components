@@ -481,7 +481,7 @@ impl RenderOnce for Button {
                     })
             })
             .when(!disabled, |this| {
-                // 透明なバリアントは高さ 0 の影も付けない。gpui は 0 の影でも要素の真下を塗るため
+                // Compose の OutlinedButton と TextButton は elevation の既定が null で、影を持たない
                 let shadow = |pick: fn(&Elevations) -> Elevation| {
                     tokens.elevations.as_ref().map(|e| theme.shadow(pick(e)))
                 };

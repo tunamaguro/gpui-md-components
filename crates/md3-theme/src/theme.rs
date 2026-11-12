@@ -422,15 +422,6 @@ mod tests {
 
     /// 期待値は曲線の定義 (媒介変数 t での x と y) から独立に求める
     #[test]
-    fn 段階_0_の影は無く段階_1_以上は_key_と_ambient_の_2_つ() {
-        let theme = resolve(ThemeSettings::default());
-        for elevation in Elevation::ALL {
-            let expected = if elevation == Elevation::Level0 { 0 } else { 2 };
-            assert_eq!(theme.shadow(elevation).len(), expected, "{elevation:?}");
-        }
-    }
-
-    #[test]
     fn イージングは曲線の_x_に対応する_y_を返す() {
         let curves = [
             md3_tokens::motion::EASING_STANDARD_CUBIC_BEZIER,
@@ -782,6 +773,15 @@ mod tests {
         assert_eq!(shadows[0].offset, point(px(0.0), px(1.0)));
         assert_eq!(shadows[0].blur_radius, px(2.0));
         assert_eq!(shadows[1].spread_radius, px(1.0));
+    }
+
+    #[test]
+    fn 段階_0_の影は無く段階_1_以上は_key_と_ambient_の_2_つ() {
+        let theme = resolve(ThemeSettings::default());
+        for elevation in Elevation::ALL {
+            let expected = if elevation == Elevation::Level0 { 0 } else { 2 };
+            assert_eq!(theme.shadow(elevation).len(), expected, "{elevation:?}");
+        }
     }
 
     #[test]
