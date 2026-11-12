@@ -1,12 +1,15 @@
 // 寸法・色の選択・状態ごとの elevation・選択の印の出し入れは Jetpack Compose Material 3 から移植している
 // (https://android.googlesource.com/platform/frameworks/support)
 // Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/Chip.kt
-//         (`AssistChip`、`FilterChip`、`SuggestionChip`、`SelectableChip`、`ChipContent`、`AnimatingChipContent`、
-//         `AssistChipDefaults`、`FilterChipDefaults`、`SuggestionChipDefaults`) @ 2a941dd11aabd9bb7d2016ed159764b220117c20
+//         (`AssistChip`、`FilterChip`、`InputChip`、`SuggestionChip`、`SelectableChip`、`ChipContent`、
+//         `AnimatingChipContent`、`AssistChipDefaults`、`FilterChipDefaults`、`InputChipDefaults`、`SuggestionChipDefaults`)
+//         @ 2a941dd11aabd9bb7d2016ed159764b220117c20
 // Copyright 2022 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
-// フォーカス中の枠線の色、状態レイヤーの色、Filter の選択の印を選ばれていないときのアイコンと置き換える振る舞いは、
-// Compose にないため Material Web から移植している (https://github.com/material-components/material-web)
+// フォーカス中の枠線の色、状態レイヤーの色、Filter の選択の印を選ばれていないときのアイコンと置き換える振る舞い、
+// Input の削除ボタンは、Compose にないため Material Web から移植している (https://github.com/material-components/material-web)
 // Source: chips/internal/_shared.scss (`:where(:focus) .outline`)、chips/internal/filter-chip.ts (`renderLeadingIcon`)、
+//         chips/internal/input-chip.ts、chips/internal/trailing-icons.ts (`renderRemoveButton`)、
+//         chips/internal/_trailing-icon.scss、
 //         tokens/versions/v0_192 の各チップの `hover-state-layer-color`・`focus-state-layer-color`
 //         @ de5470f7ed6a653457ca8f5cc0e7f7602c7a8391
 // Copyright 2023 Google LLC. Licensed under the Apache License, Version 2.0.
@@ -15,10 +18,10 @@
 //! MD3 のチップ
 
 use gpui::{
-    AnimationExt, AnyElement, App, ClickEvent, Div, ElementId, FocusHandle, Hsla,
-    InteractiveElement, IntoElement, ParentElement, Refineable, RenderOnce, SharedString,
-    SpringAnimation, StatefulInteractiveElement, StyleRefinement, Styled, Window, div,
-    prelude::FluentBuilder, svg,
+    AnimationExt, AnyElement, App, ClickEvent, Div, ElementId, FocusHandle, Hsla, ImageSource,
+    InteractiveElement, IntoElement, ObjectFit, ParentElement, Refineable, RenderOnce,
+    SharedString, SpringAnimation, StatefulInteractiveElement, StyleRefinement, Styled,
+    StyledImage, Window, div, img, prelude::FluentBuilder, size, svg,
 };
 use gpui_headless::button::Button as HeadlessButton;
 use gpui_headless::toggle::ToggleButton as HeadlessToggleButton;
@@ -26,7 +29,7 @@ use gpui_headless::toggle::ToggleButton as HeadlessToggleButton;
 use crate::shape::Shaped;
 use crate::util;
 use md3_icons::StyledIcon;
-use md3_theme::md3_tokens::component::{assist_chip, filter_chip, suggestion_chip};
+use md3_theme::md3_tokens::component::{assist_chip, filter_chip, input_chip, suggestion_chip};
 use md3_theme::md3_tokens::elevation::Elevation;
 use md3_theme::md3_tokens::motion::MotionSchemeKey;
 use md3_theme::md3_tokens::{Dp, focus_ring, state, supplement};
@@ -34,6 +37,8 @@ use md3_theme::{SharedTheme, ThemeExt, dp};
 
 /// 容器の層がチップの hover を知るための group 名
 const GROUP: &str = "md3-chip";
+/// 状態レイヤーが Input chip の削除ボタンの hover を知るための group 名
+const REMOVE_GROUP: &str = "md3-chip-remove";
 
 /// 押すと操作を実行するチップの用途。用途によってラベルの色が決まる
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -133,7 +138,7 @@ where
             })
         });
 
-    // 高さ・形・書体・アイコンの大きさは Assist・Suggestion・Filter のトークンで同じ値のため、AssistChipTokens の値を使う
+    // 高さ・形・書体・アイコンの大きさはどのチップのトークンでも同じ値のため、AssistChipTokens の値を使う
     let mut chip = chip
         .group(GROUP)
         .relative()
@@ -630,11 +635,314 @@ impl Styled for FilterChip {
     }
 }
 
+/// 利用者が入力した情報のひとまとまりを表す MD3 のチップ (Input chip)
+///
+/// 選ばれているかどうかは呼び出し側が持ち、[`InputChip::new`] に毎回渡す。チップ自身は状態を変えない。
+/// 選ばれていると容器を塗る。[`InputChip::on_remove`] を指定すると、末尾に削除ボタンを置く。
+/// `label` は改行を空白に置き換えて 1 行で描き、収まらない部分は省略記号にする
+///
+/// チップは支援技術に role `button` と押されているかどうかの状態 (トグルボタン) として公開され、
+/// `label` がアクセシブルな名前になる。マウスのクリック・フォーカス中の Enter と Space で、
+/// 反転した値を [`InputChip::on_change`] に渡す。
+/// 削除ボタンはチップの次に Tab で到達できる別の role `button` として公開され、
+/// マウスのクリック・フォーカス中の Enter と Space で [`InputChip::on_remove`] のハンドラを呼ぶ
+///
+/// [`Styled`] で指定したスタイルはチップの外側の箱に付く。大きさや外側の余白、flex の指定に使い、
+/// 箱を広げるとチップも箱いっぱいに広がる
+///
+/// テーマの密度 ([`ThemeSettings::density`](md3_theme::ThemeSettings::density)) は反映しない
+#[derive(IntoElement)]
+pub struct InputChip {
+    id: ElementId,
+    outer: Div,
+    label: SharedString,
+    selected: bool,
+    icon: Option<StyledIcon>,
+    avatar: Option<ImageSource>,
+    on_change: Option<ChangeHandler>,
+    on_remove: Option<(SharedString, ClickHandler)>,
+    disabled: bool,
+    focus_handle: Option<FocusHandle>,
+    theme: Option<SharedTheme>,
+}
+
+impl InputChip {
+    /// `label` を描き、`selected` の状態を表示するチップを作る
+    ///
+    /// `id` は同じ親の中で一意にし、描画のたびに同じ値を渡すこと。[`InputChip::track_focus`] を指定しない場合、
+    /// `id` が変わるか 1 フレームでも描画されないとフォーカスが外れる。削除ボタンのフォーカスも同じ条件で外れる
+    pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>, selected: bool) -> Self {
+        Self {
+            id: id.into(),
+            // 利用者が Styled で指定した display を render で上書きしないよう、既定はここで付ける
+            outer: div().flex(),
+            label: label.into(),
+            selected,
+            icon: None,
+            avatar: None,
+            on_change: None,
+            on_remove: None,
+            disabled: false,
+            focus_handle: None,
+            theme: None,
+        }
+    }
+
+    /// ラベルの前にアイコンを置く。[`InputChip::avatar`] を指定した場合はアバターを優先する
+    ///
+    /// [`md3_icons::Icon`] を渡すと Outlined の塗りのない形で描く。スタイルや塗りは [`StyledIcon`] で指定する。
+    /// アイコンは装飾として扱い、アクセシブルな名前には含めない
+    pub fn icon(mut self, icon: impl Into<StyledIcon>) -> Self {
+        self.icon = Some(icon.into());
+        self
+    }
+
+    /// ラベルの前に、`source` の画像を円に切り抜いたアバターを置く
+    ///
+    /// アバターは装飾として扱い、アクセシブルな名前には含めない
+    pub fn avatar(mut self, source: impl Into<ImageSource>) -> Self {
+        self.avatar = Some(source.into());
+        self
+    }
+
+    /// チップが押されたときに、反転した値で `handler` を呼ぶ。複数回呼んだ場合は最後に渡した `handler` だけを呼ぶ
+    ///
+    /// 表示を変えるには、`handler` で呼び出し側の状態を更新し、次の描画で [`InputChip::new`] に渡すこと
+    pub fn on_change(mut self, handler: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
+        self.on_change = Some(Box::new(handler));
+        self
+    }
+
+    /// 末尾に削除ボタンを置き、押されたときに `handler` を呼ぶ。複数回呼んだ場合は最後に渡したものだけを使う
+    ///
+    /// `aria_label` は削除ボタンのアクセシブルな名前で、Material Web の「Remove <ラベル>」のように、
+    /// どのチップを削除するかが分かる名前にすること。チップを取り除くには、`handler` で呼び出し側の状態を更新し、
+    /// 次の描画からチップを描かないこと。フォーカスのある削除ボタンをチップと一緒に取り除くとフォーカスが失われるため、
+    /// 隣のチップの [`InputChip::track_focus`] に渡したフォーカスなどへ移すこと
+    pub fn on_remove(
+        mut self,
+        aria_label: impl Into<SharedString>,
+        handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_remove = Some((aria_label.into(), Box::new(handler)));
+        self
+    }
+
+    /// チップと削除ボタンを無効にする。`false` を渡すと有効に戻す
+    ///
+    /// 無効なチップは無効の色で描かれ、チップも削除ボタンも押されてもハンドラを呼ばず、Tab でも到達できない。
+    /// フォーカス中に無効になった場合は、フォーカスが外れるまでフォーカスを保つ
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self
+    }
+
+    /// `focus_handle` をこのチップのフォーカスとして使う。削除ボタンのフォーカスには使わない
+    ///
+    /// 指定しない場合はチップが内部でフォーカスを持つ
+    pub fn track_focus(mut self, focus_handle: &FocusHandle) -> Self {
+        self.focus_handle = Some(focus_handle.clone());
+        self
+    }
+
+    /// アプリ全体のテーマ ([`ThemeExt::md3_theme`]) の代わりに `theme` で描く
+    pub fn theme(mut self, theme: SharedTheme) -> Self {
+        self.theme = Some(theme);
+        self
+    }
+}
+
+impl RenderOnce for InputChip {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
+        let disabled = self.disabled;
+        let selected = self.selected;
+        let focus_handle = self
+            .focus_handle
+            .unwrap_or_else(|| util::keyed_focus_handle(&self.id, window, cx));
+        // リングはチップの外側に描くため、チップ自身のスタイルでは表せない
+        let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
+
+        let disabled_color = |role, opacity| theme.color(role).opacity(opacity);
+        // `defaultInputChipColors`、`inputChipBorder`、`inputChipElevation`
+        let look = Look {
+            container: match (selected, disabled) {
+                (false, _) => None,
+                (true, false) => Some(theme.color(input_chip::SELECTED_CONTAINER_COLOR)),
+                (true, true) => Some(disabled_color(
+                    input_chip::DISABLED_SELECTED_CONTAINER_COLOR,
+                    input_chip::DISABLED_SELECTED_CONTAINER_OPACITY,
+                )),
+            },
+            // 選ばれているときの枠線の太さ (`SelectedOutlineWidth`) は 0 のため、枠線を描かない
+            outline: (!selected).then(|| Outline {
+                width: input_chip::UNSELECTED_OUTLINE_WIDTH,
+                color: if disabled {
+                    disabled_color(
+                        input_chip::DISABLED_UNSELECTED_OUTLINE_COLOR,
+                        input_chip::DISABLED_UNSELECTED_OUTLINE_OPACITY,
+                    )
+                } else {
+                    theme.color(input_chip::UNSELECTED_OUTLINE_COLOR)
+                },
+                focused: theme.color(input_chip::UNSELECTED_FOCUS_OUTLINE_COLOR),
+            }),
+            label: match (selected, disabled) {
+                (_, true) => disabled_color(
+                    input_chip::DISABLED_LABEL_TEXT_COLOR,
+                    input_chip::DISABLED_LABEL_TEXT_OPACITY,
+                ),
+                (true, false) => theme.color(input_chip::SELECTED_LABEL_TEXT_COLOR),
+                (false, false) => theme.color(input_chip::UNSELECTED_LABEL_TEXT_COLOR),
+            },
+            icon: match (selected, disabled) {
+                (_, true) => disabled_color(
+                    input_chip::DISABLED_LEADING_ICON_COLOR,
+                    input_chip::DISABLED_LEADING_ICON_OPACITY,
+                ),
+                (true, false) => theme.color(input_chip::SELECTED_LEADING_ICON_COLOR),
+                (false, false) => theme.color(input_chip::UNSELECTED_LEADING_ICON_COLOR),
+            },
+            elevations: [input_chip::CONTAINER_ELEVATION; 3],
+        };
+        let trailing_color = match (selected, disabled) {
+            (_, true) => disabled_color(
+                input_chip::DISABLED_TRAILING_ICON_COLOR,
+                input_chip::DISABLED_TRAILING_ICON_OPACITY,
+            ),
+            (true, false) => theme.color(input_chip::SELECTED_TRAILING_ICON_COLOR),
+            (false, false) => theme.color(input_chip::UNSELECTED_TRAILING_ICON_COLOR),
+        };
+        let state_layer_color = look.label;
+
+        let has_avatar = self.avatar.is_some();
+        let leading = match (self.avatar, self.icon) {
+            (Some(avatar), _) => {
+                let avatar_size = dp(input_chip::AVATAR_SIZE);
+                let radii =
+                    theme.corner_radii(input_chip::AVATAR_SHAPE, size(avatar_size, avatar_size));
+                Some(
+                    // 正方形でない画像も縦横比を保ったまま円を埋めるよう、はみ出す部分を切り取る
+                    img(avatar)
+                        .object_fit(ObjectFit::Cover)
+                        .flex_none()
+                        .size(avatar_size)
+                        .rounded_tl(radii.top_left)
+                        .rounded_tr(radii.top_right)
+                        .rounded_br(radii.bottom_right)
+                        .rounded_bl(radii.bottom_left)
+                        .when(disabled, |this| {
+                            this.opacity(input_chip::DISABLED_AVATAR_OPACITY)
+                        })
+                        .into_any_element(),
+                )
+            }
+            (None, Some(icon)) => Some(icon_svg(icon, look.icon).into_any_element()),
+            (None, None) => None,
+        };
+        let has_leading_icon = leading.is_some() && !has_avatar;
+        let compact = dp(supplement::chip::INPUT_COMPACT_CONTENT_PADDING);
+        let padding = dp(supplement::chip::CONTENT_PADDING);
+        let trailing_size = dp(input_chip::TRAILING_ICON_SIZE);
+
+        let chip = HeadlessToggleButton::new(self.id.clone(), selected)
+            .track_focus(&focus_handle)
+            .disabled(disabled)
+            .aria_label(self.label.clone())
+            .when_some(self.on_change, |this, on_change| this.on_change(on_change));
+        // `InputChipDefaults.contentPadding`。削除ボタンは末尾の余白と末尾のアイコンの場所に重ねて置く
+        let chip = decorate(
+            chip,
+            look,
+            leading,
+            self.label,
+            disabled,
+            focus_visible,
+            &theme,
+        )
+        .pl(if has_leading_icon { padding } else { compact })
+        .pr(if self.on_remove.is_some() {
+            trailing_size + padding
+        } else {
+            compact
+        });
+
+        let remove = self.on_remove.map(|(aria_label, handler)| {
+            let remove_id = ElementId::from((self.id.clone(), "remove"));
+            let remove_focus = util::keyed_focus_handle(&remove_id, window, cx);
+            let remove_focus_visible = gpui_headless::is_focus_visible(&remove_focus, window, cx);
+            let layer_size = dp(supplement::chip::REMOVE_STATE_LAYER_SIZE);
+            let layer_inset = (layer_size - trailing_size) / 2.0;
+            // Material Web の削除ボタンのリングは inset を外すため、外へ離さず状態レイヤーの円に接する
+            let ring_inset = layer_inset + dp(focus_ring::WIDTH);
+            let icon = div()
+                .relative()
+                .flex_none()
+                .size(trailing_size)
+                .child(
+                    div()
+                        .absolute()
+                        .top(-layer_inset)
+                        .left(-layer_inset)
+                        .size(layer_size)
+                        .rounded_full()
+                        .when(!disabled, |this| {
+                            this.group_hover(REMOVE_GROUP, |style| {
+                                style
+                                    .bg(state_layer_color.opacity(state::HOVER_STATE_LAYER_OPACITY))
+                            })
+                        }),
+                )
+                .child(icon_svg(StyledIcon::new(md3_icons::CLOSE), trailing_color))
+                .when(remove_focus_visible, |this| {
+                    this.child(
+                        div()
+                            .absolute()
+                            .top(-ring_inset)
+                            .left(-ring_inset)
+                            .size(trailing_size + ring_inset * 2.0)
+                            .rounded_full()
+                            .border(dp(focus_ring::WIDTH))
+                            .border_color(theme.color(focus_ring::COLOR)),
+                    )
+                });
+            // Material Web と同じく、ラベルとの間隔と末尾の余白までを押せる範囲にする。
+            // 下にあるチップに hover とクリックが届かないよう、スクロール以外のマウス操作を遮る
+            HeadlessButton::new(remove_id)
+                .track_focus(&remove_focus)
+                .disabled(disabled)
+                .aria_label(aria_label)
+                .on_click(handler)
+                .group(REMOVE_GROUP)
+                .block_mouse_except_scroll()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .right_0()
+                .flex()
+                .items_center()
+                .pl(dp(supplement::chip::HORIZONTAL_SPACING))
+                .pr(padding)
+                .child(icon)
+        });
+        self.outer.child(chip).children(remove)
+    }
+}
+
+impl Styled for InputChip {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.outer.style()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{cell::RefCell, rc::Rc};
 
-    use gpui::{Context, Modifiers, Render, TestAppContext, VisualTestContext, point, px};
+    use gpui::{
+        Context, Modifiers, Render, ScrollDelta, ScrollEvent, ScrollHandle, TestAppContext,
+        VisualTestContext, point, px,
+    };
     use md3_theme::md3_color::ColorRole;
 
     use super::*;
@@ -966,5 +1274,192 @@ mod tests {
                 "selected: {selected}, disabled: {disabled}"
             );
         }
+    }
+
+    /// 先頭に置く要素
+    #[derive(Clone, Copy, Debug)]
+    enum Leading {
+        None,
+        Icon,
+        Avatar,
+    }
+
+    /// 期待値は Compose の `InputChipDefaults.contentPadding` と `ChipArrangement`。先頭はアイコンなら 8dp、
+    /// アバターか何も無ければ 4dp、末尾は削除ボタン (末尾のアイコン 18dp) があればその後に 8dp、無ければ 4dp を取り、
+    /// ラベルの左右には 8dp を置く。アイコンは 18dp、アバターは 24dp
+    #[gpui::test]
+    fn input_は先頭と末尾の要素に合わせて余白を取る(cx: &mut TestAppContext) {
+        for (leading, remove, padding) in [
+            (Leading::None, false, 24.0),
+            (Leading::None, true, 46.0),
+            (Leading::Icon, false, 46.0),
+            (Leading::Avatar, false, 48.0),
+            (Leading::Icon, true, 68.0),
+        ] {
+            let cx = add_view(cx, "Alice", move || {
+                let chip = InputChip::new("chip", "Alice", false);
+                let chip = match leading {
+                    Leading::None => chip,
+                    Leading::Icon => chip.icon(md3_icons::PERSON),
+                    Leading::Avatar => chip.avatar("avatar.png"),
+                };
+                if remove {
+                    chip.on_remove("Remove Alice", |_, _, _| {})
+                } else {
+                    chip
+                }
+            });
+            let width = probe_width(cx) + padding;
+            let outline_variant = color(cx, ColorRole::OutlineVariant);
+            assert_eq!(
+                outlines(cx),
+                vec![((0.0, 0.0, width, 32.0), 1.0, outline_variant, 8.0)],
+                "leading: {leading:?}, remove: {remove}"
+            );
+        }
+    }
+
+    /// 期待値は Compose の `defaultInputChipColors` と `inputChipBorder`。選ばれると SecondaryContainer で塗り、
+    /// 枠線の太さ (`SelectedOutlineWidth`) は 0 になる。無効なら OnSurface の 12% で塗る
+    #[gpui::test]
+    fn 選ばれた_input_は容器を塗り枠線を描かない(cx: &mut TestAppContext) {
+        for disabled in [false, true] {
+            let cx = add_view(cx, "Alice", move || {
+                InputChip::new("chip", "Alice", true)
+                    .disabled(disabled)
+                    .on_remove("Remove Alice", |_, _, _| {})
+            });
+            let width = probe_width(cx) + 46.0;
+            let container = if disabled {
+                color(cx, ColorRole::OnSurface).opacity(0.12)
+            } else {
+                color(cx, ColorRole::SecondaryContainer)
+            };
+            assert_eq!(
+                filled(cx, container),
+                vec![((0.0, 0.0, width, 32.0), 8.0)],
+                "disabled: {disabled}"
+            );
+            assert_eq!(outlines(cx), vec![], "disabled: {disabled}");
+        }
+    }
+
+    /// 削除ボタンはチップの右端の 34dp (ラベルとの間隔 8dp、アイコン 18dp、末尾の余白 8dp) を占め、
+    /// その範囲を押してもチップのハンドラは呼ばない
+    #[gpui::test]
+    fn input_は押した場所に応じてチップか削除ボタンのハンドラを呼ぶ(
+        cx: &mut TestAppContext,
+    ) {
+        for disabled in [false, true] {
+            let changes = Rc::new(RefCell::new(Vec::new()));
+            let removes = Rc::new(RefCell::new(0));
+            let cx = add_view(cx, "Alice", {
+                let changes = changes.clone();
+                let removes = removes.clone();
+                move || {
+                    let changes = changes.clone();
+                    let removes = removes.clone();
+                    InputChip::new("chip", "Alice", false)
+                        .disabled(disabled)
+                        .on_change(move |selected, _, _| changes.borrow_mut().push(*selected))
+                        .on_remove("Remove Alice", move |_, _, _| *removes.borrow_mut() += 1)
+                }
+            });
+            let width = probe_width(cx) + 46.0;
+            cx.simulate_click(point(px(10.), px(16.)), Modifiers::none());
+            // アイコンの上と、ラベルとアイコンの間
+            cx.simulate_click(point(px(width - 17.), px(16.)), Modifiers::none());
+            cx.simulate_click(point(px(width - 30.), px(16.)), Modifiers::none());
+            let expected: Vec<bool> = if disabled { vec![] } else { vec![true] };
+            assert_eq!(*changes.borrow(), expected, "disabled: {disabled}");
+            assert_eq!(
+                *removes.borrow(),
+                if disabled { 0 } else { 2 },
+                "disabled: {disabled}"
+            );
+        }
+    }
+
+    /// チップのリングは容器の外側に描く。削除ボタンのリングは Material Web と同じく、
+    /// アイコンを中心とする状態レイヤーの円 (24dp) に接して外側に太さ 3dp で描き、状態レイヤーは描かない
+    #[gpui::test]
+    fn tab_でチップの次に削除ボタンへ移る(cx: &mut TestAppContext) {
+        let cx = add_view(cx, "Alice", || {
+            InputChip::new("chip", "Alice", false).on_remove("Remove Alice", |_, _, _| {})
+        });
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_keystrokes("tab");
+        let width = probe_width(cx) + 46.0;
+        let ring = color(cx, ColorRole::Secondary);
+        let outline_variant = color(cx, ColorRole::OutlineVariant);
+        let on_surface_variant = color(cx, ColorRole::OnSurfaceVariant);
+        assert_eq!(
+            outlines(cx),
+            vec![
+                ((-5.0, -5.0, width + 10.0, 42.0), 3.0, ring, 13.0),
+                ((0.0, 0.0, width, 32.0), 1.0, on_surface_variant, 8.0),
+            ]
+        );
+
+        cx.simulate_keystrokes("tab");
+        // アイコンの中心は右端から 8dp + 9dp、上端から 16dp
+        let center = width - 17.0;
+        assert_eq!(
+            outlines(cx),
+            vec![
+                ((0.0, 0.0, width, 32.0), 1.0, outline_variant, 8.0),
+                ((center - 15.0, 1.0, 30.0, 30.0), 3.0, ring, 15.0),
+            ]
+        );
+        assert_eq!(filled(cx, on_surface_variant.opacity(0.1)), vec![]);
+    }
+
+    /// Material Web の削除ボタンは自身の状態レイヤーだけを描き、チップの容器の状態レイヤーは描かない
+    #[gpui::test]
+    fn 削除ボタンの_hover_はチップの状態レイヤーの代わりに円の状態レイヤーを描く(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = add_view(cx, "Alice", || {
+            InputChip::new("chip", "Alice", false).on_remove("Remove Alice", |_, _, _| {})
+        });
+        let width = probe_width(cx) + 46.0;
+        let layer = color(cx, ColorRole::OnSurfaceVariant).opacity(0.08);
+        let center = width - 17.0;
+        cx.simulate_mouse_move(point(px(center), px(16.)), None, Modifiers::none());
+        assert_eq!(
+            filled(cx, layer),
+            vec![((center - 12.0, 4.0, 24.0, 24.0), 12.0)]
+        );
+        cx.simulate_mouse_move(point(px(10.), px(16.)), None, Modifiers::none());
+        assert_eq!(filled(cx, layer), vec![((0.0, 0.0, width, 32.0), 8.0)]);
+    }
+
+    /// 削除ボタンはチップへの hover とクリックを遮るが、外側のスクロールできる箱へのホイールは遮らない
+    #[gpui::test]
+    fn 削除ボタンの上でホイールを回すと外側の箱がスクロールする(
+        cx: &mut TestAppContext,
+    ) {
+        let handle = ScrollHandle::new();
+        let cx = add_view(cx, "Alice", {
+            let handle = handle.clone();
+            move || {
+                div()
+                    .id("scroll")
+                    .h(px(20.))
+                    .overflow_y_scroll()
+                    .track_scroll(&handle)
+                    .child(
+                        InputChip::new("chip", "Alice", false)
+                            .on_remove("Remove Alice", |_, _, _| {}),
+                    )
+            }
+        });
+        let width = probe_width(cx) + 46.0;
+        cx.simulate_event(ScrollEvent {
+            position: point(px(width - 17.), px(10.)),
+            delta: ScrollDelta::Pixels(point(px(0.), px(-10.))),
+            ..Default::default()
+        });
+        assert_eq!(handle.offset().y, px(-10.));
     }
 }
