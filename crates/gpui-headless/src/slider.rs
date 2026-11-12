@@ -32,8 +32,10 @@ impl Scale {
         };
         let snapped = (self.start + ((value - self.start) / step).round() * step).min(self.end);
         // 段階の倍数が浮動小数点の誤差で終わりに届かない場合も、終わりにする。
-        // 割り切れない範囲の最後の段階の値は終わりから十分に離れているため、終わりにしない
-        if self.end - snapped <= step * 1e-4 || self.end - value < (value - snapped).abs() {
+        // 割り切れない範囲の最後の段階の値と、段階が範囲より大きい場合の始まりは、終わりにしない
+        if (snapped > self.start && self.end - snapped <= step * 1e-4)
+            || self.end - value < (value - snapped).abs()
+        {
             self.end
         } else {
             snapped
@@ -773,6 +775,18 @@ mod tests {
         // 内側の範囲の 99%
         cx.simulate_click(at(INSET + 198.0), Modifiers::none());
         assert_eq!(changes(&view, cx), vec![0.7, 0.7]);
+    }
+
+    #[gpui::test]
+    fn 段階が範囲より大きければ始まりと終わりだけを選べる(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, 1.0, 0.0..=1.0, Some(1e5));
+        focus(&view, cx);
+        cx.simulate_keystrokes("home");
+        // 内側の範囲の 60%
+        cx.simulate_click(at(INSET + 120.0), Modifiers::none());
+        assert_eq!(changes(&view, cx), vec![0.0, 1.0]);
     }
 
     #[gpui::test]
