@@ -104,11 +104,12 @@ impl RowLook {
             let layers = layers.clone();
             let theme = theme.clone();
             move |_, _, window: &mut Window, _: &mut App| {
-                // 選ばれた項目の容器と枠線を、重なる隣の項目の枠線より前に描く
-                // (Compose の `interactionZIndex` は選ばれた項目を前面に置く)
-                let (selected, unselected): (Vec<_>, Vec<_>) =
-                    layers.iter().partition(|layer| layer.active);
-                for layer in unselected.into_iter().chain(selected) {
+                // 重なる隣の項目の枠線より、選ばれた項目、フォーカスのある項目の順に前に描く。
+                // Compose の `interactionZIndex` は、選ばれていれば 5、押下とフォーカスごとに 1 を前面への順に足す。
+                // gpui では押した項目にフォーカスが移るため、押下はフォーカスとして数える
+                let mut order: Vec<_> = layers.iter().collect();
+                order.sort_by_key(|layer| (layer.active, layer.focused));
+                for layer in order {
                     let Some(bounds) = layer.bounds.get() else {
                         continue;
                     };
@@ -161,6 +162,7 @@ struct SegmentLayer {
     /// 形の角丸を付ける角
     corners: Corners<bool>,
     active: bool,
+    focused: bool,
     focus_visible: bool,
 }
 
@@ -207,12 +209,13 @@ impl Segment {
 
     /// 並びの `index` 番目の項目の見た目を `item` に付け、並びが描く容器と枠線とリングを返す
     ///
-    /// `active` は選ばれているか、`focus_visible` はフォーカスを示すか
+    /// `active` は選ばれているか、`focused` はフォーカスがあるか、`focus_visible` はフォーカスを示すか
     fn decorate<E: Styled + ParentElement + InteractiveElement>(
         self,
         item: E,
         active: bool,
         index: usize,
+        focused: bool,
         focus_visible: bool,
         row: &RowLook,
     ) -> (E, SegmentLayer) {
@@ -389,6 +392,7 @@ impl Segment {
             outline,
             corners,
             active,
+            focused,
             focus_visible,
         };
         (item, layer)
@@ -498,7 +502,14 @@ impl<T: PartialEq + 'static> RenderOnce for SingleChoiceSegmentedButtonRow<T> {
                     .disabled(segment.disabled)
                     .track_focus(&focus_handle)
                     .aria_label(segment.label.clone());
-                segment.decorate(radio, active, index, focus_visible, &row)
+                segment.decorate(
+                    radio,
+                    active,
+                    index,
+                    focus_handle.is_focused(window),
+                    focus_visible,
+                    &row,
+                )
             })
             .unzip();
 
@@ -660,7 +671,14 @@ impl RenderOnce for MultiChoiceSegmentedButtonRow {
                         .track_focus(&focus_handle)
                         .aria_label(segment.label.clone())
                         .when_some(on_change, |this, on_change| this.on_change(on_change));
-                    segment.decorate(button, checked, index, focus_visible, &row)
+                    segment.decorate(
+                        button,
+                        checked,
+                        index,
+                        focus_handle.is_focused(window),
+                        focus_visible,
+                        &row,
+                    )
                 },
             )
             .unzip();
@@ -880,6 +898,29 @@ mod tests {
                 (2.0 * (width - 1.0), 0.0, width, 40.0),
             ]
         );
+    }
+
+    /// 項目の枠線の描画順 (`Quad::order`)。左から順に並べる
+    fn border_orders(cx: &mut VisualTestContext) -> Vec<gpui::DrawOrder> {
+        let rects: Vec<_> = segments(cx).into_iter().map(|(rect, _, _)| rect).collect();
+        cx.update(|window, _| {
+            let scale = window.scale_factor();
+            let quads = window.painted_quads();
+            rects
+                .iter()
+                .map(|&(x, ..)| {
+                    quads
+                        .iter()
+                        .filter(|quad| {
+                            quad.border_widths.top.0 / scale == 1.0
+                                && quad.bounds.origin.x.0 / scale == x
+                        })
+                        .map(|quad| quad.order)
+                        .max()
+                        .expect("枠線を描くこと")
+                })
+                .collect()
+        })
     }
 
     /// 期待値は Compose の `SegmentedButtonDefaults.itemShape`。CornerFull の 40dp の高さの半分を、
@@ -1111,25 +1152,7 @@ mod tests {
     ) {
         for selected in 0..3 {
             let (_, cx) = add_single(cx, Some(selected), Some(selected));
-            let rects: Vec<_> = segments(cx).into_iter().map(|(rect, _, _)| rect).collect();
-            let orders: Vec<_> = cx.update(|window, _| {
-                let scale = window.scale_factor();
-                let quads = window.painted_quads();
-                rects
-                    .iter()
-                    .map(|&(x, ..)| {
-                        quads
-                            .iter()
-                            .filter(|quad| {
-                                quad.border_widths.top.0 / scale == 1.0
-                                    && quad.bounds.origin.x.0 / scale == x
-                            })
-                            .map(|quad| quad.order)
-                            .max()
-                            .expect("枠線を描くこと")
-                    })
-                    .collect()
-            });
+            let orders = border_orders(cx);
             for (index, order) in orders.iter().enumerate() {
                 if index.abs_diff(selected) == 1 {
                     assert!(
@@ -1139,6 +1162,23 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// 期待値は Compose の `interactionZIndex`。選ばれた項目どうしでは、フォーカスのある項目を前面に置く
+    #[gpui::test]
+    fn 選ばれた項目どうしではフォーカスのある項目を前面に描く(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = add_view(cx, || {
+            MultiChoiceSegmentedButtonRow::new("row")
+                .segment(SegmentedToggleButton::new(0, true, "Day"))
+                .segment(SegmentedToggleButton::new(1, true, "Week").disabled(true))
+                .into_any_element()
+        });
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_keystrokes("tab");
+        let orders = border_orders(cx);
+        assert!(orders[0] > orders[1], "{orders:?}");
     }
 
     /// 期待値は Compose の項目の `defaultMinSize` の幅 (`ButtonDefaults.MinWidth` の 58dp)
