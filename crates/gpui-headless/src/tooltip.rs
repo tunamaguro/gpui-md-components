@@ -24,7 +24,7 @@ const PRIORITY: usize = usize::MAX;
 /// マウスが移動を伝えずにウィンドウから出た場合も、その位置に残っているものとして扱う。
 /// 表示中のツールチップの上では、クリックや hover は背後の要素に届かず、スクロールは届く
 ///
-/// 内容の幅はウィンドウの幅までに制限する。
+/// 内容に与える幅はウィンドウの幅までにする。
 /// 上にウィンドウの端まで収まらなければ下に表示し、ウィンドウの左右と下の端からはみ出さないようずらす。
 /// 表示中に Escape を押すと、フォーカスとマウスを動かさずに閉じる。その Escape はほかの要素やキー割り当てに届かない。
 /// 閉じた後は、トリガーとツールチップからマウスが外れ、トリガーのフォーカスの表示が消えるまで表示しない
@@ -55,7 +55,8 @@ impl Tooltip {
     /// `content` を表示するツールチップを作る
     ///
     /// `focus_handle` は、付けるトリガーが `track_focus` に渡したフォーカスにすること。
-    /// `text` はツールチップが伝える内容を、`content` の文字列と同じ意味の文字列で渡す
+    /// `text` はツールチップが伝える内容を、`content` の文字列と同じ意味の文字列で渡す。
+    /// `content` はウィンドウからはみ出さないよう、固定の幅を持たせず、与えられた幅で折り返すようにすること
     pub fn new(
         focus_handle: &FocusHandle,
         text: impl Into<SharedString>,
@@ -110,6 +111,8 @@ struct State {
     dismissed: bool,
     /// 表示中だけ持つ、Escape を受ける購読
     escape: Option<Subscription>,
+    /// 最後に描いたトリガーの範囲
+    trigger_bounds: Bounds<Pixels>,
 }
 
 /// `content` を包み、role `tooltip` のノードとしてマウスの出入りを `state` に記録する要素
@@ -155,8 +158,8 @@ impl IntoElement for Anchor {
 }
 
 impl Element for Anchor {
-    /// トリガーと同じ範囲でマウスの出入りを受ける要素と、表示中のツールチップ
-    type RequestLayoutState = (AnyElement, Option<AnyElement>);
+    /// 状態と、トリガーと同じ範囲でマウスの出入りを受ける要素と、表示中のツールチップ
+    type RequestLayoutState = (Entity<State>, AnyElement, Option<AnyElement>);
     type PrepaintState = ();
 
     fn id(&self) -> Option<ElementId> {
@@ -178,9 +181,11 @@ impl Element for Anchor {
         let state = window.use_keyed_state("tooltip", cx, |_, _| State::default());
         let focus_visible = is_focus_visible(&self.focus_handle, window, cx);
         let window_id = window.window_handle().window_id();
+        let mouse_position = window.mouse_position();
         let visible = state.update(cx, |state, cx| {
             let requested = state.trigger_hovered || state.popup_hovered || focus_visible;
-            if !requested {
+            // ツールチップがトリガーを覆っていた場合、閉じた直後はトリガーの hover がまだ届いていないため、マウスの位置でも確かめる
+            if !requested && !state.trigger_bounds.contains(&mouse_position) {
                 state.dismissed = false;
             }
             let visible = requested && !state.dismissed;
@@ -220,20 +225,21 @@ impl Element for Anchor {
         });
 
         // gpui の on_hover は、マウスを動かさずに配置が変わった場合も描画のときに決め直して呼ばれる
+        let area_state = state.clone();
         let mut area = div()
             .id("tooltip-trigger")
             .absolute()
             .inset_0()
             .hover_listener_mode(HoverListenerMode::InputModalityIndependent)
             .on_hover(move |hovered, _, cx| {
-                state.update(cx, |state, cx| {
+                area_state.update(cx, |state, cx| {
                     state.trigger_hovered = *hovered;
                     cx.notify();
                 });
             })
             .into_any_element();
         let layout_id = area.request_layout(window, cx);
-        (layout_id, (area, popup))
+        (layout_id, (state, area, popup))
     }
 
     fn prepaint(
@@ -241,10 +247,11 @@ impl Element for Anchor {
         _id: Option<&GlobalElementId>,
         _inspector_id: Option<&InspectorElementId>,
         bounds: Bounds<Pixels>,
-        (area, popup): &mut Self::RequestLayoutState,
+        (state, area, popup): &mut Self::RequestLayoutState,
         window: &mut Window,
         cx: &mut App,
     ) -> Self::PrepaintState {
+        state.update(cx, |state, _| state.trigger_bounds = bounds);
         area.prepaint(window, cx);
         if let Some(mut popup) = popup.take() {
             let spacing = self.spacing;
@@ -276,7 +283,7 @@ impl Element for Anchor {
         _id: Option<&GlobalElementId>,
         _inspector_id: Option<&InspectorElementId>,
         _bounds: Bounds<Pixels>,
-        (area, _): &mut Self::RequestLayoutState,
+        (_, area, _): &mut Self::RequestLayoutState,
         _prepaint: &mut Self::PrepaintState,
         window: &mut Window,
         cx: &mut App,
@@ -543,6 +550,31 @@ mod tests {
         move_mouse(cx, 300., 300.);
         move_mouse(cx, 120., 120.);
         assert_eq!(popup_bounds(cx), ABOVE, "乗り直すと表示すること");
+    }
+
+    /// 高さ 60 のウィンドウで左上が (100, 20) のトリガーには、上にも下にも収まらないため、
+    /// 内容を下端に寄せた y 40 に置き、トリガーの下半分を覆う
+    #[gpui::test]
+    fn トリガーを覆うツールチップを_escape_で閉じてもマウスが離れるまで表示しない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, point(px(100.), px(20.)));
+        cx.simulate_resize(size(px(300.), px(60.)));
+        let other = view.read_with(cx, |view, _| view.other_focus_handle.clone());
+        cx.update(|window, cx| other.focus(window, cx));
+        move_mouse(cx, 120., 50.);
+        assert_eq!(popup_bounds(cx), Some((80.0, 40.0, 80.0, 20.0)));
+        cx.simulate_keystrokes("escape");
+        assert_eq!(popup_bounds(cx), None);
+        move_mouse(cx, 120., 30.);
+        assert_eq!(
+            popup_bounds(cx),
+            None,
+            "トリガーの上で動かしても表示しないこと"
+        );
+        move_mouse(cx, 250., 10.);
+        move_mouse(cx, 120., 30.);
+        assert_eq!(popup_bounds(cx), Some((80.0, 40.0, 80.0, 20.0)));
     }
 
     #[gpui::test]
