@@ -34,6 +34,7 @@ mod segmented_button;
     feature = "card",
     feature = "chip",
     feature = "fab",
+    feature = "icon-button",
     feature = "segmented-button",
     feature = "slider"
 ))]
@@ -44,6 +45,9 @@ mod slider;
 mod switch;
 #[cfg(feature = "tabs")]
 mod tabs;
+// ツールチップを付けられる部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
+#[cfg(feature = "icon-button")]
+mod tooltip;
 // 使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(any(
     feature = "button",
@@ -98,6 +102,8 @@ pub use slider::Slider;
 pub use switch::Switch;
 #[cfg(feature = "tabs")]
 pub use tabs::{Tab, TabPanel, TabRow, TabRowVariant};
+#[cfg(feature = "icon-button")]
+pub use tooltip::{Tooltip, TooltipVariant};
 
 /// この crate の部品が使うキー割り当てと操作を登録する。アプリの起動時に、ウィンドウを開く前に 1 回呼ぶ
 pub fn init(cx: &mut gpui::App) {

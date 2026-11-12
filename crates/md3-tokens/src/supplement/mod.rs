@@ -15,3 +15,4 @@ pub mod segmented_button;
 pub mod slider;
 pub mod switch;
 pub mod tabs;
+pub mod tooltip;

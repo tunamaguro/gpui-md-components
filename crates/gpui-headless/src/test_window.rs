@@ -28,5 +28,8 @@ pub(crate) fn add_test_window<V: Render>(
     });
     let view = root.read_with(cx, |root, _| root.view.clone());
     cx.update(|window, _| window.activate_window());
+    // アクティブになるときにマウスの位置がテスト用の platform の (0, 0) に戻るため、
+    // 最初のイベントより前にアクティブにし終える
+    cx.run_until_parked();
     (view, cx)
 }

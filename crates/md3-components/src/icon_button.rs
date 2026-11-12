@@ -21,7 +21,7 @@ use gpui_headless::toggle::ToggleButton as HeadlessToggleButton;
 
 use crate::shape::Shaped;
 use crate::util;
-use crate::{ButtonColors, ButtonShape, ButtonSize};
+use crate::{ButtonColors, ButtonShape, ButtonSize, Tooltip};
 use md3_icons::StyledIcon;
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::{
@@ -433,6 +433,7 @@ pub struct IconButton {
     on_click: Option<ClickHandler>,
     disabled: bool,
     focus_handle: Option<FocusHandle>,
+    tooltip: Option<Tooltip>,
     theme: Option<SharedTheme>,
 }
 
@@ -463,6 +464,7 @@ impl IconButton {
             on_click: None,
             disabled: false,
             focus_handle: None,
+            tooltip: None,
             theme: None,
         }
     }
@@ -523,6 +525,14 @@ impl IconButton {
         self
     }
 
+    /// マウスが乗っている間と、キーボードでフォーカスを移した間に `tooltip` を表示する
+    ///
+    /// 無効なアイコンボタンでも、マウスが乗ると表示する
+    pub fn tooltip(mut self, tooltip: Tooltip) -> Self {
+        self.tooltip = Some(tooltip);
+        self
+    }
+
     /// アプリ全体のテーマ ([`ThemeExt::md3_theme`]) の代わりに `theme` で描く
     pub fn theme(mut self, theme: SharedTheme) -> Self {
         self.theme = Some(theme);
@@ -572,6 +582,14 @@ impl RenderOnce for IconButton {
                 color
             }
         });
+        let button = HeadlessButton::new(self.id)
+            .track_focus(&focus_handle)
+            .disabled(disabled)
+            .aria_label(self.label.clone())
+            .when_some(self.on_click, |this, on_click| this.on_click(on_click))
+            .when_some(self.tooltip, |this, tooltip| {
+                tooltip.attach(this, &focus_handle, &self.label, &theme, window)
+            });
         let look = Look {
             theme,
             icon: self.icon,
@@ -584,12 +602,6 @@ impl RenderOnce for IconButton {
             disabled,
             focus_visible,
         };
-
-        let button = HeadlessButton::new(self.id)
-            .track_focus(&focus_handle)
-            .disabled(disabled)
-            .aria_label(self.label)
-            .when_some(self.on_click, |this, on_click| this.on_click(on_click));
 
         self.outer.child(look.apply(button, None))
     }
@@ -654,6 +666,7 @@ pub struct IconToggleButton {
     on_change: Option<ChangeHandler>,
     disabled: bool,
     focus_handle: Option<FocusHandle>,
+    tooltip: Option<Tooltip>,
     theme: Option<SharedTheme>,
 }
 
@@ -685,6 +698,7 @@ impl IconToggleButton {
             on_change: None,
             disabled: false,
             focus_handle: None,
+            tooltip: None,
             theme: None,
         }
     }
@@ -742,6 +756,14 @@ impl IconToggleButton {
     /// 指定しない場合はアイコンボタンが内部でフォーカスを持つ
     pub fn track_focus(mut self, focus_handle: &FocusHandle) -> Self {
         self.focus_handle = Some(focus_handle.clone());
+        self
+    }
+
+    /// マウスが乗っている間と、キーボードでフォーカスを移した間に `tooltip` を表示する
+    ///
+    /// 無効なアイコンボタンでも、マウスが乗ると表示する。状態によって伝える内容が変わる場合は、`selected` に合わせて選ぶ
+    pub fn tooltip(mut self, tooltip: Tooltip) -> Self {
+        self.tooltip = Some(tooltip);
         self
     }
 
@@ -811,6 +833,14 @@ impl RenderOnce for IconToggleButton {
                 });
         // Compose は形を DefaultEffects のバネで変える。跳ねずに収まる
         let spring = theme.spring(MotionSchemeKey::DefaultEffects);
+        let button = HeadlessToggleButton::new(self.id.clone(), selected)
+            .track_focus(&focus_handle)
+            .disabled(disabled)
+            .aria_label(self.label.clone())
+            .when_some(self.on_change, |this, on_change| this.on_change(on_change))
+            .when_some(self.tooltip, |this, tooltip| {
+                tooltip.attach(this, &focus_handle, &self.label, &theme, window)
+            });
         let look = Look {
             theme,
             icon: self.icon,
@@ -823,12 +853,6 @@ impl RenderOnce for IconToggleButton {
             disabled,
             focus_visible,
         };
-
-        let button = HeadlessToggleButton::new(self.id.clone(), selected)
-            .track_focus(&focus_handle)
-            .disabled(disabled)
-            .aria_label(self.label)
-            .when_some(self.on_change, |this, on_change| this.on_change(on_change));
 
         self.outer.child(button.with_spring(
             self.id,

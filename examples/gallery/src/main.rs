@@ -17,6 +17,7 @@ mod slider_page;
 mod switch_page;
 mod tabs_page;
 mod theme_page;
+mod tooltip_page;
 
 use gpui::{
     AnyView, App, AppContext as _, Context, Entity, IntoElement, ParentElement as _, Render,
@@ -41,6 +42,7 @@ use crate::slider_page::SliderPage;
 use crate::switch_page::SwitchPage;
 use crate::tabs_page::TabsPage;
 use crate::theme_page::ThemePage;
+use crate::tooltip_page::TooltipPage;
 
 /// 表示するページ
 #[derive(Clone, Copy, PartialEq)]
@@ -60,6 +62,7 @@ enum Page {
     Slider,
     Tabs,
     Chip,
+    Tooltip,
 }
 
 /// ギャラリーのルート。各ページの状態は持たず、ページのエンティティと表示中のページだけを持つ
@@ -80,6 +83,7 @@ struct Gallery {
     slider_page: Entity<SliderPage>,
     tabs_page: Entity<TabsPage>,
     chip_page: Entity<ChipPage>,
+    tooltip_page: Entity<TooltipPage>,
 }
 
 impl Gallery {
@@ -101,6 +105,7 @@ impl Gallery {
             slider_page: cx.new(|_| SliderPage::default()),
             tabs_page: cx.new(TabsPage::new),
             chip_page: cx.new(ChipPage::new),
+            tooltip_page: cx.new(|_| TooltipPage::default()),
         }
     }
 }
@@ -136,6 +141,7 @@ impl Render for Gallery {
             Page::Slider => self.slider_page.clone().into(),
             Page::Tabs => self.tabs_page.clone().into(),
             Page::Chip => self.chip_page.clone().into(),
+            Page::Tooltip => self.tooltip_page.clone().into(),
         };
         md3_components::root(
             div()
@@ -163,7 +169,8 @@ impl Render for Gallery {
                         .child(tab(Page::SegmentedButton, "Segmented button", cx))
                         .child(tab(Page::Slider, "Slider", cx))
                         .child(tab(Page::Tabs, "Tabs", cx))
-                        .child(tab(Page::Chip, "Chips", cx)),
+                        .child(tab(Page::Chip, "Chips", cx))
+                        .child(tab(Page::Tooltip, "Tooltips", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )
