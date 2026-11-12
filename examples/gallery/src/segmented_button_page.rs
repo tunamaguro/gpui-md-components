@@ -5,8 +5,8 @@ use gpui::{
     SharedString, StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
 use md3_components::{
-    MultiChoiceSegmentedButtonRow, SegmentedButton, SingleChoiceSegmentedButtonRow,
-    ToggleSegmentedButton,
+    MultiChoiceSegmentedButtonRow, SegmentedButton, SegmentedToggleButton,
+    SingleChoiceSegmentedButtonRow,
 };
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::typography::TypeScale;
@@ -98,14 +98,14 @@ impl Render for SegmentedButtonPage {
                 MultiChoiceSegmentedButtonRow::new("sizes")
                     .aria_label("Sizes")
                     .segments(SIZES.iter().enumerate().map(|(index, name)| {
-                        ToggleSegmentedButton::new(*name, self.sizes[index], *name).on_change(
+                        SegmentedToggleButton::new(*name, self.sizes[index], *name).on_change(
                             cx.listener(move |this, checked: &bool, _, cx| {
                                 this.sizes[index] = *checked;
                                 cx.notify();
                             }),
                         )
                     }))
-                    .segment(ToggleSegmentedButton::new("XL", true, "XL").disabled(true)),
+                    .segment(SegmentedToggleButton::new("XL", true, "XL").disabled(true)),
             )
             .child(label(&theme, "wide", "Stretched to 480px"))
             .child(period_row("period-wide").w(px(480.)))

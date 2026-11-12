@@ -76,8 +76,8 @@ pub use progress_indicator::{
 pub use radio_button::{RadioButton, RadioButtonIndicator, RadioGroup};
 #[cfg(feature = "segmented-button")]
 pub use segmented_button::{
-    MultiChoiceSegmentedButtonRow, SegmentedButton, SingleChoiceSegmentedButtonRow,
-    ToggleSegmentedButton,
+    MultiChoiceSegmentedButtonRow, SegmentedButton, SegmentedToggleButton,
+    SingleChoiceSegmentedButtonRow,
 };
 #[cfg(feature = "switch")]
 pub use switch::Switch;

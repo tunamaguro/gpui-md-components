@@ -2,7 +2,8 @@
 // Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/SegmentedButton.kt
 //         (`SegmentedButtonDefaults` とファイル末尾の private な定数)、Button.kt (`ButtonDefaults`)
 //         @ 2a941dd11aabd9bb7d2016ed159764b220117c20
-// Copyright 2023 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
+// Copyright 2023 The Android Open Source Project. Licensed under the Apache License, Version 2.0. (SegmentedButton.kt)
+// Copyright 2021 The Android Open Source Project. Licensed under the Apache License, Version 2.0. (Button.kt)
 
 //! Segmented button の値のうち、Compose の実装が固定値として持つもの
 

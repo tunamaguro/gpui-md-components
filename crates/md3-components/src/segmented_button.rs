@@ -5,15 +5,18 @@
 //         `SegmentedButtonContentMeasurePolicy`、`SegmentedButtonDefaults`、`SegmentedButtonColors`)
 //         @ 2a941dd11aabd9bb7d2016ed159764b220117c20
 // Copyright 2023 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
+// フォーカスのある項目のリングを隣の項目より前に描くことは Material Web に合わせている
+// (https://github.com/material-components/material-web)
+// Source: labs/segmentedbutton/internal/_shared.scss (`.md3-segmented-button__focus-ring` の z-index) @ de5470f
 // トークンの値と版は md3-tokens の各ファイルにある
 
 //! MD3 の Segmented button
 
 use gpui::{
-    AnimationExt, App, Corners, ElementId, FocusHandle, InteractiveElement, IntoElement,
-    ParentElement, Pixels, Refineable, RenderOnce, SharedString, SpringAnimation,
-    StatefulInteractiveElement, StyleRefinement, Styled, Transformation, Window, deferred, div,
-    point, prelude::FluentBuilder, size, svg,
+    AnimationExt, AnyElement, App, Bounds, Corners, Element, ElementId, FocusHandle,
+    GlobalElementId, InspectorElementId, InteractiveElement, IntoElement, LayoutId, ParentElement,
+    Pixels, Refineable, RenderOnce, SharedString, SpringAnimation, StatefulInteractiveElement,
+    StyleRefinement, Styled, Transformation, Window, div, point, prelude::FluentBuilder, size, svg,
 };
 use gpui_headless::radio::{Radio as HeadlessRadio, RadioGroup as HeadlessRadioGroup};
 use gpui_headless::toggle::{ToggleButton as HeadlessToggleButton, ToggleGroup};
@@ -136,8 +139,10 @@ impl Segment {
         };
         let container = active.then(|| theme.color(tokens::SELECTED_CONTAINER_COLOR));
         let outline = if disabled {
+            // Compose の `defaultSegmentedButtonColors` は、OnSurface のトークン (DisabledOutlineColor) ではなく
+            // Outline に無効の不透明度を付ける
             theme
-                .color(tokens::DISABLED_OUTLINE_COLOR)
+                .color(tokens::OUTLINE_COLOR)
                 .opacity(tokens::DISABLED_OUTLINE_OPACITY)
         } else {
             theme.color(tokens::OUTLINE_COLOR)
@@ -262,6 +267,7 @@ impl Segment {
             .flex_basis(Pixels::ZERO)
             .flex_grow(1.0)
             .min_w(row.width)
+            // `ButtonDefaults.MinHeight`
             .min_h(dp(button_small::CONTAINER_HEIGHT))
             .px(dp(supplement::segmented_button::HORIZONTAL_PADDING))
             .py(dp(supplement::segmented_button::VERTICAL_PADDING))
@@ -297,11 +303,81 @@ impl Segment {
             .border_color(theme.color(focus_ring::COLOR));
         // 後ろに並ぶ項目に隠れないよう、ほかの要素を描いた後に描く
         // (Compose はフォーカスのある項目を前面に置く。`interactionZIndex`)
-        item.child(deferred(
+        item.child(DeferredInMask(Some(
             Shaped::new(ring, theme.clone(), tokens::SHAPE)
                 .only_corners(corners)
-                .outset(outset),
-        ))
+                .outset(outset)
+                .into_any_element(),
+        )))
+    }
+}
+
+/// 子を、ウィンドウのほかの要素を描いた後に、祖先の切り取りの範囲の中で描く要素
+///
+/// レイアウトは置いた場所で決まる
+struct DeferredInMask(Option<AnyElement>);
+
+impl IntoElement for DeferredInMask {
+    type Element = Self;
+
+    fn into_element(self) -> Self::Element {
+        self
+    }
+}
+
+impl Element for DeferredInMask {
+    type RequestLayoutState = ();
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, ()) {
+        let child = self
+            .0
+            .as_mut()
+            .expect("request_layout is called once per frame");
+        (child.request_layout(window, cx), ())
+    }
+
+    fn prepaint(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        _bounds: Bounds<Pixels>,
+        _request_layout: &mut (),
+        window: &mut Window,
+        _cx: &mut App,
+    ) {
+        let child = self.0.take().expect("prepaint is called once per frame");
+        // gpui の `deferred` は切り取りの範囲を渡さず、スクロールする祖先の外にもはみ出して描くため、
+        // 今の切り取りの範囲を渡す
+        let offset = window.element_offset();
+        let mask = window.content_mask();
+        window.defer_draw(child, offset, 0, Some(mask));
+    }
+
+    fn paint(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        _bounds: Bounds<Pixels>,
+        _request_layout: &mut (),
+        _prepaint: &mut (),
+        _window: &mut Window,
+        _cx: &mut App,
+    ) {
     }
 }
 
@@ -309,7 +385,7 @@ impl Segment {
 ///
 /// 選択肢のラベルを、同じ幅の項目として横に並べ、選ばれている項目を容器の色と印で示す。
 /// 状態 (選ばれている値) は呼び出し側が持ち、[`SingleChoiceSegmentedButtonRow::new`] に毎回渡す。並び自身は状態を変えない。
-/// 項目は [`SingleChoiceSegmentedButtonRow::segment`] で加え、加えた順に左から並ぶ。
+/// 項目は [`SingleChoiceSegmentedButtonRow::segment`] で加え、加えた順に左から並ぶ
 ///
 /// - Tab で到達できる項目は 1 つだけで、選ばれている項目、最初の有効な項目の順に選ぶ。
 ///   項目にフォーカスがある間は、その項目だけが Tab で到達できる。有効な項目が無ければ Tab で入らない
@@ -322,7 +398,7 @@ impl Segment {
 /// 項目は role `radio` と選ばれているかどうかの状態として公開され、ラベルが名前になる
 ///
 /// [`Styled`] で指定したスタイルは項目を並べる箱に付く。幅を広げると、項目は同じ幅のまま広がる。
-/// ラベルは 1 行で描く
+/// 狭めても、項目は最も広いラベルに合わせた幅より縮まず、箱からはみ出す。ラベルは 1 行で描く
 #[derive(IntoElement)]
 pub struct SingleChoiceSegmentedButtonRow<T: PartialEq + 'static> {
     id: ElementId,
@@ -479,8 +555,8 @@ impl<T> SegmentedButton<T> {
 /// 複数を選べる、MD3 の Segmented button
 ///
 /// 選択肢のラベルを、同じ幅の項目として横に並べ、選ばれている項目を容器の色と印で示す。
-/// 項目ごとの状態 (選ばれているか) は呼び出し側が持ち、[`ToggleSegmentedButton::new`] に毎回渡す。
-/// 項目は [`MultiChoiceSegmentedButtonRow::segment`] で加え、加えた順に左から並ぶ。
+/// 項目ごとの状態 (選ばれているか) は呼び出し側が持ち、[`SegmentedToggleButton::new`] に毎回渡す。
+/// 項目は [`MultiChoiceSegmentedButtonRow::segment`] で加え、加えた順に左から並ぶ
 ///
 /// - Tab で到達できる項目は 1 つだけで、最初の有効な項目にする。
 ///   項目にフォーカスがある間は、その項目だけが Tab で到達できる。有効な項目が無ければ Tab で入らない
@@ -491,12 +567,12 @@ impl<T> SegmentedButton<T> {
 /// 項目は role `button` と押されているかどうかの状態として公開され、ラベルが名前になる
 ///
 /// [`Styled`] で指定したスタイルは項目を並べる箱に付く。幅を広げると、項目は同じ幅のまま広がる。
-/// ラベルは 1 行で描く
+/// 狭めても、項目は最も広いラベルに合わせた幅より縮まず、箱からはみ出す。ラベルは 1 行で描く
 #[derive(IntoElement)]
 pub struct MultiChoiceSegmentedButtonRow {
     id: ElementId,
     aria_label: Option<SharedString>,
-    segments: Vec<ToggleSegmentedButton>,
+    segments: Vec<SegmentedToggleButton>,
     style: StyleRefinement,
     theme: Option<SharedTheme>,
 }
@@ -522,13 +598,13 @@ impl MultiChoiceSegmentedButtonRow {
     }
 
     /// 末尾に項目を加える
-    pub fn segment(mut self, segment: ToggleSegmentedButton) -> Self {
+    pub fn segment(mut self, segment: SegmentedToggleButton) -> Self {
         self.segments.push(segment);
         self
     }
 
     /// 末尾に `segments` の項目を順に加える
-    pub fn segments(mut self, segments: impl IntoIterator<Item = ToggleSegmentedButton>) -> Self {
+    pub fn segments(mut self, segments: impl IntoIterator<Item = SegmentedToggleButton>) -> Self {
         self.segments.extend(segments);
         self
     }
@@ -555,7 +631,7 @@ impl RenderOnce for MultiChoiceSegmentedButtonRow {
             .map(
                 |(
                     index,
-                    ToggleSegmentedButton {
+                    SegmentedToggleButton {
                         segment,
                         checked,
                         on_change,
@@ -591,17 +667,17 @@ impl Styled for MultiChoiceSegmentedButtonRow {
 }
 
 /// [`MultiChoiceSegmentedButtonRow`] の項目
-pub struct ToggleSegmentedButton {
+pub struct SegmentedToggleButton {
     segment: Segment,
     checked: bool,
     on_change: Option<ChangeHandler<bool>>,
 }
 
-impl ToggleSegmentedButton {
+impl SegmentedToggleButton {
     /// `label` を描き、`checked` の状態を表示する項目を作る
     ///
     /// `label` はアクセシブルな名前にもなる。`id` は並びの中で一意にし、描画のたびに同じ値を渡すこと。
-    /// [`ToggleSegmentedButton::track_focus`] を指定しない場合、`id` が変わるか 1 フレームでも描画されないとフォーカスが外れる
+    /// [`SegmentedToggleButton::track_focus`] を指定しない場合、`id` が変わるか 1 フレームでも描画されないとフォーカスが外れる
     pub fn new(id: impl Into<ElementId>, checked: bool, label: impl Into<SharedString>) -> Self {
         Self {
             segment: Segment::new(id.into(), label.into()),
@@ -613,7 +689,8 @@ impl ToggleSegmentedButton {
     /// 操作されたときに `handler` を呼ぶ。複数回呼んだ場合は最後に渡した `handler` だけを呼ぶ
     ///
     /// `handler` には操作後に求められる状態として、現在の状態を反転した値を渡す。無効な項目では呼ばない。
-    /// 表示を変えるには、`handler` で呼び出し側の状態を更新し、次の描画で [`ToggleSegmentedButton::new`] に渡すこと
+    /// 表示を変えるには、`handler` で呼び出し側の状態を更新し、次の描画で [`SegmentedToggleButton::new`] に渡すこと。
+    /// 設定しない場合、項目は操作されても何も呼ばず、支援技術にクリック操作を公開しない
     pub fn on_change(mut self, handler: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(Box::new(handler));
         self
@@ -725,9 +802,12 @@ mod tests {
                 )
             };
             // gpui は塗りの無い枠線を辺ごとに分けて描くため、同じ矩形の枠線は 1 つにまとめる。
-            // 塗りは枠線と別の矩形として描く
+            // 塗りは枠線と別の矩形として描く。太さ 1dp の枠線だけを項目の枠線とし、フォーカスリングと分ける
             let mut segments: Vec<Segment> = Vec::new();
-            for quad in quads.iter().filter(|quad| quad.border_widths.top.0 > 0.0) {
+            for quad in quads
+                .iter()
+                .filter(|quad| quad.border_widths.top.0 / scale == 1.0)
+            {
                 if segments.iter().any(|(r, _, _)| *r == rect(quad)) {
                     continue;
                 }
@@ -766,8 +846,9 @@ mod tests {
         cx.update(|_, cx| cx.md3_theme().color(role).into())
     }
 
-    /// 期待値は Compose の `SegmentedButtonContentMeasurePolicy` の幅 (左右の余白 12dp、アイコン 18dp、間隔 8dp と
-    /// ラベルの幅の和) と、高さ (OutlinedSegmentedButtonTokens.ContainerHeight の 40dp)、`spacedBy(-1dp)` の重なり
+    /// 期待値は Compose の項目の幅 (`SegmentedButtonDefaults.ContentPadding` の左右の余白 12dp と、
+    /// `SegmentedButtonContentMeasurePolicy` が確保するアイコン 18dp・間隔 8dp・ラベルの幅の和) と、
+    /// 高さ (OutlinedSegmentedButtonTokens.ContainerHeight の 40dp)、`spacedBy(-1dp)` の重なり
     #[gpui::test]
     fn 項目は最も広いラベルに合わせた同じ幅で枠線を重ねて並ぶ(
         cx: &mut TestAppContext,
@@ -835,7 +916,7 @@ mod tests {
         cx.update(|window, _| window.activate_window());
         cx.simulate_keystrokes("tab");
         let scale = cx.update(|window, _| window.scale_factor());
-        // リングは選ばれている項目の外側 5px に、角を直角にして描く
+        // リングは選ばれている項目の外側 5px に描く。中の項目の直角の角を外側へ 5px 広げるため、角の半径は 5px になる
         let ring = cx.update(|window, _| {
             window.painted_quads().into_iter().any(|quad| {
                 let b = quad.bounds;
@@ -862,7 +943,7 @@ mod tests {
                 MultiChoiceSegmentedButtonRow::new("row")
                     .aria_label("Days")
                     .segments(LABELS.iter().enumerate().map(|(index, label)| {
-                        ToggleSegmentedButton::new(index, self.checked[index], *label).on_change(
+                        SegmentedToggleButton::new(index, self.checked[index], *label).on_change(
                             cx.listener(move |this, checked: &bool, _, cx| {
                                 this.checked[index] = *checked;
                                 cx.notify();
@@ -897,5 +978,192 @@ mod tests {
         let selected = color(cx, ColorRole::SecondaryContainer);
         let backgrounds: Vec<_> = segments(cx).into_iter().map(|(_, _, bg)| bg).collect();
         assert_eq!(backgrounds, vec![None, None, Some(selected)]);
+    }
+
+    fn hsla(cx: &mut VisualTestContext, role: ColorRole) -> gpui::Hsla {
+        cx.update(|_, cx| cx.md3_theme().color(role))
+    }
+
+    /// 項目の中心の位置。左から順に並べる
+    fn centers(cx: &mut VisualTestContext) -> Vec<gpui::Point<gpui::Pixels>> {
+        segments(cx)
+            .into_iter()
+            .map(|((x, y, w, h), _, _)| point(px(x + w / 2.0), px(y + h / 2.0)))
+            .collect()
+    }
+
+    /// `build` で作った要素を、伸ばさない箱に入れて描くビュー
+    struct ElementView(Box<dyn Fn() -> AnyElement>);
+
+    impl Render for ElementView {
+        fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+            div().flex().flex_col().items_start().child((self.0)())
+        }
+    }
+
+    fn add_view(
+        cx: &mut TestAppContext,
+        build: impl Fn() -> AnyElement + 'static,
+    ) -> &mut VisualTestContext {
+        cx.update(crate::init);
+        let (_, cx) = cx.add_window_view(|window, cx| {
+            cx.init_md3_theme(window);
+            ElementView(Box::new(build))
+        });
+        cx.simulate_mouse_move(point(px(900.), px(900.)), None, Modifiers::none());
+        cx
+    }
+
+    /// 期待値は Compose の `defaultSegmentedButtonColors` の枠線の色。有効なら Outline、
+    /// 無効なら Outline に OutlinedSegmentedButtonTokens.DisabledOutlineOpacity (0.12) を付ける
+    #[gpui::test]
+    fn 枠線は_outline_で無効な項目では不透明度を下げる(cx: &mut TestAppContext) {
+        let (_, cx) = add_single(cx, Some(1), Some(2));
+        let outline = hsla(cx, ColorRole::Outline);
+        let rects: Vec<_> = segments(cx).into_iter().map(|(rect, _, _)| rect).collect();
+        let scale = cx.update(|window, _| window.scale_factor());
+        let borders: Vec<_> = cx.update(|window, _| {
+            rects
+                .iter()
+                .map(|&(x, ..)| {
+                    window
+                        .painted_quads()
+                        .into_iter()
+                        .find(|quad| {
+                            quad.border_widths.top.0 > 0.0 && quad.bounds.origin.x.0 / scale == x
+                        })
+                        .map(|quad| quad.border_color)
+                        .expect("枠線を描くこと")
+                })
+                .collect()
+        });
+        assert_eq!(borders, vec![outline, outline, outline.opacity(0.12)]);
+    }
+
+    /// 状態レイヤーは内容の色を重ねる。選ばれていない項目は OnSurface、選ばれた項目は SecondaryContainer に
+    /// OnSecondaryContainer を、hover では 8%、フォーカスでは 10% 重ねる。無効な項目には重ねない
+    #[gpui::test]
+    fn hover_とフォーカスで状態レイヤーを重ね無効な項目には重ねない(
+        cx: &mut TestAppContext,
+    ) {
+        let (_, cx) = add_single(cx, Some(1), Some(2));
+        let on_surface = hsla(cx, ColorRole::OnSurface);
+        let container = hsla(cx, ColorRole::SecondaryContainer);
+        let on_container = hsla(cx, ColorRole::OnSecondaryContainer);
+        let centers = centers(cx);
+        let expected = [
+            Some(on_surface.opacity(0.08).into()),
+            Some(container.blend(on_container.opacity(0.08)).into()),
+            None,
+        ];
+        for (index, expected) in expected.into_iter().enumerate() {
+            cx.simulate_mouse_move(centers[index], None, Modifiers::none());
+            assert_eq!(segments(cx)[index].2, expected, "hover: {index}");
+        }
+
+        cx.simulate_mouse_move(point(px(900.), px(900.)), None, Modifiers::none());
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_keystrokes("tab");
+        assert_eq!(
+            segments(cx)[1].2,
+            Some(container.blend(on_container.opacity(0.1)).into())
+        );
+    }
+
+    /// 期待値は Compose の項目の `defaultMinSize` の幅 (`ButtonDefaults.MinWidth` の 58dp)
+    #[gpui::test]
+    fn ラベルが短くても項目は_58dp_より狭くしない(cx: &mut TestAppContext) {
+        let cx = add_view(cx, || {
+            SingleChoiceSegmentedButtonRow::new("row", None)
+                .segments((0..2).map(|index| SegmentedButton::new(index, index, "")))
+                .into_any_element()
+        });
+        let widths: Vec<_> = segments(cx)
+            .into_iter()
+            .map(|((_, _, width, _), _, _)| width)
+            .collect();
+        assert_eq!(widths, vec![58.0, 58.0]);
+    }
+
+    // gpui の描画順 (`Quad::order`) は、先に描いた重なる矩形より大きくなる
+    #[gpui::test]
+    fn フォーカスリングは重なる項目より前面に描く(cx: &mut TestAppContext) {
+        let (_, cx) = add_single(cx, Some(1), None);
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_keystrokes("tab");
+        let ring = hsla(cx, ColorRole::Secondary);
+        let quads = cx.update(|window, _| window.painted_quads());
+        let (rings, others): (Vec<_>, Vec<_>) = quads
+            .iter()
+            .partition(|quad| quad.border_widths.top.0 > 0.0 && quad.border_color == ring);
+        assert!(!rings.is_empty(), "リングを描くこと");
+        // gpui はリングを辺ごとに、同じ矩形を切り取りの範囲を変えて描くため、切り取った範囲で重なりを見る
+        let overlaps = |a: &gpui::Quad, b: &gpui::Quad| {
+            let a = a.bounds.intersect(&a.content_mask.bounds);
+            let b = b.bounds.intersect(&b.content_mask.bounds);
+            !a.intersect(&b).is_empty()
+        };
+        // 両隣の項目の枠線もリングと重なる
+        let mut overlapping = 0;
+        for ring in &rings {
+            for other in others.iter().filter(|other| overlaps(ring, other)) {
+                overlapping += 1;
+                assert!(
+                    ring.order > other.order,
+                    "リングを重なる矩形より前面に描くこと: {:?}",
+                    other.bounds
+                );
+            }
+        }
+        assert!(overlapping > 0);
+    }
+
+    #[gpui::test]
+    fn フォーカスリングは祖先の切り取りの範囲の中に描く(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = add_view(cx, || {
+            div()
+                .overflow_hidden()
+                .child(
+                    SingleChoiceSegmentedButtonRow::new("row", Some(0)).segments(
+                        LABELS
+                            .iter()
+                            .enumerate()
+                            .map(|(index, label)| SegmentedButton::new(index, index, *label)),
+                    ),
+                )
+                .into_any_element()
+        });
+        let (x, _, w, h) = *segments(cx).last().map(|(rect, _, _)| rect).unwrap();
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_keystrokes("tab");
+        let ring = hsla(cx, ColorRole::Secondary);
+        let scale = cx.update(|window, _| window.scale_factor());
+        let masks: Vec<_> = cx.update(|window, _| {
+            window
+                .painted_quads()
+                .into_iter()
+                .filter(|quad| quad.border_widths.top.0 > 0.0 && quad.border_color == ring)
+                .map(|quad| {
+                    let b = quad.content_mask.bounds;
+                    (
+                        b.origin.x.0 / scale,
+                        b.origin.y.0 / scale,
+                        (b.origin.x.0 + b.size.width.0) / scale,
+                        (b.origin.y.0 + b.size.height.0) / scale,
+                    )
+                })
+                .collect()
+        });
+        assert!(!masks.is_empty(), "リングを描くこと");
+        // 切り取る箱は並びと同じ大きさ (0, 0) - (x + w, h)
+        for (left, top, right, bottom) in masks {
+            assert!(
+                left >= 0.0 && top >= 0.0 && right <= x + w && bottom <= h,
+                "リングを並びの外に描かないこと: {:?}",
+                (left, top, right, bottom)
+            );
+        }
     }
 }
