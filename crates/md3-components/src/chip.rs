@@ -19,9 +19,9 @@
 
 use gpui::{
     AnimationExt, AnyElement, App, ClickEvent, Div, ElementId, FocusHandle, Hsla, ImageSource,
-    InteractiveElement, IntoElement, ParentElement, Refineable, RenderOnce, SharedString,
-    SpringAnimation, StatefulInteractiveElement, StyleRefinement, Styled, Window, div, img,
-    prelude::FluentBuilder, size, svg,
+    InteractiveElement, IntoElement, ObjectFit, ParentElement, Refineable, RenderOnce,
+    SharedString, SpringAnimation, StatefulInteractiveElement, StyleRefinement, Styled,
+    StyledImage, Window, div, img, prelude::FluentBuilder, size, svg,
 };
 use gpui_headless::button::Button as HeadlessButton;
 use gpui_headless::toggle::ToggleButton as HeadlessToggleButton;
@@ -822,7 +822,9 @@ impl RenderOnce for InputChip {
                 let radii =
                     theme.corner_radii(input_chip::AVATAR_SHAPE, size(avatar_size, avatar_size));
                 Some(
+                    // 正方形でない画像も縦横比を保ったまま円を埋めるよう、はみ出す部分を切り取る
                     img(avatar)
+                        .object_fit(ObjectFit::Cover)
                         .flex_none()
                         .size(avatar_size)
                         .rounded_tl(radii.top_left)
@@ -871,7 +873,8 @@ impl RenderOnce for InputChip {
             let remove_focus_visible = gpui_headless::is_focus_visible(&remove_focus, window, cx);
             let layer_size = dp(supplement::chip::REMOVE_STATE_LAYER_SIZE);
             let layer_inset = (layer_size - trailing_size) / 2.0;
-            let ring_inset = layer_inset + dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
+            // Material Web の削除ボタンのリングは inset を外すため、外へ離さず状態レイヤーの円に接する
+            let ring_inset = layer_inset + dp(focus_ring::WIDTH);
             let icon = div()
                 .relative()
                 .flex_none()
@@ -884,10 +887,7 @@ impl RenderOnce for InputChip {
                         .size(layer_size)
                         .rounded_full()
                         .when(!disabled, |this| {
-                            this.when(remove_focus_visible, |this| {
-                                this.bg(state_layer_color.opacity(state::FOCUS_STATE_LAYER_OPACITY))
-                            })
-                            .group_hover(REMOVE_GROUP, |style| {
+                            this.group_hover(REMOVE_GROUP, |style| {
                                 style
                                     .bg(state_layer_color.opacity(state::HOVER_STATE_LAYER_OPACITY))
                             })
@@ -907,24 +907,25 @@ impl RenderOnce for InputChip {
                     )
                 });
             // Material Web と同じく、ラベルとの間隔と末尾の余白までを押せる範囲にする。
-            // 下にあるチップに hover とクリックが届かないよう、マウスを遮る
+            // 下にあるチップに hover とクリックが届かないよう、スクロール以外のマウス操作を遮る
             HeadlessButton::new(remove_id)
                 .track_focus(&remove_focus)
                 .disabled(disabled)
                 .aria_label(aria_label)
                 .on_click(handler)
                 .group(REMOVE_GROUP)
-                .occlude()
+                .block_mouse_except_scroll()
                 .absolute()
                 .top_0()
                 .bottom_0()
                 .right_0()
                 .flex()
                 .items_center()
-                .px(dp(supplement::chip::HORIZONTAL_SPACING))
+                .pl(dp(supplement::chip::HORIZONTAL_SPACING))
+                .pr(padding)
                 .child(icon)
         });
-        self.outer.relative().child(chip).children(remove)
+        self.outer.child(chip).children(remove)
     }
 }
 
@@ -938,7 +939,10 @@ impl Styled for InputChip {
 mod tests {
     use std::{cell::RefCell, rc::Rc};
 
-    use gpui::{Context, Modifiers, Render, TestAppContext, VisualTestContext, point, px};
+    use gpui::{
+        Context, Modifiers, Render, ScrollDelta, ScrollEvent, ScrollHandle, TestAppContext,
+        VisualTestContext, point, px,
+    };
     use md3_theme::md3_color::ColorRole;
 
     use super::*;
@@ -1271,6 +1275,7 @@ mod tests {
             );
         }
     }
+
     /// 先頭に置く要素
     #[derive(Clone, Copy, Debug)]
     enum Leading {
@@ -1376,7 +1381,7 @@ mod tests {
     }
 
     /// チップのリングは容器の外側に描く。削除ボタンのリングは Material Web と同じく、
-    /// アイコンを中心とする状態レイヤーの円 (24dp) の外側 2dp に太さ 3dp で描き、状態レイヤーも描く
+    /// アイコンを中心とする状態レイヤーの円 (24dp) に接して外側に太さ 3dp で描き、状態レイヤーは描かない
     #[gpui::test]
     fn tab_でチップの次に削除ボタンへ移る(cx: &mut TestAppContext) {
         let cx = add_view(cx, "Alice", || {
@@ -1403,13 +1408,10 @@ mod tests {
             outlines(cx),
             vec![
                 ((0.0, 0.0, width, 32.0), 1.0, outline_variant, 8.0),
-                ((center - 17.0, -1.0, 34.0, 34.0), 3.0, ring, 17.0),
+                ((center - 15.0, 1.0, 30.0, 30.0), 3.0, ring, 15.0),
             ]
         );
-        assert_eq!(
-            filled(cx, on_surface_variant.opacity(0.1)),
-            vec![((center - 12.0, 4.0, 24.0, 24.0), 12.0)]
-        );
+        assert_eq!(filled(cx, on_surface_variant.opacity(0.1)), vec![]);
     }
 
     /// Material Web の削除ボタンは自身の状態レイヤーだけを描き、チップの容器の状態レイヤーは描かない
@@ -1430,5 +1432,34 @@ mod tests {
         );
         cx.simulate_mouse_move(point(px(10.), px(16.)), None, Modifiers::none());
         assert_eq!(filled(cx, layer), vec![((0.0, 0.0, width, 32.0), 8.0)]);
+    }
+
+    /// 削除ボタンはチップへの hover とクリックを遮るが、外側のスクロールできる箱へのホイールは遮らない
+    #[gpui::test]
+    fn 削除ボタンの上でホイールを回すと外側の箱がスクロールする(
+        cx: &mut TestAppContext,
+    ) {
+        let handle = ScrollHandle::new();
+        let cx = add_view(cx, "Alice", {
+            let handle = handle.clone();
+            move || {
+                div()
+                    .id("scroll")
+                    .h(px(20.))
+                    .overflow_y_scroll()
+                    .track_scroll(&handle)
+                    .child(
+                        InputChip::new("chip", "Alice", false)
+                            .on_remove("Remove Alice", |_, _, _| {}),
+                    )
+            }
+        });
+        let width = probe_width(cx) + 46.0;
+        cx.simulate_event(ScrollEvent {
+            position: point(px(width - 17.), px(10.)),
+            delta: ScrollDelta::Pixels(point(px(0.), px(-10.))),
+            ..Default::default()
+        });
+        assert_eq!(handle.offset().y, px(-10.));
     }
 }

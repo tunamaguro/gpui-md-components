@@ -24,6 +24,6 @@ pub const HORIZONTAL_SPACING: Dp = Dp(8.0);
 /// Input chip で、アバターを置くかアイコンの無い先頭と、末尾のアイコンの無い末尾に取る余白。
 /// `InputChipDefaults.contentPadding`。ほかの場合は [`CONTENT_PADDING`] を取る
 pub const INPUT_COMPACT_CONTENT_PADDING: Dp = Dp(4.0);
-/// Input chip の削除ボタンで、hover とフォーカスの状態レイヤーを描く円の直径。
+/// Input chip の削除ボタンで、hover の状態レイヤーを描く円の直径。
 /// Material Web はアイコンの大きさの 4/3 倍とする
 pub const REMOVE_STATE_LAYER_SIZE: Dp = Dp(24.0);
