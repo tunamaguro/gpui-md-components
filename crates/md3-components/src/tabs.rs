@@ -61,9 +61,9 @@ pub enum TabRowVariant {
 /// 支援技術には role `tablist` として公開され、[`TabRow::aria_label`] がアクセシブルな名前になる。
 /// タブは role `tab` と選ばれているかどうかの状態として公開され、ラベルが名前になる
 ///
-/// [`Styled`] で指定したスタイルは並びの箱に付く。既定では親の幅いっぱいに広がり、
-/// 高さは 48dp で、アイコンを持つタブがあれば 72dp になる。ラベルが折り返すタブがあれば、その高さまで伸びる。
-/// 並びの下端に区切り線を引く
+/// [`Styled`] で指定したスタイルは並びの外側の箱に付き、タブは箱の padding の内側に並ぶ。
+/// 既定では親の幅いっぱいに広がり、タブの高さは 48dp で、アイコンを持つタブがあれば 72dp になる。
+/// ラベルが折り返すタブがあれば、その高さまで伸びる。タブの下端に区切り線を引く
 #[derive(IntoElement)]
 pub struct TabRow<T: PartialEq + 'static> {
     id: ElementId,
@@ -330,15 +330,17 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
             })
             .collect();
 
-        let mut list = TabList::new(self.id, self.selected)
+        // インジケーターと区切り線はタブを単位に置くため、padding の無い並びの箱に置き、
+        // 呼び出し側のスタイルは外側の箱に付ける
+        let mut outer = div().flex().flex_col().w_full().bg(theme.color(container));
+        outer.style().refine(&self.style);
+        let list = TabList::new(self.id, self.selected)
             .when_some(self.aria_label, |this, label| this.aria_label(label))
             .when_some(self.on_change, |this, on_change| this.on_change(on_change))
             .relative()
             .flex()
-            .w_full()
-            .min_h(min_height)
-            .bg(theme.color(container));
-        list.style().refine(&self.style);
+            .flex_grow_1()
+            .min_h(min_height);
         let divider = div()
             .absolute()
             .left_0()
@@ -348,7 +350,7 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
             .bg(theme.color(divider::COLOR));
         let measure = canvas(
             move |bounds, window, cx| {
-                let width = Some(bounds.size.width);
+                let width = Some(bounds.size.width / count.max(1) as f32);
                 if *tab_width.read(cx) != width {
                     tab_width.update(cx, |tab_width, _| *tab_width = width);
                     // 測った幅で描き直す
@@ -367,7 +369,7 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
             let slot = div()
                 .absolute()
                 .bottom_0()
-                .w(relative(1.0))
+                .w(relative(1.0 / count as f32))
                 .h(indicator_height);
             let slot = match self.variant {
                 // Compose の Primary のインジケーターは、タブの幅から左右の余白を除いた幅を上限とするラベルの幅で、
@@ -410,16 +412,16 @@ impl<T: PartialEq + 'static> RenderOnce for TabRow<T> {
             slot.with_spring(
                 "indicator-position",
                 SpringAnimation::new(spatial).to(index as f32),
-                |this, position| this.left(relative(position)),
+                move |this, position| this.left(relative(position / count as f32)),
             )
         });
-        // タブはどれも同じ幅のため、測る要素とインジケーターは最初のタブに置き、タブの幅を単位に位置を決める。
-        // こうすると並びに padding を付けても、padding の内側に並ぶタブと同じ基準になる
-        let mut tabs = tabs.into_iter();
-        let first = tabs
-            .next()
-            .map(|first| first.child(measure).children(indicator));
-        list.items(first.into_iter().chain(tabs)).child(divider)
+        // Compose の `TabRowImpl` と同じく、タブ・区切り線・インジケーターの順に重ねる
+        outer.child(
+            list.items(tabs)
+                .child(measure)
+                .child(divider)
+                .children(indicator),
+        )
     }
 }
 
@@ -596,6 +598,9 @@ mod tests {
         });
         // 状態レイヤーを描かないよう、マウスを並びの外に置く
         cx.simulate_mouse_move(point(px(900.), px(900.)), None, Modifiers::none());
+        // 最初の描画で測ったタブの幅で描き直す
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
         (changes, cx)
     }
 
@@ -791,6 +796,22 @@ mod tests {
             f32::from(px(72.) - single.bottom()) - f32::from(px(height) - wrapped.bottom()),
             8.0
         );
+
+        // 幅 240dp から左右の padding 20dp を除くと、タブの幅は 100dp になる。
+        // `Top songs` は padding を含めた幅 120dp から余白を除いた 88dp には収まるが、68dp には収まらず折り返す
+        let (_, cx) = add_row(cx, |changes| RowView {
+            icons: true,
+            padding: 20.0,
+            ..row(0, &["Top songs", "Music"], 240.0)(changes)
+        });
+        let ((_, _, _, padded_height), _) = filled(cx, surface.into())[0];
+        let padded = cx
+            .debug_bounds("md3-tab-label-0")
+            .expect("ラベルを描くこと");
+        assert_eq!(
+            padded_height - f32::from(padded.bottom()),
+            height - f32::from(wrapped.bottom())
+        );
     }
 
     #[gpui::test]
@@ -843,6 +864,29 @@ mod tests {
             filled(cx, primary.into()),
             vec![((200.0, 45.0, 200.0, 3.0), 0.0)]
         );
+    }
+
+    /// Compose の `TabRowImpl` はインジケーターを区切り線より上に重ねる
+    #[gpui::test]
+    fn インジケーターを区切り線より後に描く(cx: &mut TestAppContext) {
+        let (_, cx) = add_row(cx, |changes| RowView {
+            variant: TabRowVariant::Secondary,
+            ..row(1, &["Overview", "Reviews"], 400.0)(changes)
+        });
+        let primary = gpui::Background::from(color(cx, ColorRole::Primary));
+        let divider = gpui::Background::from(color(cx, ColorRole::OutlineVariant));
+        let order: Vec<_> = cx.update(|window, _| {
+            window
+                .painted_quads()
+                .into_iter()
+                .filter_map(|quad| {
+                    [divider, primary]
+                        .iter()
+                        .position(|background| quad.background == *background)
+                })
+                .collect()
+        });
+        assert_eq!(order, vec![0, 1], "区切り線、インジケーターの順に描くこと");
     }
 
     #[gpui::test]
