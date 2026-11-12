@@ -18,6 +18,7 @@ pub mod tabs;
 mod test_window;
 pub mod text;
 pub mod toggle;
+pub mod tooltip;
 
 pub use focus_visible::is_focus_visible;
 pub use interaction::InteractionSource;

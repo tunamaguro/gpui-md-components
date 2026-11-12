@@ -20,7 +20,7 @@
 - [x] M4: 矢印キー移動の基盤と RadioGroup / ToggleGroup
 - [x] M5: Slider
 - [x] M6: Tabs
-- [ ] M7: 非モーダルのオーバーレイ基盤と Tooltip
+- [x] M7: 非モーダルのオーバーレイ基盤と Tooltip
 - [ ] M8: Menu
 - [ ] M9: Dialog
 - [ ] M10: Select (Listbox)
@@ -269,17 +269,47 @@ M4 の矢印キーの扱いを使う
 
 ## M7: 非モーダルのオーバーレイ基盤と Tooltip
 
-対象: アンカーに合わせて配置し開閉する基盤 (`anchored` / `deferred`)、Tooltip
+対象: アンカーに合わせて配置し開閉する基盤、Tooltip
 
 Menu と Select がこの基盤を使う。Dialog の完成を待たない
 
 - `deferred` で描いたポップアップは、a11y ツリーではアンカーではなくウィンドウの直下に入る (M3)
-- Tooltip の `aria-describedby` は作れないため、トリガーの `aria_description` に Tooltip の文字列を写す
 - 支援技術の Click はノードの中央へのマウス操作として届くため、ポップアップが覆う位置の部品は `on_a11y_action` で Click を受ける (M3)
 
-参照する APG:
+決めたこと:
+
+- ポップアップは、トリガーの子に置いた要素から `Window::defer_draw` で描き、ほかの要素より手前に出す。
+  大きさはトリガーの幅に縛られないよう、ウィンドウのルートと同じく独立にレイアウトする (`AnyElement::layout_as_root`)
+  - gpui の `anchored` は 1 点を基準に反転するため、アンカーの矩形の上と下を入れ替える配置を作れない。そのため配置は独自の要素で決める
+  - 配置の要素は tooltip モジュールの中に置いている。Menu で別の配置が要るときに切り出す
+- 配置は Compose の `TooltipDefaults.rememberTooltipPositionProvider` (Above) に合わせる。トリガーの上に左右中央をそろえて置き、
+  上に収まらなければ下に置き、ウィンドウの左右と下の端からはみ出さないようずらす
+- 次のいずれかの間に表示する
+  - トリガーにマウスが乗っている。Compose と同じく遅延を置かない
+  - トリガーのフォーカスを表示すべき状態にある。クリックで得たフォーカスだけでは表示しない
+  - 表示中のツールチップにマウスが乗っている (WCAG 1.4.13 の Hoverable)。トリガーとの間隔の上でも途切れないよう、ツールチップの要素を間隔の分だけ広げる
+- Compose はキーボードで出したツールチップを 1.5 秒 (`BasicTooltipDefaults.TooltipDuration`) で消す。
+  WCAG 1.4.13 の Persistent に合わせ、ここでは表示の条件が外れるまで消さない
+- Escape で閉じる (WCAG 1.4.13 の Dismissible)。フォーカスがほかの要素にあっても閉じられるよう、表示中だけ `App::intercept_keystrokes` で受け、その Escape はほかの要素やキー割り当てに届けない。
+  閉じた後は、表示の条件が一度すべて外れるまで表示しない。修飾キー付きの Escape では閉じない
+- `aria-describedby` は作れないため (M3)、文字列をトリガーの `aria_description` に写す。
+  文字列がトリガーの名前と同じ場合は、説明として重ねて読まれないよう、代わりにトリガーの `aria_label` にする (`TooltipRelation`)
+- ツールチップの要素は role `tooltip` で公開する。AccessKit は tooltip の名前を子の内容から求めないため、名前は `aria_label` で与える
+- ツールチップはフォーカスを受け取らない。押せる要素を持つツールチップ (MD3 の Rich のアクション) は、APG が勧める非モーダルのダイアログとして後で扱う
+- 同時に表示するツールチップを 1 つに限ること (Compose の `BasicTooltipDefaults.GlobalMutatorMutex`) はしない。
+  マウスとキーボードで別のトリガーを指すと 2 つ表示する
+- 表示と消去のアニメーション (Compose の拡大と不透明度の変化) は扱わない。gpui の `with_spring` は最初の描画で目標の値から始まるため、現れるときに動かない
+
+気を付けること:
+
+- トリガーは `StatefulInteractiveElement` と `ParentElement` を持つ要素にし、`track_focus` に渡したフォーカスを Tooltip にも渡す
+- 3 段目は MD3 の Tooltip (Icon button に付けたもの) で確かめた。AT-SPI のアダプタはトリガーの説明を description として渡し、
+  名前と同じ文字列のツールチップでは description を付けない。表示中のツールチップは tool tip としてウィンドウの直下に並ぶ
+
+参照する APG と WCAG:
 
 - [Tooltip](../../.agents/skills/a11y/references/aria-practices/content/patterns/tooltip/tooltip-pattern.html)
+- [Understanding 1.4.13 Content on Hover or Focus](../../.agents/skills/a11y/references/wcag/understanding/21/content-on-hover-or-focus.html)
 
 ## M8: Menu
 
