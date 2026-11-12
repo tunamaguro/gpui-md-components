@@ -284,10 +284,14 @@ Menu と Select がこの基盤を使う。Dialog の完成を待たない
   - 配置の要素は tooltip モジュールの中に置いている。Menu で別の配置が要るときに切り出す
 - 配置は Compose の `TooltipDefaults.rememberTooltipPositionProvider` (Above) に合わせる。トリガーの上に左右中央をそろえて置き、
   上に収まらなければ下に置き、ウィンドウの左右と下の端からはみ出さないようずらす
+- 内容の幅はウィンドウの幅までに制限し、狭いウィンドウでは折り返させる。高さはウィンドウに収まる前提とする
+- ツールチップの上のクリックと hover は背後の要素に届けない (`block_mouse_except_scroll`)。スクロールは届ける
 - 次のいずれかの間に表示する
   - トリガーにマウスが乗っている。Compose と同じく遅延を置かない
   - トリガーのフォーカスを表示すべき状態にある。クリックで得たフォーカスだけでは表示しない
   - 表示中のツールチップにマウスが乗っている (WCAG 1.4.13 の Hoverable)。トリガーとの間隔の上でも途切れないよう、ツールチップの要素を間隔の分だけ広げる
+- マウスが乗っているかは gpui の `on_hover` で受け、`HoverListenerMode::InputModalityIndependent` にする。
+  既定ではキー入力の後に hover が外れ、Escape 以外のキーでも消えてしまう。`on_hover` は描画のたびに決め直すため、マウスを動かさずに配置が変わった場合にも追従する
 - Compose はキーボードで出したツールチップを 1.5 秒 (`BasicTooltipDefaults.TooltipDuration`) で消す。
   WCAG 1.4.13 の Persistent に合わせ、ここでは表示の条件が外れるまで消さない
 - Escape で閉じる (WCAG 1.4.13 の Dismissible)。フォーカスがほかの要素にあっても閉じられるよう、表示中だけ `App::intercept_keystrokes` で受け、その Escape はほかの要素やキー割り当てに届けない。
@@ -303,6 +307,10 @@ Menu と Select がこの基盤を使う。Dialog の完成を待たない
 気を付けること:
 
 - トリガーは `StatefulInteractiveElement` と `ParentElement` を持つ要素にし、`track_focus` に渡したフォーカスを Tooltip にも渡す
+- gpui はマウスがウィンドウから出たときにマウスの位置を更新しない。最後の移動を伝えずに出た場合、`on_hover` は一度 false を伝えるが、
+  次の描画で最後の位置から true に戻るため、ツールチップは表示を続ける。gpui の hover の見た目と同じ振る舞いとして受け入れる
+- テスト用の platform は、ウィンドウがアクティブになるときやウィンドウの大きさが変わるときに、マウスの位置を (0, 0) に戻す。
+  hover を確かめるテストでは、アクティブにし終えてからマウスを動かす
 - 3 段目は MD3 の Tooltip (Icon button に付けたもの) で確かめた。AT-SPI のアダプタはトリガーの説明を description として渡し、
   名前と同じ文字列のツールチップでは description を付けない。表示中のツールチップは tool tip としてウィンドウの直下に並ぶ
 

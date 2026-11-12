@@ -1,11 +1,10 @@
 //! 見た目を持たないツールチップ
 
 use gpui::{
-    AnyElement, App, AvailableSpace, Bounds, DispatchPhase, Div, Edges, Element, ElementId, Entity,
-    FocusHandle, GlobalElementId, Hitbox, HitboxBehavior, InspectorElementId, InteractiveElement,
-    IntoElement, LayoutId, MouseMoveEvent, ParentElement, Pixels, Position, SharedString, Stateful,
-    StatefulInteractiveElement, Style, Styled, Subscription, Window, accesskit, div, point, px,
-    size,
+    AnyElement, App, AvailableSpace, Bounds, Div, Element, ElementId, Entity, FocusHandle,
+    GlobalElementId, HoverListenerMode, InspectorElementId, InteractiveElement, IntoElement,
+    LayoutId, ParentElement, Pixels, SharedString, Stateful, StatefulInteractiveElement, Styled,
+    Subscription, Window, accesskit, div, point, px, size,
 };
 
 use crate::is_focus_visible;
@@ -15,12 +14,17 @@ const PRIORITY: usize = usize::MAX;
 
 /// トリガーに付ける、見た目を持たないツールチップ
 ///
-/// [`Tooltip::attach`] で付けたトリガーについて、次のいずれかの間、ツールチップの内容をトリガーの上に左右中央をそろえて表示する。
+/// [`Tooltip::attach`] で付けたトリガーについて、次のいずれかの間、ツールチップの内容をトリガーの上に左右中央をそろえて表示する
 ///
 /// - トリガーにマウスが乗っている
 /// - トリガーのフォーカスを表示すべき状態 ([`crate::is_focus_visible`]) にある
 /// - 表示中のツールチップにマウスが乗っている。トリガーとツールチップの間隔の上を通っても消えない
 ///
+/// マウスが乗っているかは、キー入力の後も、マウスを動かさずに配置が変わった後も、最後に伝わったマウスの位置で決める。
+/// マウスが移動を伝えずにウィンドウから出た場合も、その位置に残っているものとして扱う。
+/// 表示中のツールチップの上では、クリックや hover は背後の要素に届かず、スクロールは届く
+///
+/// 内容の幅はウィンドウの幅までに制限する。
 /// 上にウィンドウの端まで収まらなければ下に表示し、ウィンドウの左右と下の端からはみ出さないようずらす。
 /// 表示中に Escape を押すと、フォーカスとマウスを動かさずに閉じる。その Escape はほかの要素やキー割り当てに届かない。
 /// 閉じた後は、トリガーとツールチップからマウスが外れ、トリガーのフォーカスの表示が消えるまで表示しない
@@ -122,6 +126,9 @@ fn popup(
         .role(accesskit::Role::Tooltip)
         .aria_label(text)
         .p(spacing)
+        .block_mouse_except_scroll()
+        // 既定ではキー入力の後に hover が外れ、Escape 以外のキーでも消えるため、キー入力に関わらず位置で決める
+        .hover_listener_mode(HoverListenerMode::InputModalityIndependent)
         .on_hover(move |hovered, _, cx| {
             state.update(cx, |state, cx| {
                 state.popup_hovered = *hovered;
@@ -131,7 +138,7 @@ fn popup(
         .child(content)
 }
 
-/// トリガーの子に置き、トリガーと同じ範囲でマウスの出入りを受け、表示中のツールチップを配置する要素
+/// トリガーの子に置き、トリガーと同じ範囲でマウスの出入りを `State::trigger_hovered` に記録し、表示中のツールチップを配置する要素
 struct Anchor {
     focus_handle: FocusHandle,
     text: SharedString,
@@ -148,8 +155,9 @@ impl IntoElement for Anchor {
 }
 
 impl Element for Anchor {
-    type RequestLayoutState = (Entity<State>, Option<AnyElement>);
-    type PrepaintState = Hitbox;
+    /// トリガーと同じ範囲でマウスの出入りを受ける要素と、表示中のツールチップ
+    type RequestLayoutState = (AnyElement, Option<AnyElement>);
+    type PrepaintState = ();
 
     fn id(&self) -> Option<ElementId> {
         None
@@ -205,15 +213,27 @@ impl Element for Anchor {
         });
 
         let popup = self.content.take().filter(|_| visible).map(|content| {
-            popup(state.clone(), self.text.clone(), self.spacing, content).into_any_element()
+            let max_width = window.viewport_size().width + self.spacing * 2.;
+            popup(state.clone(), self.text.clone(), self.spacing, content)
+                .max_w(max_width)
+                .into_any_element()
         });
 
-        let style = Style {
-            position: Position::Absolute,
-            inset: Edges::all(px(0.).into()),
-            ..Style::default()
-        };
-        (window.request_layout(style, None, cx), (state, popup))
+        // gpui の on_hover は、マウスを動かさずに配置が変わった場合も描画のときに決め直して呼ばれる
+        let mut area = div()
+            .id("tooltip-trigger")
+            .absolute()
+            .inset_0()
+            .hover_listener_mode(HoverListenerMode::InputModalityIndependent)
+            .on_hover(move |hovered, _, cx| {
+                state.update(cx, |state, cx| {
+                    state.trigger_hovered = *hovered;
+                    cx.notify();
+                });
+            })
+            .into_any_element();
+        let layout_id = area.request_layout(window, cx);
+        (layout_id, (area, popup))
     }
 
     fn prepaint(
@@ -221,11 +241,11 @@ impl Element for Anchor {
         _id: Option<&GlobalElementId>,
         _inspector_id: Option<&InspectorElementId>,
         bounds: Bounds<Pixels>,
-        (_, popup): &mut Self::RequestLayoutState,
+        (area, popup): &mut Self::RequestLayoutState,
         window: &mut Window,
         cx: &mut App,
     ) -> Self::PrepaintState {
-        let hitbox = window.insert_hitbox(bounds, HitboxBehavior::Normal);
+        area.prepaint(window, cx);
         if let Some(mut popup) = popup.take() {
             let spacing = self.spacing;
             // トリガーの幅に縛られないよう、ウィンドウのルートと同じく独立に大きさを決める
@@ -249,7 +269,6 @@ impl Element for Anchor {
             let y = y.min(viewport.height - content_size.height).max(px(0.));
             window.defer_draw(popup, point(x - spacing, y - spacing), PRIORITY, None);
         }
-        hitbox
     }
 
     fn paint(
@@ -257,22 +276,12 @@ impl Element for Anchor {
         _id: Option<&GlobalElementId>,
         _inspector_id: Option<&InspectorElementId>,
         _bounds: Bounds<Pixels>,
-        (state, _): &mut Self::RequestLayoutState,
-        hitbox: &mut Self::PrepaintState,
+        (area, _): &mut Self::RequestLayoutState,
+        _prepaint: &mut Self::PrepaintState,
         window: &mut Window,
-        _cx: &mut App,
+        cx: &mut App,
     ) {
-        let state = state.clone();
-        let hitbox = hitbox.clone();
-        window.on_mouse_event(move |_: &MouseMoveEvent, phase, window, cx| {
-            let hovered = hitbox.is_hovered(window);
-            if phase == DispatchPhase::Bubble && state.read(cx).trigger_hovered != hovered {
-                state.update(cx, |state, cx| {
-                    state.trigger_hovered = hovered;
-                    cx.notify();
-                });
-            }
-        });
+        area.paint(window, cx);
     }
 }
 
@@ -291,17 +300,22 @@ mod tests {
 
     const DESCRIPTION: &str = "Add to favorites";
 
-    /// 40px 四方のトリガーと、80x20 の黒い内容のツールチップ。フォーカスを移す先の要素を右下に置く
+    /// 40px 四方のトリガーと、黒い内容のツールチップ。フォーカスを移す先の要素を右下に、
+    /// クリックを数える要素を上に置く
+    ///
+    /// 内容は 40x20 の箱を 2 つ横に並べた 80x20 で、幅が足りなければ折り返す
     struct TooltipView {
         trigger_origin: Point<Pixels>,
         focus_handle: FocusHandle,
         other_focus_handle: FocusHandle,
         escapes: Rc<Cell<usize>>,
+        behind_clicks: Rc<Cell<usize>>,
     }
 
     impl Render for TooltipView {
         fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
             let escapes = self.escapes.clone();
+            let behind_clicks = self.behind_clicks.clone();
             let trigger = div()
                 .id("trigger")
                 .role(accesskit::Role::Button)
@@ -321,7 +335,11 @@ mod tests {
                     Tooltip::new(
                         &self.focus_handle,
                         DESCRIPTION,
-                        div().w(px(80.)).h(px(20.)).bg(gpui::black()),
+                        div()
+                            .flex()
+                            .flex_wrap()
+                            .bg(gpui::black())
+                            .children((0..2).map(|_| div().size(px(40.)).h(px(20.)))),
                     )
                     .spacing(px(4.))
                     .attach(trigger),
@@ -335,6 +353,16 @@ mod tests {
                         .top(px(400.))
                         .size(px(40.)),
                 )
+                .child(
+                    div()
+                        .id("behind")
+                        .absolute()
+                        .left(px(60.))
+                        .top(px(60.))
+                        .w(px(120.))
+                        .h(px(30.))
+                        .on_click(move |_, _, _| behind_clicks.set(behind_clicks.get() + 1)),
+                )
         }
     }
 
@@ -347,6 +375,7 @@ mod tests {
             focus_handle: cx.focus_handle(),
             other_focus_handle: cx.focus_handle(),
             escapes: Rc::default(),
+            behind_clicks: Rc::default(),
         })
     }
 
@@ -414,6 +443,68 @@ mod tests {
         assert_eq!(popup_bounds(cx), ABOVE);
         move_mouse(cx, 300., 300.);
         assert_eq!(popup_bounds(cx), None);
+    }
+
+    #[gpui::test]
+    fn マウスが乗っていればキー入力の後も表示を続ける(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, point(px(100.), px(100.)));
+        let other = view.read_with(cx, |view, _| view.other_focus_handle.clone());
+        cx.update(|window, cx| other.focus(window, cx));
+        move_mouse(cx, 120., 120.);
+        cx.simulate_keystrokes("a");
+        assert_eq!(popup_bounds(cx), ABOVE, "トリガーの上");
+        move_mouse(cx, 120., 86.);
+        cx.simulate_keystrokes("shift-escape a");
+        assert_eq!(popup_bounds(cx), ABOVE, "ツールチップの上");
+    }
+
+    #[gpui::test]
+    fn マウスを動かさずにトリガーが動くとマウスの位置で決め直す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, point(px(100.), px(100.)));
+        move_mouse(cx, 120., 120.);
+        view.update(cx, |view, cx| {
+            view.trigger_origin = point(px(300.), px(300.));
+            cx.notify();
+        });
+        cx.run_until_parked();
+        assert_eq!(popup_bounds(cx), None, "マウスの下から外れると消えること");
+        view.update(cx, |view, cx| {
+            view.trigger_origin = point(px(100.), px(100.));
+            cx.notify();
+        });
+        cx.run_until_parked();
+        assert_eq!(popup_bounds(cx), ABOVE, "マウスの下に来ると表示すること");
+    }
+
+    /// クリックを数える要素は (60, 60) から 120x30 の範囲で、ツールチップは間隔を含めて (76, 72) から下にある
+    #[gpui::test]
+    fn ツールチップの上のクリックは背後に届かない(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, point(px(100.), px(100.)));
+        let behind_clicks = view.read_with(cx, |view, _| view.behind_clicks.clone());
+        move_mouse(cx, 120., 120.);
+        cx.simulate_click(point(px(120.), px(86.)), Modifiers::none());
+        assert_eq!(popup_bounds(cx), ABOVE);
+        assert_eq!(behind_clicks.get(), 0);
+        cx.simulate_click(point(px(120.), px(65.)), Modifiers::none());
+        assert_eq!(
+            behind_clicks.get(),
+            1,
+            "ツールチップの外のクリックは届くこと"
+        );
+    }
+
+    /// 幅 60 のウィンドウでは内容の幅を 60 にし、箱を縦に折り返して高さ 40 にする。
+    /// トリガーの上端 100 から間隔 4 と高さ 40 を引いた 56 に置く
+    #[gpui::test]
+    fn 内容の幅はウィンドウの幅までにする(cx: &mut TestAppContext) {
+        let (_, cx) = setup(cx, point(px(10.), px(100.)));
+        cx.simulate_resize(size(px(60.), px(600.)));
+        move_mouse(cx, 30., 120.);
+        assert_eq!(popup_bounds(cx), Some((0.0, 56.0, 60.0, 40.0)));
     }
 
     #[gpui::test]

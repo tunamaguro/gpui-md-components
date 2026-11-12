@@ -175,7 +175,7 @@ impl Tooltip {
 mod tests {
     use gpui::{
         Context, Element, Hsla, InteractiveElement, IntoElement, Modifiers, Render, TestAppContext,
-        VisualTestContext, accesskit, point,
+        VisualTestContext, accesskit, point, size,
     };
     use md3_theme::ThemeExt;
     use md3_theme::md3_color::ColorRole;
@@ -313,6 +313,16 @@ mod tests {
         }
     }
 
+    fn rich_tooltip() -> Tooltip {
+        Tooltip::new(
+            "Rich tooltips bring attention to a particular element or feature that warrants \
+             the user's focus, and can be longer than plain tooltips",
+        )
+        .variant(TooltipVariant::Rich {
+            title: Some("Rich tooltip".into()),
+        })
+    }
+
     /// 期待値は Compose の `TooltipDefaults.richTooltipMaxWidth` (320dp) と、
     /// RichTooltipTokens の SurfaceContainer・CornerMedium (12dp)。
     /// ボタンの左右中央 120 にそろえると左端が -40 になるため、ウィンドウの左端の 0 にずらす
@@ -320,20 +330,27 @@ mod tests {
     fn rich_は最大の幅で折り返し容器を角の大きい形で描く(
         cx: &mut TestAppContext,
     ) {
-        let tooltip = Tooltip::new(
-            "Rich tooltips bring attention to a particular element or feature that warrants \
-             the user's focus, and can be longer than plain tooltips",
-        )
-        .variant(TooltipVariant::Rich {
-            title: Some("Rich tooltip".into()),
-        });
-        let cx = add_view(cx, tooltip, "A", false);
+        let cx = add_view(cx, rich_tooltip(), "A", false);
         hover_button(cx);
         let container = color(cx, ColorRole::SurfaceContainer);
         let rects = filled(cx, container);
         assert_eq!(rects.len(), 1);
         let ((x, _, width, _), radius) = rects[0];
         assert_eq!((x, width, radius), (0.0, 320.0, 12.0));
+    }
+
+    #[gpui::test]
+    fn ウィンドウが最大の幅より狭ければウィンドウの幅で折り返す(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = add_view(cx, rich_tooltip(), "A", false);
+        cx.simulate_resize(size(px(240.), px(600.)));
+        hover_button(cx);
+        let container = color(cx, ColorRole::SurfaceContainer);
+        let rects = filled(cx, container);
+        assert_eq!(rects.len(), 1);
+        let ((x, _, width, _), _) = rects[0];
+        assert_eq!((x, width), (0.0, 240.0));
     }
 
     /// 文字列がボタンの名前と同じなら名前のままにし、違えば説明として公開する
