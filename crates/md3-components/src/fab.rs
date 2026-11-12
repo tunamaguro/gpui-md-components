@@ -105,8 +105,6 @@ impl FabColor {
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
 /// 容器の層。色・影・状態レイヤーを形 `shape` で描き、親いっぱいに広がる
-///
-/// 影は `FloatingActionButtonDefaults.elevation()` に従い、色によらず FabPrimaryContainerTokens の段階を使う
 fn container_layer(
     theme: &SharedTheme,
     color: FabColor,
@@ -118,6 +116,7 @@ fn container_layer(
     let content = theme.color(content);
     // 状態レイヤーは内容の色を重ねる (Compose の `ripple()` は LocalContentColor を使う)
     let state_layer = |opacity: f32| container.blend(content.opacity(opacity));
+    // 影は `FloatingActionButtonDefaults.elevation()` と同じく、色によらず FabPrimaryContainerTokens の段階を使う
     let hovered_shadow = theme.shadow(fab_primary_container::HOVERED_CONTAINER_ELEVATION);
     let layer = div()
         .absolute()
@@ -162,6 +161,7 @@ fn focus_ring(theme: &SharedTheme, shape: ShapeKey) -> Shaped {
 /// 画面の主な操作を、影で浮かせた容器のアイコンで示す。
 /// 支援技術には role `button` として公開され、[`Fab::new`] の `label` がアクセシブルな名前になる。
 /// マウスのクリック・フォーカス中の Enter と Space で [`Fab::on_click`] のハンドラを呼ぶ。
+/// 押せる範囲は形を囲む矩形で、角丸の外側も含む。48dp より小さい大きさでも 48dp には広げない。
 /// 無効にする手段は持たない
 ///
 /// [`Styled`] で指定したスタイルは FAB の外側の箱に付く。位置や外側の余白、flex の指定に使い、
@@ -312,10 +312,11 @@ impl Styled for Fab {
 /// [`ExtendedFab::expanded`] で折りたたむと、ラベルを隠して高さと同じ幅になる。幅とラベルの不透明度はテーマのバネで滑らかに変わる。
 /// 支援技術には role `button` として公開され、ラベルの文字列が、折りたたんでいる間もアクセシブルな名前になる。
 /// マウスのクリック・フォーカス中の Enter と Space で [`ExtendedFab::on_click`] のハンドラを呼ぶ。
+/// 押せる範囲は形を囲む矩形で、角丸の外側も含む。
 /// 無効にする手段は持たない
 ///
 /// [`Styled`] で指定したスタイルは FAB の外側の箱に付く。位置や外側の余白、flex の指定に使う。
-/// FAB の幅はラベルと展開の状態で決まり、箱を広げても変わらない。色や形は変えられないため、
+/// FAB の幅と高さはラベルと展開の状態と大きさで決まり、箱を広げても変わらない。色や形は変えられないため、
 /// [`ExtendedFab::color`] と [`ExtendedFab::size`] を使う
 #[derive(IntoElement)]
 pub struct ExtendedFab {
@@ -335,6 +336,7 @@ impl ExtendedFab {
     /// `icon` とラベル `text` を並べた、展開した Extended FAB を作る
     ///
     /// [`ExtendedFabSize::Small`]、[`FabColor::PrimaryContainer`] で描く。`text` は 1 行で描き、改行を含めないこと。
+    /// 含めた場合、debug ビルドでは描画時に panic する。
     /// `id` は同じ親の中で一意にし、描画のたびに同じ値を渡すこと。[`ExtendedFab::track_focus`] を指定しない場合、
     /// `id` が変わるか 1 フレームでも描画されないとフォーカスが外れる
     pub fn new(
@@ -369,7 +371,7 @@ impl ExtendedFab {
         self
     }
 
-    /// `false` を渡すと、ラベルを隠してアイコンだけの幅に折りたたむ。既定では展開している
+    /// `false` を渡すと、ラベルを隠して高さと同じ幅に折りたたむ。既定では展開している
     pub fn expanded(mut self, expanded: bool) -> Self {
         self.expanded = expanded;
         self
@@ -703,6 +705,9 @@ mod tests {
     /// 展開の状態を持つ Extended FAB と、比べる用にラベルと同じ書体で描いたラベルの文字列
     struct ExtendedView {
         expanded: bool,
+        size: ExtendedFabSize,
+        /// 比べる用のラベルの書体
+        label: TypeScale,
     }
 
     impl Render for ExtendedView {
@@ -710,13 +715,17 @@ mod tests {
             let mut probe = div().flex_none().bg(gpui::black()).child("Compose");
             probe
                 .text_style()
-                .refine(&cx.md3_theme().text_style(TypeScale::TitleMedium));
+                .refine(&cx.md3_theme().text_style(self.label));
             div()
                 .flex()
                 .flex_col()
                 .items_start()
                 .gap(px(100.))
-                .child(ExtendedFab::new("fab", md3_icons::EDIT, "Compose").expanded(self.expanded))
+                .child(
+                    ExtendedFab::new("fab", md3_icons::EDIT, "Compose")
+                        .size(self.size)
+                        .expanded(self.expanded),
+                )
                 .child(probe)
         }
     }
@@ -725,10 +734,23 @@ mod tests {
         cx: &mut TestAppContext,
         expanded: bool,
     ) -> (Entity<ExtendedView>, &mut VisualTestContext) {
+        add_extended_with_size(cx, expanded, ExtendedFabSize::Small, TypeScale::TitleMedium)
+    }
+
+    fn add_extended_with_size(
+        cx: &mut TestAppContext,
+        expanded: bool,
+        size: ExtendedFabSize,
+        label: TypeScale,
+    ) -> (Entity<ExtendedView>, &mut VisualTestContext) {
         cx.update(crate::init);
         let (view, cx) = cx.add_window_view(|window, cx| {
             cx.init_md3_theme(window);
-            ExtendedView { expanded }
+            ExtendedView {
+                expanded,
+                size,
+                label,
+            }
         });
         move_mouse_away(cx);
         (view, cx)
@@ -760,6 +782,38 @@ mod tests {
         let (width, height, label_width) = extended_widths(cx);
         assert_eq!(height, 56.0);
         assert_eq!(width, 16.0 + 24.0 + 8.0 + label_width + 16.0);
+    }
+
+    /// 期待値は Compose の Medium と Large の Extended FAB の高さ・左右の余白 (ExtendedFabMediumTokens、
+    /// ExtendedFabLargeTokens)、ファイル末尾の private な定数の間隔 (12dp・16dp) と書体 (TitleLarge・HeadlineSmall)、
+    /// サンプルが指定するアイコンの大きさ (`MediumIconSize` の 28dp、`LargeIconSize` の 36dp)
+    #[gpui::test]
+    fn medium_と_large_の_extended_fab_は大きさごとの寸法で並べる(
+        cx: &mut TestAppContext,
+    ) {
+        for (size, label, height, side, icon, space) in [
+            (
+                ExtendedFabSize::Medium,
+                TypeScale::TitleLarge,
+                80.0,
+                26.0,
+                28.0,
+                12.0,
+            ),
+            (
+                ExtendedFabSize::Large,
+                TypeScale::HeadlineSmall,
+                96.0,
+                28.0,
+                36.0,
+                16.0,
+            ),
+        ] {
+            let (_, cx) = add_extended_with_size(cx, true, size, label);
+            let (width, actual_height, label_width) = extended_widths(cx);
+            assert_eq!(actual_height, height, "{size:?}");
+            assert_eq!(width, side + icon + space + label_width + side, "{size:?}");
+        }
     }
 
     /// 折りたたんだ幅は、Compose と同じく高さ (ExtendedFabSmallTokens.ContainerHeight) と同じ

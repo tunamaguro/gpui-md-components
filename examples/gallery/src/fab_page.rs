@@ -125,9 +125,12 @@ impl Render for FabPage {
                 )
             }))
             .child(
-                // ラベル付きの FAB は幅を縮めないため、ウィンドウの幅に収まるよう折り返す
-                row("extended-colors", "Extended colors").child(
+                // ラベル付きの FAB は幅を縮めないため、ウィンドウの幅に収まるよう折り返す。
+                // 行の幅を決めないと、折り返す箱は一覧を 1 行に並べた幅で測られて折り返さない
+                row("extended-colors", "Extended colors").w_full().child(
                     div()
+                        .flex_1()
+                        .min_w_0()
                         .flex()
                         .flex_wrap()
                         .gap_6()
