@@ -79,6 +79,7 @@ impl Render for CardPage {
                             CardVariant::Outlined => "clickable-outlined",
                         };
                         card(id)
+                            .aria_label(format!("Open {name}"))
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.clicks += 1;
                                 this.last_clicked = Some(id);

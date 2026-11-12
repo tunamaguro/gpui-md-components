@@ -157,14 +157,14 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 /// [`Card::on_click`] を指定すると押せるカードになり、支援技術には role `button` として公開される。
 /// アクセシブルな名前は子孫に置いた id を持つテキスト (`gpui::text!` など) か [`Card::aria_label`] で与える。
 /// `&str`・`String`・`SharedString` をそのまま置いたテキストは名前にならない。
-/// マウスのクリック・フォーカス中の Enter と Space で [`Card::on_click`] のハンドラを呼び、
-/// hover とフォーカスを状態レイヤーと、バリアントによっては影で示す。
+/// マウスのクリック・フォーカス中の Enter と Space で [`Card::on_click`] のハンドラを呼ぶ。
+/// hover は状態レイヤーと影 (Outlined は影を変えない) で示し、キーボードで移したフォーカスは状態レイヤーとカードの外側のリングで示す。
 /// 押せるカードの子に、ボタンなどの操作できる要素を置かないこと。
-/// 指定しない場合は見た目だけの容器で、支援技術には子だけが公開される
+/// [`Card::on_click`] を指定しない場合は見た目だけの容器で、支援技術には子だけが公開される
 ///
 /// [`Styled`] で指定したスタイルはカードの箱に付く。大きさ・余白・子の並べ方の指定に使う。
 /// 色や形は変えられないため、[`Card::variant`] を使う。子は角丸で切り抜かず、Outlined の枠線より上に描く。
-/// `overflow_hidden` を付けると、カードの外側に描く影とフォーカスリングも切り取られる
+/// overflow を visible 以外にすると、カードの外側に描く影とフォーカスリングも切り取られる
 #[derive(IntoElement)]
 pub struct Card {
     id: ElementId,
@@ -294,7 +294,8 @@ impl RenderOnce for Card {
                     }
                 })
                 // gpui は group_hover を自身のスタイルの後に重ねるため、hover がフォーカスより優先される。
-                // Compose の `animateElevation` は最後に起きた操作を採るため、hover 中にフォーカスした場合はフォーカスの値になる
+                // Compose の `animateElevation` と ripple の状態レイヤーは最後に起きた操作を採るため、
+                // hover 中にフォーカスした場合はフォーカスの値になる
                 .when(interactive, |this| {
                     let hovered_shadow = theme.shadow(elevations.hovered);
                     this.group_hover(GROUP, |style| {
@@ -548,7 +549,7 @@ mod tests {
     }
 
     #[gpui::test]
-    fn 押せるカードだけが_tab_のフォーカスをリングで示す(
+    fn 押せるカードだけが_tab_のフォーカスをリングと状態レイヤーで示す(
         cx: &mut TestAppContext,
     ) {
         for clickable in [true, false] {
@@ -572,28 +573,24 @@ mod tests {
             });
             assert_eq!(ring, clickable, "clickable: {clickable}");
             // フォーカス中の状態レイヤーは内容の色 (OnSurface) を 10% 重ねる
-            let container = color(cx, ColorRole::SurfaceContainerHighest);
+            let base = color(cx, ColorRole::SurfaceContainerHighest);
             let expected = if clickable {
-                container.blend(color(cx, ColorRole::OnSurface).opacity(0.1))
+                base.blend(color(cx, ColorRole::OnSurface).opacity(0.1))
             } else {
-                container
+                base
             };
             // フォーカス中は外側のリングも描くため、容器の位置と幅の矩形を探す
-            let container = cx.update(|window, _| {
+            let quad = cx.update(|window, _| {
                 window
                     .painted_quads()
                     .into_iter()
                     .find(|quad| {
                         let b = quad.bounds;
-                        (b.origin.x.0, b.size.width.0 / scale) == (0., 200.)
+                        (b.origin.x.0 / scale, b.size.width.0 / scale) == (0., 200.)
                     })
                     .expect("容器を描くこと")
             });
-            assert_eq!(
-                container.background,
-                expected.into(),
-                "clickable: {clickable}"
-            );
+            assert_eq!(quad.background, expected.into(), "clickable: {clickable}");
         }
     }
 
