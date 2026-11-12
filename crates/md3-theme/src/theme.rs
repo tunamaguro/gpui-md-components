@@ -362,11 +362,16 @@ impl Theme {
     }
 
     /// 高さの段階 `elevation` の影。key shadow、ambient shadow の順
+    ///
+    /// ずれ・ぼかし・広がりがすべて 0 の影は含めない。そのため [`Elevation::Level0`] では空になる
     pub fn shadow(&self, elevation: Elevation) -> Vec<BoxShadow> {
         let elevation = shadow::shadow(elevation);
         let color = self.color(shadow::SHADOW_COLOR);
         [elevation.key, elevation.ambient]
             .into_iter()
+            // CSS の影は要素の外側にだけ描くため、この影は見えない。
+            // gpui は影を要素の下にも描き、角の縁や半透明の容器が暗くなるため除く
+            .filter(|shadow| shadow.y.0 != 0.0 || shadow.blur.0 != 0.0 || shadow.spread.0 != 0.0)
             .map(|shadow| BoxShadow {
                 color: color.opacity(shadow.opacity),
                 offset: point(px(0.0), dp(shadow.y)),
@@ -768,6 +773,15 @@ mod tests {
         assert_eq!(shadows[0].offset, point(px(0.0), px(1.0)));
         assert_eq!(shadows[0].blur_radius, px(2.0));
         assert_eq!(shadows[1].spread_radius, px(1.0));
+    }
+
+    #[test]
+    fn 段階_0_の影は無く段階_1_以上は_key_と_ambient_の_2_つ() {
+        let theme = resolve(ThemeSettings::default());
+        for elevation in Elevation::ALL {
+            let expected = if elevation == Elevation::Level0 { 0 } else { 2 };
+            assert_eq!(theme.shadow(elevation).len(), expected, "{elevation:?}");
+        }
     }
 
     #[test]
