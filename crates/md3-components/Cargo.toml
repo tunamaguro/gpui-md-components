@@ -30,6 +30,7 @@ default = [
   "progress-indicator",
   "radio-button",
   "segmented-button",
+  "slider",
   "switch",
 ]
 platform = ["dep:gpui_platform"]
@@ -44,6 +45,7 @@ fab = []
 progress-indicator = []
 radio-button = []
 segmented-button = []
+slider = []
 switch = []
 
 [dev-dependencies]

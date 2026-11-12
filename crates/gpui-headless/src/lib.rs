@@ -12,6 +12,7 @@ pub mod progress;
 pub mod radio;
 mod root;
 mod roving;
+pub mod slider;
 #[cfg(test)]
 mod test_window;
 pub mod text;

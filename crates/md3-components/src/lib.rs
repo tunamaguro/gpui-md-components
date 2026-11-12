@@ -31,9 +31,12 @@ mod segmented_button;
     feature = "button",
     feature = "card",
     feature = "fab",
-    feature = "segmented-button"
+    feature = "segmented-button",
+    feature = "slider"
 ))]
 mod shape;
+#[cfg(feature = "slider")]
+mod slider;
 #[cfg(feature = "switch")]
 mod switch;
 // 使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
@@ -44,6 +47,7 @@ mod switch;
     feature = "fab",
     feature = "radio-button",
     feature = "segmented-button",
+    feature = "slider",
     feature = "switch"
 ))]
 mod util;
@@ -79,6 +83,8 @@ pub use segmented_button::{
     MultiChoiceSegmentedButtonRow, SegmentedButton, SegmentedToggleButton,
     SingleChoiceSegmentedButtonRow,
 };
+#[cfg(feature = "slider")]
+pub use slider::Slider;
 #[cfg(feature = "switch")]
 pub use switch::Switch;
 

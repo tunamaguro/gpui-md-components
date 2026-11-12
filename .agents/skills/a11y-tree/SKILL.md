@@ -26,7 +26,7 @@ gpui のテスト用 platform は a11y を初期化しないため、`#[gpui::te
    nix develop .#a11y -c python3 -I .agents/skills/a11y-tree/scripts/dump.py gallery
    ```
 
-1. 操作を送る。`<操作>` は dump の `actions` に出る名前か `focus`
+1. 操作を送る。`<操作>` は dump の `actions` に出る名前か `focus`、値を設定する場合は `set=<数値>`
 
    ```sh
    nix develop .#a11y -c python3 -I .agents/skills/a11y-tree/scripts/act.py gallery <パス> <操作>
