@@ -23,6 +23,7 @@ default = [
   "badge",
   "button",
   "icon-button",
+  "card",
   "checkbox",
   "divider",
   "progress-indicator",
@@ -34,6 +35,7 @@ badge = []
 button = []
 # 色・大きさ・形の型を Button と共有する
 icon-button = ["button"]
+card = []
 checkbox = []
 divider = []
 progress-indicator = []
