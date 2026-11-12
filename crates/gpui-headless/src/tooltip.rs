@@ -110,7 +110,7 @@ struct State {
     popup_hovered: bool,
     /// Escape で閉じた後、表示の条件が一度すべて外れるまで `true`
     dismissed: bool,
-    /// Escape で閉じてから、次の描画で表示の条件を決めるまで `true`
+    /// Escape で閉じてから、次にトリガーを描き終えるまで `true`
     just_dismissed: bool,
     /// 表示中だけ持つ、Escape を受ける購読
     escape: Option<Subscription>,
@@ -189,8 +189,8 @@ impl Element for Anchor {
             let requested = state.trigger_hovered || state.popup_hovered || focus_visible;
             // ツールチップがトリガーを覆っていた場合、閉じた直後の描画ではトリガーの hover がまだ届いていないため、マウスの位置で代える。
             // その描画でトリガーの hover が届けば、次の描画からは hover で決まる
-            let pointer_on_trigger = std::mem::take(&mut state.just_dismissed)
-                && state.trigger_bounds.contains(&mouse_position);
+            let pointer_on_trigger =
+                state.just_dismissed && state.trigger_bounds.contains(&mouse_position);
             if !requested && !pointer_on_trigger {
                 state.dismissed = false;
             }
@@ -290,12 +290,14 @@ impl Element for Anchor {
         _id: Option<&GlobalElementId>,
         _inspector_id: Option<&InspectorElementId>,
         _bounds: Bounds<Pixels>,
-        (_, area, _): &mut Self::RequestLayoutState,
+        (state, area, _): &mut Self::RequestLayoutState,
         _prepaint: &mut Self::PrepaintState,
         window: &mut Window,
         cx: &mut App,
     ) {
         area.paint(window, cx);
+        // uniform_list などは測るために 1 フレームに何度もレイアウトするため、1 フレームに 1 回だけ呼ばれる paint で戻す
+        state.update(cx, |state, _| state.just_dismissed = false);
     }
 }
 
@@ -619,6 +621,71 @@ mod tests {
             cx.simulate_keystrokes("tab shift-tab");
             assert_eq!(popup_bounds(cx), ABOVE, "cover: {cover}");
         }
+    }
+
+    /// `uniform_list` の 1 項目に置いたトリガー。項目の左上は (100, 20)
+    struct ListView {
+        focus_handle: FocusHandle,
+        other_focus_handle: FocusHandle,
+    }
+
+    impl Render for ListView {
+        fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+            let focus_handle = self.focus_handle.clone();
+            div()
+                .size_full()
+                .child(
+                    div()
+                        .id("other")
+                        .track_focus(&self.other_focus_handle.clone().tab_stop(true))
+                        .absolute()
+                        .left(px(280.))
+                        .size(px(10.)),
+                )
+                .child(
+                    gpui::uniform_list("list", 1, move |range, _, _| {
+                        range
+                            .map(|_| {
+                                let trigger = div()
+                                    .id("trigger")
+                                    .track_focus(&focus_handle.clone().tab_stop(true))
+                                    .size(px(40.));
+                                div().pl(px(100.)).child(
+                                    Tooltip::new(
+                                        &focus_handle,
+                                        DESCRIPTION,
+                                        div().w(px(80.)).h(px(20.)).bg(gpui::black()),
+                                    )
+                                    .spacing(px(4.))
+                                    .attach(trigger),
+                                )
+                            })
+                            .collect()
+                    })
+                    .absolute()
+                    .top(px(20.))
+                    .w(px(300.))
+                    .h(px(40.)),
+                )
+        }
+    }
+
+    /// `uniform_list` は項目の大きさを測るために、同じフレームで項目を何度もレイアウトする
+    #[gpui::test]
+    fn 一覧の中でもトリガーを覆うツールチップを_escape_で閉じた直後に表示しない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = add_test_window(cx, |_, cx| ListView {
+            focus_handle: cx.focus_handle(),
+            other_focus_handle: cx.focus_handle(),
+        });
+        cx.simulate_resize(size(px(300.), px(60.)));
+        let other = view.read_with(cx, |view, _| view.other_focus_handle.clone());
+        cx.update(|window, cx| other.focus(window, cx));
+        move_mouse(cx, 120., 50.);
+        assert_eq!(popup_bounds(cx), Some((80.0, 40.0, 80.0, 20.0)));
+        cx.simulate_keystrokes("escape");
+        assert_eq!(popup_bounds(cx), None);
     }
 
     #[gpui::test]
