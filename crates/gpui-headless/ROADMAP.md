@@ -19,7 +19,7 @@
 - [x] M3: 調査 (関連付け・テスト・モーダル・フォーカス)
 - [x] M4: 矢印キー移動の基盤と RadioGroup / ToggleGroup
 - [x] M5: Slider
-- [ ] M6: Tabs
+- [x] M6: Tabs
 - [ ] M7: 非モーダルのオーバーレイ基盤と Tooltip
 - [ ] M8: Menu
 - [ ] M9: Dialog
@@ -247,9 +247,21 @@ M4 の矢印キーの扱いを使う。値の公開は gpui の `aria_numeric_va
 tab から tabpanel への `controls` と、tabpanel の `labelled_by` は作れない (M3)。tabpanel には tab と同じ名前を `aria_label` で与え、`controls` は公開しない。
 AccessKit は tab の名前を子の内容から求めないため、tab 自身の名前も `aria_label` で与える
 
-決めること:
+M4 の矢印キーの扱いを使う
 
-- [ ] フォーカスの移動と同時に選ぶか (自動) 、Enter / Space で選ぶか (手動)。自動にするのは、パネルの表示に目立つ遅延が無い場合に限る
+- 選ばれているタブの値は呼び出し側が持ち、`on_change` で選ぶタブを求める。選べるのは 1 つまでで、どれも選ばない状態から始められる
+- 横に並べる配置だけを扱う。縦に並べる配置 (APG では上下の矢印キーで移り、向きを vertical と公開する) は扱わない
+- フォーカスの移動と同時に選ぶ (自動)。パネルは呼び出し側が同じ描画で差し替えるため、表示に目立つ遅延が無い。
+  遅延が出る内容の場合に Enter と Space で選ぶ (手動) 方式は扱わない
+- 左右の矢印キーで移り、Home と End で最初と最後のタブへ移る (APG では任意)。移った先を選ぶよう求める。
+  フォーカス中の Enter と Space・クリック・支援技術からのクリック操作でも選ぶよう求める。選ばれているタブでは求めない
+- 削除できるタブ (APG の Delete キー) は扱わない
+- 3 段目は MD3 の Tabs で確かめた。AT-SPI のアダプタは role `tablist` を page tab list、`tab` を page tab、`tabpanel` を scroll pane として渡す。
+  タブの名前は `aria_label` になり、選ばれているタブに selected が付く。支援技術の click で selected が移り、フォーカスの要求ではフォーカスだけが移って選ばれない
+
+気を付けること:
+
+- M4 と同じく、アプリが左右の矢印キー・Home・End に割り当てた action をいずれかのリスナーが処理すると、並びの `on_key_down` は呼ばれずタブの間を移れない
 
 参照する APG:
 

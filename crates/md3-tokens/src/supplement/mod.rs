@@ -13,3 +13,4 @@ pub mod radio_button;
 pub mod segmented_button;
 pub mod slider;
 pub mod switch;
+pub mod tabs;

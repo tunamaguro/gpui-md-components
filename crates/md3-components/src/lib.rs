@@ -39,6 +39,8 @@ mod shape;
 mod slider;
 #[cfg(feature = "switch")]
 mod switch;
+#[cfg(feature = "tabs")]
+mod tabs;
 // 使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(any(
     feature = "button",
@@ -48,7 +50,8 @@ mod switch;
     feature = "radio-button",
     feature = "segmented-button",
     feature = "slider",
-    feature = "switch"
+    feature = "switch",
+    feature = "tabs"
 ))]
 mod util;
 
@@ -87,6 +90,8 @@ pub use segmented_button::{
 pub use slider::Slider;
 #[cfg(feature = "switch")]
 pub use switch::Switch;
+#[cfg(feature = "tabs")]
+pub use tabs::{Tab, TabPanel, TabRow, TabRowVariant};
 
 /// この crate の部品が使うキー割り当てと操作を登録する。アプリの起動時に、ウィンドウを開く前に 1 回呼ぶ
 pub fn init(cx: &mut gpui::App) {
