@@ -19,6 +19,8 @@ use gpui::{
 use gpui_headless::button::Button as HeadlessButton;
 use gpui_headless::toggle::ToggleButton as HeadlessToggleButton;
 
+#[cfg(feature = "menu")]
+use crate::Menu;
 use crate::shape::Shaped;
 use crate::util;
 use crate::{ButtonColors, ButtonShape, ButtonSize, Tooltip};
@@ -434,6 +436,8 @@ pub struct IconButton {
     disabled: bool,
     focus_handle: Option<FocusHandle>,
     tooltip: Option<Tooltip>,
+    #[cfg(feature = "menu")]
+    menu: Option<Menu>,
     theme: Option<SharedTheme>,
 }
 
@@ -465,6 +469,8 @@ impl IconButton {
             disabled: false,
             focus_handle: None,
             tooltip: None,
+            #[cfg(feature = "menu")]
+            menu: None,
             theme: None,
         }
     }
@@ -533,6 +539,16 @@ impl IconButton {
         self
     }
 
+    /// このアイコンボタンを `menu` を開くボタンにする
+    ///
+    /// メニューの名前は既定で `label` になる。メニューが開いている間は [`IconButton::tooltip`] を表示しない。
+    /// [`IconButton::on_click`] のハンドラがあれば、メニューの開閉を求める前に呼ぶ
+    #[cfg(feature = "menu")]
+    pub fn menu(mut self, menu: Menu) -> Self {
+        self.menu = Some(menu);
+        self
+    }
+
     /// アプリ全体のテーマ ([`ThemeExt::md3_theme`]) の代わりに `theme` で描く
     pub fn theme(mut self, theme: SharedTheme) -> Self {
         self.theme = Some(theme);
@@ -582,14 +598,26 @@ impl RenderOnce for IconButton {
                 color
             }
         });
-        let button = HeadlessButton::new(self.id)
+        let button = HeadlessButton::new(self.id.clone())
             .track_focus(&focus_handle)
             .disabled(disabled)
             .aria_label(self.label.clone())
-            .when_some(self.on_click, |this, on_click| this.on_click(on_click))
-            .when_some(self.tooltip, |this, tooltip| {
-                tooltip.attach(this, &focus_handle, &self.label, &theme, window)
-            });
+            .when_some(self.on_click, |this, on_click| this.on_click(on_click));
+        #[cfg(feature = "menu")]
+        let (button, tooltip) = match self.menu {
+            Some(menu) => {
+                // 開いている間のツールチップはメニューに重なり、Escape をメニューより先に受け取るため出さない
+                let tooltip = self.tooltip.filter(|_| !menu.expanded);
+                let button = menu.attach(button, &self.id, Some(&self.label), &theme, window, cx);
+                (button, tooltip)
+            }
+            None => (button, self.tooltip),
+        };
+        #[cfg(not(feature = "menu"))]
+        let tooltip = self.tooltip;
+        let button = button.when_some(tooltip, |this, tooltip| {
+            tooltip.attach(this, &focus_handle, &self.label, &theme, window)
+        });
         let look = Look {
             theme,
             icon: self.icon,

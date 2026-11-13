@@ -6,7 +6,7 @@ use gpui::{
     StyleRefinement, Styled, Window, accesskit, div, prelude::FluentBuilder,
 };
 
-use crate::{Availability, accessibility::A11yInfoExt};
+use crate::{Availability, accessibility::A11yInfoExt, menu::Menu};
 
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
@@ -22,6 +22,7 @@ pub struct Button {
     on_click: Option<ClickHandler>,
     provided_focus_handle: Option<FocusHandle>,
     availability: Availability,
+    pub(crate) menu: Option<Menu>,
 }
 
 impl Button {
@@ -37,6 +38,7 @@ impl Button {
             on_click: None,
             provided_focus_handle: None,
             availability: Availability::Enabled,
+            menu: None,
         }
     }
 
@@ -102,6 +104,8 @@ impl RenderOnce for Button {
         let focusable = self.availability.is_focusable() || focus_handle.is_focused(window);
         let disabled = self.availability.is_disabled();
         let on_click = self.on_click.filter(|_| !disabled);
+        let has_menu = self.menu.is_some();
+        let id = self.id;
         self.inner
             .role(accesskit::Role::Button)
             .when(disabled, |this| {
@@ -116,12 +120,21 @@ impl RenderOnce for Button {
                 })
             })
             .when(focusable, |this| {
-                this.track_focus(&focus_handle.tab_stop(true))
+                this.track_focus(&focus_handle.clone().tab_stop(true))
             })
             .when_some(on_click, |this, on_click| this.on_click(on_click))
+            .when_some(self.menu, |this, menu| {
+                // 同じ親に並ぶ別のボタンのメニューと状態を分けるため、ボタンの id の下に置く
+                window.with_element_namespace(id, |window| {
+                    menu.attach_to_trigger(this, &focus_handle, disabled, window, cx)
+                })
+            })
             .a11y_info(move |node: &mut accesskit::Node| {
                 if disabled {
                     node.set_disabled();
+                }
+                if has_menu {
+                    node.set_has_popup(accesskit::HasPopup::Menu);
                 }
             })
     }

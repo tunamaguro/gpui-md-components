@@ -7,6 +7,7 @@ pub mod button;
 pub mod choice;
 mod focus_visible;
 mod interaction;
+pub mod menu;
 mod navigation;
 pub mod progress;
 pub mod radio;

@@ -14,6 +14,8 @@ use gpui::{
 };
 use gpui_headless::button::Button as HeadlessButton;
 
+#[cfg(feature = "menu")]
+use crate::Menu;
 use crate::shape::Shaped;
 use crate::util;
 use md3_icons::StyledIcon;
@@ -311,6 +313,8 @@ pub struct Button {
     aria_label: Option<SharedString>,
     disabled: bool,
     focus_handle: Option<FocusHandle>,
+    #[cfg(feature = "menu")]
+    menu: Option<Menu>,
     theme: Option<SharedTheme>,
 }
 
@@ -334,6 +338,8 @@ impl Button {
             aria_label: None,
             disabled: false,
             focus_handle: None,
+            #[cfg(feature = "menu")]
+            menu: None,
             theme: None,
         }
     }
@@ -405,6 +411,16 @@ impl Button {
     /// 指定しない場合はボタンが内部でフォーカスを持つ
     pub fn track_focus(mut self, focus_handle: &FocusHandle) -> Self {
         self.focus_handle = Some(focus_handle.clone());
+        self
+    }
+
+    /// このボタンを `menu` を開くボタンにする
+    ///
+    /// メニューの名前は既定で [`Button::aria_label`] になる。
+    /// [`Button::on_click`] のハンドラがあれば、メニューの開閉を求める前に呼ぶ
+    #[cfg(feature = "menu")]
+    pub fn menu(mut self, menu: Menu) -> Self {
+        self.menu = Some(menu);
         self
     }
 
@@ -501,7 +517,7 @@ impl RenderOnce for Button {
                 })
             });
 
-        let mut button = HeadlessButton::new(self.id)
+        let mut button = HeadlessButton::new(self.id.clone())
             .track_focus(&focus_handle)
             .disabled(disabled)
             .group(GROUP)
@@ -540,9 +556,22 @@ impl RenderOnce for Button {
                     .border_color(theme.color(focus_ring::COLOR));
                 this.child(Shaped::new(ring, theme.clone(), shape).outset(outset))
             })
-            .when_some(self.aria_label, |this, label| this.aria_label(label))
+            .when_some(self.aria_label.clone(), |this, label| {
+                this.aria_label(label)
+            })
             .when_some(self.on_click, |this, on_click| this.on_click(on_click));
         button.text_style().refine(&theme.text_style(size.label));
+        #[cfg(feature = "menu")]
+        if let Some(menu) = self.menu {
+            button = menu.attach(
+                button,
+                &self.id,
+                self.aria_label.as_ref(),
+                &theme,
+                window,
+                cx,
+            );
+        }
 
         self.outer.child(button)
     }

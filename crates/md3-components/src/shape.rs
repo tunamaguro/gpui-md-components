@@ -16,6 +16,8 @@ pub(crate) struct Shaped {
     inner: Div,
     theme: SharedTheme,
     key: ShapeKey,
+    /// 下の 2 つの角の形。`None` なら `key`
+    bottom_key: Option<ShapeKey>,
     morph: Option<(ShapeKey, f32)>,
     outset: Pixels,
     /// 形の角丸を付ける角。`false` の角は直角にする
@@ -28,6 +30,7 @@ impl Shaped {
             inner,
             theme,
             key,
+            bottom_key: None,
             morph: None,
             outset: px(0.0),
             rounded: Corners {
@@ -56,6 +59,13 @@ impl Shaped {
     #[cfg(feature = "icon-button")]
     pub(crate) fn morph(mut self, target: ShapeKey, phase: f32) -> Self {
         self.morph = Some((target, phase));
+        self
+    }
+
+    /// 下の 2 つの角だけを `key` の形にする
+    #[cfg(feature = "menu")]
+    pub(crate) fn bottom_corners(mut self, key: ShapeKey) -> Self {
+        self.bottom_key = Some(key);
         self
     }
 
@@ -113,6 +123,11 @@ impl Element for Shaped {
             bounds.size.height - self.outset * 2.0,
         );
         let mut radii = self.theme.corner_radii(self.key, shape_size);
+        if let Some(bottom_key) = self.bottom_key {
+            let bottom = self.theme.corner_radii(bottom_key, shape_size);
+            radii.bottom_right = bottom.bottom_right;
+            radii.bottom_left = bottom.bottom_left;
+        }
         if let Some((target, phase)) = self.morph {
             // Compose の `rememberAnimatedShape` と同じく、角ごとの半径を線形に補間する
             let target = self.theme.corner_radii(target, shape_size);

@@ -21,6 +21,8 @@ mod icon_button;
 // 使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(feature = "checkbox")]
 mod interaction;
+#[cfg(feature = "menu")]
+mod menu;
 #[cfg(feature = "progress-indicator")]
 mod progress_indicator;
 #[cfg(feature = "radio-button")]
@@ -35,6 +37,7 @@ mod segmented_button;
     feature = "chip",
     feature = "fab",
     feature = "icon-button",
+    feature = "menu",
     feature = "segmented-button",
     feature = "slider"
 ))]
@@ -55,6 +58,7 @@ mod tooltip;
     feature = "checkbox",
     feature = "chip",
     feature = "fab",
+    feature = "menu",
     feature = "radio-button",
     feature = "segmented-button",
     feature = "slider",
@@ -85,6 +89,8 @@ pub use icon_button::{
 };
 #[cfg(feature = "checkbox")]
 pub use interaction::InteractionSource;
+#[cfg(feature = "menu")]
+pub use menu::{Menu, MenuGroup, MenuItem, MenuItemKind, MenuVariant};
 #[cfg(feature = "progress-indicator")]
 pub use progress_indicator::{
     Progress, ProgressIndicator, ProgressIndicatorColors, ProgressIndicatorVariant,
