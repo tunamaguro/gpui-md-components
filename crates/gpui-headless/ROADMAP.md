@@ -21,7 +21,7 @@
 - [x] M5: Slider
 - [x] M6: Tabs
 - [x] M7: 非モーダルのオーバーレイ基盤と Tooltip
-- [ ] M8: Menu
+- [x] M8: Menu
 - [ ] M9: Dialog
 - [ ] M10: Select (Listbox)
 - [ ] M11: TextField
@@ -338,6 +338,68 @@ Menu と Select がこの基盤を使う。Dialog の完成を待たない
 対象: Menu Button + Menu
 
 M4 の矢印キー移動と M7 のオーバーレイ基盤を組み合わせる。menu button からメニューへの `controls` は作れない (M3)
+
+決めたこと:
+
+- メニューは `button::Button` に `Menu::attach` で付ける。M7 と同じく、ボタンの子に置いた要素から `defer_draw` で描き、ツールチップより奥に出す。
+  開いている間のメニューは role `menu` としてウィンドウの直下に入るため、名前はボタンと同じものを `aria_label` で与える。
+  ボタンには、メニューを開くこと (`has_popup`) と開いているか (`expanded`) を公開する
+- 開いているかは呼び出し側が持ち、`on_expanded_change` で開閉を求める
+- メニューの状態と項目のフォーカスは、ボタンの id の下に置く。同じ親に並ぶ別のボタンのメニューと id が重なっても、状態を分ける
+- 項目には実際にフォーカスを移す (APG の roving focus)。項目は Tab で到達できない
+  - 開いたとき、最初のフォーカスできる項目 (上矢印キーで開いたときは最後の項目) にフォーカスを移す。フォーカスできる項目が無ければメニューに移す
+  - 上下の矢印キーで前後の項目へ移り、端では反対の端に戻る。Home と End で最初と最後の項目へ移る。組をまたいで、加えた順に移る
+  - 開いている間にボタンで上下の矢印キーを押すと、開くよう求めずに最後か最初の項目へフォーカスだけを移す
+  - 項目にマウスが乗るとフォーカスを移す (APG の例と同じ)
+  - キーでフォーカスを移した項目が見えるよう、メニューを最小限だけスクロールする
+- 閉じるとき
+  - Escape で閉じ、ボタンへフォーカスを戻す
+  - Tab で閉じ、ボタンの次に Tab で到達できる要素へ移す。Shift+Tab で閉じ、ボタンへ移す
+  - メニューとボタンの外でマウスのボタンを押すと閉じる。モーダルではないため、押下はその位置の要素にそのまま届く。
+    ボタンの上の押下は、ボタンのクリックで閉じるよう求めるため外側として扱わない
+    - `paint_margin` の余白は、メニューの子が描かれていない部分を外側として扱い、背後の要素への操作も遮らない。影のための余白がボタンや別の要素に重なっても、その要素を押せ、フォーカスも移る
+  - 閉じたとき、フォーカスがメニューの中にあればボタンへ戻す。
+    同じフレームで別のメニューが開くなどして、それまでにフォーカスが移されていれば戻さない
+- 開いている間にフォーカスのある項目が描かれなくなると、キーを受け続けられるようメニューにフォーカスを移す
+- 項目の種類は `MenuItemKind` で選び、role `menuitem`、`menuitemcheckbox`、`menuitemradio` と、切り替える項目の状態を公開する。
+  切り替える項目は APG に従い、Space では開いたまま切り替え、Enter では切り替えて閉じる
+- 無効な項目は、APG に従って矢印キーとマウスでフォーカスできる (`MenuItem::disabled` は `Availability::DisabledFocusable`)。操作しても閉じない
+- 配置は Compose の `DropdownMenuPositionProvider` (`MenuAnchorPosition.Below`) に合わせる。
+  ボタンの下に左端をそろえて置き、収まらなければ右端をそろえ、それでも収まらなければウィンドウの端に寄せる。上下も同じく、下、上、ボタンの上端を中心にした位置、ウィンドウの端の順に試す。
+  ウィンドウの端からの余白は `Menu::window_margin` で与える
+  - M7 の配置の要素とは配置の規則が異なるため、menu モジュールに別の要素を置いた
+  - メニューの外に描く影の場所を取るため、`Menu::paint_margin` でメニューの周りに透明な余白を取れる。余白は配置の計算に含めない。
+    メニューの子は余白の上にも描けるよう、スクロールと切り取りは余白を含めた範囲で行う。
+    メニューの要素 (role `menu`、フォーカス、キー、背後への操作を遮る範囲) は余白を含めないため、余白の上の押下でメニューがフォーカスを取ることはない
+- メニューの大きさはウィンドウまでにし、超える分は縦にスクロールする
+
+扱わないこと:
+
+- 文字キーで頭文字の合う項目へ移ること (APG の typeahead、任意)
+- サブメニューと menubar
+- 開閉のアニメーション (Compose の拡大と不透明度の変化)。M7 と同じ理由
+- 項目の上での右クリックや長押しなど、Click 以外の操作
+
+MD3 (md3-components) で決めたこと:
+
+- Compose の Expressive のメニュー (`DropdownMenuPopup`・`DropdownMenuGroup`・`DropdownMenuItem` の shapes を取るもの) を移植した。
+  項目は必ず組 (`MenuGroup`) に入れ、組ごとに影の付いた容器に描く。1 つの容器に項目を並べる従来の `DropdownMenu` は扱わない
+- 組と項目の形は、Compose の `MenuDefaults.groupShape`・`itemShape` と同じく、組や項目の数と位置で決める。選ばれた項目は位置によらず `ItemSelectedShape` にする
+  - Compose は組にマウスが乗った後に離れると、組の形を `InactiveContainerShape` に変える。アニメーションと組で扱うため、ここでは変えない
+- 項目の文の書体は、Compose が使う labelLarge にする。トークン (`ItemLabelTextFont`) は bodyLarge で、Compose はトークンに置き換える TODO を残している。
+  補足の文は bodyMedium で文と同じ色、末尾のキー操作の文 (`DropdownMenuItemTrailingLabel`) は labelLarge で末尾の内容の色にする。
+  トークンの `ItemSupportingTextColor` (OnSurfaceVariant) と `ItemTrailingSupportingTextFont` (labelSmall) は Compose が使っていないため使わない
+- フォーカスリングは Material Web の項目と同じく項目の内側に描き、形は項目の形に合わせる。無効でもフォーカスできる項目にも描く
+- メニューを開くボタンのツールチップは、メニューが開いている間は表示しない。メニューに重なり、Escape をメニューより先に受け取るため
+- 補足の文は項目の説明 (`aria_description`) に、キー操作の文はキーボードショートカット (`aria_keyshortcuts`) にする
+
+気を付けること:
+
+- メニューはボタンの子として描かれ、ボタンの文字のスタイル (色や折り返し) を受け継ぐ。見た目を付ける側で必要なスタイルを上書きする
+- 3 段目は MD3 の Menu (Icon button と Button に付けたもの) で確かめた。メニューは menu としてウィンドウの直下に入り、名前はボタンの名前になる。
+  組は panel、項目は menu item・check menu item・radio menu item として渡り、切り替える項目は checkable と checked、補足の文は description になる。
+  支援技術の click で項目が操作され、Escape でボタンにフォーカスが戻る。
+  AT-SPI のアダプタ (accesskit_atspi_common 0.19.1) はボタンの `expanded` と `has_popup` を渡さない
 
 参照する APG:
 

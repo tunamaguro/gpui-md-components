@@ -9,6 +9,7 @@ pub mod card;
 pub mod checkbox;
 pub mod chip;
 pub mod fab;
+pub mod menu;
 pub mod progress_indicator;
 pub mod radio_button;
 pub mod segmented_button;

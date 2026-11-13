@@ -10,6 +10,7 @@ mod chip_page;
 mod divider_page;
 mod fab_page;
 mod icon_button_page;
+mod menu_page;
 mod progress_indicator_page;
 mod radio_button_page;
 mod segmented_button_page;
@@ -35,6 +36,7 @@ use crate::chip_page::ChipPage;
 use crate::divider_page::DividerPage;
 use crate::fab_page::FabPage;
 use crate::icon_button_page::IconButtonPage;
+use crate::menu_page::MenuPage;
 use crate::progress_indicator_page::ProgressIndicatorPage;
 use crate::radio_button_page::RadioButtonPage;
 use crate::segmented_button_page::SegmentedButtonPage;
@@ -63,6 +65,7 @@ enum Page {
     Tabs,
     Chip,
     Tooltip,
+    Menu,
 }
 
 /// ギャラリーのルート。各ページの状態は持たず、ページのエンティティと表示中のページだけを持つ
@@ -84,6 +87,7 @@ struct Gallery {
     tabs_page: Entity<TabsPage>,
     chip_page: Entity<ChipPage>,
     tooltip_page: Entity<TooltipPage>,
+    menu_page: Entity<MenuPage>,
 }
 
 impl Gallery {
@@ -106,6 +110,7 @@ impl Gallery {
             tabs_page: cx.new(TabsPage::new),
             chip_page: cx.new(ChipPage::new),
             tooltip_page: cx.new(|_| TooltipPage::default()),
+            menu_page: cx.new(|_| MenuPage::default()),
         }
     }
 }
@@ -142,6 +147,7 @@ impl Render for Gallery {
             Page::Tabs => self.tabs_page.clone().into(),
             Page::Chip => self.chip_page.clone().into(),
             Page::Tooltip => self.tooltip_page.clone().into(),
+            Page::Menu => self.menu_page.clone().into(),
         };
         md3_components::root(
             div()
@@ -170,7 +176,8 @@ impl Render for Gallery {
                         .child(tab(Page::Slider, "Slider", cx))
                         .child(tab(Page::Tabs, "Tabs", cx))
                         .child(tab(Page::Chip, "Chips", cx))
-                        .child(tab(Page::Tooltip, "Tooltips", cx)),
+                        .child(tab(Page::Tooltip, "Tooltips", cx))
+                        .child(tab(Page::Menu, "Menus", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )

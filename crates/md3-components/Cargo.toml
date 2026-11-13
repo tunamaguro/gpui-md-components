@@ -28,6 +28,7 @@ default = [
   "chip",
   "divider",
   "fab",
+  "menu",
   "progress-indicator",
   "radio-button",
   "segmented-button",
@@ -45,6 +46,8 @@ checkbox = []
 chip = []
 divider = []
 fab = []
+# メニューを開くボタンと、組の中の区切り線を使う
+menu = ["button", "divider"]
 progress-indicator = []
 radio-button = []
 segmented-button = []

@@ -10,7 +10,7 @@ use gpui::{
 use crate::is_focus_visible;
 
 /// ツールチップをほかのポップアップより手前に描くための、遅延描画の優先度
-const PRIORITY: usize = usize::MAX;
+pub(crate) const PRIORITY: usize = usize::MAX;
 
 /// トリガーに付ける、見た目を持たないツールチップ
 ///
