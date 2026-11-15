@@ -538,8 +538,6 @@ impl<T: PartialEq + 'static> RenderOnce for Select<T> {
                 };
                 let segment = || {
                     div()
-                        .absolute()
-                        .top_0()
                         .h(line_width)
                         .bg(line_color)
                         .when_some(line_hover, |this, line_hover| {
@@ -597,25 +595,36 @@ impl<T: PartialEq + 'static> RenderOnce for Select<T> {
                             .ceil();
                         let cutout = dp(supplement::select::OUTLINED_LABEL_CUTOUT_PADDING);
                         let cutout_left = (horizontal_padding - cutout).max(left);
+                        // ラベルは左右の余白の内側に収め、収まらない分は省く。空ける範囲も同じだけ縮め、
+                        // 右の線は空ける範囲の右端から角までの幅を下回らないようにする
                         pieces.push(
-                            segment()
-                                .left(left)
-                                .w(cutout_left - left)
-                                .into_any_element(),
-                        );
-                        pieces.push(
-                            segment()
-                                .left(horizontal_padding + label_width + cutout)
-                                .right(right)
+                            div()
+                                .absolute()
+                                .top_0()
+                                .left_0()
+                                .right_0()
+                                .flex()
+                                .pl(left)
+                                .pr(right)
+                                .child(segment().flex_none().w(cutout_left - left))
+                                .child(
+                                    div()
+                                        .w(horizontal_padding - cutout_left + label_width + cutout),
+                                )
+                                .child(
+                                    segment()
+                                        .flex_grow_1()
+                                        .min_w((horizontal_padding - cutout - right).max(px(0.))),
+                                )
                                 .into_any_element(),
                         );
                         // ラベルは枠線の上辺に中心をそろえて置く
                         let mut floating_label = div()
                             .debug_selector(|| "md3-select-label".into())
-                            .absolute()
-                            .left(horizontal_padding)
-                            .top(-small_label_height / 2.0)
+                            .min_w_0()
+                            .overflow_hidden()
                             .whitespace_nowrap()
+                            .text_ellipsis()
                             .text_color(color(rest.label))
                             .when_some(hover, |this, hover| {
                                 this.group_hover(GROUP, |style| {
@@ -624,9 +633,25 @@ impl<T: PartialEq + 'static> RenderOnce for Select<T> {
                             })
                             .child(label);
                         floating_label.text_style().refine(&small_label_style);
-                        pieces.push(floating_label.into_any_element());
+                        pieces.push(
+                            div()
+                                .absolute()
+                                .left(horizontal_padding)
+                                .right(horizontal_padding)
+                                .top(-small_label_height / 2.0)
+                                .flex()
+                                .child(floating_label)
+                                .into_any_element(),
+                        );
                     }
-                    None => pieces.push(segment().left(left).right(right).into_any_element()),
+                    None => pieces.push(
+                        segment()
+                            .absolute()
+                            .top_0()
+                            .left(left)
+                            .right(right)
+                            .into_any_element(),
+                    ),
                 }
                 pieces
             }
@@ -640,17 +665,16 @@ impl<T: PartialEq + 'static> RenderOnce for Select<T> {
         if let Some(name) = &name {
             listbox = listbox.aria_label(name.clone());
         }
-        if self.expanded {
-            listbox = fill_listbox(
-                listbox,
-                &self.id,
-                self.selected.as_ref(),
-                std::mem::take(&mut self.options),
-                &theme,
-                window,
-                cx,
-            );
-        }
+        // 閉じている間も、選ばれている項目の名前をセレクトの値として公開するため、項目を渡す
+        listbox = fill_listbox(
+            listbox,
+            &self.id,
+            self.selected.as_ref(),
+            std::mem::take(&mut self.options),
+            &theme,
+            window,
+            cx,
+        );
         let mut field = HeadlessSelect::new(self.id.clone(), self.selected, self.expanded)
             .listbox(listbox)
             .track_focus(&focus_handle.tab_index(0))
@@ -715,7 +739,7 @@ impl<T: PartialEq + 'static> Styled for Select<T> {
     }
 }
 
-/// `id` のセレクトの開いている一覧 `listbox` に、容器を描き `options` を並べて返す
+/// `id` のセレクトの一覧 `listbox` に、容器を描き `options` を並べて返す
 fn fill_listbox<T: PartialEq + 'static>(
     mut listbox: SelectListbox<T>,
     id: &ElementId,
@@ -865,6 +889,7 @@ mod tests {
         leading_icon: bool,
         error: bool,
         disabled: bool,
+        label: &'static str,
         /// 指定した幅。`None` なら幅を指定しない
         width: Option<f32>,
     }
@@ -874,7 +899,7 @@ mod tests {
             div().size_full().child(
                 Select::new("select", self.selected, self.expanded)
                     .variant(self.variant)
-                    .label("Fruit")
+                    .label(self.label)
                     .when(self.leading_icon, |this| {
                         this.leading_icon(md3_icons::NUTRITION)
                     })
@@ -916,6 +941,7 @@ mod tests {
                 leading_icon: false,
                 error: false,
                 disabled: false,
+                label: "Fruit",
                 width: Some(300.),
             };
             f(&mut view);
@@ -1163,6 +1189,24 @@ mod tests {
             segments,
             [(104., 108., 8., 1.), (right, 108., 396. - right, 1.)]
         );
+    }
+
+    #[gpui::test]
+    #[cfg(debug_assertions)]
+    fn outlined_の浮かせたラベルが長ければ左右の余白の内側に収め角の手前の線を残す(
+        cx: &mut TestAppContext,
+    ) {
+        let (_, cx) = add_view(cx, |view| {
+            view.variant = SelectVariant::Outlined;
+            view.selected = Some(0);
+            view.label = "A very long label that does not fit in the select field at all";
+        });
+        let (label_x, _, label_width, _) = bounds(cx, "md3-select-label").unwrap();
+        assert_eq!((label_x, label_width), (116., 268.));
+        let outline = color(cx, outlined::OUTLINE_COLOR);
+        let mut segments = filled(cx, outline);
+        segments.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        assert_eq!(segments, [(104., 108., 8., 1.), (388., 108., 8., 1.)]);
     }
 
     #[gpui::test]

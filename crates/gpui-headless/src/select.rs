@@ -43,14 +43,15 @@ const PAGE: usize = 10;
 /// - 項目にマウスが乗ると、その項目にフォーカスを移す
 /// - 項目のクリック・Enter・Space・支援技術からのクリック操作と、Alt+上矢印キーで、
 ///   フォーカスをセレクトへ移し、その項目を選ぶよう求めて閉じるよう求める
-/// - Tab と Shift+Tab で、フォーカスのある項目を選ぶよう求めて閉じるよう求め、
-///   フォーカスをセレクトの次と前の Tab で到達できる要素へ移す
+/// - Tab と Shift+Tab で、フォーカスをセレクトへ移し、フォーカスのある項目を選ぶよう求めて閉じるよう求める。
+///   続けてセレクトから Tab と Shift+Tab を処理し、セレクトの次と前の Tab で到達できる要素へ移す。
+///   セレクトが [`crate::dialog::Dialog`] の中にあれば、ダイアログの中だけを巡る
 /// - 修飾キーなしの Escape で、選ばずに閉じるよう求める
 /// - 一覧とセレクトの外でマウスのボタンを押すと、閉じるよう求める。押した先には、そのまま押下が届く
 /// - 閉じたとき、フォーカスが一覧の中にあればセレクトへ戻す
 /// - 選ばれている項目を選んでも [`Select::on_change`] は呼ばない
 ///
-/// 一覧の位置は [`crate::menu::Menu`] と同じ規則で決め、一覧の幅はセレクトの幅以上にする。
+/// 一覧の位置は [`crate::menu::Menu`] と同じ規則で決め、一覧の幅はセレクトの幅以上にする
 ///
 /// 支援技術には role `combobox` として、開いているかと、選ばれている項目の名前を値として公開する。
 /// 名前は `aria_label` で与えること。
@@ -121,7 +122,7 @@ impl<T: PartialEq + 'static> Select<T> {
     /// セレクトを無効にするか、無効でも Tab で到達できるようにするかを設定する。既定では有効
     ///
     /// 無効なセレクトは押されても開くよう求めず、マウスの左ボタンの押下を親に伝えず、支援技術には disabled として公開される。
-    /// 開いている一覧は閉じられる
+    /// 開いている一覧は閉じられるが、項目は選べない
     pub fn availability(mut self, availability: Availability) -> Self {
         self.availability = availability;
         self
@@ -238,7 +239,8 @@ impl<T: PartialEq + 'static> RenderOnce for Select<T> {
             let items = items.clone();
             let on_change = self.on_change.clone();
             Rc::new(move |ix: usize, window: &mut Window, cx: &mut App| {
-                if Some(ix) != selected_ix
+                if !disabled
+                    && Some(ix) != selected_ix
                     && !items[ix].availability.is_disabled()
                     && let Some(on_change) = &on_change
                 {
@@ -309,6 +311,12 @@ impl<T: PartialEq + 'static> RenderOnce for Select<T> {
                         return;
                     }
                     if event.keystroke.modifiers.modified() {
+                        // 一覧はセレクトの子として描かれ、キーがセレクトに届くため、セレクトが開く操作として扱わないよう止める
+                        if event.keystroke.modifiers == Modifiers::alt()
+                            && event.keystroke.key == "down"
+                        {
+                            cx.stop_propagation();
+                        }
                         return;
                     }
                     let step = |forward: bool, count: usize| match current {
@@ -345,17 +353,14 @@ impl<T: PartialEq + 'static> RenderOnce for Select<T> {
                         .iter()
                         .position(|item| item.focus_handle.is_focused(window));
                     window.focus(&trigger_focus, cx);
-                    if forward {
-                        window.focus_next(cx);
-                    } else {
-                        window.focus_prev(cx);
-                    }
                     if let Some(ix) = current {
                         commit(ix, window, cx);
                     }
                     if let Some(close) = &request {
                         close(&false, window, cx);
                     }
+                    // セレクトから先の移動は祖先の処理 (ダイアログの閉じ込めなど) に任せる
+                    cx.propagate();
                 };
                 listbox_element = if forward {
                     listbox_element.on_action(move |_: &FocusNext, window, cx| tab(window, cx))
@@ -957,6 +962,30 @@ mod tests {
             press_key(cx, key);
             assert_eq!(focused(&view, cx), Some("banana"), "{key}");
         }
+    }
+
+    #[gpui::test]
+    fn 開いている間の_alt_下矢印キーではフォーカスを動かさない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx);
+        open_with(cx, "down");
+        press_key(cx, "down");
+        press_key(cx, "alt-down");
+        assert_eq!(focused(&view, cx), Some("cherry"));
+    }
+
+    #[gpui::test]
+    fn 開いている間に無効になると項目を選ばない(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx);
+        open_with(cx, "down");
+        press_key(cx, "down");
+        update(&view, cx, |view| {
+            view.select_availability = Availability::DisabledFocusable
+        });
+        press_key(cx, "enter");
+        assert!(changes(&view, cx).is_empty());
+        assert!(!expanded(&view, cx), "閉じるよう求めること");
     }
 
     #[gpui::test]

@@ -426,16 +426,28 @@ mod tests {
     use crate::{
         button::Button,
         menu::{Menu, MenuItem},
+        select::{Select, SelectListbox, SelectOption},
         test_window::add_test_window,
     };
+
+    /// ダイアログの最後に置く、一覧を開く部品
+    #[derive(Clone, Copy, PartialEq)]
+    enum Popup {
+        Select,
+        Menu,
+    }
 
     const DIALOG_COLOR: fn() -> Hsla = gpui::red;
 
     /// 500x400 のウィンドウに、(0, 0) から 40x20 の開くボタンと、(100, 0) から 40x20 の別のボタンを置く。
     /// ダイアログは 200x100 で、幕の中央 (150, 150) に置き、`buttons` なら 2 つのボタンを持つ。
     /// `second_open` なら、ボタンを 1 つ持つ 100x50 の 2 つ目のダイアログを手前に開く。
-    /// (200, 0) から 40x20 のボタンにメニューを付け、その項目 (幅 100、高さ 20) を操作するとダイアログを開く
+    /// (200, 0) から 40x20 のボタンにメニューを付け、その項目 (幅 100、高さ 20) を操作するとダイアログを開く。
+    /// `popup` なら、ダイアログのボタンの後に、項目を 1 つ持つセレクトかメニューを付けたボタンを置く
     struct DialogView {
+        popup: Option<Popup>,
+        popup_expanded: bool,
+        popup_focus: FocusHandle,
         open: bool,
         second_open: bool,
         menu_expanded: bool,
@@ -489,6 +501,33 @@ mod tests {
                             .size(px(10.)),
                     )
                     .child(Button::new("ok").track_focus(&self.ok_focus).size(px(10.)))
+                })
+                .when_some(self.popup, |this, popup| {
+                    let request = cx.listener(|this, expanded: &bool, _, cx| {
+                        this.popup_expanded = *expanded;
+                        cx.notify();
+                    });
+                    match popup {
+                        Popup::Select => this.child(
+                            Select::new("inner-select", None::<()>, self.popup_expanded)
+                                .on_expanded_change(request)
+                                .listbox(SelectListbox::new().option(
+                                    SelectOption::new("only", (), "Only").w(px(50.)).h(px(10.)),
+                                ))
+                                .track_focus(&self.popup_focus)
+                                .size(px(10.)),
+                        ),
+                        Popup::Menu => this.child(
+                            Menu::new("inner-menu", self.popup_expanded)
+                                .on_expanded_change(request)
+                                .item(MenuItem::new("only").w(px(50.)).h(px(10.)))
+                                .attach(
+                                    Button::new("inner-menu")
+                                        .track_focus(&self.popup_focus)
+                                        .size(px(10.)),
+                                ),
+                        ),
+                    }
                 });
             let second = Dialog::new("second", self.second_open)
                 .scrim(scrim())
@@ -557,6 +596,9 @@ mod tests {
 
     fn setup(cx: &mut TestAppContext) -> (Entity<DialogView>, &mut VisualTestContext) {
         let (view, cx) = add_test_window(cx, |_, cx| DialogView {
+            popup: None,
+            popup_expanded: false,
+            popup_focus: cx.focus_handle(),
             open: false,
             second_open: false,
             menu_expanded: false,
@@ -608,6 +650,7 @@ mod tests {
                 ("ok", view.ok_focus.clone()),
                 ("inner", view.inner_focus.clone()),
                 ("menu", view.menu_focus.clone()),
+                ("popup", view.popup_focus.clone()),
             ]
         });
         cx.update(|window, _| {
@@ -884,5 +927,30 @@ mod tests {
         assert!(cx.update(|_, cx| any_open(cx)));
         update(&view, cx, |view| view.open = false);
         assert!(!cx.update(|_, cx| any_open(cx)));
+    }
+
+    #[gpui::test]
+    fn ダイアログの中で開いた一覧から_tab_で出てもダイアログの中を巡る(
+        cx: &mut TestAppContext,
+    ) {
+        for popup in [Popup::Select, Popup::Menu] {
+            let (view, cx) = setup(cx);
+            update(&view, cx, |view| {
+                view.popup = Some(popup);
+                view.open = true;
+            });
+            cx.simulate_keystrokes("tab tab");
+            assert_eq!(focused(&view, cx), Some("popup"));
+            cx.simulate_keystrokes("down");
+            assert!(view.read_with(cx, |view, _| view.popup_expanded));
+            cx.simulate_keystrokes("tab");
+            cx.run_until_parked();
+            assert!(!view.read_with(cx, |view, _| view.popup_expanded));
+            assert_eq!(
+                focused(&view, cx),
+                Some("cancel"),
+                "最後の要素の次はダイアログの最初の要素に戻ること"
+            );
+        }
     }
 }

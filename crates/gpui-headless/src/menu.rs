@@ -45,6 +45,7 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 /// - 項目にマウスが乗ると、その項目にフォーカスを移す
 /// - 修飾キーなしの Escape で閉じるよう求める
 /// - Tab で閉じるよう求め、フォーカスをボタンの次に Tab で到達できる要素へ移す。
+///   ボタンが [`crate::dialog::Dialog`] の中にあれば、ダイアログの中だけを巡る。
 ///   Shift+Tab で閉じるよう求め、フォーカスをボタンへ移す
 /// - メニューとボタンの外でマウスのボタンを押すと、閉じるよう求める。押した先には、そのまま押下が届く
 /// - 項目の操作で閉じるよう求めるときは、項目のハンドラを呼ぶ前にボタンへフォーカスを移す
@@ -272,10 +273,11 @@ impl Menu {
                 })
                 .on_action(move |_: &FocusNext, window, cx| {
                     window.focus(&next_focus, cx);
-                    window.focus_next(cx);
                     if let Some(close) = &next_close {
                         close(&false, window, cx);
                     }
+                    // ボタンから先の移動は祖先の処理 (ダイアログの閉じ込めなど) に任せる
+                    cx.propagate();
                 })
                 .on_action(move |_: &FocusPrevious, window, cx| {
                     window.focus(&previous_focus, cx);
