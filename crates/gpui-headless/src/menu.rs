@@ -3,11 +3,10 @@
 use std::{cell::Cell, rc::Rc};
 
 use gpui::{
-    AnyElement, App, AvailableSpace, Bounds, ClickEvent, Div, Edges, Element, ElementId, Entity,
-    FocusHandle, GlobalElementId, InspectorElementId, InteractiveElement, Interactivity,
-    IntoElement, KeyboardButton, KeyboardClickEvent, LayoutId, MouseButton, ParentElement, Pixels,
-    Point, ScrollHandle, Size, Stateful, StatefulInteractiveElement, StyleRefinement, Styled,
-    Window, accesskit, canvas, div, point, prelude::FluentBuilder, px, size,
+    AnyElement, App, Bounds, ClickEvent, Div, Edges, ElementId, FocusHandle, InteractiveElement,
+    Interactivity, IntoElement, KeyboardButton, KeyboardClickEvent, MouseButton, ParentElement,
+    Pixels, Size, Stateful, StatefulInteractiveElement, StyleRefinement, Styled, Window, accesskit,
+    canvas, div, prelude::FluentBuilder,
 };
 
 use crate::{
@@ -16,14 +15,10 @@ use crate::{
     button::Button,
     choice::CheckedState,
     navigation::{FocusNext, FocusPrevious},
+    popup::{self, Anchor, ExpandedChangeHandler, OpenFocus},
     roving::{self, GroupChild, RovingItem},
-    tooltip,
 };
 
-/// メニューをツールチップより奥に描くための、遅延描画の優先度
-pub(crate) const PRIORITY: usize = tooltip::PRIORITY - 1;
-
-type ExpandedChangeHandler = Rc<dyn Fn(&bool, &mut Window, &mut App)>;
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
 /// ボタンから開く、見た目を持たないメニュー
@@ -174,13 +169,7 @@ impl Menu {
         window: &mut Window,
         cx: &mut App,
     ) -> Stateful<Div> {
-        let state = window.use_keyed_state(self.id.clone(), cx, |_, cx| State {
-            expanded: false,
-            focus_last_on_open: false,
-            menu_focus: cx.focus_handle(),
-            scroll_handle: ScrollHandle::new(),
-            trigger_bounds: Bounds::default(),
-        });
+        let state = popup::use_state(self.id.clone(), window, cx);
         let expanded = self.expanded;
         let margin = self.paint_margin;
         let request = self.on_expanded_change;
@@ -243,11 +232,7 @@ impl Menu {
             .rposition(|item| item.availability.is_focusable());
 
         let menu = expanded.then(|| {
-            let (menu_focus, scroll_handle) = {
-                let state = state.read(cx);
-                (state.menu_focus.clone(), state.scroll_handle.clone())
-            };
-            let viewport = window.viewport_size();
+            let scroll_handle = state.read(cx).scroll_handle.clone();
             let items = items.clone();
             let item_bounds = item_bounds.clone();
             let close = request.clone();
@@ -255,33 +240,9 @@ impl Menu {
             let previous_close = request.clone();
             let next_focus = trigger_focus.clone();
             let previous_focus = trigger_focus.clone();
-            let outside_state = state.clone();
-            let outside_request = request.clone();
-            let close_outside = Rc::new(
-                move |position: Point<Pixels>, window: &mut Window, cx: &mut App| {
-                    // ボタンの上の押下は、ボタンのクリックで閉じるよう求める
-                    if outside_state.read(cx).trigger_bounds.contains(&position) {
-                        return;
-                    }
-                    if let Some(close) = &outside_request {
-                        close(&false, window, cx);
-                    }
-                },
-            );
-            let menu_close_outside = close_outside.clone();
-            let menu_scroll_handle = scroll_handle.clone();
-            let key_scroll_handle = scroll_handle.clone();
             let menu = self
                 .inner
                 .role(accesskit::Role::Menu)
-                .track_focus(&menu_focus)
-                .occlude()
-                .on_mouse_down_out(move |event, window, cx| {
-                    // スクロールで切り取られた部分もメニューの範囲に入るため、スクロールの範囲の外の押下はスクロールの要素で扱う
-                    if menu_scroll_handle.bounds().contains(&event.position) {
-                        menu_close_outside(event.position, window, cx);
-                    }
-                })
                 .on_key_down(move |event, window, cx| {
                     if event.keystroke.modifiers.modified() {
                         return;
@@ -305,7 +266,7 @@ impl Menu {
                     };
                     if let Some(ix) = target {
                         window.focus(&items[ix].focus_handle, cx);
-                        scroll_into_view(&key_scroll_handle, margin, item_bounds[ix].get());
+                        popup::scroll_into_view(&scroll_handle, margin, item_bounds[ix].get());
                     }
                     cx.stop_propagation();
                 })
@@ -323,37 +284,22 @@ impl Menu {
                     }
                 })
                 .children(elements);
-            // 余白の上にもメニューの子を描けるよう、余白を含めた範囲でスクロールし、切り取る
-            div()
-                .id("scroll")
-                .track_scroll(&scroll_handle)
-                .overflow_y_scroll()
-                .max_w(viewport.width)
-                .max_h(viewport.height)
-                .pt(margin.top)
-                .pr(margin.right)
-                .pb(margin.bottom)
-                .pl(margin.left)
-                .on_mouse_down_out(move |event, window, cx| {
-                    close_outside(event.position, window, cx)
-                })
-                .child(menu)
-                .into_any_element()
+            popup::container(menu, &state, margin, request.clone(), window, cx)
         });
 
         let edge = move |last_edge: bool| {
             let ix = if last_edge { last } else { first }?;
             Some((items[ix].focus_handle.clone(), item_bounds[ix].clone()))
         };
+        let open_focus = state.read(cx).open_focus;
         let anchor = Anchor {
             state: state.clone(),
             expanded,
             trigger_focus: trigger_focus.clone(),
             window_margin: self.window_margin,
             paint_margin: self.paint_margin,
-            menu,
-            first: edge(false),
-            last: edge(true),
+            popup: menu,
+            open_target: edge(open_focus == OpenFocus::Last),
         };
         trigger
             .aria_expanded(expanded)
@@ -361,7 +307,7 @@ impl Menu {
                 let click_request = request.clone();
                 let click_state = state.clone();
                 this.on_click(move |_, window, cx| {
-                    click_state.update(cx, |state, _| state.focus_last_on_open = false);
+                    click_state.update(cx, |state, _| state.open_focus = OpenFocus::Default);
                     click_request(&!expanded, window, cx);
                 })
                 .on_key_down(move |event, window, cx| {
@@ -376,10 +322,20 @@ impl Menu {
                     if expanded {
                         if let Some((focus_handle, bounds)) = edge(last_edge) {
                             window.focus(&focus_handle, cx);
-                            scroll_into_view(&state.read(cx).scroll_handle, margin, bounds.get());
+                            popup::scroll_into_view(
+                                &state.read(cx).scroll_handle,
+                                margin,
+                                bounds.get(),
+                            );
                         }
                     } else {
-                        state.update(cx, |state, _| state.focus_last_on_open = last_edge);
+                        state.update(cx, |state, _| {
+                            state.open_focus = if last_edge {
+                                OpenFocus::Last
+                            } else {
+                                OpenFocus::First
+                            }
+                        });
                         request(&true, window, cx);
                     }
                     cx.stop_propagation();
@@ -481,21 +437,6 @@ fn item_element(
                 node.set_disabled();
             }
         })
-}
-
-/// 最後に描いたときの範囲が `item` の項目が、スクロールの範囲から `margin` の余白を除いた範囲に入るよう、
-/// `scroll_handle` のメニューを最小限だけスクロールする
-fn scroll_into_view(scroll_handle: &ScrollHandle, margin: Edges<Pixels>, item: Bounds<Pixels>) {
-    let viewport = scroll_handle.bounds();
-    let top = viewport.top() + margin.top;
-    let bottom = viewport.bottom() - margin.bottom;
-    let mut offset = scroll_handle.offset();
-    if item.top() < top {
-        offset.y += top - item.top();
-    } else if item.bottom() > bottom {
-        offset.y -= item.bottom() - bottom;
-    }
-    scroll_handle.set_offset(offset);
 }
 
 impl Styled for Menu {
@@ -702,221 +643,6 @@ impl InteractiveElement for MenuItem {
 
 impl StatefulInteractiveElement for MenuItem {}
 
-/// フレームをまたいで持つメニューの状態
-struct State {
-    /// 最後に描いたフレームで開いていたか
-    expanded: bool,
-    /// 次に開いたとき、最初でなく最後の項目にフォーカスを移すか
-    focus_last_on_open: bool,
-    /// メニューのフォーカス。フォーカスがメニューの中にあるかの判定に使う
-    menu_focus: FocusHandle,
-    scroll_handle: ScrollHandle,
-    /// 最後に描いたボタンの範囲
-    trigger_bounds: Bounds<Pixels>,
-}
-
-/// ボタンの子に置き、ボタンの範囲を記録し、開いたメニューを配置して、開閉に合わせてフォーカスを移す要素
-struct Anchor {
-    state: Entity<State>,
-    expanded: bool,
-    trigger_focus: FocusHandle,
-    window_margin: Size<Pixels>,
-    paint_margin: Edges<Pixels>,
-    menu: Option<AnyElement>,
-    /// 開いたときにフォーカスを移す、最初と最後のフォーカスできる項目のフォーカスと最後に描いたときの範囲
-    first: Option<(FocusHandle, Rc<Cell<Bounds<Pixels>>>)>,
-    last: Option<(FocusHandle, Rc<Cell<Bounds<Pixels>>>)>,
-}
-
-impl IntoElement for Anchor {
-    type Element = Self;
-
-    fn into_element(self) -> Self::Element {
-        self
-    }
-}
-
-impl Element for Anchor {
-    /// ボタンと同じ範囲を占める要素
-    type RequestLayoutState = AnyElement;
-    type PrepaintState = ();
-
-    fn id(&self) -> Option<ElementId> {
-        None
-    }
-
-    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
-        None
-    }
-
-    fn request_layout(
-        &mut self,
-        _id: Option<&GlobalElementId>,
-        _inspector_id: Option<&InspectorElementId>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> (LayoutId, Self::RequestLayoutState) {
-        let mut area = div().absolute().inset_0().into_any_element();
-        let layout_id = area.request_layout(window, cx);
-        (layout_id, area)
-    }
-
-    fn prepaint(
-        &mut self,
-        _id: Option<&GlobalElementId>,
-        _inspector_id: Option<&InspectorElementId>,
-        bounds: Bounds<Pixels>,
-        area: &mut Self::RequestLayoutState,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Self::PrepaintState {
-        self.state
-            .update(cx, |state, _| state.trigger_bounds = bounds);
-        area.prepaint(window, cx);
-        let Some(mut menu) = self.menu.take() else {
-            return;
-        };
-        // ボタンの幅に縛られないよう、ウィンドウのルートと同じく独立に大きさを決める
-        let menu_size = menu.layout_as_root(
-            size(AvailableSpace::MaxContent, AvailableSpace::MaxContent),
-            window,
-            cx,
-        );
-        let margin = self.paint_margin;
-        let origin = position(
-            bounds,
-            size(
-                menu_size.width - margin.left - margin.right,
-                menu_size.height - margin.top - margin.bottom,
-            ),
-            window.viewport_size(),
-            self.window_margin,
-        );
-        window.defer_draw(
-            menu,
-            point(origin.x - margin.left, origin.y - margin.top),
-            PRIORITY,
-            None,
-        );
-    }
-
-    fn paint(
-        &mut self,
-        _id: Option<&GlobalElementId>,
-        _inspector_id: Option<&InspectorElementId>,
-        _bounds: Bounds<Pixels>,
-        area: &mut Self::RequestLayoutState,
-        _prepaint: &mut Self::PrepaintState,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        area.paint(window, cx);
-        // uniform_list などは測るために描かない要素もレイアウトするため、描いたときだけ呼ばれる paint で開閉を判定する
-        let (was_expanded, focus_last) = self.state.update(cx, |state, _| {
-            (
-                std::mem::replace(&mut state.expanded, self.expanded),
-                std::mem::take(&mut state.focus_last_on_open),
-            )
-        });
-        let (menu_focus, scroll_handle) = {
-            let state = self.state.read(cx);
-            (state.menu_focus.clone(), state.scroll_handle.clone())
-        };
-        if self.expanded && !was_expanded {
-            let target = if focus_last { &self.last } else { &self.first };
-            let (focus_handle, bounds) = match target {
-                Some((focus_handle, bounds)) => (focus_handle.clone(), Some(bounds.clone())),
-                None => (menu_focus, None),
-            };
-            let margin = self.paint_margin;
-            // 描画中のフォーカスの移動は再描画されないため、描き終えてから移す。項目の範囲も描き終えると決まる
-            window.defer(cx, move |window, cx| {
-                window.focus(&focus_handle, cx);
-                if let Some(bounds) = bounds {
-                    scroll_into_view(&scroll_handle, margin, bounds.get());
-                }
-            });
-        } else if was_expanded && menu_focus.contains_focused(window, cx) {
-            let expanded = self.expanded;
-            let trigger_focus = self.trigger_focus.clone();
-            let focused = window.focused(cx);
-            // contains_focused は前のフレームで判定するため、描き終えてから確かめる。
-            // それまでに別のメニューを開くなどでフォーカスが移されたときは移さない
-            window.defer(cx, move |window, cx| {
-                if window.focused(cx) != focused {
-                    return;
-                }
-                if !expanded {
-                    window.focus(&trigger_focus, cx);
-                } else if !menu_focus.contains_focused(window, cx) {
-                    // フォーカスのある項目が描かれなくなったときは、キーを受け続けられるようメニューに移す
-                    window.focus(&menu_focus, cx);
-                }
-            });
-        }
-    }
-}
-
-/// `trigger` の範囲のボタンに対し、大きさ `menu` のメニューを置く左上の位置を返す
-///
-/// 位置の候補と選び方は、Compose Material3 の `MenuAnchorPosition.Below` と `DropdownMenuPositionProvider`
-/// (androidx の compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/Menu.kt と
-/// internal/MenuPosition.kt) を左から右へ書く向きについて移したもの
-fn position(
-    trigger: Bounds<Pixels>,
-    menu: Size<Pixels>,
-    viewport: Size<Pixels>,
-    margin: Size<Pixels>,
-) -> Point<Pixels> {
-    // 余白の内側に収まる最初の候補を選ぶ。どれも収まらなければ、余白を除いた空きより大きいときは中央に置き、
-    // そうでなければ最後の候補を余白の内側に寄せる
-    let place = |candidates: &[Pixels], size: Pixels, space: Pixels, margin: Pixels| {
-        candidates
-            .iter()
-            .copied()
-            .find(|&candidate| candidate >= margin && candidate + size <= space - margin)
-            .unwrap_or_else(|| {
-                if size >= space - margin * 2. {
-                    (space - size) / 2.
-                } else {
-                    let last = candidates[candidates.len() - 1];
-                    last.max(margin).min(space - margin - size)
-                }
-            })
-    };
-    let center = trigger.center();
-    let x = place(
-        &[
-            trigger.left(),
-            trigger.right() - menu.width,
-            if center.x < viewport.width / 2. {
-                px(0.)
-            } else {
-                viewport.width - menu.width
-            },
-        ],
-        menu.width,
-        viewport.width,
-        margin.width,
-    );
-    let y = place(
-        &[
-            trigger.bottom(),
-            trigger.top() - menu.height,
-            trigger.top() - menu.height / 2.,
-            if center.y < viewport.height / 2. {
-                px(0.)
-            } else {
-                viewport.height - menu.height
-            },
-        ],
-        menu.height,
-        viewport.height,
-        margin.height,
-    );
-    point(x, y)
-}
-
 /// APG の Menu Button パターン (content/patterns/menu-button/menu-button-pattern.html) と
 /// Menu パターン (content/patterns/menubar/menubar-pattern.html) で期待される振る舞い
 #[cfg(test)]
@@ -924,8 +650,8 @@ mod tests {
     use std::{cell::RefCell, rc::Rc};
 
     use gpui::{
-        Context, Entity, Hsla, KeyDownEvent, KeyUpEvent, Keystroke, Modifiers, Render, RenderOnce,
-        TestAppContext, VisualTestContext,
+        Context, Element, Entity, Hsla, KeyDownEvent, KeyUpEvent, Keystroke, Modifiers, Point,
+        Render, RenderOnce, TestAppContext, VisualTestContext, point, px, size,
     };
 
     use super::*;
@@ -1746,52 +1472,5 @@ mod tests {
         );
         assert!(node.is_disabled());
         assert!(!node.supports_action(accesskit::Action::Focus));
-    }
-
-    fn bounds(x: f32, y: f32, w: f32, h: f32) -> Bounds<Pixels> {
-        Bounds::new(point(px(x), px(y)), size(px(w), px(h)))
-    }
-
-    /// Compose の `MenuAnchorPosition.Below` の候補を、500x400 のウィンドウ、左右 8 と上下 48 の余白、
-    /// 100x84 のメニューについて評価した位置
-    #[test]
-    fn 位置は余白の内側に収まる最初の候補を選ぶ() {
-        let viewport = size(px(500.), px(400.));
-        let margin = size(px(8.), px(48.));
-        let menu = size(px(100.), px(84.));
-        let cases = [
-            // ボタンの下に左端をそろえる
-            (bounds(100., 100., 40., 20.), (100., 120.)),
-            // 右に収まらなければ右端をそろえる。下に収まらなければ上に置く
-            (bounds(420., 300., 40., 20.), (360., 216.)),
-            // 左右どちらにそろえても収まらなければ、ボタンの中心に近い左の余白に寄せる
-            (bounds(0., 100., 95., 20.), (8., 120.)),
-            // 上下どちらにも収まらなければ、中心をボタンの上端にそろえる
-            (bounds(100., 100., 40., 220.), (100., 58.)),
-            // それでも収まらなければ、ボタンの中心に近い下の余白に寄せる
-            (bounds(100., 60., 40., 300.), (100., 268.)),
-        ];
-        for (trigger, (x, y)) in cases {
-            assert_eq!(
-                position(trigger, menu, viewport, margin),
-                point(px(x), px(y)),
-                "{trigger:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn 余白を除いた空きより大きいメニューは中央に置く() {
-        let viewport = size(px(500.), px(400.));
-        let margin = size(px(8.), px(48.));
-        assert_eq!(
-            position(
-                bounds(0., 0., 40., 20.),
-                size(px(490.), px(310.)),
-                viewport,
-                margin
-            ),
-            point(px(5.), px(45.))
-        );
     }
 }

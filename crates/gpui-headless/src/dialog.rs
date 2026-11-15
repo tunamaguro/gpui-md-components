@@ -11,12 +11,12 @@ use gpui::{
 
 use crate::{
     accessibility::A11yInfoExt,
-    menu,
     navigation::{FocusNext, FocusPrevious},
+    popup,
 };
 
-/// ダイアログを、中から開くメニューやツールチップより奥に描くための、遅延描画の優先度
-const PRIORITY: usize = menu::PRIORITY - 1;
+/// ダイアログを、中から開くメニューなどのポップアップやツールチップより奥に描くための、遅延描画の優先度
+const PRIORITY: usize = popup::PRIORITY - 1;
 
 type DismissHandler = Rc<dyn Fn(&DismissReason, &mut Window, &mut App)>;
 

@@ -33,6 +33,7 @@ default = [
   "progress-indicator",
   "radio-button",
   "segmented-button",
+  "select",
   "slider",
   "switch",
   "tabs",
@@ -53,6 +54,7 @@ menu = ["button", "divider"]
 progress-indicator = []
 radio-button = []
 segmented-button = []
+select = []
 slider = []
 switch = []
 tabs = []

@@ -14,6 +14,7 @@ pub mod menu;
 pub mod progress_indicator;
 pub mod radio_button;
 pub mod segmented_button;
+pub mod select;
 pub mod slider;
 pub mod switch;
 pub mod tabs;
