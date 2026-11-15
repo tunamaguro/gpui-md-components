@@ -885,23 +885,34 @@ impl EditState {
         cx.notify();
     }
 
+    /// 最後に描いた文字列の形と、その左上の位置と行の高さ。描いた後に文字列が変わっていれば `None`
+    fn current_layout(&self) -> Option<&(ShapedLine, Point<Pixels>, Pixels)> {
+        let layout = self.layout.as_ref()?;
+        let drawn = layout.0.text.as_bytes();
+        let text = self.model.text.as_bytes();
+        // 描いた文字列は改行を空白に変えている
+        let same = drawn.len() == text.len()
+            && drawn.iter().zip(text).all(|(drawn, text)| {
+                drawn == text || (*drawn == b' ' && matches!(text, b'\r' | b'\n'))
+            });
+        same.then_some(layout)
+    }
+
     /// 最後に描いた文字列で、ウィンドウの x 座標 `x` にある文字の始まり。文字列より右なら末尾
     fn char_at_x(&self, x: Pixels) -> usize {
-        match &self.layout {
-            Some((line, origin, _)) if line.len() == self.model.text.len() => line
+        match self.current_layout() {
+            Some((line, origin, _)) => line
                 .index_for_x(x - origin.x)
                 .unwrap_or(self.model.text.len()),
-            _ => self.model.cursor(),
+            None => self.model.cursor(),
         }
     }
 
     /// 最後に描いた文字列で、ウィンドウの x 座標 `x` に最も近い文字の境界
     fn offset_for_x(&self, x: Pixels) -> usize {
-        match &self.layout {
-            Some((line, origin, _)) if line.len() == self.model.text.len() => {
-                line.closest_index_for_x(x - origin.x)
-            }
-            _ => self.model.cursor(),
+        match self.current_layout() {
+            Some((line, origin, _)) => line.closest_index_for_x(x - origin.x),
+            None => self.model.cursor(),
         }
     }
 }
@@ -977,18 +988,19 @@ impl EntityInputHandler for EditState {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let explicit_range = range_utf16.is_some();
         let range = self.model.replacement_range(range_utf16);
         // 1 行の部品のため改行は入れない。Enter の入力もここに届く
         let text = text.replace(['\r', '\n'], "");
         if text.is_empty() {
-            // Enter と、変換中の範囲が無いときの空の確定では文字列を変えない
             match &self.model.marked {
-                None => return,
+                // Enter と、範囲を指定しない空の確定では、選択している範囲を消さない
+                None if !explicit_range => return,
                 Some(_) if range.is_empty() => {
                     self.unmark_text(window, cx);
                     return;
                 }
-                Some(_) => {}
+                _ => {}
             }
         }
         self.edit(range, &text, window, cx);
@@ -1020,10 +1032,7 @@ impl EntityInputHandler for EditState {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<Bounds<Pixels>> {
-        let (line, origin, line_height) = self.layout.as_ref()?;
-        if line.len() != self.model.text.len() {
-            return None;
-        }
+        let (line, origin, line_height) = self.current_layout()?;
         let range = self.model.replacement_range(Some(range_utf16));
         Some(Bounds::from_corners(
             point(origin.x + line.x_for_index(range.start), origin.y),
@@ -1040,10 +1049,7 @@ impl EntityInputHandler for EditState {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<usize> {
-        let (line, origin, _) = self.layout.as_ref()?;
-        if line.len() != self.model.text.len() {
-            return None;
-        }
+        let (line, origin, _) = self.current_layout()?;
         Some(
             self.model
                 .offset_to_utf16(line.closest_index_for_x(point.x - origin.x)),
@@ -1917,5 +1923,44 @@ mod tests {
         );
         cx.simulate_input("x");
         assert_eq!(value(&view, cx), "xabcd");
+    }
+
+    #[gpui::test]
+    fn 描いた後に文字列が変わっていれば最後に描いた形を使わない(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = cx.add_empty_window();
+        cx.update(|window, cx| {
+            let shape = |text: &'static str, window: &mut Window| {
+                let style = window.text_style();
+                let font_size = style.font_size.to_pixels(window.rem_size());
+                window.text_system().shape_line(
+                    text.into(),
+                    font_size,
+                    &[style.to_run(text.len())],
+                    None,
+                )
+            };
+            // 同じバイト数でも文字の境界が違う文字列の形は使わない
+            let mut state = EditState {
+                model: EditModel {
+                    text: "あ".into(),
+                    ..EditModel::default()
+                },
+                focus_handle: cx.focus_handle(),
+                on_change: None,
+                layout: Some((shape("aaa", window), point(px(0.), px(0.)), px(20.))),
+                scroll: px(0.),
+                selecting: false,
+            };
+            assert!(state.current_layout().is_none());
+            assert_eq!(state.char_at_x(px(10.)), 0);
+            assert_eq!(state.offset_for_x(px(10.)), 0);
+
+            // 改行を空白に変えて描いた形は使う
+            state.model.text = "a\nb".into();
+            state.layout = Some((shape("a b", window), point(px(0.), px(0.)), px(20.)));
+            assert!(state.current_layout().is_some());
+        });
     }
 }
