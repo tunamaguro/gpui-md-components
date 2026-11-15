@@ -31,6 +31,8 @@ mod progress_indicator;
 mod radio_button;
 #[cfg(feature = "segmented-button")]
 mod segmented_button;
+#[cfg(feature = "select")]
+mod select;
 // 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(any(
     feature = "badge",
@@ -42,6 +44,7 @@ mod segmented_button;
     feature = "icon-button",
     feature = "menu",
     feature = "segmented-button",
+    feature = "select",
     feature = "slider"
 ))]
 mod shape;
@@ -64,6 +67,7 @@ mod tooltip;
     feature = "menu",
     feature = "radio-button",
     feature = "segmented-button",
+    feature = "select",
     feature = "slider",
     feature = "switch",
     feature = "tabs"
@@ -107,6 +111,8 @@ pub use segmented_button::{
     MultiChoiceSegmentedButtonRow, SegmentedButton, SegmentedToggleButton,
     SingleChoiceSegmentedButtonRow,
 };
+#[cfg(feature = "select")]
+pub use select::{Select, SelectOption, SelectVariant};
 #[cfg(feature = "slider")]
 pub use slider::Slider;
 #[cfg(feature = "switch")]

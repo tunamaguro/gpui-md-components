@@ -23,7 +23,7 @@
 - [x] M7: 非モーダルのオーバーレイ基盤と Tooltip
 - [x] M8: Menu
 - [x] M9: Dialog
-- [ ] M10: Select (Listbox)
+- [x] M10: Select (Listbox)
 - [ ] M11: TextField
 
 ## 共通の完了条件
@@ -369,7 +369,7 @@ M4 の矢印キー移動と M7 のオーバーレイ基盤を組み合わせる�
 - 配置は Compose の `DropdownMenuPositionProvider` (`MenuAnchorPosition.Below`) に合わせる。
   ボタンの下に左端をそろえて置き、収まらなければ右端をそろえ、それでも収まらなければウィンドウの端に寄せる。上下も同じく、下、上、ボタンの上端を中心にした位置、ウィンドウの端の順に試す。
   ウィンドウの端からの余白は `Menu::window_margin` で与える
-  - M7 の配置の要素とは配置の規則が異なるため、menu モジュールに別の要素を置いた
+  - M7 の配置の要素とは配置の規則が異なるため、別の要素にした。M10 の一覧と共有するため、crate の中の popup モジュールに置いている
   - メニューの外に描く影の場所を取るため、`Menu::paint_margin` でメニューの周りに透明な余白を取れる。余白は配置の計算に含めない。
     メニューの子は余白の上にも描けるよう、スクロールと切り取りは余白を含めた範囲で行う。
     メニューの要素 (role `menu`、フォーカス、キー、背後への操作を遮る範囲) は余白を含めないため、余白の上の押下でメニューがフォーカスを取ることはない
@@ -468,8 +468,52 @@ MD3 (md3-components) で決めたこと:
 対象: Select (APG の Select-Only Combobox)
 
 APG の例はフォーカスを combobox に残し、`aria-activedescendant` で一覧の項目を指す。gpui ではポップアップの一覧を指せないため (M3)、
-開いたら一覧にフォーカスを移し、一覧の中で項目を active descendant にする。combobox の `controls` も作れない。
-AccessKit は option の名前を子の内容から求めないため、option の名前は `aria_label` で与える
+開いたら一覧にフォーカスを移す。combobox の `controls` も作れない。
+AccessKit は option の名前を子の内容から求めないため、option の名前は `SelectOption::new` の `label` で与える
+
+決めたこと:
+
+- `select::Select` はそれ自身が combobox で、開くと `Select::listbox` の一覧を M8 と同じ仕組み (ボタンの子に置いた要素からの `defer_draw`、配置の規則、外での押下、閉じたときのフォーカスの戻し) で描く。
+  M8 と共有する部分は crate の中の popup モジュールにまとめた
+  - 一覧の幅はセレクトの幅以上にする。ネイティブの select と Compose の `ExposedDropdownMenu` (`matchAnchorWidth`) に合わせる。
+    幅は前のフレームで測ったセレクトの幅を使う
+- 選ばれている値と開いているかは呼び出し側が持ち、`on_change` で選択を、`on_expanded_change` で開閉を求める。
+  値は `tabs` と同じく、項目の値 (`T: PartialEq`) で比べる
+- combobox には開いているか (`expanded`)、一覧を開くこと (`has_popup` の listbox)、選ばれている項目の名前 (value) を公開する
+- 一覧の項目には、M8 と同じく実際にフォーカスを移す (activedescendant の代わり)。項目は Tab で到達できない
+  - 開いたとき、選ばれている項目 (無ければ最初のフォーカスできる項目) にフォーカスを移す。APG の「フォーカスを動かさずに開く」は、activedescendant が選ばれている項目を指すことに当たる
+  - 閉じている間のキーは APG の例に従う。下矢印キー・Alt+下矢印キー・Enter・Space で開き、上矢印キーと Home で開いて最初の項目、End で開いて最後の項目に移る
+  - 一覧の中では、上下の矢印キーで前後の項目へ移り、端では止まる (APG の例。M8 のメニューは端で反対の端に戻る)。Home と End で最初と最後、PageUp と PageDown で 10 個前と後 (無ければ端) へ移る
+  - Enter・Space・クリック・Alt+上矢印キーで項目を選んで閉じ、セレクトへフォーカスを戻す。Escape では選ばずに閉じる
+  - Tab で項目を選んで閉じ、セレクトの次の要素へ移る (APG の例)。Shift+Tab も同じく選んで閉じ、セレクトの前の要素へ移る。
+    APG の例はフォーカスを combobox に残すため、Shift+Tab は combobox の前の要素へ移ることに合わせた
+  - 選ばれている項目を選んだときは `on_change` を呼ばない
+- 無効な項目は `SelectOption::disabled` で矢印キーでも到達できなくする。ネイティブの select と同じ。到達できるようにするには `Availability::DisabledFocusable` を使う
+
+扱わないこと:
+
+- 文字キーで名前の合う項目へ移ること (APG の例にある typeahead)。M8 と同じく、必要になったときに扱う
+- 複数選択と、一覧を開かずに矢印キーで選択を変えること
+- 項目の組 (`group`)
+- 開閉のアニメーション。M7 と同じ理由
+
+MD3 (md3-components) で決めたこと:
+
+- Compose の `ExposedDropdownMenuBox` に、読み取り専用の `TextField` (`SelectVariant::Filled`) か `OutlinedTextField` (`SelectVariant::Outlined`) と、
+  `ExposedDropdownMenu` (従来の 1 つの容器のメニュー) を置いた形を移植した
+  - 入力欄の並べ方は Compose の `TextFieldLayout`・`CutoutTextFieldLayout` の、ラベルを浮かせ終えた状態と浮かせる前の状態に合わせる。
+    ラベルは値があるか、フォーカスがあるか、一覧を開いている間に浮かせる。一覧を開いている間はフォーカスが一覧にあるが、Compose と同じく入力欄にフォーカスがあるものとして表示する
+  - Outlined は浮かせたラベルの左右 4dp までの範囲の枠線を描かない (`outlineCutout`)。gpui の枠線は一部を切り取れないため、上の 2 つの角、上辺の線、残りの 3 辺に分けて描く
+  - Compose は入力欄の色を hover で変えない。トークンにある hover の色を Material Web と同じく使い、フォーカスの色を優先する
+- 一覧の項目は Compose の従来の `DropdownMenuItem` (高さ 48dp、左右の余白 16dp、labelLarge) にする。
+  Compose は選ばれている項目を区別しないため、Material Web の select と同じく容器を `ListItemSelectedContainerColor` で塗る。フォーカスリングは M8 と同じく項目の内側に描く
+- エラーの見た目 (`Select::error`) は付けるが、支援技術には公開しない (後回しの Field で扱う)
+
+気を付けること:
+
+- 3 段目は MD3 の Select で確かめた。combobox は名前 (ラベル) と説明 (補足の文) を持つ combo box として渡り、開くと list box と list item がウィンドウの直下に入る。
+  選ばれている項目には selected が、無効な項目には focusable と click が無い。支援技術の click で開閉と項目の選択ができる。
+  AT-SPI のアダプタは combobox の `expanded` を渡さない (M8 と同じ)
 
 参照する APG:
 

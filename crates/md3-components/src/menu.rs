@@ -18,8 +18,8 @@
 //! MD3 Expressive のメニュー
 
 use gpui::{
-    App, ClickEvent, Div, Edges, ElementId, FocusHandle, Hsla, InteractiveElement, ParentElement,
-    Pixels, Refineable, SharedString, StatefulInteractiveElement, Styled, Window, div,
+    App, ClickEvent, Div, ElementId, FocusHandle, Hsla, InteractiveElement, ParentElement,
+    Refineable, SharedString, StatefulInteractiveElement, Styled, Window, div,
     prelude::FluentBuilder, size, svg,
 };
 use gpui_headless::button::Button as HeadlessButton;
@@ -242,21 +242,9 @@ impl Menu {
 
         let colors = self.variant.colors();
         let shadow = theme.shadow(menu::CONTAINER_ELEVATION);
-        // 組の影はメニューの外に出て、余白が無いとスクロールの範囲で切られるため、影の分の余白を取る。
-        // gpui は影を、形の縁から、ぼかしの半径の 3 倍と広がりを足した幅だけ外側まで描く
-        let margin = shadow
-            .iter()
-            .fold(Edges::<Pixels>::default(), |margin, shadow| {
-                let extent = shadow.blur_radius * 3.0 + shadow.spread_radius;
-                Edges {
-                    top: margin.top.max(extent - shadow.offset.y),
-                    right: margin.right.max(extent + shadow.offset.x),
-                    bottom: margin.bottom.max(extent + shadow.offset.y),
-                    left: margin.left.max(extent - shadow.offset.x),
-                }
-            });
+        // 組の影はメニューの外に出て、余白が無いとスクロールの範囲で切られるため、影の分の余白を取る
         headless = headless
-            .paint_margin(margin)
+            .paint_margin(util::shadow_margin(&shadow))
             .flex()
             .flex_col()
             .gap(dp(segmented_menu::SEGMENTED_GAP))

@@ -15,6 +15,7 @@ mod menu_page;
 mod progress_indicator_page;
 mod radio_button_page;
 mod segmented_button_page;
+mod select_page;
 mod slider_page;
 mod switch_page;
 mod tabs_page;
@@ -42,6 +43,7 @@ use crate::menu_page::MenuPage;
 use crate::progress_indicator_page::ProgressIndicatorPage;
 use crate::radio_button_page::RadioButtonPage;
 use crate::segmented_button_page::SegmentedButtonPage;
+use crate::select_page::SelectPage;
 use crate::slider_page::SliderPage;
 use crate::switch_page::SwitchPage;
 use crate::tabs_page::TabsPage;
@@ -69,6 +71,7 @@ enum Page {
     Tooltip,
     Menu,
     Dialog,
+    Select,
 }
 
 /// ギャラリーのルート。各ページの状態は持たず、ページのエンティティと表示中のページだけを持つ
@@ -92,6 +95,7 @@ struct Gallery {
     tooltip_page: Entity<TooltipPage>,
     menu_page: Entity<MenuPage>,
     dialog_page: Entity<DialogPage>,
+    select_page: Entity<SelectPage>,
 }
 
 impl Gallery {
@@ -116,6 +120,7 @@ impl Gallery {
             tooltip_page: cx.new(|_| TooltipPage::default()),
             menu_page: cx.new(|_| MenuPage::default()),
             dialog_page: cx.new(DialogPage::new),
+            select_page: cx.new(|_| SelectPage::default()),
         }
     }
 }
@@ -154,6 +159,7 @@ impl Render for Gallery {
             Page::Tooltip => self.tooltip_page.clone().into(),
             Page::Menu => self.menu_page.clone().into(),
             Page::Dialog => self.dialog_page.clone().into(),
+            Page::Select => self.select_page.clone().into(),
         };
         md3_components::root(
             div()
@@ -184,7 +190,8 @@ impl Render for Gallery {
                         .child(tab(Page::Chip, "Chips", cx))
                         .child(tab(Page::Tooltip, "Tooltips", cx))
                         .child(tab(Page::Menu, "Menus", cx))
-                        .child(tab(Page::Dialog, "Dialogs", cx)),
+                        .child(tab(Page::Dialog, "Dialogs", cx))
+                        .child(tab(Page::Select, "Selects", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )

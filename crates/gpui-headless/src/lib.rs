@@ -10,10 +10,12 @@ mod focus_visible;
 mod interaction;
 pub mod menu;
 mod navigation;
+mod popup;
 pub mod progress;
 pub mod radio;
 mod root;
 mod roving;
+pub mod select;
 pub mod slider;
 pub mod tabs;
 #[cfg(test)]
