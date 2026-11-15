@@ -7,6 +7,7 @@ mod button_page;
 mod card_page;
 mod checkbox_page;
 mod chip_page;
+mod dialog_page;
 mod divider_page;
 mod fab_page;
 mod icon_button_page;
@@ -33,6 +34,7 @@ use crate::button_page::ButtonPage;
 use crate::card_page::CardPage;
 use crate::checkbox_page::CheckboxPage;
 use crate::chip_page::ChipPage;
+use crate::dialog_page::DialogPage;
 use crate::divider_page::DividerPage;
 use crate::fab_page::FabPage;
 use crate::icon_button_page::IconButtonPage;
@@ -66,6 +68,7 @@ enum Page {
     Chip,
     Tooltip,
     Menu,
+    Dialog,
 }
 
 /// ギャラリーのルート。各ページの状態は持たず、ページのエンティティと表示中のページだけを持つ
@@ -88,6 +91,7 @@ struct Gallery {
     chip_page: Entity<ChipPage>,
     tooltip_page: Entity<TooltipPage>,
     menu_page: Entity<MenuPage>,
+    dialog_page: Entity<DialogPage>,
 }
 
 impl Gallery {
@@ -111,6 +115,7 @@ impl Gallery {
             chip_page: cx.new(ChipPage::new),
             tooltip_page: cx.new(|_| TooltipPage::default()),
             menu_page: cx.new(|_| MenuPage::default()),
+            dialog_page: cx.new(DialogPage::new),
         }
     }
 }
@@ -148,6 +153,7 @@ impl Render for Gallery {
             Page::Chip => self.chip_page.clone().into(),
             Page::Tooltip => self.tooltip_page.clone().into(),
             Page::Menu => self.menu_page.clone().into(),
+            Page::Dialog => self.dialog_page.clone().into(),
         };
         md3_components::root(
             div()
@@ -177,7 +183,8 @@ impl Render for Gallery {
                         .child(tab(Page::Tabs, "Tabs", cx))
                         .child(tab(Page::Chip, "Chips", cx))
                         .child(tab(Page::Tooltip, "Tooltips", cx))
-                        .child(tab(Page::Menu, "Menus", cx)),
+                        .child(tab(Page::Menu, "Menus", cx))
+                        .child(tab(Page::Dialog, "Dialogs", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )

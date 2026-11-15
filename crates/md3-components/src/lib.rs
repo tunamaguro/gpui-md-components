@@ -12,6 +12,8 @@ mod card;
 mod checkbox;
 #[cfg(feature = "chip")]
 mod chip;
+#[cfg(feature = "dialog")]
+mod dialog;
 #[cfg(feature = "divider")]
 mod divider;
 #[cfg(feature = "fab")]
@@ -35,6 +37,7 @@ mod segmented_button;
     feature = "button",
     feature = "card",
     feature = "chip",
+    feature = "dialog",
     feature = "fab",
     feature = "icon-button",
     feature = "menu",
@@ -77,6 +80,8 @@ pub use card::{Card, CardVariant};
 pub use checkbox::{Checkbox, CheckboxIndicator, CheckboxRow, CheckboxState};
 #[cfg(feature = "chip")]
 pub use chip::{Chip, ChipKind, ChipVariant, FilterChip, InputChip};
+#[cfg(feature = "dialog")]
+pub use dialog::{Dialog, DialogKind, DismissReason};
 #[cfg(feature = "divider")]
 pub use divider::{Divider, DividerOrientation};
 #[cfg(feature = "fab")]

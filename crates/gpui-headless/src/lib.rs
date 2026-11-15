@@ -5,6 +5,7 @@
 mod accessibility;
 pub mod button;
 pub mod choice;
+pub mod dialog;
 mod focus_visible;
 mod interaction;
 pub mod menu;
@@ -59,5 +60,6 @@ impl Availability {
 /// この crate の部品が使うキー割り当てと操作を登録する。アプリの起動時に 1 回呼ぶ
 pub fn init(cx: &mut gpui::App) {
     navigation::init(cx);
+    dialog::init(cx);
     focus_visible::init(cx);
 }
