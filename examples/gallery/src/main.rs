@@ -19,6 +19,7 @@ mod select_page;
 mod slider_page;
 mod switch_page;
 mod tabs_page;
+mod text_field_page;
 mod theme_page;
 mod tooltip_page;
 
@@ -47,6 +48,7 @@ use crate::select_page::SelectPage;
 use crate::slider_page::SliderPage;
 use crate::switch_page::SwitchPage;
 use crate::tabs_page::TabsPage;
+use crate::text_field_page::TextFieldPage;
 use crate::theme_page::ThemePage;
 use crate::tooltip_page::TooltipPage;
 
@@ -72,6 +74,7 @@ enum Page {
     Menu,
     Dialog,
     Select,
+    TextField,
 }
 
 /// ギャラリーのルート。各ページの状態は持たず、ページのエンティティと表示中のページだけを持つ
@@ -96,6 +99,7 @@ struct Gallery {
     menu_page: Entity<MenuPage>,
     dialog_page: Entity<DialogPage>,
     select_page: Entity<SelectPage>,
+    text_field_page: Entity<TextFieldPage>,
 }
 
 impl Gallery {
@@ -121,6 +125,7 @@ impl Gallery {
             menu_page: cx.new(|_| MenuPage::default()),
             dialog_page: cx.new(DialogPage::new),
             select_page: cx.new(|_| SelectPage::default()),
+            text_field_page: cx.new(|_| TextFieldPage::default()),
         }
     }
 }
@@ -160,6 +165,7 @@ impl Render for Gallery {
             Page::Menu => self.menu_page.clone().into(),
             Page::Dialog => self.dialog_page.clone().into(),
             Page::Select => self.select_page.clone().into(),
+            Page::TextField => self.text_field_page.clone().into(),
         };
         md3_components::root(
             div()
@@ -191,7 +197,8 @@ impl Render for Gallery {
                         .child(tab(Page::Tooltip, "Tooltips", cx))
                         .child(tab(Page::Menu, "Menus", cx))
                         .child(tab(Page::Dialog, "Dialogs", cx))
-                        .child(tab(Page::Select, "Selects", cx)),
+                        .child(tab(Page::Select, "Selects", cx))
+                        .child(tab(Page::TextField, "Text fields", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )

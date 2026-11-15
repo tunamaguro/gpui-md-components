@@ -21,6 +21,7 @@ pub mod tabs;
 #[cfg(test)]
 mod test_window;
 pub mod text;
+pub mod text_field;
 pub mod toggle;
 pub mod tooltip;
 
@@ -64,4 +65,5 @@ pub fn init(cx: &mut gpui::App) {
     navigation::init(cx);
     dialog::init(cx);
     focus_visible::init(cx);
+    text_field::init(cx);
 }

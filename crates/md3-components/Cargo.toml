@@ -37,6 +37,7 @@ default = [
   "slider",
   "switch",
   "tabs",
+  "text-field",
 ]
 platform = ["dep:gpui_platform"]
 badge = []
@@ -58,6 +59,7 @@ select = []
 slider = []
 switch = []
 tabs = []
+text-field = []
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }

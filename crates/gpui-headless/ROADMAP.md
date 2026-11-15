@@ -24,7 +24,7 @@
 - [x] M8: Menu
 - [x] M9: Dialog
 - [x] M10: Select (Listbox)
-- [ ] M11: TextField
+- [x] M11: TextField
 
 ## 共通の完了条件
 
@@ -522,16 +522,58 @@ MD3 (md3-components) で決めたこと:
 
 ## M11: TextField
 
-gpui の `EntityInputHandler` を前提にする。最初は単一行に限る。ラベルへの `labelled_by` は作れないため、名前は `aria_label` で与える (M3)
+対象: 1 行の TextField
 
-決めること (M4 までに決める):
+gpui の `EntityInputHandler` を前提にする。ラベルへの `labelled_by` は作れないため、名前は `aria_label` で与える (M3)。
+対応する APG のパターンは無く、キー操作はネイティブの 1 行の入力欄に合わせる
 
-- [ ] 文字列・選択・IME・クリップボードを扱う編集モデルと、位置・範囲・描画の対応を渡す境界
-- [ ] 支援技術にテキストと選択を公開する方法 (gpui の `TextRun` / `TextSelection`)
+決めたこと:
 
-参照する APG:
+- `text_field::TextField` は文字列を呼び出し側が持ち、編集した後の文字列を `on_change` で求める。IME で変換中の文字列も文字列に含めて求める (Web の input と同じ)
+  - 部品は求めた文字列を内部にも持ち、次の描画で渡された文字列が違えば、渡された文字列にそろえて変換中の範囲を捨てる。
+    `on_change` を受け入れなかった編集は、こうして取り消される
+  - カーソル・選択・変換中の範囲・横のずらし量は部品が内部で持つ (`use_keyed_state`)
+- 編集モデルの境界
+  - 文字列・選択・変換中の範囲と、その上の操作 (置き換え、変換中の置き換え、外からの文字列へのそろえ) を gpui に依らない型にまとめた。
+    テスト用の platform は IME の入力を送れないため、IME の操作はこの型で確かめる
+  - 位置は UTF-8 のバイト数で持ち、`EntityInputHandler` との受け渡しで UTF-16 に変える
+  - 文字の移動と消去は Unicode のスカラー値の単位で行う。書記素クラスタの区切りには unicode-segmentation が要り、crate の依存を gpui に限る規約に反するため扱わない
+  - 語の区切りは、空白・英数字と `_`・それ以外の 3 種類の文字の境目とする
+- 描画
+  - 文字列・選択・カーソルは部品が描く。書体と文字の色は継承した text style に従い、選択とカーソルの色は呼び出し側が渡せる
+  - 文字列が収まらないときは、カーソルが見える位置まで横にずらす。右端にはカーソルの幅を空ける
+  - マウスの押下は親に伝えない (M5 のスライダーと同じ)。押したまま動かした選択は、部品の外でも追う
+- キー操作は key context `TextField` に割り当てた action で受け、アプリが割り当てを変えられるようにした。
+  Ctrl (macOS では Command) を主な修飾キーにし、語の単位の移動は Ctrl (macOS では Option) と合わせる。Tab と Enter は受けない
+- 支援技術への公開
+  - role `textbox` に、文字列を TextRun の合成の子 (`a11y_synthetic_children`) として、選択を `text_selection` として書く。
+    AccessKit は TextRun の中の文字の位置を u8 で表すため、255 文字ごとに TextRun を分ける
+  - 支援技術からの選択の設定 (SetTextSelection) を受ける
+  - `on_change` が無いか `read_only` なら read-only、無効なら disabled として公開する。`placeholder` はプレースホルダーとして公開し、描かない
 
-- 対応する APG のパターンは無い
+扱わないこと:
+
+- 複数行の入力
+- 取り消しとやり直し
+- カーソルの点滅
+- 支援技術からの文字の位置と大きさの問い合わせ (TextRun の `character_positions`・`character_widths`)。必要になったときに書く
+- 支援技術からの値の設定 (SetValue・ReplaceSelectedText)。AT-SPI のアダプタは EditableText を持たず、Linux では確かめられない
+- パスワードのように文字を隠す入力
+
+MD3 (md3-components) で決めたこと:
+
+- Compose の `TextField` と `OutlinedTextField` の 1 行の形を移植した
+  - 入力欄の見た目は M10 のセレクトと同じ Compose の実装から移植しているため、crate の中の field モジュールにまとめ、セレクトと共有した
+  - プレースホルダーは文字列が空で、ラベルを浮かせている (フォーカスがある) かラベルが無い間に表示する。接頭辞と接尾辞はラベルを浮かせているかラベルが無い間に表示する (Compose の `placeholderOpacity`・`affixOpacity` の終わりの状態)
+  - カーソルの色はトークンの caret の色、選択の色は Compose の `TextSelectionColors` と同じく Primary を不透明度 0.4 にした色
+  - 入力欄の文の外を押すと、テキストフィールドへフォーカスを移す
+- 末尾のアイコンは操作を受けない。文字列を消すボタンなどは後で扱う
+- 文字数のカウンターは扱わない
+
+気を付けること:
+
+- 3 段目は MD3 の TextField で確かめた。テキストフィールドは名前 (ラベル)・説明 (補足の文)・文字列を持つ entry として渡り、カーソルの位置と選択が読める。
+  支援技術からのフォーカスの要求と選択の設定が届く。無効なテキストフィールドは read-only として渡る (M3 の disabled の扱い)
 
 ## 随時
 

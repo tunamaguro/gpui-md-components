@@ -2,7 +2,7 @@
 
 使い方: python3 -I dump.py <アプリ名>
 
-各行は `<パス> [role] 'name' {states} value=... desc='...' rel=[...] actions=[...]`。
+各行は `<パス> [role] 'name' {states} value=... text='...' caret=... sel=[...] desc='...' rel=[...] actions=[...]`。
 パスは act.py に渡す子の番号の列
 """
 
@@ -46,6 +46,14 @@ def describe(acc):
     try:
         value = acc.queryValue()
         line += f" value={value.currentValue} [{value.minimumValue}..{value.maximumValue}]"
+    except NotImplementedError:
+        pass
+    try:
+        text = acc.queryText()
+        selections = [text.getSelection(i) for i in range(text.getNSelections())]
+        line += f" text={text.getText(0, -1)!r} caret={text.caretOffset}"
+        if selections:
+            line += f" sel={selections}"
     except NotImplementedError:
         pass
     if acc.description:
