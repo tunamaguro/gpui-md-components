@@ -26,6 +26,7 @@ default = [
   "card",
   "checkbox",
   "chip",
+  "dialog",
   "divider",
   "fab",
   "menu",
@@ -44,6 +45,7 @@ icon-button = ["button"]
 card = []
 checkbox = []
 chip = []
+dialog = []
 divider = []
 fab = []
 # メニューを開くボタンと、組の中の区切り線を使う

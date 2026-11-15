@@ -21,7 +21,7 @@ use crate::{
 };
 
 /// メニューをツールチップより奥に描くための、遅延描画の優先度
-const PRIORITY: usize = tooltip::PRIORITY - 1;
+pub(crate) const PRIORITY: usize = tooltip::PRIORITY - 1;
 
 type ExpandedChangeHandler = Rc<dyn Fn(&bool, &mut Window, &mut App)>;
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
@@ -52,6 +52,7 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 /// - Tab で閉じるよう求め、フォーカスをボタンの次に Tab で到達できる要素へ移す。
 ///   Shift+Tab で閉じるよう求め、フォーカスをボタンへ移す
 /// - メニューとボタンの外でマウスのボタンを押すと、閉じるよう求める。押した先には、そのまま押下が届く
+/// - 項目の操作で閉じるよう求めるときは、項目のハンドラを呼ぶ前にボタンへフォーカスを移す
 /// - 閉じたとき、フォーカスがメニューの中にあればボタンへ戻す
 /// - フォーカスのある項目が描かれなくなると、メニューにフォーカスを移す
 /// - 前の 2 つは、そのフレームを描き終えるまでに別の要素へフォーカスが移されていれば行わない
@@ -200,8 +201,15 @@ impl Menu {
                     availability: item.availability,
                 });
                 item_bounds.push(bounds.clone());
-                item_element(item, &focus_handle, bounds, request.clone(), window)
-                    .into_any_element()
+                item_element(
+                    item,
+                    &focus_handle,
+                    trigger_focus,
+                    bounds,
+                    request.clone(),
+                    window,
+                )
+                .into_any_element()
             };
             for child in self.children {
                 elements.push(match child {
@@ -384,15 +392,17 @@ impl Menu {
 /// `item` を、メニューの中の項目の要素にする
 ///
 /// `focus_handle` は項目のフォーカスにする。描くたびに項目の範囲を `bounds` に記録する。
-/// `on_expanded_change` は項目の操作で閉じるよう求めるときに呼ぶ
+/// `on_expanded_change` は項目の操作で閉じるよう求めるときに呼び、その前に `trigger_focus` へフォーカスを移す
 fn item_element(
     item: MenuItem,
     focus_handle: &FocusHandle,
+    trigger_focus: &FocusHandle,
     bounds: Rc<Cell<Bounds<Pixels>>>,
     on_expanded_change: Option<ExpandedChangeHandler>,
     window: &Window,
 ) -> impl IntoElement + use<> {
     let focus_handle = focus_handle.clone();
+    let trigger_focus = trigger_focus.clone();
     // フォーカス中に無効になった場合は、フォーカスが外れるまでフォーカスを保つ
     let focusable = item.availability.is_focusable() || focus_handle.is_focused(window);
     let disabled = item.availability.is_disabled();
@@ -435,9 +445,6 @@ fn item_element(
         })
         .when(!disabled, |this| {
             this.on_click(move |event, window, cx| {
-                if let Some(on_click) = &on_click {
-                    on_click(event, window, cx);
-                }
                 let enter = matches!(
                     event,
                     ClickEvent::Keyboard(KeyboardClickEvent {
@@ -446,9 +453,17 @@ fn item_element(
                     })
                 );
                 // APG では、切り替える項目は Enter でだけ閉じ、Space では開いたまま切り替える
-                if (kind == MenuItemKind::Action || enter)
-                    && let Some(on_expanded_change) = &on_expanded_change
-                {
+                let close = on_expanded_change
+                    .as_ref()
+                    .filter(|_| kind == MenuItemKind::Action || enter);
+                // 項目のハンドラがフォーカスを移したり、その時点のフォーカスを覚えたりできるよう、消える項目から先にボタンへ移す
+                if close.is_some() {
+                    window.focus(&trigger_focus, cx);
+                }
+                if let Some(on_click) = &on_click {
+                    on_click(event, window, cx);
+                }
+                if let Some(on_expanded_change) = close {
                     on_expanded_change(&false, window, cx);
                 }
             })
@@ -1674,6 +1689,7 @@ mod tests {
         cx.update(|window, cx| {
             let element = item_element(
                 item.aria_label("Cut"),
+                &cx.focus_handle(),
                 &cx.focus_handle(),
                 Rc::default(),
                 None,

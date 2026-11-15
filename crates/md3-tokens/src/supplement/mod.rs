@@ -8,6 +8,7 @@ pub mod button;
 pub mod card;
 pub mod checkbox;
 pub mod chip;
+pub mod dialog;
 pub mod fab;
 pub mod menu;
 pub mod progress_indicator;
