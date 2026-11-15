@@ -23,6 +23,9 @@ mod icon_button;
 // 使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(feature = "checkbox")]
 mod interaction;
+// 入力欄を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
+#[cfg(any(feature = "select", feature = "text-field"))]
+mod field;
 #[cfg(feature = "menu")]
 mod menu;
 #[cfg(feature = "progress-indicator")]
@@ -45,7 +48,8 @@ mod select;
     feature = "menu",
     feature = "segmented-button",
     feature = "select",
-    feature = "slider"
+    feature = "slider",
+    feature = "text-field"
 ))]
 mod shape;
 #[cfg(feature = "slider")]
@@ -54,6 +58,8 @@ mod slider;
 mod switch;
 #[cfg(feature = "tabs")]
 mod tabs;
+#[cfg(feature = "text-field")]
+mod text_field;
 // ツールチップを付けられる部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(feature = "icon-button")]
 mod tooltip;
@@ -70,7 +76,8 @@ mod tooltip;
     feature = "select",
     feature = "slider",
     feature = "switch",
-    feature = "tabs"
+    feature = "tabs",
+    feature = "text-field"
 ))]
 mod util;
 
@@ -119,6 +126,8 @@ pub use slider::Slider;
 pub use switch::Switch;
 #[cfg(feature = "tabs")]
 pub use tabs::{Tab, TabPanel, TabRow, TabRowVariant};
+#[cfg(feature = "text-field")]
+pub use text_field::{TextField, TextFieldVariant};
 #[cfg(feature = "icon-button")]
 pub use tooltip::{Tooltip, TooltipVariant};
 

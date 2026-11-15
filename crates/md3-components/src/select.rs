@@ -1,42 +1,36 @@
-// 入力欄の並べ方・余白・色・書体と、一覧の余白・色・書体・形は Jetpack Compose Material 3 から移植している
+// 入力欄に置くアイコン、一覧の余白・色・書体・形は Jetpack Compose Material 3 から移植している
 // (https://android.googlesource.com/platform/frameworks/support)
 // Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/ExposedDropdownMenu.kt
 //         (`ExposedDropdownMenuBox`、`ExposedDropdownMenu`、`ExposedDropdownMenuDefaults.TrailingIcon`)、
-//         TextField.kt、OutlinedTextField.kt (`outlineCutout`)、
-//         internal/TextFieldImpl.kt (`CommonDecorationBox`、`TextFieldLayout`、`TextFieldMeasurePolicy`、
-//         `CutoutTextFieldLayout`、`OutlinedTextFieldMeasurePolicy`)、
 //         Menu.kt (`DropdownMenuContent`、`DropdownMenuItemContent`)
 //         @ 2a941dd11aabd9bb7d2016ed159764b220117c20
 // Copyright 2021, 2023 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //
-// hover での入力欄の色と、選ばれている項目の容器の色、内側に描く項目のフォーカスリングは Compose が扱わないため Material Web から移植している
+// 選ばれている項目の容器の色と、内側に描く項目のフォーカスリングは Compose が扱わないため Material Web から移植している
 // (https://github.com/material-components/material-web)
-// Source: field/internal/_filled-field.scss、field/internal/_outlined-field.scss、
-//         select/internal/selectoption/select-option.ts、menu/internal/menuitem/menu-item.ts (`md-focus-ring` の `inward`)
+// Source: select/internal/selectoption/select-option.ts、menu/internal/menuitem/menu-item.ts (`md-focus-ring` の `inward`)
 //         @ de5470f7ed6a653457ca8f5cc0e7f7602c7a8391
 // Copyright 2023 Google LLC. Licensed under the Apache License, Version 2.0.
-// トークンの値と版は md3-tokens の各ファイルにある
+// トークンの値と版は md3-tokens の各ファイルにある。入力欄の見た目は field.rs にある
 
 //! MD3 のセレクト
 
 use gpui::{
-    AnyElement, App, Div, ElementId, Hsla, InteractiveElement, IntoElement, ParentElement, Radians,
-    Refineable, RenderOnce, SharedString, StatefulInteractiveElement, StyleRefinement, Styled,
-    Transformation, Window, div, prelude::FluentBuilder, px, size, svg,
+    App, ElementId, Hsla, InteractiveElement, IntoElement, ParentElement, Refineable, RenderOnce,
+    SharedString, StatefulInteractiveElement, StyleRefinement, Styled, Window, div,
+    prelude::FluentBuilder, size,
 };
 use gpui_headless::select::{
     Select as HeadlessSelect, SelectListbox, SelectOption as HeadlessSelectOption,
 };
 use md3_icons::StyledIcon;
 
+use crate::field::{Field, FieldVariant};
 use crate::shape::Shaped;
 use crate::util;
-use md3_theme::md3_color::ColorRole;
-use md3_theme::md3_tokens::component::{
-    filled_text_field as filled, list, menu, outlined_text_field as outlined,
-};
+use md3_theme::md3_tokens::component::{list, menu};
 use md3_theme::md3_tokens::typography::TypeScale;
-use md3_theme::md3_tokens::{Dp, focus_ring, state, supplement};
+use md3_theme::md3_tokens::{focus_ring, state, supplement};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
 /// 入力欄の層が入力欄の hover を知るための group 名
@@ -56,132 +50,6 @@ pub enum SelectVariant {
     /// 容器を塗らず、枠線で囲む
     Outlined,
 }
-
-/// 入力欄の操作の状態
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Interaction {
-    Disabled,
-    Rest,
-    Hover,
-    Focus,
-}
-
-/// 入力欄の色のロールと不透明度、線の太さ
-#[derive(Clone, Copy)]
-struct FieldRoles {
-    line: (ColorRole, f32),
-    line_width: Dp,
-    label: (ColorRole, f32),
-    input: (ColorRole, f32),
-    leading: (ColorRole, f32),
-    trailing: (ColorRole, f32),
-    supporting: (ColorRole, f32),
-}
-
-/// `$tokens` の入力欄のトークンから、操作の状態とエラーかどうかに応じた [`FieldRoles`] を返す関数 `$name` を作る。
-/// 線のトークンの名前は Filled と Outlined で異なるため、`line` と `width` で渡す
-macro_rules! field_roles {
-    (
-        $name:ident, $tokens:ident,
-        line: [$line:ident, $hover:ident, $focus:ident, $error:ident, $error_hover:ident,
-            $error_focus:ident, $disabled:ident, $disabled_opacity:ident],
-        width: [$width:ident, $hover_width:ident, $focus_width:ident, $disabled_width:ident]
-    ) => {
-        fn $name(interaction: Interaction, error: bool) -> FieldRoles {
-            use $tokens as t;
-            let opaque = |role| (role, 1.0);
-            match (interaction, error) {
-                (Interaction::Disabled, _) => FieldRoles {
-                    line: (t::$disabled, t::$disabled_opacity),
-                    line_width: t::$disabled_width,
-                    label: (t::DISABLED_LABEL_COLOR, t::DISABLED_LABEL_OPACITY),
-                    input: (t::DISABLED_INPUT_COLOR, t::DISABLED_INPUT_OPACITY),
-                    leading: (
-                        t::DISABLED_LEADING_ICON_COLOR,
-                        t::DISABLED_LEADING_ICON_OPACITY,
-                    ),
-                    trailing: (
-                        t::DISABLED_TRAILING_ICON_COLOR,
-                        t::DISABLED_TRAILING_ICON_OPACITY,
-                    ),
-                    supporting: (t::DISABLED_SUPPORTING_COLOR, t::DISABLED_SUPPORTING_OPACITY),
-                },
-                (Interaction::Rest, false) => FieldRoles {
-                    line: opaque(t::$line),
-                    line_width: t::$width,
-                    label: opaque(t::LABEL_COLOR),
-                    input: opaque(t::INPUT_COLOR),
-                    leading: opaque(t::LEADING_ICON_COLOR),
-                    trailing: opaque(t::TRAILING_ICON_COLOR),
-                    supporting: opaque(t::SUPPORTING_COLOR),
-                },
-                (Interaction::Hover, false) => FieldRoles {
-                    line: opaque(t::$hover),
-                    line_width: t::$hover_width,
-                    label: opaque(t::HOVER_LABEL_COLOR),
-                    input: opaque(t::HOVER_INPUT_COLOR),
-                    leading: opaque(t::HOVER_LEADING_ICON_COLOR),
-                    trailing: opaque(t::HOVER_TRAILING_ICON_COLOR),
-                    supporting: opaque(t::HOVER_SUPPORTING_COLOR),
-                },
-                (Interaction::Focus, false) => FieldRoles {
-                    line: opaque(t::$focus),
-                    line_width: t::$focus_width,
-                    label: opaque(t::FOCUS_LABEL_COLOR),
-                    input: opaque(t::FOCUS_INPUT_COLOR),
-                    leading: opaque(t::FOCUS_LEADING_ICON_COLOR),
-                    trailing: opaque(t::FOCUS_TRAILING_ICON_COLOR),
-                    supporting: opaque(t::FOCUS_SUPPORTING_COLOR),
-                },
-                (Interaction::Rest, true) => FieldRoles {
-                    line: opaque(t::$error),
-                    line_width: t::$width,
-                    label: opaque(t::ERROR_LABEL_COLOR),
-                    input: opaque(t::ERROR_INPUT_COLOR),
-                    leading: opaque(t::ERROR_LEADING_ICON_COLOR),
-                    trailing: opaque(t::ERROR_TRAILING_ICON_COLOR),
-                    supporting: opaque(t::ERROR_SUPPORTING_COLOR),
-                },
-                (Interaction::Hover, true) => FieldRoles {
-                    line: opaque(t::$error_hover),
-                    line_width: t::$hover_width,
-                    label: opaque(t::ERROR_HOVER_LABEL_COLOR),
-                    input: opaque(t::ERROR_HOVER_INPUT_COLOR),
-                    leading: opaque(t::ERROR_HOVER_LEADING_ICON_COLOR),
-                    trailing: opaque(t::ERROR_HOVER_TRAILING_ICON_COLOR),
-                    supporting: opaque(t::ERROR_HOVER_SUPPORTING_COLOR),
-                },
-                (Interaction::Focus, true) => FieldRoles {
-                    line: opaque(t::$error_focus),
-                    line_width: t::$focus_width,
-                    label: opaque(t::ERROR_FOCUS_LABEL_COLOR),
-                    input: opaque(t::ERROR_FOCUS_INPUT_COLOR),
-                    leading: opaque(t::ERROR_FOCUS_LEADING_ICON_COLOR),
-                    trailing: opaque(t::ERROR_FOCUS_TRAILING_ICON_COLOR),
-                    supporting: opaque(t::ERROR_FOCUS_SUPPORTING_COLOR),
-                },
-            }
-        }
-    };
-}
-
-field_roles!(
-    filled_roles, filled,
-    line: [ACTIVE_INDICATOR_COLOR, HOVER_ACTIVE_INDICATOR_COLOR, FOCUS_ACTIVE_INDICATOR_COLOR,
-        ERROR_ACTIVE_INDICATOR_COLOR, ERROR_HOVER_ACTIVE_INDICATOR_COLOR,
-        ERROR_FOCUS_ACTIVE_INDICATOR_COLOR, DISABLED_ACTIVE_INDICATOR_COLOR,
-        DISABLED_ACTIVE_INDICATOR_OPACITY],
-    width: [ACTIVE_INDICATOR_HEIGHT, HOVER_ACTIVE_INDICATOR_HEIGHT, FOCUS_ACTIVE_INDICATOR_HEIGHT,
-        DISABLED_ACTIVE_INDICATOR_HEIGHT]
-);
-
-field_roles!(
-    outlined_roles, outlined,
-    line: [OUTLINE_COLOR, HOVER_OUTLINE_COLOR, FOCUS_OUTLINE_COLOR, ERROR_OUTLINE_COLOR,
-        ERROR_HOVER_OUTLINE_COLOR, ERROR_FOCUS_OUTLINE_COLOR, DISABLED_OUTLINE_COLOR,
-        DISABLED_OUTLINE_OPACITY],
-    width: [OUTLINE_WIDTH, HOVER_OUTLINE_WIDTH, FOCUS_OUTLINE_WIDTH, DISABLED_OUTLINE_WIDTH]
-);
 
 /// MD3 のセレクト
 ///
@@ -349,312 +217,31 @@ impl<T: PartialEq + 'static> RenderOnce for Select<T> {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
         let focus_handle = util::keyed_focus_handle(&self.id, window, cx);
-        // 一覧を開いている間はフォーカスが一覧にあるが、Compose と同じく入力欄にフォーカスがあるものとして表示する
-        let focused = focus_handle.is_focused(window) || self.expanded;
-        let roles = match self.variant {
-            SelectVariant::Filled => filled_roles,
-            SelectVariant::Outlined => outlined_roles,
-        };
-        let rest = roles(
-            if self.disabled {
-                Interaction::Disabled
-            } else if focused {
-                Interaction::Focus
-            } else {
-                Interaction::Rest
-            },
-            self.error,
-        );
-        // Material Web はフォーカスの色を hover の色より優先する
-        let hover = (!self.disabled && !focused).then(|| roles(Interaction::Hover, self.error));
-        let color = |(role, opacity): (ColorRole, f32)| theme.color(role).opacity(opacity);
-
         let value = self
             .options
             .iter()
             .find(|option| Some(&option.value) == self.selected.as_ref())
             .map(|option| option.label.clone());
-        let floating = value.is_some() || focused;
-        let horizontal_padding = dp(supplement::select::FIELD_HORIZONTAL_PADDING);
-        let icon_box = dp(supplement::select::ICON_BOX_SIZE);
-        // アイコンの箱は 48dp で、アイコンの左右に空く分だけ文の余白を減らす (`textFieldHorizontalIconPadding`)
-        let icon_padding = (icon_box - dp(filled::LEADING_ICON_SIZE)) / 2.0;
-        let start_padding = if self.leading_icon.is_some() {
-            (horizontal_padding - icon_padding).max(px(0.))
-        } else {
-            horizontal_padding
-        };
-        // 末尾には常に開閉を示すアイコンを置く
-        let end_padding = (horizontal_padding - icon_padding).max(px(0.));
-        let input_style = theme.text_style(filled::INPUT_FONT);
-        let small_label_style = theme.text_style(TypeScale::BodySmall);
-        let label_style = if floating {
-            small_label_style.clone()
-        } else {
-            theme.text_style(filled::LABEL_FONT)
-        };
-        let mut small_label = window.text_style();
-        small_label.refine(&small_label_style);
-        let small_label_height = small_label.line_height_in_pixels(window.rem_size());
-        let mut input = window.text_style();
-        input.refine(&input_style);
-        let input_line_height = input.line_height_in_pixels(window.rem_size());
-
-        let label_element = |label: SharedString| {
-            let mut element = div()
-                .debug_selector(|| "md3-select-label".into())
-                .flex_none()
-                .whitespace_nowrap()
-                .overflow_hidden()
-                .text_ellipsis()
-                .text_color(color(rest.label))
-                .when_some(hover, |this, hover| {
-                    this.group_hover(GROUP, |style| style.text_color(color(hover.label)))
-                })
-                .child(label);
-            element.text_style().refine(&label_style);
-            element
-        };
-        // ラベルを浮かせている間は、値が無くても値の 1 行分の高さを取る (`MinTextLineHeight`)
-        let value_element = (value.is_some() || floating).then(|| {
-            div()
-                .debug_selector(|| "md3-select-value".into())
-                .min_h(input_line_height)
-                .whitespace_nowrap()
-                .overflow_hidden()
-                .text_ellipsis()
-                .text_color(color(rest.input))
-                .when_some(hover, |this, hover| {
-                    this.group_hover(GROUP, |style| style.text_color(color(hover.input)))
-                })
-                .children(value.clone())
-        });
-        // Filled はラベルを浮かせると上端から 8dp に置き、その下に値を置く。Outlined は浮かせたラベルを枠線の上に置く
-        let in_field_label = self
-            .label
-            .clone()
-            .filter(|_| self.variant == SelectVariant::Filled || !floating);
-        let middle = div()
-            .flex_grow_1()
-            .min_w_0()
-            .flex()
-            .flex_col()
-            .justify_center()
-            .pl(start_padding)
-            .pr(end_padding)
-            .when(
-                self.variant == SelectVariant::Filled && self.label.is_some() && floating,
-                |this| {
-                    this.justify_start()
-                        .py(dp(supplement::select::FILLED_LABEL_VERTICAL_PADDING))
-                },
-            )
-            .children(in_field_label.map(label_element))
-            .children(value_element);
-
-        let icon =
-            |icon: StyledIcon, (rest_color, hover_color): (Hsla, Option<Hsla>), flip: bool| {
-                div()
-                    .flex_none()
-                    .size(icon_box)
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(
-                        svg()
-                            .data(icon.svg().as_bytes())
-                            .size(dp(filled::LEADING_ICON_SIZE))
-                            .text_color(rest_color)
-                            .when_some(hover_color, |this, hover_color| {
-                                this.group_hover(GROUP, |style| style.text_color(hover_color))
-                            })
-                            .when(flip, |this| {
-                                this.with_transformation(Transformation::rotate(Radians(
-                                    std::f32::consts::PI,
-                                )))
-                            }),
-                    )
-            };
-        let leading = self.leading_icon.map(|leading| {
-            icon(
-                leading,
-                (color(rest.leading), hover.map(|hover| color(hover.leading))),
-                false,
-            )
-        });
-        // 開いている間は向きを反転する (`ExposedDropdownMenuDefaults.TrailingIcon`)
-        let trailing = icon(
-            md3_icons::ARROW_DROP_DOWN.into(),
-            (
-                color(rest.trailing),
-                hover.map(|hover| color(hover.trailing)),
-            ),
-            self.expanded,
-        );
-
-        // hover の線の太さはトークンで通常と同じため、hover では色だけを変える
-        let line_color = color(rest.line);
-        let line_hover = hover.map(|hover| color(hover.line));
-        let line_width = dp(rest.line_width);
-        let field_height = dp(supplement::select::FIELD_MIN_HEIGHT);
-        let decoration: Vec<AnyElement> = match self.variant {
-            SelectVariant::Filled => {
-                let container = div().absolute().inset_0().bg(if self.disabled {
-                    theme
-                        .color(filled::DISABLED_CONTAINER_COLOR)
-                        .opacity(filled::DISABLED_CONTAINER_OPACITY)
-                } else {
-                    theme.color(filled::CONTAINER_COLOR)
-                });
-                let indicator = div()
-                    .absolute()
-                    .left_0()
-                    .right_0()
-                    .bottom_0()
-                    .h(line_width)
-                    .bg(line_color)
-                    .when_some(line_hover, |this, line_hover| {
-                        this.group_hover(GROUP, |style| style.bg(line_hover))
-                    });
-                vec![
-                    Shaped::new(container, theme.clone(), filled::CONTAINER_SHAPE)
-                        .into_any_element(),
-                    indicator.into_any_element(),
-                ]
-            }
-            SelectVariant::Outlined => {
-                // 浮かせたラベルの左右 4dp までの範囲には枠線を描かない (`outlineCutout`)。
-                // 上辺を切るため、枠線を上の 2 つの角、上辺の線、残りの 3 辺に分けて描く。
-                // 入力欄の高さは決まっているため、角の半径はその高さから求める
-                let radii =
-                    theme.corner_radii(outlined::CONTAINER_SHAPE, size(field_height, field_height));
-                let border = |piece: Div| {
-                    piece.absolute().border_color(line_color).when_some(
-                        line_hover,
-                        |this, line_hover| {
-                            this.group_hover(GROUP, |style| style.border_color(line_hover))
-                        },
-                    )
-                };
-                let segment = || {
-                    div()
-                        .h(line_width)
-                        .bg(line_color)
-                        .when_some(line_hover, |this, line_hover| {
-                            this.group_hover(GROUP, |style| style.bg(line_hover))
-                        })
-                };
-                let top = radii.top_left.max(radii.top_right);
-                let mut pieces = vec![
-                    border(div())
-                        .top(top)
-                        .left_0()
-                        .right_0()
-                        .bottom_0()
-                        .border_l(line_width)
-                        .border_r(line_width)
-                        .border_b(line_width)
-                        .rounded_bl(radii.bottom_left)
-                        .rounded_br(radii.bottom_right)
-                        .into_any_element(),
-                    border(div())
-                        .top_0()
-                        .left_0()
-                        .w(radii.top_left.max(line_width))
-                        .h(top)
-                        .border_t(line_width)
-                        .border_l(line_width)
-                        .rounded_tl(radii.top_left)
-                        .into_any_element(),
-                    border(div())
-                        .top_0()
-                        .right_0()
-                        .w(radii.top_right.max(line_width))
-                        .h(top)
-                        .border_t(line_width)
-                        .border_r(line_width)
-                        .rounded_tr(radii.top_right)
-                        .into_any_element(),
-                ];
-                let left = radii.top_left.max(line_width);
-                let right = radii.top_right.max(line_width);
-                match self.label.clone().filter(|_| floating) {
-                    Some(label) => {
-                        let mut label_style = window.text_style();
-                        label_style.refine(&small_label_style);
-                        let font_size = label_style.font_size.to_pixels(window.rem_size());
-                        let label_width = window
-                            .text_system()
-                            .shape_line(
-                                label.clone(),
-                                font_size,
-                                &[label_style.to_run(label.len())],
-                                None,
-                            )
-                            .width
-                            .ceil();
-                        let cutout = dp(supplement::select::OUTLINED_LABEL_CUTOUT_PADDING);
-                        let cutout_left = (horizontal_padding - cutout).max(left);
-                        // ラベルは左右の余白の内側に収め、収まらない分は省く。空ける範囲も同じだけ縮め、
-                        // 右の線は空ける範囲の右端から角までの幅を下回らないようにする
-                        pieces.push(
-                            div()
-                                .absolute()
-                                .top_0()
-                                .left_0()
-                                .right_0()
-                                .flex()
-                                .pl(left)
-                                .pr(right)
-                                .child(segment().flex_none().w(cutout_left - left))
-                                .child(
-                                    div()
-                                        .w(horizontal_padding - cutout_left + label_width + cutout),
-                                )
-                                .child(
-                                    segment()
-                                        .flex_grow_1()
-                                        .min_w((horizontal_padding - cutout - right).max(px(0.))),
-                                )
-                                .into_any_element(),
-                        );
-                        // ラベルは枠線の上辺に中心をそろえて置く
-                        let mut floating_label = div()
-                            .debug_selector(|| "md3-select-label".into())
-                            .min_w_0()
-                            .overflow_hidden()
-                            .whitespace_nowrap()
-                            .text_ellipsis()
-                            .text_color(color(rest.label))
-                            .when_some(hover, |this, hover| {
-                                this.group_hover(GROUP, |style| {
-                                    style.text_color(color(hover.label))
-                                })
-                            })
-                            .child(label);
-                        floating_label.text_style().refine(&small_label_style);
-                        pieces.push(
-                            div()
-                                .absolute()
-                                .left(horizontal_padding)
-                                .right(horizontal_padding)
-                                .top(-small_label_height / 2.0)
-                                .flex()
-                                .child(floating_label)
-                                .into_any_element(),
-                        );
-                    }
-                    None => pieces.push(
-                        segment()
-                            .absolute()
-                            .top_0()
-                            .left(left)
-                            .right(right)
-                            .into_any_element(),
-                    ),
-                }
-                pieces
-            }
+        let field = Field {
+            variant: match self.variant {
+                SelectVariant::Filled => FieldVariant::Filled,
+                SelectVariant::Outlined => FieldVariant::Outlined,
+            },
+            group: GROUP,
+            label: self.label.clone(),
+            leading_icon: self.leading_icon,
+            // 開いている間は向きを反転する (`ExposedDropdownMenuDefaults.TrailingIcon`)
+            trailing_icon: Some(md3_icons::ARROW_DROP_DOWN.into()),
+            flip_trailing_icon: self.expanded,
+            prefix: None,
+            suffix: None,
+            supporting_text: self.supporting_text.clone(),
+            error: self.error,
+            disabled: self.disabled,
+            // 一覧を開いている間はフォーカスが一覧にあるが、Compose と同じく入力欄にフォーカスがあるものとして表示する
+            focused: focus_handle.is_focused(window) || self.expanded,
+            populated: value.is_some(),
+            theme: theme.clone(),
         };
 
         let name = self.label.clone().or(self.aria_label.clone());
@@ -675,59 +262,25 @@ impl<T: PartialEq + 'static> RenderOnce for Select<T> {
             window,
             cx,
         );
-        let mut field = HeadlessSelect::new(self.id.clone(), self.selected, self.expanded)
+        let mut container = HeadlessSelect::new(self.id.clone(), self.selected, self.expanded)
             .listbox(listbox)
             .track_focus(&focus_handle.tab_index(0))
             .disabled(self.disabled)
-            .group(GROUP)
-            .relative()
-            .flex()
-            .items_center()
-            .min_h(field_height)
-            .children(decoration)
-            .children(leading)
-            .child(middle)
-            .child(trailing);
-        field.text_style().refine(&input_style);
+            .group(GROUP);
         if let Some(name) = name {
-            field = field.aria_label(name);
+            container = container.aria_label(name);
         }
         if let Some(on_change) = self.on_change {
-            field = field.on_change(on_change);
+            container = container.on_change(on_change);
         }
         if let Some(on_expanded_change) = self.on_expanded_change {
-            field = field.on_expanded_change(on_expanded_change);
+            container = container.on_expanded_change(on_expanded_change);
         }
         if let Some(text) = &self.supporting_text {
-            field = field.aria_description(text.clone());
+            container = container.aria_description(text.clone());
         }
-        let supporting = self.supporting_text.map(|text| {
-            let mut supporting = div()
-                .debug_selector(|| "md3-select-supporting-text".into())
-                .pt(dp(supplement::select::SUPPORTING_TOP_PADDING))
-                .px(horizontal_padding)
-                .text_color(color(rest.supporting))
-                .when_some(hover, |this, hover| {
-                    this.group_hover(GROUP, |style| style.text_color(color(hover.supporting)))
-                })
-                .child(text);
-            supporting
-                .text_style()
-                .refine(&theme.text_style(filled::SUPPORTING_FONT));
-            supporting
-        });
-
-        let mut outer = div()
-            .flex()
-            .flex_col()
-            .min_w(dp(supplement::select::FIELD_MIN_WIDTH))
-            // Outlined は浮かせたラベルが入力欄の上にはみ出す分だけ、上に余白を取る (`topPaddingForLabelCutout`)
-            .when(
-                self.variant == SelectVariant::Outlined && self.label.is_some(),
-                |this| this.pt(small_label_height / 2.0),
-            )
-            .child(field)
-            .children(supporting);
+        let value = value.map(|value| div().child(value).into_any_element());
+        let mut outer = field.render(container, value, window);
         outer.style().refine(&self.style);
         outer
     }
@@ -876,6 +429,10 @@ impl<T> SelectOption<T> {
 #[cfg(test)]
 mod tests {
     use gpui::{Context, Modifiers, Render, TestAppContext, VisualTestContext, point, px};
+    use md3_theme::md3_color::ColorRole;
+    use md3_theme::md3_tokens::component::{
+        filled_text_field as filled, outlined_text_field as outlined,
+    };
 
     use super::*;
 
@@ -1050,10 +607,10 @@ mod tests {
         cx: &mut TestAppContext,
     ) {
         let (_, cx) = add_view(cx, |_| {});
-        let (x, y, _, height) = bounds(cx, "md3-select-label").unwrap();
+        let (x, y, _, height) = bounds(cx, "md3-field-label").unwrap();
         // bodyLarge の行の高さは 24
         assert_eq!((x, y, height), (116., 116., 24.));
-        assert_eq!(bounds(cx, "md3-select-value"), None);
+        assert_eq!(bounds(cx, "md3-field-input"), None);
     }
 
     #[gpui::test]
@@ -1062,10 +619,10 @@ mod tests {
         cx: &mut TestAppContext,
     ) {
         let (_, cx) = add_view(cx, |view| view.selected = Some(1));
-        let (x, y, _, height) = bounds(cx, "md3-select-label").unwrap();
+        let (x, y, _, height) = bounds(cx, "md3-field-label").unwrap();
         // bodySmall の行の高さは 16
         assert_eq!((x, y, height), (116., 108., 16.));
-        let (x, y, _, height) = bounds(cx, "md3-select-value").unwrap();
+        let (x, y, _, height) = bounds(cx, "md3-field-input").unwrap();
         assert_eq!((x, y, height), (116., 124., 24.));
     }
 
@@ -1078,7 +635,7 @@ mod tests {
             view.selected = Some(1);
             view.leading_icon = true;
         });
-        let (x, ..) = bounds(cx, "md3-select-value").unwrap();
+        let (x, ..) = bounds(cx, "md3-field-input").unwrap();
         assert_eq!(x, 152.);
     }
 
@@ -1090,7 +647,7 @@ mod tests {
         let (view, cx) = add_view(cx, |_| {});
         cx.simulate_click(point(px(200.), px(128.)), Modifiers::none());
         assert!(view.read_with(cx, |view, _| view.expanded));
-        let (_, y, _, height) = bounds(cx, "md3-select-label").unwrap();
+        let (_, y, _, height) = bounds(cx, "md3-field-label").unwrap();
         assert_eq!((y, height), (108., 16.));
         let primary = color(cx, filled::FOCUS_ACTIVE_INDICATOR_COLOR);
         assert!(filled(cx, primary).contains(&(100., 154., 300., 2.)));
@@ -1179,7 +736,7 @@ mod tests {
             view.variant = SelectVariant::Outlined;
             view.selected = Some(0);
         });
-        let (label_x, label_y, label_width, label_height) = bounds(cx, "md3-select-label").unwrap();
+        let (label_x, label_y, label_width, label_height) = bounds(cx, "md3-field-label").unwrap();
         assert_eq!((label_x, label_y, label_height), (116., 100., 16.));
         let outline = color(cx, outlined::OUTLINE_COLOR);
         let mut segments = filled(cx, outline);
@@ -1201,7 +758,7 @@ mod tests {
             view.selected = Some(0);
             view.label = "A very long label that does not fit in the select field at all";
         });
-        let (label_x, _, label_width, _) = bounds(cx, "md3-select-label").unwrap();
+        let (label_x, _, label_width, _) = bounds(cx, "md3-field-label").unwrap();
         assert_eq!((label_x, label_width), (116., 268.));
         let outline = color(cx, outlined::OUTLINE_COLOR);
         let mut segments = filled(cx, outline);
@@ -1215,7 +772,7 @@ mod tests {
         let (_, cx) = add_view(cx, |view| view.variant = SelectVariant::Outlined);
         let outline = color(cx, outlined::OUTLINE_COLOR);
         assert_eq!(filled(cx, outline), [(104., 108., 292., 1.)]);
-        let (_, y, _, height) = bounds(cx, "md3-select-label").unwrap();
+        let (_, y, _, height) = bounds(cx, "md3-field-label").unwrap();
         assert_eq!((y, height), (124., 24.));
     }
 }

@@ -18,4 +18,5 @@ pub mod select;
 pub mod slider;
 pub mod switch;
 pub mod tabs;
+pub mod text_field;
 pub mod tooltip;
