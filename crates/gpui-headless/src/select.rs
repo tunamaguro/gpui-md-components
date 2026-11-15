@@ -113,7 +113,10 @@ impl<T: PartialEq + 'static> Select<T> {
         self
     }
 
-    /// 開いたときに表示する一覧を設定する
+    /// 一覧を設定する
+    ///
+    /// 開いている間は一覧を表示する。閉じている間も、選ばれている項目の名前をセレクトの値として公開するため、
+    /// 開閉にかかわらず同じ項目を渡すこと
     pub fn listbox(mut self, listbox: SelectListbox<T>) -> Self {
         self.listbox = listbox;
         self
@@ -122,7 +125,7 @@ impl<T: PartialEq + 'static> Select<T> {
     /// セレクトを無効にするか、無効でも Tab で到達できるようにするかを設定する。既定では有効
     ///
     /// 無効なセレクトは押されても開くよう求めず、マウスの左ボタンの押下を親に伝えず、支援技術には disabled として公開される。
-    /// 開いている一覧は閉じられるが、項目は選べない
+    /// 開いている一覧は閉じるよう求めることはできるが、項目は選べない
     pub fn availability(mut self, availability: Availability) -> Self {
         self.availability = availability;
         self
