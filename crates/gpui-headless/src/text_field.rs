@@ -165,7 +165,7 @@ pub struct TextField {
 impl TextField {
     /// `value` を表示するテキストフィールドを作る
     ///
-    /// `value` の改行はそのまま描く。
+    /// `value` の改行は空白として描く。
     /// `id` は同じ親の中で一意にし、描画のたびに同じ値を渡すこと。`id` が変わるか 1 フレームでも描画されないと、
     /// カーソルと選択が失われる。[`TextField::track_focus`] を指定しない場合はフォーカスも外れる
     pub fn new(id: impl Into<ElementId>, value: impl Into<SharedString>) -> Self {
@@ -337,7 +337,7 @@ impl RenderOnce for TextField {
                         let text = &state.model.text;
                         match event.click_count {
                             2 => {
-                                let word = word_range(text, offset);
+                                let word = word_range(text, state.char_at_x(event.position.x));
                                 state.model.select(word.start, word.end);
                             }
                             3.. => state.model.select(0, text.len()),
@@ -885,10 +885,20 @@ impl EditState {
         cx.notify();
     }
 
+    /// 最後に描いた文字列で、ウィンドウの x 座標 `x` にある文字の始まり。文字列より右なら末尾
+    fn char_at_x(&self, x: Pixels) -> usize {
+        match &self.layout {
+            Some((line, origin, _)) if line.len() == self.model.text.len() => line
+                .index_for_x(x - origin.x)
+                .unwrap_or(self.model.text.len()),
+            _ => self.model.cursor(),
+        }
+    }
+
     /// 最後に描いた文字列で、ウィンドウの x 座標 `x` に最も近い文字の境界
     fn offset_for_x(&self, x: Pixels) -> usize {
         match &self.layout {
-            Some((line, origin, _)) if line.text == self.model.text => {
+            Some((line, origin, _)) if line.len() == self.model.text.len() => {
                 line.closest_index_for_x(x - origin.x)
             }
             _ => self.model.cursor(),
@@ -970,9 +980,16 @@ impl EntityInputHandler for EditState {
         let range = self.model.replacement_range(range_utf16);
         // 1 行の部品のため改行は入れない。Enter の入力もここに届く
         let text = text.replace(['\r', '\n'], "");
-        if self.model.marked.is_some() && text.is_empty() && range.is_empty() {
-            self.unmark_text(window, cx);
-            return;
+        if text.is_empty() {
+            // Enter と、変換中の範囲が無いときの空の確定では文字列を変えない
+            match &self.model.marked {
+                None => return,
+                Some(_) if range.is_empty() => {
+                    self.unmark_text(window, cx);
+                    return;
+                }
+                Some(_) => {}
+            }
         }
         self.edit(range, &text, window, cx);
     }
@@ -985,15 +1002,14 @@ impl EntityInputHandler for EditState {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.on_change.is_none() {
+        let new_text = new_text.replace(['\r', '\n'], "");
+        // 確定の後に届く空の変換中の文字列では、文字列を変えない
+        if self.on_change.is_none() || (new_text.is_empty() && self.model.marked.is_none()) {
             return;
         }
         let range = self.model.replacement_range(range_utf16);
-        self.model.replace_and_mark(
-            range,
-            &new_text.replace(['\r', '\n'], ""),
-            new_selected_range_utf16,
-        );
+        self.model
+            .replace_and_mark(range, &new_text, new_selected_range_utf16);
         self.text_changed(window, cx);
     }
 
@@ -1005,7 +1021,7 @@ impl EntityInputHandler for EditState {
         _cx: &mut Context<Self>,
     ) -> Option<Bounds<Pixels>> {
         let (line, origin, line_height) = self.layout.as_ref()?;
-        if line.text != self.model.text {
+        if line.len() != self.model.text.len() {
             return None;
         }
         let range = self.model.replacement_range(Some(range_utf16));
@@ -1025,7 +1041,7 @@ impl EntityInputHandler for EditState {
         _cx: &mut Context<Self>,
     ) -> Option<usize> {
         let (line, origin, _) = self.layout.as_ref()?;
-        if line.text != self.model.text {
+        if line.len() != self.model.text.len() {
             return None;
         }
         Some(
@@ -1095,7 +1111,8 @@ impl Element for TextLine {
         let style = window.text_style();
         let state = self.state.read(cx);
         let model = &state.model;
-        let text = SharedString::from(model.text.clone());
+        // gpui は改行を含む 1 行を描けないため、改行を同じバイト数の空白に変えて描く
+        let text = SharedString::from(model.text.replace(['\r', '\n'], " "));
         let run = style.to_run(text.len());
         let runs = match &model.marked {
             Some(marked) => {
@@ -1222,9 +1239,17 @@ impl Element for TextLine {
                 return;
             }
             state.update(cx, |state, cx| {
+                // ボタンを離す操作が届かなかった場合は、ボタンを押していない移動で選択を終える
+                if event.pressed_button != Some(MouseButton::Left) {
+                    state.selecting = false;
+                    return;
+                }
+                let selection = state.model.selection.clone();
                 let offset = state.offset_for_x(event.position.x);
                 state.model.select_to(offset);
-                state.selection_changed(window, cx);
+                if state.model.selection != selection {
+                    state.selection_changed(window, cx);
+                }
             });
         });
         let state = self.state.clone();
@@ -1832,5 +1857,65 @@ mod tests {
         );
         cx.simulate_keystrokes("tab");
         assert_eq!(filled(cx, CARET_COLOR()), []);
+    }
+
+    #[gpui::test]
+    fn 選択中に_enter_を押しても選択している文字列を消さない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "abc");
+        focus(cx);
+        cx.simulate_keystrokes("ctrl-a enter");
+        assert_eq!(value(&view, cx), "abc");
+        assert_eq!(changes(&view, cx), Vec::<SharedString>::new());
+    }
+
+    #[gpui::test]
+    fn 改行を含む文字列は空白として描き編集できる(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, "a\nb");
+        focus(cx);
+        cx.simulate_keystrokes("end");
+        cx.simulate_input("c");
+        assert_eq!(value(&view, cx), "a\nbc");
+    }
+
+    #[gpui::test]
+    fn 二回続けて押すと押した位置の文字を含む語を選択する(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "foo bar");
+        // 3 文字目の右半分を押す。最も近い文字の境界は語の後ろの空白の前になる
+        let (fo, foo) = cx.update(|window, _| {
+            let mut style = window.text_style();
+            style.line_height = px(20.).into();
+            let font_size = style.font_size.to_pixels(window.rem_size());
+            let width = |text: &'static str| {
+                window
+                    .text_system()
+                    .shape_line(text.into(), font_size, &[style.to_run(text.len())], None)
+                    .width
+            };
+            (width("fo"), width("foo"))
+        });
+        let x = f32::from(px(100.) + fo + (foo - fo) * 0.75);
+        mouse_down(cx, x, 2, Modifiers::none());
+        mouse_up(cx, x);
+        cx.simulate_input("x");
+        assert_eq!(value(&view, cx), "x bar");
+    }
+
+    #[gpui::test]
+    fn ボタンを押していない移動では選択を広げない(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, "abcd");
+        mouse_down(cx, 100., 1, Modifiers::none());
+        // 離す操作が届かなかった場合を、離さずにボタンを押していない移動を送って確かめる
+        cx.simulate_mouse_move(point(px(400.), px(110.)), None, Modifiers::none());
+        cx.simulate_mouse_move(
+            point(px(400.), px(110.)),
+            MouseButton::Left,
+            Modifiers::none(),
+        );
+        cx.simulate_input("x");
+        assert_eq!(value(&view, cx), "xabcd");
     }
 }

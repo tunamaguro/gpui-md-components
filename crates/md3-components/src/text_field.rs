@@ -548,4 +548,18 @@ mod tests {
         // 入力欄は浮かせたラベルの半分の高さ 8 だけ下に置き、文はその中央に置く
         assert_eq!((x, y, height), (116., 124., 24.));
     }
+
+    #[gpui::test]
+    fn エラーでも選択を_primary_の不透明度_0_4_で塗る(cx: &mut TestAppContext) {
+        let (_, cx) = add_view(cx, |view| {
+            view.error = true;
+            view.value = "abc".into();
+        });
+        click_field(cx);
+        cx.simulate_keystrokes("ctrl-a");
+        let selection = color(cx, ColorRole::Primary).opacity(0.4);
+        let quads = filled(cx, selection);
+        assert_eq!(quads.len(), 1);
+        assert_eq!((quads[0].0, quads[0].1, quads[0].3), (116., 124., 24.));
+    }
 }

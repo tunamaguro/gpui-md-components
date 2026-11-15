@@ -272,9 +272,10 @@ impl Field {
         InputColors {
             placeholder: color(rest.placeholder),
             caret: self.theme.color(rest.caret),
+            // Compose はエラーでも Primary を使う (`rememberTextSelectionColors`)
             selection: self
                 .theme
-                .color(rest.caret)
+                .color(ColorRole::Primary)
                 .opacity(supplement::SELECTION_OPACITY),
         }
     }
