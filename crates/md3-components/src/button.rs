@@ -1015,11 +1015,13 @@ impl RenderOnce for ToggleButton {
             SpringAnimation::new(spring).to(checked),
             move |button, phase| {
                 // 枠線は選ばれていないときだけ描き (`OutlinedToggleButtonDefaults.border`)、
-                // 太さを形と同じバネで変える。太さはどのサイズでも Small の値 (`outlinedButtonBorder`)
+                // 太さと不透明度を形と同じバネで変える。太さはどのサイズでも Small の値 (`outlinedButtonBorder`)。
+                // gpui は正の太さを 1 物理ピクセルより細く描かないため、不透明度も下げて消す
                 let mut look = look;
+                let remaining = (1.0 - phase.0).clamp(0.0, 1.0);
                 look.outline = look.outline.map(|(color, _)| {
-                    let width = dp(button_small::OUTLINED_OUTLINE_WIDTH) * (1.0 - phase.0);
-                    (color, width.max(px(0.0)))
+                    let width = dp(button_small::OUTLINED_OUTLINE_WIDTH) * remaining;
+                    (color.opacity(remaining), width)
                 });
                 look.apply(button, Some((checked_shape, phase.0)))
             },
@@ -1200,11 +1202,14 @@ mod tests {
         });
         assert!(outlined, "選ばれていない間は枠線を描くこと");
         click(cx);
-        assert_eq!(
-            container(cx, ColorRole::InverseSurface),
-            Some((12.0, 0.0)),
-            "選ばれると枠線を描かないこと"
-        );
+        assert_eq!(container(cx, ColorRole::InverseSurface), Some((12.0, 0.0)));
+        let outlined = cx.update(|window, _| {
+            window
+                .painted_quads()
+                .iter()
+                .any(|quad| quad.border_widths.top.0 > 0.0)
+        });
+        assert!(!outlined, "選ばれると枠線を描かないこと");
     }
 
     #[gpui::test]
