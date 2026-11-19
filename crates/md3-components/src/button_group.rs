@@ -35,6 +35,8 @@ use md3_theme::{SharedTheme, ThemeExt, dp};
 /// 押しても広がらないよう [`ButtonGroupItem::disabled`] にする。子のクリックはそのまま使える。
 /// 押しても反応しない項目も `disabled` にする
 ///
+/// 幅が変わるのはマウスの主ボタンで押している間だけで、タップでは変わらない。タップでの起動は子のボタンが受ける
+///
 /// グループ自身は支援技術に役割を公開しない。子のボタンがそれぞれの役割で並ぶ
 #[derive(IntoElement)]
 pub struct ButtonGroup {
@@ -200,11 +202,15 @@ impl RenderOnce for ButtonGroup {
             .iter()
             .map(|(pressed, _, _)| *pressed.read(cx))
             .collect();
-        let widths = natural
-            .filter(|_| !idle && count > 1)
-            .map(|natural| item_widths(&natural, &limits, &progress, &held));
-        // 項目の幅を決めていない間は、どの項目も子の幅なので測り直す
-        let measuring = widths.is_none();
+        // 測った幅から変わらない項目には幅を指定せず、子の幅のまま並べる。子の幅が変わっても追従し、測り直せる
+        let widths: Vec<Option<Pixels>> = match natural.filter(|_| !idle && count > 1) {
+            Some(natural) => item_widths(&natural, &limits, &progress, &held)
+                .into_iter()
+                .zip(&natural)
+                .map(|(width, natural)| (width != *natural).then_some(width))
+                .collect(),
+            None => vec![None; count],
+        };
 
         // 先に描く項目の子が離す操作の伝播を止めても、押している状態を戻せるよう、グループで離す操作を受ける
         let mut group = PressScope::new(
@@ -239,11 +245,12 @@ impl RenderOnce for ButtonGroup {
                 );
                 let natural_widths = natural_widths.clone();
                 let id = item.id.clone();
+                let measuring = widths[index].is_none();
                 let measure = canvas(
                     move |bounds, window, cx| {
                         let width = bounds.size.width;
                         if measuring && natural_widths.read(cx).get(&id) != Some(&width) {
-                            // 測っていなかった項目があって広げられなかった場合に、測った幅で描き直す
+                            // 測っていなかった項目や子の幅が変わった項目の幅で、項目の幅を決め直す
                             natural_widths.update(cx, |widths, _| {
                                 widths.insert(id, width);
                             });
@@ -261,10 +268,7 @@ impl RenderOnce for ButtonGroup {
                     .flex()
                     .flex_col()
                     .flex_none()
-                    .when_some(
-                        widths.as_ref().map(|widths| widths[index]),
-                        |this, width| this.w(width),
-                    )
+                    .when_some(widths[index], |this, width| this.w(width))
                     .child(item.element)
                     .child(measure)
                     .child(progress_spring)
@@ -679,5 +683,34 @@ mod tests {
         assert_eq!(widths, vec![px(100.0), px(100.0)]);
         let widths = item_widths(&natural, &limits, &[0.5, 0.0], &[true, false]);
         assert_eq!(widths, vec![px(107.5), px(92.5)]);
+    }
+
+    #[gpui::test]
+    fn 押している間に子の幅が変わった項目は_その幅で並べる(
+        cx: &mut TestAppContext,
+    ) {
+        let wide = Rc::new(Cell::new(false));
+        let state = wide.clone();
+        let cx = open(cx, move || {
+            let item = |id: &'static str, color: Hsla| {
+                let content = div().w(px(100.0)).flex_shrink(1.0).min_w_0();
+                ButtonGroupItem::new(id, div().flex().h(px(40.0)).bg(color).child(content))
+            };
+            let width = if state.get() { 160.0 } else { 100.0 };
+            ButtonGroup::new("group")
+                .item(
+                    ButtonGroupItem::new("fixed", div().w(px(width)).h(px(40.0)).bg(gpui::red()))
+                        .compression_limit(px(0.0))
+                        .disabled(true),
+                )
+                .item(item("b", gpui::green()))
+                .item(item("c", gpui::blue()))
+                .into_any_element()
+        });
+        press(cx, 274.0);
+        wide.set(true);
+        cx.update(|window, _| window.refresh());
+        next_frames(cx);
+        assert_eq!(items(cx), vec![(0.0, 160.0), (172.0, 85.0), (269.0, 115.0)]);
     }
 }
