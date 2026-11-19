@@ -190,12 +190,10 @@ fn item_body(
             this.role(match kind {
                 ListItemKind::Text | ListItemKind::Action => accesskit::Role::Button,
                 ListItemKind::Checkbox(_) => accesskit::Role::CheckBox,
-                ListItemKind::Radio(_) => accesskit::Role::RadioButton,
             })
             .map(|this| match kind {
                 ListItemKind::Text | ListItemKind::Action => this,
                 ListItemKind::Checkbox(state) => this.aria_toggled(state.into()),
-                ListItemKind::Radio(selected) => this.aria_toggled(selected.into()),
             })
             .when(disabled, |this| {
                 let focus_handle = focus_handle.clone();
@@ -213,7 +211,7 @@ fn item_body(
             })
             .when_some(on_click, |this, on_click| {
                 this.on_click(move |event, window, cx| {
-                    // APG は Enter での操作を、Checkbox と Radio Group のパターンでは定義していない
+                    // APG は Checkbox パターンで Enter での操作を定義していない
                     if kind != ListItemKind::Action
                         && let ClickEvent::Keyboard(KeyboardClickEvent {
                             button: KeyboardButton::Enter,
@@ -261,12 +259,6 @@ pub enum ListItemKind {
     Action,
     /// オンとオフを切り替える項目。値はチェックの状態。支援技術には role `checkbox` として公開する
     Checkbox(CheckedState),
-    /// 組の中から 1 つを選ぶ項目。値は選ばれているかどうか。支援技術には role `radio` として公開する
-    ///
-    /// 選ばれている項目が組の中で 1 つだけになるよう、呼び出し側が値を渡すこと。
-    /// リストは組を支援技術に公開せず、矢印キーで移っても選ばない。
-    /// 組として公開し、移った先を選ぶ操作 (APG の Radio Group) が要る場合は [`RadioGroup`](crate::radio::RadioGroup) を使うこと
-    Radio(bool),
 }
 
 impl ListItem {
@@ -369,7 +361,7 @@ impl StatefulInteractiveElement for ListItem {}
 
 /// APG に List のパターンは無いため、Keyboard Interface の roving tabindex
 /// (content/practices/keyboard-interface/keyboard-interface-practice.html) と、
-/// 項目の種類に対応する Button・Checkbox・Radio Group のパターンで期待される振る舞い
+/// 項目の種類に対応する Button・Checkbox のパターンで期待される振る舞い
 #[cfg(test)]
 mod tests {
     use std::cell::RefCell;
@@ -384,7 +376,7 @@ mod tests {
     use crate::test_window::add_test_window;
 
     /// 操作できる項目の名前。行 0 は操作できない項目で、行 1 から順に並ぶ
-    const NAMES: [&str; 3] = ["action", "checkbox", "radio"];
+    const NAMES: [&str; 3] = ["action", "checkbox", "toggle"];
 
     struct ListView {
         availability: [Availability; 3],
@@ -402,7 +394,7 @@ mod tests {
             let kinds = [
                 ListItemKind::Action,
                 ListItemKind::Checkbox(CheckedState::Checked),
-                ListItemKind::Radio(false),
+                ListItemKind::Checkbox(CheckedState::Unchecked),
             ];
             let items = NAMES.iter().enumerate().map(|(ix, name)| {
                 let clicks = self.clicks.clone();
@@ -543,11 +535,6 @@ mod tests {
                 accesskit::Role::CheckBox,
                 Some(accesskit::Toggled::Mixed),
             ),
-            (
-                ListItemKind::Radio(true),
-                accesskit::Role::RadioButton,
-                Some(accesskit::Toggled::True),
-            ),
         ] {
             let item = ListItem::new("item").kind(kind).on_click(|_, _, _| {});
             let node = body_node(cx, item, Some(Availability::Enabled)).expect("role を持つこと");
@@ -653,11 +640,11 @@ mod tests {
         cx.simulate_keystrokes("tab down");
         assert_eq!(focused(&view, cx), Some("checkbox"));
         cx.simulate_keystrokes("down");
-        assert_eq!(focused(&view, cx), Some("radio"));
+        assert_eq!(focused(&view, cx), Some("toggle"));
         cx.simulate_keystrokes("down");
         assert_eq!(focused(&view, cx), Some("action"));
         cx.simulate_keystrokes("up");
-        assert_eq!(focused(&view, cx), Some("radio"));
+        assert_eq!(focused(&view, cx), Some("toggle"));
         assert!(
             clicks(&view, cx).is_empty(),
             "矢印キーの移動では項目を操作しないこと"
@@ -677,7 +664,7 @@ mod tests {
     fn home_と_end_で最初と最後の操作できる項目へ移る(cx: &mut TestAppContext) {
         let (view, cx) = setup(cx, ALL_ENABLED);
         cx.simulate_keystrokes("tab end");
-        assert_eq!(focused(&view, cx), Some("radio"));
+        assert_eq!(focused(&view, cx), Some("toggle"));
         cx.simulate_keystrokes("home");
         assert_eq!(focused(&view, cx), Some("action"));
         let parent_keys = view.read_with(cx, |view, _| view.parent_keys.borrow().clone());
@@ -719,7 +706,7 @@ mod tests {
             ],
         );
         cx.simulate_keystrokes("tab down");
-        assert_eq!(focused(&view, cx), Some("radio"));
+        assert_eq!(focused(&view, cx), Some("toggle"));
         press_key(cx, "space");
         assert!(clicks(&view, cx).is_empty(), "無効な項目は操作できないこと");
         cx.simulate_keystrokes("up");
@@ -739,7 +726,7 @@ mod tests {
         }
         assert_eq!(
             clicks(&view, cx),
-            vec!["action", "action", "checkbox", "radio"]
+            vec!["action", "action", "checkbox", "toggle"]
         );
     }
 

@@ -148,12 +148,6 @@ pub enum ListItemKind {
     Action,
     /// オンとオフを切り替える項目。値はオンかどうか。オンの項目は選ばれた見た目になる
     Checkbox(bool),
-    /// 組の中から 1 つを選ぶ項目。値は選ばれているかどうか。選ばれている項目は選ばれた見た目になる
-    ///
-    /// 選ばれている項目が組の中で 1 つだけになるよう、呼び出し側が値を渡すこと。
-    /// リストは組を支援技術に公開せず、矢印キーで移っても選ばない。
-    /// 組として公開し、移った先を選ぶ操作が要る場合は `RadioGroup` (feature `radio-button`) を使うこと
-    Radio(bool),
 }
 
 /// [`List`] の項目
@@ -204,7 +198,7 @@ impl ListItem {
 
     /// 項目の種類を設定する。既定は [`ListItemKind::Text`]
     ///
-    /// 支援技術には、操作できる項目を種類に応じて role `button`、`checkbox`、`radio` として公開し、
+    /// 支援技術には、操作できる項目を種類に応じて role `button`、`checkbox` として公開し、
     /// 切り替える項目はその状態を公開する
     pub fn kind(mut self, kind: ListItemKind) -> Self {
         self.kind = kind;
@@ -288,10 +282,7 @@ impl ListItem {
         cx: &App,
     ) -> HeadlessListItem {
         let interactive = self.kind != ListItemKind::Text;
-        let selected = matches!(
-            self.kind,
-            ListItemKind::Checkbox(true) | ListItemKind::Radio(true)
-        );
+        let selected = self.kind == ListItemKind::Checkbox(true);
         let disabled = self.disabled;
         let focus_visible =
             interactive && gpui_headless::is_focus_visible(focus_handle, window, cx);
@@ -478,7 +469,6 @@ impl ListItem {
                 } else {
                     CheckedState::Unchecked
                 }),
-                ListItemKind::Radio(selected) => HeadlessListItemKind::Radio(selected),
             })
             .disabled(disabled)
             .track_focus(focus_handle)
@@ -635,16 +625,14 @@ mod tests {
     }
 
     #[gpui::test]
-    fn 選ばれている項目とオンの項目は選ばれた容器の色で塗る(
-        cx: &mut TestAppContext,
-    ) {
+    fn オンの項目は選ばれた容器の色で塗る(cx: &mut TestAppContext) {
         let (_, cx) = add_view(cx, |_| {
             vec![
-                ListItem::new("radio", "Radio").kind(ListItemKind::Radio(true)),
+                ListItem::new("on", "On").kind(ListItemKind::Checkbox(true)),
                 ListItem::new("checkbox", "Checkbox").kind(ListItemKind::Checkbox(true)),
                 ListItem::new("off", "Off").kind(ListItemKind::Checkbox(false)),
                 ListItem::new("disabled", "Disabled")
-                    .kind(ListItemKind::Radio(true))
+                    .kind(ListItemKind::Checkbox(true))
                     .disabled(true),
             ]
         });
@@ -655,7 +643,7 @@ mod tests {
         assert_eq!(
             rows(cx, surface),
             vec![(112., 56.), (168., 56.)],
-            "無効な項目は選ばれていても選ばれた容器の色にしないこと"
+            "無効な項目はオンでも選ばれた容器の色にしないこと"
         );
     }
 
@@ -725,7 +713,7 @@ mod tests {
             vec![
                 ListItem::new("text", "Text"),
                 ListItem::new("action", "Action").kind(ListItemKind::Action),
-                ListItem::new("radio", "Radio").kind(ListItemKind::Radio(false)),
+                ListItem::new("checkbox", "Checkbox").kind(ListItemKind::Checkbox(false)),
             ]
         });
         cx.simulate_mouse_move(point(px(700.), px(500.)), None, Modifiers::none());

@@ -578,24 +578,24 @@ MD3 (md3-components) で決めたこと:
 
 ## M12: List
 
-対象: 縦に並べる List と、その項目 (操作できない項目、実行する項目、チェックボックスの項目、ラジオボタンの項目)
+対象: 縦に並べる List と、その項目 (操作できない項目、実行する項目、チェックボックスの項目)
 
 対応する APG のパターンは無い。HTML の `<ul>` と、項目の中に操作の対象を置く `<li><button>` の構造に合わせ、矢印キーの移動は M4 の仕組みを使う
 
 決めたこと:
 
-- `list::List` は role `list`、`list::ListItem` は role `listitem` として公開する。操作できる項目は listitem の子に操作の対象を置き、種類 (`ListItemKind`) に応じて role `button`・`checkbox`・`radio` と状態を公開する
+- `list::List` は role `list`、`list::ListItem` は role `listitem` として公開する。操作できる項目は listitem の子に操作の対象を置き、種類 (`ListItemKind`) に応じて role `button`・`checkbox` と状態を公開する
   - 見た目を付ける要素は操作の対象で、listitem の要素はそれをリストの幅に合わせて包むだけにする
   - Material Web は項目自身を role `listitem` にしたまま `aria-checked` などを付ける (TODO として button の公開を待っている)。Compose は項目を radio や checkbox として公開し、list の構造を持たない。
     listitem の中に操作の対象を置けば、list の中の位置と操作の種類の両方を公開できるため、こちらを採った
 - 操作できる項目の間を M4 と同じく 1 つの Tab stop と矢印キーで移る。操作できない項目は移動先に含めない
   - 縦に並べる配置だけを扱い、上下の矢印キーで移る。端では反対の端に戻る。Home と End で最初と最後の操作できる項目へ移る
-  - 矢印キーの移動では項目の状態を変えない。ラジオボタンの項目も移っただけでは選ばない (Compose と Material Web と同じ)
+  - 矢印キーの移動では項目の状態を変えない
   - フォーカスがないときの Tab stop は最初のフォーカスできる項目にする。最後にフォーカスがあった項目に戻すことはしない (M4 の ToggleGroup と同じ)
 - 項目は `on_click` で操作を受ける。Space・クリック・支援技術からのクリックで呼び、Enter では実行する項目だけが呼ぶ (Checkbox と Radio Group のパターンは Enter を定義しない)
 - 切り替える項目の状態の変更は呼び出し側が `on_click` で決める (M8 の MenuItem と同じ)
-- ラジオボタンの項目の組はリストからは公開せず、矢印キーで移っても選ばない (Compose と同じ)。選ばれている項目を組の中で 1 つにするのは呼び出し側。
-  role `radiogroup` で包むと APG の Radio Group のキー操作 (選ばれている項目への Tab、移った先を選ぶ) も求められるため、それが要る場合は M4 の RadioGroup を使う
+- ラジオボタンの項目 (Compose の `selected` の `ListItem`) は持たない。排他的な組であることを公開するには role `radiogroup` で包む必要があり、
+  そうすると APG の Radio Group のキー操作 (選ばれている項目への Tab、移った先を選ぶ) も求められ、M4 の RadioGroup と同じものになる。1 つを選ぶ用途には M4 の RadioGroup を使う
 - `child` で加える要素は支援技術に公開しないものに限る。公開する見出しなどを置くと、role `list` の直下に `listitem` 以外のノードが並ぶ
 - Home と End で移る先がフォーカスのある項目自身になる場合は、キー入力を祖先に渡す
 - ハンドラを持たない操作できる項目は、M0 の Button と同じくフォーカスでき、クリック操作は公開しない
@@ -613,19 +613,19 @@ MD3 (md3-components) で決めたこと:
 - Compose の Expressive の `ListItem` (`InteractiveListItem`) を移植した。項目の文 (見出し・overline・補足の文)、先頭と末尾のアイコン、末尾の補足の文を扱う
   - 最小の高さは文の行の数で決める (`ListItemType`)。補足の文が折り返したかは調べず、overline と補足の文の両方があるときだけ 3 行にする
   - 3 行の項目は内容を上にそろえ、それ以外は中央にそろえる (`ListItemDefaults.verticalAlignment` の境目)。Compose は実際の高さで決めるが、ここでは行の数で決めるため、呼び出し側が高さを大きくしても中央にそろえる
-  - チェックボックスのオンの項目とラジオボタンの選ばれている項目は、Compose と同じく選ばれた容器の色と形にする。無効な項目は選ばれていても無効の色にする
+  - チェックボックスのオンの項目は、Compose の `checked` の `ListItem` と同じく選ばれた容器の色と形にする。無効な項目はオンでも無効の色にする
   - 形は選ばれている間、キーボードのフォーカスを示している間、hover の間で変える (`shapeForInteraction`)。押している間の形と形の変化の動きは扱わない。
     hover の形は描画時の大きさを知らずに決めるため、テーマで割合の角にすると短辺の半分に切り詰めた半径になる
+  - フォーカスリングは Material Web と同じく項目の内側に描く
   - 押している間の状態レイヤー (ripple) は、ほかの部品と同じく後回しにする (「後回し」の ripple の項目)
   - キーボードで移った先をスクロールして見える位置に出すことは、共通の完了条件の後回し (#95) に従い扱わない
-- テーマは SegmentedButton と同じくリスト全体で受け取り、項目ごとには受け取らない。1 つのリストの中で項目ごとに配色を変える用途が仕様に無いため
-  - フォーカスリングは Material Web と同じく項目の内側に描く
+- テーマは SegmentedButton と同じくリスト全体で受け取り、項目ごとには受け取らない。リストの中で配色と形をそろえるため (Compose は項目ごとに `colors` を受け取る)
 - 文字列をそのまま子にしたテキストは支援技術に公開されないため、項目の文は M3 の `text::StaticText` で label として公開する。操作の対象の名前は、その子孫の文をつなげたものになる
 - 先頭のアバターや画像、末尾のチェックボックスやスイッチなど、任意の要素は置けない
 
 気を付けること:
 
-- 3 段目は MD3 の List で確かめた。list の中に list item が並び、操作できる項目はその子に button・check box・radio button として渡り、名前は項目の文をつなげたものになる。
+- 3 段目は MD3 の List で確かめた。list の中に list item が並び、操作できる項目はその子に button・check box として渡り、名前は項目の文をつなげたものになる。
   支援技術の click で checked が変わる。無効な項目は click と focusable を持たない。操作できない項目は list item の中に文の label が並ぶ
 
 ## 随時

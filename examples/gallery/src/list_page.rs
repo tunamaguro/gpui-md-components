@@ -11,11 +11,10 @@ use md3_theme::md3_tokens::typography::TypeScale;
 
 const FRUITS: [&str; 3] = ["Apple", "Pear", "Plum"];
 
-/// 種類の違う項目のリストを並べるページ。チェックの状態と選ばれている項目を持つ
+/// 種類の違う項目のリストを並べるページ。チェックの状態と最後に実行した項目を持つ
 #[derive(Default)]
 pub struct ListPage {
     checked: [bool; 3],
-    selected: usize,
     last_action: Option<&'static str>,
 }
 
@@ -73,23 +72,6 @@ impl Render for ListPage {
                         cx.notify();
                     }))
             }));
-        let radios = List::new("radios").aria_label("Fruit").w(px(360.)).items(
-            FRUITS.iter().enumerate().map(|(ix, name)| {
-                let selected = self.selected == ix;
-                ListItem::new(("radio", ix), *name)
-                    .kind(ListItemKind::Radio(selected))
-                    .leading_icon(if selected {
-                        md3_icons::RADIO_BUTTON_CHECKED
-                    } else {
-                        md3_icons::RADIO_BUTTON_UNCHECKED
-                    })
-                    .supporting_text("Fruit")
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.selected = ix;
-                        cx.notify();
-                    }))
-            }),
-        );
         let texts = List::new("texts")
             .aria_label("Details")
             .w(px(360.))
@@ -123,7 +105,6 @@ impl Render for ListPage {
                 status
             }))
             .child(checkboxes)
-            .child(radios)
             .child(texts)
     }
 }
