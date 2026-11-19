@@ -116,7 +116,8 @@ impl<T: PartialEq + 'static> NavigationRail<T> {
 
     /// 項目の上に `header` を置く。メニューボタンや FAB を置くときに使う
     ///
-    /// ヘッダーと項目の間は 40dp 空ける。ヘッダーの横の配置と大きさは `header` 自身のスタイルで決める
+    /// ヘッダーと項目の間は 40dp 空ける。ヘッダーは `header` 自身の大きさで、レールの内容の先頭側の端に置く。
+    /// 展開したときの幅は、ヘッダーの幅も含めて決まる
     pub fn header(mut self, header: impl IntoElement) -> Self {
         self.header = Some(header.into_any_element());
         self
@@ -417,9 +418,11 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
         let header_measure = {
             let header_width = header_width.clone();
             canvas(
-                move |bounds, _, cx| {
+                move |bounds, window, cx| {
                     if *header_width.read(cx) != Some(bounds.size.width) {
                         header_width.update(cx, |width, _| *width = Some(bounds.size.width));
+                        // 測った幅でレールの幅を決め直す
+                        window.request_animation_frame();
                     }
                 },
                 |_, _, _, _| {},
@@ -433,6 +436,7 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
         let ring_outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
         // ヘッダーは並べ方にかかわらず上端に置き、レールの幅に引き伸ばさず `header` 自身の幅で描く。
         // ヘッダーは項目の並び (tablist) の外に置き、支援技術には並びの前の兄弟として公開する
+        let has_header = self.header.is_some();
         let header = self.header.map(|header| {
             div()
                 .relative()
@@ -506,8 +510,15 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
         let collapsing_from = (!self.expanded).then(|| *painted_width.read(cx)).flatten();
         // ヘッダーは前の描画で測った幅を使う。ヘッダーは展開と折りたたみで配置を変えないため、
         // 展開を始めたときには測り終えている
-        let widened =
-            widest_item.max(header_width.read(cx).unwrap_or_default()) + padding * 2.0 > min_width;
+        let header_width = if has_header {
+            header_width.read(cx).unwrap_or_default()
+        } else {
+            px(0.0)
+        };
+        // 展開したときの幅。内容が最小の幅に収まるなら最小の幅にする
+        let content_width = widest_item.max(header_width) + padding * 2.0;
+        let widened = content_width > min_width;
+        let expanded_width = content_width.clamp(min_width, max_width);
         // フォーカスが移ったとき・表示領域の高さが変わったとき・項目の配置が変わったときに、
         // フォーカスのある項目をリングの張り出しも含めて表示範囲に入れる。
         // 並びの後に置いた canvas の prepaint で、この描画のレイアウトで決まった範囲を使う
@@ -569,7 +580,8 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
 
         // 幅は折りたたんだ 96dp と、展開したときの最小 220dp・最大 360dp の間をバネで動く。
         // 展開した項目とヘッダーが最小の幅に収まるなら、展開と折りたたみのどちらも最小の幅の動きにする (`actualMinWidth`)。
-        // 収まらないなら、展開する間と展開した後は範囲の中で内容に合わせ、折りたたむ間は、最大の幅の動きを、
+        // 収まらないなら、展開する間と展開した後は最大の幅の動きを内容の幅で頭打ちにし
+        // (`widthFullRange.coerceAtMost(widthConstrain)`)、折りたたむ間は、最大の幅の動きを、
         // 最小の幅の動きと前の描画の幅の間に収めた幅にする (`widthFullRange.coerceIn(actualMinWidth, currentWidth)`)。
         // そのため、どの時点で折りたたみ始めても、描いていた幅から続けて縮む。展開すると内容の左右に 20dp を空ける。
         // 呼び出し側のスタイルは、幅と余白の既定の後に重ねる
@@ -584,11 +596,12 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                 // 行き過ぎで展開したときの最大の幅を超えないよう、最大の幅で頭打ちにする
                 let max =
                     (collapsed_width + (max_width - collapsed_width) * progress).min(max_width);
-                let rail = match collapsing_from {
-                    _ if !widened => rail.w(min),
-                    Some(from) => rail.w(max.clamp(min, from.max(min))),
-                    None => rail.min_w(min).max_w(max),
+                let width = match collapsing_from {
+                    _ if !widened => min,
+                    Some(from) => max.clamp(min, from.max(min)),
+                    None => max.min(expanded_width),
                 };
+                let rail = rail.w(width);
                 // 展開の配置では並びがフォーカスリングの張り出し分を左右に空けるため、その分を除く
                 let padding = if expanded {
                     (padding * progress.min(1.0) - ring_outset).max(px(0.0))
@@ -1102,5 +1115,32 @@ mod tests {
             "長いラベルのレールは内容に合わせて広がること: {}",
             containers[1].2
         );
+    }
+
+    #[gpui::test]
+    fn 広いヘッダーを測ってレールを広げ_外すと戻す(cx: &mut TestAppContext) {
+        let with_header = Rc::new(std::cell::Cell::new(true));
+        let state = with_header.clone();
+        let cx = open(cx, move || {
+            NavigationRail::new("rail", Some(0))
+                .expanded(true)
+                .when(state.get(), |rail| {
+                    rail.header(div().w(px(240.0)).h(px(40.0)))
+                })
+                .item(NavigationRailItem::new("item", 0, HOME, "Home"))
+                .into_any_element()
+        });
+        cx.update(|_, cx| cx.set_reduce_motion(true));
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        // 最初の描画で測ったヘッダーの幅で、次のフレームを描く
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        let width = |cx: &mut VisualTestContext| quads_of(cx, collapsed::CONTAINER_COLOR)[0].2;
+        assert_eq!(width(cx), 280.0, "ヘッダーの幅と左右 20dp に広がること");
+        with_header.set(false);
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        assert_eq!(width(cx), 220.0, "ヘッダーを外すと最小の幅に戻ること");
     }
 }
