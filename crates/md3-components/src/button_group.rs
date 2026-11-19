@@ -5,7 +5,8 @@
 //         @ 2a941dd11aabd9bb7d2016ed159764b220117c20
 // Copyright 2024 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 // Compose は収まらない項目をメニューに移すが、この実装は持たない。キーボードで押している間は広げず、ポインターで押している間だけ広げる。
-// 隣を縮められる幅は、Compose の既定と同じくボタンの末尾側の余白 (`ButtonDefaults.ContentPadding`) にする
+// 隣を縮められる幅は、Compose の既定と同じくボタンの末尾側の余白 (`ButtonDefaults.ContentPadding`) にし、
+// 隣の子がそれより狭く描けないボタンでも重ならないよう、隣をボタンの最小の幅より狭くしない
 // トークンの値と版は md3-tokens の各ファイルにある
 
 //! MD3 Expressive のボタングループ
@@ -14,10 +15,11 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use gpui::{
-    AnimationExt, AnyElement, App, ElementId, Entity, InteractiveElement, IntoElement, MouseButton,
-    ParentElement, Pixels, Refineable, RenderOnce, SharedString, SpringAnimation, StyleRefinement,
-    Styled, Window, canvas, div, prelude::FluentBuilder, px,
+    AnimationExt, AnyElement, App, ElementId, Entity, IntoElement, ParentElement, Pixels,
+    Refineable, RenderOnce, SharedString, SpringAnimation, StyleRefinement, Styled, Window, canvas,
+    div, prelude::FluentBuilder, px,
 };
+use gpui_headless::press::PressArea;
 use md3_theme::md3_tokens::component::{baseline_button, button_group_small};
 use md3_theme::md3_tokens::motion::MotionSchemeKey;
 use md3_theme::md3_tokens::supplement;
@@ -25,8 +27,12 @@ use md3_theme::{SharedTheme, ThemeExt, dp};
 
 /// ボタンを横に並べ、押しているボタンを隣を縮めて広げるグループ
 ///
-/// 子はボタンなどの要素で、間を 12dp 空けて左から並べる。子を押している間は、その子が隣を縮めた分だけ広がり、
-/// 離すと元の幅に戻る。子は広がった幅いっぱいに描かれる。押しても反応しない子は [`ButtonGroupItem::disabled`] で加える
+/// 子はボタンなどの要素で、間を 12dp 空けて左から並べる。子をポインターで押している間は、その子が隣を縮めた分だけ広がり、
+/// 離すと元の幅に戻る。隣は 24dp までと、ボタンの最小の幅 (58dp) までしか縮めない。
+/// 幅を指定しない子は項目の幅いっぱいに描かれ、`Button` は縮めると左右の余白から縮む。
+/// 幅を指定した子は項目の幅に追従しない。押しても反応しない子は [`ButtonGroupItem::disabled`] で加える
+///
+/// 押している状態は項目の位置で保つため、押している間に項目を並べ替えると、同じ位置の別の項目が広がる
 ///
 /// グループ自身は支援技術に役割を公開しない。子のボタンがそれぞれの役割で並ぶ
 #[derive(IntoElement)]
@@ -62,7 +68,7 @@ impl ButtonGroup {
         self
     }
 
-    /// 色と動きに使うテーマを指定する。指定しなければアプリのテーマを使う
+    /// 押下の動きのバネに使うテーマを指定する。指定しなければアプリのテーマを使う。子のテーマは変えない
     pub fn theme(mut self, theme: SharedTheme) -> Self {
         self.theme = Some(theme);
         self
@@ -120,9 +126,10 @@ impl RenderOnce for ButtonGroup {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
         let spring = theme.spring(MotionSchemeKey::FastSpatial);
+        let reduce_motion = cx.reduce_motion();
         let count = self.items.len();
 
-        // 項目ごとの押している状態と、前の描画での押下の動きの進み
+        // 項目ごとの押している状態と、項目のバネが前の描画で記録した押下の動きの進み
         let presses: Vec<(Entity<PressState>, Rc<Cell<f32>>)> = (0..count)
             .map(|index| {
                 window.with_element_namespace(
@@ -139,19 +146,24 @@ impl RenderOnce for ButtonGroup {
                 )
             })
             .collect();
-        // 何も押していない間に測った各項目の幅
+        // 何も押していない間に測った各項目の幅。項目の数が変わったら測り直す
         let natural_widths = window.with_element_namespace(self.id.clone(), |window| {
             window.use_keyed_state("natural-widths", cx, |_, _| Vec::<Pixels>::new())
         });
+        if natural_widths.read(cx).len() != count {
+            natural_widths.update(cx, |widths, _| widths.clear());
+        }
 
-        // 押すのをやめても、押下の動きが戻り始められるところまで進むまでは押した状態を保つ (`EnlargeOnPressNode`)
+        // 押すのをやめても、押下の動きが戻り始められるところまで進むまでは押した状態を保つ (`EnlargeOnPressNode`)。
+        // モーションを減らす設定では動きが一瞬で終わるため、押している間だけ広げる
         let targets: Vec<bool> = presses
             .iter()
             .map(|(press, progress)| {
                 let state = press.read(cx);
                 if state.latched
                     && !state.held
-                    && progress.get() >= supplement::button_group::RELEASE_PROGRESS
+                    && (reduce_motion
+                        || progress.get() >= supplement::button_group::RELEASE_PROGRESS)
                 {
                     press.update(cx, |state, _| state.latched = false);
                 }
@@ -159,176 +171,131 @@ impl RenderOnce for ButtonGroup {
                 state.held || state.latched
             })
             .collect();
+        let progress: Vec<f32> = presses.iter().map(|(_, progress)| progress.get()).collect();
+        let idle = progress.iter().all(|progress| *progress == 0.0) && !targets.contains(&true);
 
-        let gap = dp(button_group_small::BETWEEN_SPACE);
-        let compression_limit = dp(baseline_button::TRAILING_SPACE);
-        let ratio = supplement::button_group::EXPANDED_RATIO;
+        // 押している項目は、端なら片側の隣を自分の幅の 15% まで、間なら左右の隣を 15% の半分ずつまで縮めて広がる
+        // (`ButtonGroupMeasurePolicy`)。隣を縮める幅は隣の末尾側の余白を超えず、隣をボタンの最小の幅より狭くしない
         let natural = natural_widths.read(cx).clone();
-        let mut group = div().flex().flex_row().items_start().gap(gap);
-        group.style().refine(&self.style);
+        let widths = (!idle && natural.len() == count && count > 1).then(|| {
+            let ratio = supplement::button_group::EXPANDED_RATIO;
+            let limit = dp(baseline_button::TRAILING_SPACE);
+            let min_width = dp(supplement::button::MIN_WIDTH);
+            let mut widths = natural.clone();
+            let shrink = |widths: &mut Vec<Pixels>, neighbor: usize, target: Pixels| {
+                let available = (widths[neighbor] - min_width).min(limit).max(px(0.0));
+                let growth = target.min(available);
+                widths[neighbor] -= growth;
+                growth
+            };
+            for (index, progress) in progress.iter().copied().enumerate() {
+                if progress == 0.0 {
+                    continue;
+                }
+                let own = widths[index];
+                let growth = if index == 0 {
+                    shrink(&mut widths, 1, own * ratio * progress)
+                } else if index == count - 1 {
+                    shrink(&mut widths, index - 1, own * ratio * progress)
+                } else {
+                    let target = own * ratio / 2.0 * progress;
+                    shrink(&mut widths, index - 1, target) + shrink(&mut widths, index + 1, target)
+                };
+                widths[index] += growth;
+            }
+            widths
+        });
 
-        let items: Vec<_> = self
-            .items
-            .into_iter()
-            .zip(presses.iter().map(|(press, _)| press.clone()))
-            .collect();
-        let progress_cells: Vec<Rc<Cell<f32>>> = presses
+        let mut group = div()
+            .flex()
+            .flex_row()
+            .items_start()
+            .gap(dp(button_group_small::BETWEEN_SPACE));
+        group.style().refine(&self.style);
+        let cells: Vec<Rc<Cell<f32>>> = presses
             .iter()
             .map(|(_, progress)| progress.clone())
             .collect();
-
-        // 項目の幅はすべての項目の押下の動きの進みで決まる。各項目のバネを外側から順に重ね、
-        // 外側の各バネが記録した進みを、最も内側 (最初の項目) のバネで項目を組み立てるときに使う
-        let build = {
-            let natural_widths = natural_widths.clone();
-            move |group: gpui::Div, progress: Vec<f32>| {
-                let idle = progress.iter().all(|progress| *progress == 0.0);
-                // 押している項目は、端なら片側の隣を自分の幅の 15% まで、間なら左右の隣を 15% の半分ずつまで縮めて広がる。
-                // 縮める幅は隣の末尾側の余白を超えない (`ButtonGroupMeasurePolicy`)
-                let widths = (!idle && natural.len() == count && count > 1).then(|| {
-                    let mut widths = natural.clone();
-                    for (index, progress) in progress.iter().copied().enumerate() {
-                        if progress == 0.0 {
-                            continue;
-                        }
-                        if index == 0 {
-                            let target = (widths[index] * ratio).min(compression_limit) * progress;
-                            let growth = target.min(widths[index + 1]);
-                            widths[index + 1] -= growth;
-                            widths[index] += growth;
-                        } else if index == count - 1 {
-                            let target = (widths[index] * ratio).min(compression_limit) * progress;
-                            let growth = target.min(widths[index - 1]);
-                            widths[index - 1] -= growth;
-                            widths[index] += growth;
-                        } else {
-                            let target =
-                                (widths[index] * ratio / 2.0).min(compression_limit) * progress;
-                            let growth_left = target.min(widths[index - 1]);
-                            let growth_right = target.min(widths[index + 1]);
-                            widths[index - 1] -= growth_left;
-                            widths[index + 1] -= growth_right;
-                            widths[index] += growth_left + growth_right;
-                        }
-                    }
-                    widths
-                });
-                group.children(items.into_iter().enumerate().map(|(index, (item, press))| {
-                    let natural_widths = natural_widths.clone();
-                    // 何も押していない間だけ、項目の幅を測り直す
-                    let measure = canvas(
-                        move |bounds, _, cx| {
-                            if !idle {
-                                return;
-                            }
-                            let width = bounds.size.width;
-                            if natural_widths.read(cx).get(index) != Some(&width) {
-                                natural_widths.update(cx, |widths, _| {
-                                    widths.resize(count, px(0.0));
-                                    widths[index] = width;
-                                });
-                            }
-                        },
-                        |_, _, _, _| {},
-                    )
-                    .absolute()
-                    .size_full();
-                    // 子を縦の flex の中に置き、交差軸の伸長で項目の幅いっぱいに描く
-                    div()
-                        .relative()
-                        .flex()
-                        .flex_col()
-                        .flex_none()
-                        .when_some(
-                            widths.as_ref().map(|widths| widths[index]),
-                            |this, width| this.w(width),
-                        )
-                        .when(!item.disabled, |this| {
-                            let down = press.clone();
-                            let up = press.clone();
-                            let up_out = press;
-                            this.on_mouse_down(MouseButton::Left, move |_, _, cx| {
-                                down.update(cx, |state, cx| {
-                                    state.held = true;
-                                    state.latched = true;
-                                    cx.notify();
-                                });
-                            })
-                            .on_mouse_up(MouseButton::Left, move |_, _, cx| {
-                                up.update(cx, |state, cx| {
-                                    state.held = false;
-                                    cx.notify();
-                                });
-                            })
-                            .on_mouse_up_out(
-                                MouseButton::Left,
-                                move |_, _, cx| {
-                                    up_out.update(cx, |state, cx| {
-                                        if state.held {
-                                            state.held = false;
-                                            cx.notify();
-                                        }
-                                    });
-                                },
-                            )
-                        })
-                        .child(item.element)
-                        .child(measure)
-                }))
-            }
-        };
-
-        if count == 0 {
-            return group.into_any_element();
-        }
-        // 外側のバネが進みを記録する場所。最も内側のバネが自分の進みを加えて項目を組み立てる
-        let recorded: Rc<Vec<Cell<f32>>> = Rc::new((0..count).map(|_| Cell::new(0.0)).collect());
-        let spring_id = |index: usize| -> ElementId {
-            (
-                self.id.clone(),
-                SharedString::from(format!("press-{index}")),
-            )
-                .into()
-        };
-        let mut element = {
-            let recorded = recorded.clone();
-            let cell = progress_cells[0].clone();
-            group
-                .with_spring(
-                    spring_id(0),
-                    SpringAnimation::new(spring).to(targets[0]),
-                    move |group, progress| {
-                        cell.set(progress.0);
-                        recorded[0].set(progress.0);
-                        let progress = recorded.iter().map(Cell::get).collect();
-                        build(group, progress)
-                    },
-                )
-                .into_any_element()
-        };
-        for index in 1..count {
-            let recorded = recorded.clone();
-            let cell = progress_cells[index].clone();
-            element = element
-                .with_spring(
-                    spring_id(index),
-                    SpringAnimation::new(spring).to(targets[index]),
+        let items = self
+            .items
+            .into_iter()
+            .zip(presses)
+            .zip(targets)
+            .enumerate()
+            .map(|(index, ((item, (press, cell)), target))| {
+                // 押下の動きの進みを記録するバネ。項目の幅は、記録した進みで次の描画で決める
+                let progress_spring = div().absolute().with_spring(
+                    (
+                        self.id.clone(),
+                        SharedString::from(format!("press-{index}")),
+                    ),
+                    SpringAnimation::new(spring).to(target),
                     move |element, progress| {
                         cell.set(progress.0);
-                        recorded[index].set(progress.0);
                         element
                     },
+                );
+                // 何も押していない間だけ、項目の幅を測り直す
+                let natural_widths = natural_widths.clone();
+                let measure = canvas(
+                    move |bounds, _, cx| {
+                        let width = bounds.size.width;
+                        if idle && natural_widths.read(cx).get(index) != Some(&width) {
+                            natural_widths.update(cx, |widths, _| {
+                                widths.resize(count, px(0.0));
+                                widths[index] = width;
+                            });
+                        }
+                    },
+                    |_, _, _, _| {},
                 )
-                .into_any_element();
-        }
-        element
+                .absolute()
+                .size_full();
+                // 子を縦の flex の中に置き、交差軸の伸長で、幅を指定しない子を項目の幅いっぱいに描く
+                PressArea::new((self.id.clone(), SharedString::from(format!("item-{index}"))))
+                    .disabled(item.disabled)
+                    .on_press_change(move |pressed, _, cx| {
+                        press.update(cx, |state, cx| {
+                            state.held = pressed;
+                            state.latched |= pressed;
+                            cx.notify();
+                        });
+                    })
+                    .relative()
+                    .flex()
+                    .flex_col()
+                    .flex_none()
+                    .when_some(
+                        widths.as_ref().map(|widths| widths[index]),
+                        |this, width| this.w(width),
+                    )
+                    .child(item.element)
+                    .child(measure)
+                    .child(progress_spring)
+            });
+        // バネが記録した進みがこの描画で使った進みと違えば、記録した進みで描き直す
+        let redraw = canvas(
+            move |_, window, _| {
+                if cells
+                    .iter()
+                    .zip(&progress)
+                    .any(|(cell, progress)| cell.get() != *progress)
+                {
+                    window.request_animation_frame();
+                }
+            },
+            |_, _, _, _| {},
+        )
+        .absolute();
+        group.children(items).child(redraw)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use gpui::{
-        AnyElement, Context, Hsla, Modifiers, Render, TestAppContext, VisualTestContext, point,
+        AnyElement, Context, Hsla, Modifiers, MouseButton, Render, TestAppContext,
+        VisualTestContext, point,
     };
 
     use super::*;
@@ -357,16 +324,27 @@ mod tests {
 
     const COLORS: [fn() -> Hsla; 3] = [gpui::red, gpui::green, gpui::blue];
 
-    /// 幅が 100dp で、狭くすると縮む 3 つの項目。`disabled` の番号の項目は押しても広がらない
-    fn group(disabled: Option<usize>) -> AnyElement {
+    /// 幅が `widths` で、狭くすると縮む項目。`disabled` の番号の項目は押しても広がらない
+    fn group_of(widths: &[f32], disabled: Option<usize>) -> AnyElement {
         ButtonGroup::new("group")
-            .items(COLORS.iter().enumerate().map(|(index, color)| {
-                // Button と同じく、内容より狭い幅を指定されたら縮められる子にする
-                let content = div().w(px(100.0)).flex_shrink(1.0).min_w_0();
-                ButtonGroupItem::new(div().flex().h(px(40.0)).bg(color()).child(content))
-                    .disabled(disabled == Some(index))
-            }))
+            .items(
+                widths
+                    .iter()
+                    .zip(COLORS)
+                    .enumerate()
+                    .map(|(index, (width, color))| {
+                        // Button と同じく、内容より狭い幅を指定されたら縮められる子にする
+                        let content = div().w(px(*width)).flex_shrink(1.0).min_w_0();
+                        ButtonGroupItem::new(div().flex().h(px(40.0)).bg(color()).child(content))
+                            .disabled(disabled == Some(index))
+                    }),
+            )
             .into_any_element()
+    }
+
+    /// 幅が 100dp の 3 つの項目
+    fn group(disabled: Option<usize>) -> AnyElement {
+        group_of(&[100.0; 3], disabled)
     }
 
     /// 各項目の x と幅
@@ -376,29 +354,35 @@ mod tests {
             let quads = window.painted_quads();
             COLORS
                 .iter()
-                .map(|color| {
+                .filter_map(|color| {
                     let background: gpui::Background = color().into();
-                    let quad = quads
-                        .iter()
-                        .find(|quad| quad.background == background)
-                        .expect("項目が描かれていること");
-                    (
+                    let quad = quads.iter().find(|quad| quad.background == background)?;
+                    Some((
                         quad.bounds.origin.x.0 / scale,
                         quad.bounds.size.width.0 / scale,
-                    )
+                    ))
                 })
                 .collect()
         })
     }
 
+    /// バネが記録した進みで描き直すフレームを進める
+    fn next_frames(cx: &mut VisualTestContext) {
+        cx.run_until_parked();
+        for _ in 0..2 {
+            cx.update(|window, cx| window.simulate_next_frame(cx));
+            cx.run_until_parked();
+        }
+    }
+
     fn press(cx: &mut VisualTestContext, x: f32) {
         cx.simulate_mouse_down(point(px(x), px(20.0)), MouseButton::Left, Modifiers::none());
-        cx.run_until_parked();
+        next_frames(cx);
     }
 
     fn release(cx: &mut VisualTestContext, x: f32) {
         cx.simulate_mouse_up(point(px(x), px(20.0)), MouseButton::Left, Modifiers::none());
-        cx.run_until_parked();
+        next_frames(cx);
     }
 
     #[gpui::test]
@@ -457,5 +441,61 @@ mod tests {
             items(cx),
             vec![(0.0, 100.0), (112.0, 100.0), (224.0, 100.0)]
         );
+    }
+
+    #[gpui::test]
+    fn 隣をボタンの最小の幅より狭くしない(cx: &mut TestAppContext) {
+        let cx = open(cx, || group_of(&[200.0, 80.0, 58.0], None));
+        press(cx, 100.0);
+        assert_eq!(
+            items(cx),
+            vec![(0.0, 222.0), (234.0, 58.0), (304.0, 58.0)],
+            "隣は 58dp までの 22dp だけ縮むこと"
+        );
+        release(cx, 100.0);
+        press(cx, 252.0);
+        assert_eq!(
+            items(cx),
+            vec![(0.0, 194.0), (206.0, 86.0), (304.0, 58.0)],
+            "縮められない隣からは広がらないこと"
+        );
+    }
+
+    #[gpui::test]
+    fn 描画を挟まずに押して離すと広がったまま残らない(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = open(cx, || group(None));
+        // 支援技術のクリックは、押す操作と離す操作を描画を挟まずに配送する
+        cx.simulate_mouse_down(
+            point(px(162.0), px(20.0)),
+            MouseButton::Left,
+            Modifiers::none(),
+        );
+        cx.simulate_mouse_up(
+            point(px(162.0), px(20.0)),
+            MouseButton::Left,
+            Modifiers::none(),
+        );
+        next_frames(cx);
+        assert_eq!(
+            items(cx),
+            vec![(0.0, 100.0), (112.0, 100.0), (224.0, 100.0)]
+        );
+    }
+
+    #[gpui::test]
+    fn 項目を減らしても押すと広がる(cx: &mut TestAppContext) {
+        let three = Rc::new(Cell::new(true));
+        let state = three.clone();
+        let cx = open(cx, move || {
+            let count = if state.get() { 3 } else { 2 };
+            group_of(&[100.0; 3][..count], None)
+        });
+        three.set(false);
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        press(cx, 50.0);
+        assert_eq!(items(cx), vec![(0.0, 115.0), (127.0, 85.0)]);
     }
 }

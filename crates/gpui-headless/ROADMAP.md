@@ -649,6 +649,11 @@ MD3 (md3-components) で決めたこと:
   - `text::StaticText` は子の内容の代わりに渡した文字列を role `label` として公開する。件数の数字だけのバッジのように、表示が意味を伝えきれない内容に使う
   - AccessKit は Label の名前を値から求めるため、文字列は値に書く。子孫から名前を求める祖先 (`aria_label` の無いボタンなど) の名前にも含まれる
   - 実機 (AT-SPI) で MD3 の Badge を確かめた。名前を与えたバッジは渡した文字列の label になる
+- [x] 押している間の追跡 (対応する APG のパターンは無い)
+  - `press::PressArea` は、領域の中でポインターの主ボタンを押してから、ウィンドウのどこかで離すまでを押している状態として知らせる。役割は公開しない
+  - 子孫がイベントの伝播を止めても追えるよう、押す操作は要素の Capture で、離す操作とウィンドウの外で離したことはウィンドウ全体の Capture で受ける。
+    押している間に無効にすると押していない状態に戻す
+  - キーボードと支援技術の操作は押している状態にしない。MD3 の Button group で、押している項目を広げるために使う
 - [ ] Link ([APG](../../.agents/skills/a11y/references/aria-practices/content/patterns/link/link-pattern.html))
 - [ ] Disclosure ([APG](../../.agents/skills/a11y/references/aria-practices/content/patterns/disclosure/disclosure-pattern.html))
 
