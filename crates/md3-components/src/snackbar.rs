@@ -9,6 +9,7 @@
 
 //! MD3 のスナックバー
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use gpui::{
@@ -183,7 +184,8 @@ impl SnackbarHostState {
 
 /// [`SnackbarHostState`] の表示中のスナックバーを描く要素
 ///
-/// スナックバーは置いた場所の幅に広がり、文の幅が 600dp を超えないところで止まる。周りに 12dp の余白を取る。
+/// 要素は置いた場所の幅に広がり、スナックバーをその中央に置く。スナックバーは要素の幅に広がり、
+/// 文の幅が 600dp を超えないところで止まる。周りに 12dp の余白を取る。
 /// 表示し始めると不透明度を上げて現れ、表示を終えるとすぐに消える。
 /// 表示する長さは、この要素がスナックバーを初めて描いたときから数える。
 /// スナックバーの容器の上のマウスの操作は、後ろの要素に届かない。
@@ -207,7 +209,7 @@ impl SnackbarHost {
     pub fn new(id: impl Into<ElementId>, state: &SnackbarHostState) -> Self {
         Self {
             id: id.into(),
-            outer: div(),
+            outer: div().w_full().flex().justify_center(),
             state: state.clone(),
             theme: None,
         }
@@ -221,24 +223,32 @@ impl SnackbarHost {
 }
 
 impl RenderOnce for SnackbarHost {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
         let queue = self.state.queue.clone();
         let current = {
             let queue = queue.read(cx);
             queue.current().cloned().zip(queue.current_id())
         };
-        if let Some((_, serial)) = &current {
-            // 表示する長さは、画面に出したときから数える
-            queue.update(cx, |queue, cx| queue.start_timer(*serial, cx));
+        if let Some((_, serial)) = current {
+            // 表示する長さは、この要素がスナックバーを描いている間だけ数える。
+            // 要素の状態は続けて描いたフレームの間だけ残るため、描かなくなると状態ごとタスクを捨てて止まる
+            let queue = queue.clone();
+            window.use_keyed_state(
+                ElementId::NamedChild(Arc::new(self.id.clone()), format!("timer-{serial}").into()),
+                cx,
+                move |_, cx| queue.update(cx, |queue, cx| queue.timer(serial, cx)),
+            );
         }
 
-        // 読み上げの領域は、スナックバーが無い間も同じ場所に描き、表示した文だけを置く
-        let region = SnackbarRegion::new(self.id)
+        // 読み上げの領域は、スナックバーが無い間も同じ場所に描き、表示した文だけを置く。
+        // ボタンの id が同じ親に置いた別のホストと重ならないよう、ホストの id の下に置く
+        let outer = self.outer.id(self.id);
+        let region = SnackbarRegion::new("status")
             .py(dp(supplement::VERTICAL_PADDING))
             .min_w_0();
         let Some((message, serial)) = current else {
-            return self.outer.child(div().child(region));
+            return outer.child(div().child(region));
         };
 
         // 表示し始めるたびに不透明度を 0 から上げる。番号で表示ごとに別の動きにする
@@ -352,11 +362,24 @@ impl RenderOnce for SnackbarHost {
         } else {
             // `OneRowSnackbar`。文は残りの幅で折り返し、ボタンは上下の中央にそろえる
             body.items_center()
-                .child(region.relative().flex_1())
+                .child(
+                    region
+                        .relative()
+                        .flex_1()
+                        // Compose は閉じるボタンが無いとき、文の幅からも右端の余白の分を引く
+                        .when(!has_dismiss, |this| {
+                            this.pr(dp(supplement::TEXT_END_EXTRA_SPACING))
+                        }),
+                )
                 .child(fade_in(buttons, "snackbar-buttons"))
         };
-        self.outer
-            .child(div().p(dp(supplement::HOST_PADDING)).child(body))
+        outer.child(
+            div()
+                .w_full()
+                .max_w(max_width + dp(supplement::HOST_PADDING) * 2.0)
+                .p(dp(supplement::HOST_PADDING))
+                .child(body),
+        )
     }
 }
 
@@ -378,11 +401,25 @@ mod tests {
     use super::*;
 
     /// 後ろの要素でマウスのボタンを押した回数を `1` に数える
-    struct HostView(SnackbarHostState, Rc<Cell<usize>>);
+    #[derive(Clone, Copy, Default, PartialEq)]
+    enum Placement {
+        #[default]
+        Start,
+        Centered,
+        Hidden,
+    }
+
+    /// `behind` に後ろの要素でマウスのボタンを押した回数を数え、`placement` に従ってホストを置く
+    struct HostView {
+        state: SnackbarHostState,
+        behind: Rc<Cell<usize>>,
+        placement: Rc<Cell<Placement>>,
+    }
 
     impl Render for HostView {
         fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-            let behind = self.1.clone();
+            let behind = self.behind.clone();
+            let placement = self.placement.get();
             // 原点のマウスの位置で hover にならないよう、原点から離す
             div()
                 .id("behind")
@@ -392,25 +429,36 @@ mod tests {
                 })
                 .pl(px(100.0))
                 .pt(px(100.0))
-                .w(px(900.0))
-                .child(SnackbarHost::new("host", &self.0))
+                // ホストの幅をスナックバーの最大の幅 (周りの余白を含む) にそろえ、左上を原点から (100, 100) に置く
+                .w(px(100.0 + 648.0))
+                .when(placement == Placement::Centered, |this| {
+                    this.w(px(100.0 + 800.0)).flex().justify_center()
+                })
+                .when(placement != Placement::Hidden, |this| {
+                    this.child(SnackbarHost::new("host", &self.state))
+                })
         }
     }
 
     fn open(cx: &mut TestAppContext) -> (SnackbarHostState, &mut VisualTestContext) {
-        open_counting(cx, Rc::default())
+        open_with(cx, Rc::default(), Rc::default())
     }
 
-    fn open_counting(
+    fn open_with(
         cx: &mut TestAppContext,
         behind: Rc<Cell<usize>>,
+        placement: Rc<Cell<Placement>>,
     ) -> (SnackbarHostState, &mut VisualTestContext) {
         cx.update(crate::init);
         let state = cx.update(SnackbarHostState::new);
         let host = state.clone();
         let (_, cx) = cx.add_window_view(move |window, cx| {
             cx.init_md3_theme(window);
-            HostView(host, behind)
+            HostView {
+                state: host,
+                behind,
+                placement,
+            }
         });
         cx.update(|_, cx| cx.set_reduce_motion(true));
         cx.run_until_parked();
@@ -520,9 +568,10 @@ mod tests {
             &results,
             cx,
         );
-        // 閉じるボタンがあれば右の余白は取らず、文の幅 600dp に左の 16dp を足した幅になる
-        assert_eq!(containers(cx), vec![(12.0, 12.0, 616.0, 48.0)]);
-        click(cx, 12.0 + 616.0 - 20.0, 12.0 + 24.0);
+        // 閉じるボタンがあれば右の余白は取らず、文の幅 600dp に左の 16dp を足した幅になる。
+        // 周りの余白を含めて幅 648dp のホストの中央に置く
+        assert_eq!(containers(cx), vec![(16.0, 12.0, 616.0, 48.0)]);
+        click(cx, 16.0 + 616.0 - 20.0, 12.0 + 24.0);
         assert_eq!(*results.borrow(), vec![SnackbarResult::Dismissed]);
         assert_eq!(containers(cx), vec![]);
     }
@@ -547,12 +596,60 @@ mod tests {
     #[gpui::test]
     fn 容器の上のマウスの操作は後ろの要素に届けない(cx: &mut TestAppContext) {
         let behind = Rc::new(Cell::new(0));
-        let (state, cx) = open_counting(cx, behind.clone());
+        let (state, cx) = open_with(cx, behind.clone(), Rc::default());
         let results = Results::default();
         click(cx, 300.0, 400.0);
         assert_eq!(behind.get(), 1, "容器の外は後ろの要素に届くこと");
         show(&state, SnackbarMessage::new("Saved"), &results, cx);
         click(cx, 12.0 + 100.0, 12.0 + 24.0);
         assert_eq!(behind.get(), 1, "容器の上は後ろの要素に届けないこと");
+    }
+
+    #[gpui::test]
+    fn 表示する長さはホストを描いている間だけ数える(cx: &mut TestAppContext) {
+        let placement = Rc::new(Cell::new(Placement::Hidden));
+        let (state, cx) = open_with(cx, Rc::default(), placement.clone());
+        let results = Results::default();
+        show(&state, SnackbarMessage::new("Saved"), &results, cx);
+        cx.executor().advance_clock(Duration::from_secs(60));
+        cx.run_until_parked();
+        assert_eq!(*results.borrow(), vec![], "描く前は数えないこと");
+
+        let redraw = |value: Placement, cx: &mut VisualTestContext| {
+            placement.set(value);
+            cx.update(|window, _| window.refresh());
+            // 次の更新で汚れたウィンドウを描き直す
+            cx.update(|_, _| {});
+            cx.run_until_parked();
+        };
+        redraw(Placement::Start, cx);
+        cx.executor().advance_clock(Duration::from_secs(3));
+        redraw(Placement::Hidden, cx);
+        cx.executor().advance_clock(Duration::from_secs(60));
+        cx.run_until_parked();
+        assert_eq!(
+            *results.borrow(),
+            vec![],
+            "描かなくなったら数えるのを止めること"
+        );
+
+        redraw(Placement::Start, cx);
+        cx.executor().advance_clock(Duration::from_millis(3999));
+        cx.run_until_parked();
+        assert_eq!(*results.borrow(), vec![], "描き直したら初めから数えること");
+        cx.executor().advance_clock(Duration::from_millis(1));
+        cx.run_until_parked();
+        assert_eq!(*results.borrow(), vec![SnackbarResult::Dismissed]);
+    }
+
+    #[gpui::test]
+    fn 中央にそろえて置いても短い文で最大の幅まで広がる(
+        cx: &mut TestAppContext,
+    ) {
+        let (state, cx) = open_with(cx, Rc::default(), Rc::new(Cell::new(Placement::Centered)));
+        let results = Results::default();
+        show(&state, SnackbarMessage::new("Saved"), &results, cx);
+        // 幅 800 の中央に、周りの余白を含めて幅 648 のスナックバーを置く
+        assert_eq!(containers(cx), vec![(76.0 + 12.0, 12.0, 624.0, 48.0)]);
     }
 }

@@ -33,14 +33,13 @@ struct Entry<T> {
 /// [`SnackbarQueue::show`] で加えた通知を、加えた順に 1 つずつ表示中にする。
 /// 表示中の通知は、[`SnackbarQueue::dismiss`] か [`SnackbarQueue::perform_action`] で終えるか、
 /// 表示する長さを過ぎると表示を終え、次の通知が表示中になる。
-/// 表示する長さは、[`SnackbarQueue::start_timer`] で通知を画面に出したと伝えたときから数える。
+/// 表示する長さは、描く側が [`SnackbarQueue::timer`] で受け取ったタスクを持っている間だけ数える。
 /// 状態が変わるたびに、この列の [`gpui::Entity`] を通知する
 pub struct SnackbarQueue<T: 'static> {
     current: Option<Entry<T>>,
     /// 表示中になった通知ごとに増える番号
     serial: u64,
     pending: VecDeque<Entry<T>>,
-    timer: Option<Task<()>>,
 }
 
 impl<T: 'static> Default for SnackbarQueue<T> {
@@ -49,7 +48,6 @@ impl<T: 'static> Default for SnackbarQueue<T> {
             current: None,
             serial: 0,
             pending: VecDeque::new(),
-            timer: None,
         }
     }
 }
@@ -92,20 +90,20 @@ impl<T: 'static> SnackbarQueue<T> {
         self.current.as_ref().map(|_| self.serial)
     }
 
-    /// 番号 `id` の通知を画面に出したと伝え、表示する長さを数え始める
+    /// 番号 `id` の通知の表示する長さを数えるタスク
     ///
-    /// `id` の通知が表示中でないか、すでに数え始めていれば何もしない。状態を変えても通知しない
-    pub fn start_timer(&mut self, id: u64, cx: &mut Context<Self>) {
-        if self.current_id() != Some(id) || self.timer.is_some() {
-            return;
+    /// 呼んだときから数え始め、長さを過ぎると `id` の通知を [`SnackbarQueue::dismiss`] で閉じる。
+    /// タスクを捨てると数えるのを止める。描く側は、通知を画面に出している間だけタスクを持つこと。
+    /// `id` の通知が表示中でないか、表示する長さが無ければ `None`
+    pub fn timer(&self, id: u64, cx: &mut Context<Self>) -> Option<Task<()>> {
+        if self.current_id() != Some(id) {
+            return None;
         }
-        let Some(duration) = self.current.as_ref().and_then(|entry| entry.duration) else {
-            return;
-        };
-        self.timer = Some(cx.spawn(async move |this, cx| {
+        let duration = self.current.as_ref()?.duration?;
+        Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(duration).await;
             this.update(cx, |queue, cx| queue.dismiss(id, cx)).ok();
-        }));
+        }))
     }
 
     /// 番号 `id` の通知を閉じ、[`SnackbarResult::Dismissed`] を伝える。`id` の通知が表示中でなければ何もしない
@@ -126,7 +124,6 @@ impl<T: 'static> SnackbarQueue<T> {
         let Some(mut entry) = self.current.take() else {
             return;
         };
-        self.timer = None;
         self.advance(cx);
         if let Some(on_result) = entry.on_result.take() {
             // 列を更新している間は、`on_result` から同じ列を読み書きできないため、更新を終えてから呼ぶ
@@ -234,12 +231,14 @@ mod tests {
         queue.read_with(cx, |queue, _| queue.current().copied())
     }
 
-    fn start(queue: &Entity<SnackbarQueue<&'static str>>, cx: &mut TestAppContext) {
+    fn start(
+        queue: &Entity<SnackbarQueue<&'static str>>,
+        cx: &mut TestAppContext,
+    ) -> Option<Task<()>> {
         queue.update(cx, |queue, cx| {
-            if let Some(id) = queue.current_id() {
-                queue.start_timer(id, cx);
-            }
-        });
+            let id = queue.current_id().expect("通知が表示中であること");
+            queue.timer(id, cx)
+        })
     }
 
     #[gpui::test]
@@ -260,8 +259,18 @@ mod tests {
             "画面に出すまでは数えないこと"
         );
 
-        start(&queue, cx);
-        start(&queue, cx);
+        let timer = start(&queue, cx);
+        cx.executor().advance_clock(Duration::from_secs(3));
+        drop(timer);
+        cx.executor().advance_clock(Duration::from_secs(60));
+        cx.run_until_parked();
+        assert_eq!(
+            current(&queue, cx),
+            Some("first"),
+            "タスクを捨てたら数えないこと"
+        );
+
+        let _timer = start(&queue, cx);
         cx.executor().advance_clock(Duration::from_millis(3999));
         cx.run_until_parked();
         assert_eq!(current(&queue, cx), Some("first"));
@@ -270,7 +279,7 @@ mod tests {
         assert_eq!(current(&queue, cx), Some("second"));
         assert_eq!(*log.borrow(), vec![("first", SnackbarResult::Dismissed)]);
 
-        start(&queue, cx);
+        let _timer = start(&queue, cx);
         cx.executor().advance_clock(Duration::from_secs(10));
         cx.run_until_parked();
         assert_eq!(current(&queue, cx), None);
@@ -284,16 +293,20 @@ mod tests {
         let log = Log::default();
         show(&queue, "first", Some(Duration::from_secs(4)), &log, cx);
         show(&queue, "second", None, &log, cx);
-        let first = queue.read_with(cx, |queue, _| queue.current_id()).unwrap();
+        let first = queue
+            .read_with(cx, |queue, _| queue.current_id())
+            .expect("通知が表示中であること");
         queue.update(cx, |queue, cx| queue.perform_action(first, cx));
         cx.run_until_parked();
         // 前の通知への求めは、次の通知を終えない
         queue.update(cx, |queue, cx| queue.dismiss(first, cx));
-        start(&queue, cx);
+        assert!(start(&queue, cx).is_none(), "長さの無い通知は数えないこと");
         cx.executor().advance_clock(Duration::from_secs(60));
         cx.run_until_parked();
         assert_eq!(current(&queue, cx), Some("second"));
-        let second = queue.read_with(cx, |queue, _| queue.current_id()).unwrap();
+        let second = queue
+            .read_with(cx, |queue, _| queue.current_id())
+            .expect("通知が表示中であること");
         queue.update(cx, |queue, cx| queue.dismiss(second, cx));
         cx.run_until_parked();
         assert_eq!(
@@ -310,20 +323,25 @@ mod tests {
         let queue = cx.new(|_| SnackbarQueue::new());
         let log = Log::default();
         show(&queue, "waiting", None, &log, cx);
-        let handle = queue.clone();
+        // 列が自身を持つコールバックを持ち続けないよう、弱い参照を渡す
+        let handle = queue.downgrade();
         queue.update(cx, |queue, cx| {
             queue.show(
                 "first",
                 None,
                 move |_, cx| {
-                    handle.update(cx, |queue, cx| queue.show("follow-up", None, |_, _| {}, cx))
+                    handle
+                        .update(cx, |queue, cx| queue.show("follow-up", None, |_, _| {}, cx))
+                        .ok();
                 },
                 cx,
             )
         });
         show(&queue, "queued", None, &log, cx);
         let dismiss = |cx: &mut TestAppContext| {
-            let id = queue.read_with(cx, |queue, _| queue.current_id()).unwrap();
+            let id = queue
+                .read_with(cx, |queue, _| queue.current_id())
+                .expect("通知が表示中であること");
             queue.update(cx, |queue, cx| queue.dismiss(id, cx));
             cx.run_until_parked();
         };

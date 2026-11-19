@@ -131,9 +131,7 @@ impl Render for SnackbarPage {
                     .absolute()
                     .bottom_0()
                     .left_0()
-                    .right_0()
-                    .flex()
-                    .justify_center(),
+                    .right_0(),
             )
     }
 }
