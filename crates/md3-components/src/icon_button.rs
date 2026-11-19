@@ -303,6 +303,7 @@ struct Look {
     outline: Option<Hsla>,
     disabled: bool,
     focus_visible: bool,
+    ring_color: Hsla,
 }
 
 impl Look {
@@ -325,6 +326,7 @@ impl Look {
             outline,
             disabled,
             focus_visible,
+            ring_color,
         } = self;
         let size = size_tokens(size);
         let width = size.icon_size.0
@@ -400,7 +402,7 @@ impl Look {
                     .right(-outset)
                     .bottom(-outset)
                     .border(dp(focus_ring::WIDTH))
-                    .border_color(theme.color(focus_ring::COLOR));
+                    .border_color(ring_color);
                 this.child(shaped(ring).outset(outset))
             })
     }
@@ -619,6 +621,7 @@ impl RenderOnce for IconButton {
             tooltip.attach(this, &focus_handle, &self.label, &theme, window)
         });
         let look = Look {
+            ring_color: theme.color(self.colors.focus_ring.unwrap_or(focus_ring::COLOR)),
             theme,
             icon: self.icon,
             size: self.size,
@@ -870,6 +873,7 @@ impl RenderOnce for IconToggleButton {
                 tooltip.attach(this, &focus_handle, &self.label, &theme, window)
             });
         let look = Look {
+            ring_color: theme.color(focus_ring::COLOR),
             theme,
             icon: self.icon,
             size: self.size,

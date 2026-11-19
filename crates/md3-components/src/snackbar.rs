@@ -239,10 +239,12 @@ impl RenderOnce for SnackbarHost {
             return outer.child(div().child(region));
         };
 
-        // 表示し始めるたびに不透明度を 0 から上げる。番号で表示ごとに別の動きにする
+        // 表示し始めるたびに不透明度を 0 から上げる。列の id と番号で表示ごとに別の動きにする。
+        // この id はボタンの id の親になるため、表示ごとにボタンのフォーカスも引き継がない
+        let queue_id = queue.entity_id();
         let fade_in = |element: Div, name: &'static str| {
             element.with_spring(
-                ElementId::NamedInteger(name.into(), serial),
+                ElementId::NamedInteger(format!("{name}-{queue_id}").into(), serial),
                 SpringAnimation::new(theme.spring(MotionSchemeKey::FastEffects))
                     .to(1.0_f32)
                     .from(0.0),
@@ -256,6 +258,8 @@ impl RenderOnce for SnackbarHost {
                 .variant(ButtonVariant::Text)
                 .colors(ButtonColors {
                     content: Some(snackbar::ACTION_LABEL_TEXT_COLOR),
+                    // 既定のリングの色は InverseSurface の容器の上で 3:1 に届かないため、文の色で描く
+                    focus_ring: Some(snackbar::SUPPORTING_TEXT_COLOR),
                     ..ButtonColors::default()
                 })
                 .theme(theme.clone())
@@ -270,6 +274,7 @@ impl RenderOnce for SnackbarHost {
             IconButton::new("dismiss", md3_icons::CLOSE, label.clone())
                 .colors(ButtonColors {
                     content: Some(snackbar::ICON_COLOR),
+                    focus_ring: Some(snackbar::SUPPORTING_TEXT_COLOR),
                     ..ButtonColors::default()
                 })
                 .tooltip(Tooltip::new(label))
@@ -335,22 +340,20 @@ impl RenderOnce for SnackbarHost {
                 "snackbar-container",
             ))
             .child({
-                // 表示する長さは、スナックバーを描いている間だけ数える。`display: none` の親の下では
-                // prepaint が呼ばれないため、prepaint で計時の状態を取る。要素の状態は続けて描いたフレームの間だけ残り、
-                // 描かなくなると状態ごとタスクを捨てて止まる。列を替えても番号が重なるため、列の id も鍵に含める
+                // 表示する長さは、スナックバーを描いている間だけ数える。`display: none` と
+                // `visibility: hidden` の親の下では paint が呼ばれないため、paint で計時の状態を取る。
+                // 要素の状態は続けて描いたフレームの間だけ残り、描かなくなると状態ごとタスクを捨てて止まる。
+                // 列を替えても番号が重なるため、列の id も鍵に含める
                 let queue = queue.clone();
                 canvas(
-                    move |_, window, cx| {
+                    |_, _, _| {},
+                    move |_, _, window, cx| {
                         window.use_keyed_state(
-                            ElementId::NamedInteger(
-                                format!("timer-{}", queue.entity_id()).into(),
-                                serial,
-                            ),
+                            ElementId::NamedInteger(format!("timer-{queue_id}").into(), serial),
                             cx,
                             move |_, cx| queue.update(cx, |queue, cx| queue.timer(serial, cx)),
                         );
                     },
-                    |_, _, _, _| {},
                 )
                 .absolute()
             });
@@ -420,6 +423,8 @@ mod tests {
         Hidden,
         /// ホストを `display: none` の親の下に置く
         Collapsed,
+        /// ホストを `visibility: hidden` の親の下に置く
+        Invisible,
     }
 
     /// `behind` に後ろの要素でマウスのボタンを押した回数を数え、`placement` に従ってホストを置く
@@ -452,6 +457,7 @@ mod tests {
                         div()
                             .w_full()
                             .when(placement == Placement::Collapsed, |this| this.hidden())
+                            .when(placement == Placement::Invisible, |this| this.invisible())
                             .child(SnackbarHost::new("host", &self.state)),
                     )
                 })
@@ -675,7 +681,13 @@ mod tests {
 
     #[gpui::test]
     fn 表示しない親の下に置いたホストは数えない(cx: &mut TestAppContext) {
-        let placement = Rc::new(Cell::new(Placement::Collapsed));
+        for hidden in [Placement::Collapsed, Placement::Invisible] {
+            check_hidden_parent(hidden, cx);
+        }
+    }
+
+    fn check_hidden_parent(hidden: Placement, cx: &mut TestAppContext) {
+        let placement = Rc::new(Cell::new(hidden));
         let (state, cx) = open_with(cx, Rc::default(), placement.clone());
         let results = Results::default();
         show(&state, SnackbarMessage::new("Saved"), &results, cx);
@@ -714,9 +726,14 @@ mod tests {
         }
     }
 
-    #[gpui::test]
-    fn 同じホストで列を替えると新しい列の通知を数える(
+    /// 2 つの列と、どちらを描くかの旗を持つウィンドウを開く。初めは 1 つ目の列を描く
+    fn open_switch(
         cx: &mut TestAppContext,
+    ) -> (
+        SnackbarHostState,
+        SnackbarHostState,
+        Rc<Cell<bool>>,
+        &mut VisualTestContext,
     ) {
         cx.update(crate::init);
         let first = cx.update(SnackbarHostState::new);
@@ -731,6 +748,23 @@ mod tests {
                 use_first: flag,
             }
         });
+        cx.update(|_, cx| cx.set_reduce_motion(true));
+        (first, second, use_first, cx)
+    }
+
+    fn switch_to_second(use_first: &Cell<bool>, cx: &mut VisualTestContext) {
+        use_first.set(false);
+        cx.update(|window, _| window.refresh());
+        // 次の更新で汚れたウィンドウを描き直す
+        cx.update(|_, _| {});
+        cx.run_until_parked();
+    }
+
+    #[gpui::test]
+    fn 同じホストで列を替えると新しい列の通知を数える(
+        cx: &mut TestAppContext,
+    ) {
+        let (first, second, use_first, cx) = open_switch(cx);
         let results = Results::default();
         show(
             &first,
@@ -739,11 +773,7 @@ mod tests {
             cx,
         );
         show(&second, SnackbarMessage::new("Saved"), &results, cx);
-        use_first.set(false);
-        cx.update(|window, _| window.refresh());
-        // 次の更新で汚れたウィンドウを描き直す
-        cx.update(|_, _| {});
-        cx.run_until_parked();
+        switch_to_second(&use_first, cx);
         cx.executor().advance_clock(Duration::from_secs(4));
         cx.run_until_parked();
         assert_eq!(*results.borrow(), vec![SnackbarResult::Dismissed]);
@@ -762,5 +792,88 @@ mod tests {
                 .map(|quad| quad.bounds.origin.y.0 / window.scale_factor())
         });
         assert_eq!(after, Some(100.0));
+    }
+
+    #[gpui::test]
+    fn 列を替えると前の列のボタンのフォーカスを引き継がない(
+        cx: &mut TestAppContext,
+    ) {
+        let (first, second, use_first, cx) = open_switch(cx);
+        let results = Results::default();
+        show(
+            &first,
+            SnackbarMessage::new("First").action("Undo"),
+            &results,
+            cx,
+        );
+        show(
+            &second,
+            SnackbarMessage::new("Second").action("Undo"),
+            &results,
+            cx,
+        );
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_keystrokes("tab");
+        cx.run_until_parked();
+        switch_to_second(&use_first, cx);
+        // ボタンはキーを離したときに押される
+        let enter = gpui::Keystroke::parse("enter").expect("キーを読めること");
+        cx.simulate_event(gpui::KeyDownEvent {
+            keystroke: enter.clone(),
+            is_held: false,
+            prefer_character_input: false,
+        });
+        cx.simulate_event(gpui::KeyUpEvent { keystroke: enter });
+        cx.run_until_parked();
+        assert_eq!(
+            *results.borrow(),
+            vec![],
+            "替えた後の列の操作を実行しないこと"
+        );
+    }
+
+    #[gpui::test]
+    fn ボタンのフォーカスリングは容器の上で見える文の色で描く(
+        cx: &mut TestAppContext,
+    ) {
+        let (state, cx) = open(cx);
+        let results = Results::default();
+        show(
+            &state,
+            SnackbarMessage::new("Deleted")
+                .action("Undo")
+                .dismiss_action("Dismiss"),
+            &results,
+            cx,
+        );
+        cx.update(|window, _| window.activate_window());
+        for _ in 0..2 {
+            cx.simulate_keystrokes("tab");
+            cx.run_until_parked();
+            let rings = cx.update(|window, cx| {
+                let theme = cx.md3_theme();
+                let expected = theme.color(ColorRole::InverseOnSurface);
+                let default = theme.color(md3_theme::md3_tokens::focus_ring::COLOR);
+                let quads = window.painted_quads();
+                (
+                    quads
+                        .iter()
+                        .filter(|quad| {
+                            quad.border_color == expected && quad.border_widths.top.0 > 0.0
+                        })
+                        .count(),
+                    quads
+                        .iter()
+                        .filter(|quad| {
+                            quad.border_color == default && quad.border_widths.top.0 > 0.0
+                        })
+                        .count(),
+                )
+            });
+            assert!(
+                rings.0 > 0 && rings.1 == 0,
+                "文の色のリングだけを描くこと: {rings:?}"
+            );
+        }
     }
 }

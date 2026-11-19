@@ -293,6 +293,8 @@ pub struct ButtonColors {
     pub disabled_container: Option<(ColorRole, f32)>,
     /// 無効なときのラベルとアイコンの色と不透明度
     pub disabled_content: Option<(ColorRole, f32)>,
+    /// キーボードでフォーカスしたときに外側に描くリングの色
+    pub focus_ring: Option<ColorRole>,
 }
 
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
@@ -492,6 +494,7 @@ impl Button {
             vertical_padding: size.vertical_padding,
             min_width: supplement::button::MIN_WIDTH,
             ring_slot: None,
+            ring_color: theme.color(self.colors.focus_ring.unwrap_or(focus_ring::COLOR)),
             size,
             theme: theme.clone(),
             container,
@@ -565,6 +568,8 @@ pub(crate) struct Look {
     /// 指定すると、ボタンはフォーカスリングを描かず、リングを描く矩形 (外側に広げる前) と角の半径を prepaint で書く。
     /// 呼び出し側が [`paint_ring`] で描く
     pub(crate) ring_slot: Option<RingSlot>,
+    /// ボタンが自身で描くフォーカスリングの色
+    ring_color: Hsla,
     /// `None` は透明
     container: Option<Hsla>,
     content: Hsla,
@@ -586,7 +591,7 @@ pub(crate) type RingSlot = Rc<Cell<Option<(Bounds<Pixels>, Corners<Pixels>)>>>;
 
 /// `ring` に書かれた矩形の外側にフォーカスリングを描く要素。リングを手前に描く要素の最後の子に置く。
 /// ほかの要素と同じく親の中で描くため、祖先の切り取りの範囲と不透明度が効く
-pub(crate) fn paint_ring(ring: RingSlot, theme: SharedTheme) -> impl IntoElement {
+pub(crate) fn paint_ring(ring: RingSlot, color: Hsla) -> impl IntoElement {
     canvas(
         |_, _, _| {},
         move |_, _, window, _| {
@@ -604,7 +609,7 @@ pub(crate) fn paint_ring(ring: RingSlot, theme: SharedTheme) -> impl IntoElement
                 },
                 transparent_black(),
                 dp(focus_ring::WIDTH),
-                theme.color(focus_ring::COLOR),
+                color,
                 BorderStyle::Solid,
             ));
         },
@@ -668,6 +673,7 @@ impl Look {
             vertical_padding,
             min_width,
             ring_slot,
+            ring_color,
             container,
             content,
             outline,
@@ -838,7 +844,7 @@ impl Look {
             .child(div().flex().items_center().children(children))
             .child(horizontal_padding(padding.1));
         if own_ring {
-            button = button.child(paint_ring(painted_slot, theme.clone()));
+            button = button.child(paint_ring(painted_slot, ring_color));
         }
         button.text_style().refine(&theme.text_style(label));
         button
@@ -1174,6 +1180,7 @@ impl ToggleButton {
             shape,
             corner_shape: None,
             ring_slot: None,
+            ring_color: theme.color(focus_ring::COLOR),
             // Compose は形を FastSpatial のバネで変える
             morph: Some(Morph {
                 shape: checked_shape.resolve(&theme.settings().shapes),
