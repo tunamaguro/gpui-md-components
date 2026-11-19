@@ -14,6 +14,8 @@ mod card;
 mod checkbox;
 #[cfg(feature = "chip")]
 mod chip;
+#[cfg(feature = "connected-button-group")]
+mod connected_button_group;
 #[cfg(feature = "dialog")]
 mod dialog;
 #[cfg(feature = "divider")]
@@ -116,6 +118,11 @@ pub use card::{Card, CardVariant};
 pub use checkbox::{Checkbox, CheckboxIndicator, CheckboxRow, CheckboxState};
 #[cfg(feature = "chip")]
 pub use chip::{Chip, ChipKind, ChipVariant, FilterChip, InputChip};
+#[cfg(feature = "connected-button-group")]
+pub use connected_button_group::{
+    ConnectedButton, ConnectedToggleButton, MultiChoiceConnectedButtonGroup,
+    SingleChoiceConnectedButtonGroup,
+};
 #[cfg(feature = "dialog")]
 pub use dialog::{Dialog, DialogKind, DismissReason};
 #[cfg(feature = "divider")]

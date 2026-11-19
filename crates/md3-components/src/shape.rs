@@ -5,7 +5,7 @@ use gpui::{
     InspectorElementId, IntoElement, LayoutId, Pixels, Styled, Window, px, size,
 };
 use md3_theme::SharedTheme;
-use md3_theme::md3_tokens::shape::ShapeKey;
+use md3_theme::md3_tokens::shape::{CornerShape, ShapeKey};
 
 /// `inner` を形 `key` の角丸で描く要素
 ///
@@ -18,6 +18,8 @@ pub(crate) struct Shaped {
     key: ShapeKey,
     /// 下の 2 つの角の形。`None` なら `key`
     bottom_key: Option<ShapeKey>,
+    /// `key` の代わりに使う角ごとの形
+    corner_shape: Option<CornerShape>,
     morph: Option<(ShapeKey, f32)>,
     outset: Pixels,
     /// 形の角丸を付ける角。`false` の角は直角にする
@@ -31,6 +33,7 @@ impl Shaped {
             theme,
             key,
             bottom_key: None,
+            corner_shape: None,
             morph: None,
             outset: px(0.0),
             rounded: Corners {
@@ -44,11 +47,12 @@ impl Shaped {
 
     // フォーカスリングを描く部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
     #[cfg(any(
-        feature = "button",
         feature = "card",
         feature = "chip",
         feature = "fab",
+        feature = "icon-button",
         feature = "list",
+        feature = "menu",
         feature = "navigation-bar",
         feature = "navigation-rail",
         feature = "slider"
@@ -65,6 +69,13 @@ impl Shaped {
         self
     }
 
+    /// `key` の代わりに、角ごとの形 `shape` で描く。[`Shaped::morph`] の動きは `shape` から始める
+    #[cfg(feature = "button")]
+    pub(crate) fn corner_shape(mut self, shape: CornerShape) -> Self {
+        self.corner_shape = Some(shape);
+        self
+    }
+
     /// 下の 2 つの角だけを `key` の形にする
     #[cfg(feature = "menu")]
     pub(crate) fn bottom_corners(mut self, key: ShapeKey) -> Self {
@@ -77,6 +88,33 @@ impl Shaped {
     pub(crate) fn only_corners(mut self, rounded: Corners<bool>) -> Self {
         self.rounded = rounded;
         self
+    }
+}
+
+impl Shaped {
+    /// 大きさが `shape_size` の形の角の半径。[`Shaped::outset`] と、直角にする角は含めない
+    pub(crate) fn radii(&self, shape_size: gpui::Size<Pixels>) -> Corners<Pixels> {
+        let mut radii = match self.corner_shape {
+            Some(shape) => md3_theme::shape_radii(shape, shape_size),
+            None => self.theme.corner_radii(self.key, shape_size),
+        };
+        if let Some(bottom_key) = self.bottom_key {
+            let bottom = self.theme.corner_radii(bottom_key, shape_size);
+            radii.bottom_right = bottom.bottom_right;
+            radii.bottom_left = bottom.bottom_left;
+        }
+        if let Some((target, phase)) = self.morph {
+            // Compose の `rememberAnimatedShape` と同じく、角ごとの半径を線形に補間する
+            let target = self.theme.corner_radii(target, shape_size);
+            radii = Corners {
+                top_left: radii.top_left + (target.top_left - radii.top_left) * phase,
+                top_right: radii.top_right + (target.top_right - radii.top_right) * phase,
+                bottom_right: radii.bottom_right
+                    + (target.bottom_right - radii.bottom_right) * phase,
+                bottom_left: radii.bottom_left + (target.bottom_left - radii.bottom_left) * phase,
+            };
+        }
+        radii
     }
 }
 
@@ -125,23 +163,7 @@ impl Element for Shaped {
             bounds.size.width - self.outset * 2.0,
             bounds.size.height - self.outset * 2.0,
         );
-        let mut radii = self.theme.corner_radii(self.key, shape_size);
-        if let Some(bottom_key) = self.bottom_key {
-            let bottom = self.theme.corner_radii(bottom_key, shape_size);
-            radii.bottom_right = bottom.bottom_right;
-            radii.bottom_left = bottom.bottom_left;
-        }
-        if let Some((target, phase)) = self.morph {
-            // Compose の `rememberAnimatedShape` と同じく、角ごとの半径を線形に補間する
-            let target = self.theme.corner_radii(target, shape_size);
-            radii = Corners {
-                top_left: radii.top_left + (target.top_left - radii.top_left) * phase,
-                top_right: radii.top_right + (target.top_right - radii.top_right) * phase,
-                bottom_right: radii.bottom_right
-                    + (target.bottom_right - radii.bottom_right) * phase,
-                bottom_left: radii.bottom_left + (target.bottom_left - radii.bottom_left) * phase,
-            };
-        }
+        let radii = self.radii(shape_size);
         let outset = self.outset;
         let rounded = self.rounded;
         let radius = |radius: Pixels, rounded: bool| {

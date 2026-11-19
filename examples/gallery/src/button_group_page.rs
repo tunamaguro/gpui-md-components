@@ -4,16 +4,32 @@ use gpui::{
     Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
     SharedString, StatefulInteractiveElement as _, Styled as _, Window, div,
 };
-use md3_components::{Button, ButtonGroup, ButtonGroupItem, ButtonVariant};
+use md3_components::{
+    Button, ButtonGroup, ButtonGroupItem, ButtonVariant, ConnectedButton, ConnectedToggleButton,
+    MultiChoiceConnectedButtonGroup, SingleChoiceConnectedButtonGroup, ToggleButtonVariant,
+};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{Theme, ThemeExt as _};
 
-/// ボタングループを並べるページ。最後に押したボタンを持つ
+/// ボタングループを並べるページ。最後に押したボタンと、Connected button group の選択を持つ
 #[derive(Default)]
 pub struct ButtonGroupPage {
     last_clicked: Option<SharedString>,
+    /// 1 つだけを選ぶ並びで選ばれている項目の番号
+    period: usize,
+    /// 複数を選ぶ並びで選ばれている項目
+    places: [bool; 4],
 }
+
+const PERIODS: [&str; 3] = ["Day", "Week", "Month"];
+
+const PLACES: [(&str, md3_icons::Icon); 4] = [
+    ("Work", md3_icons::WORK),
+    ("Restaurant", md3_icons::RESTAURANT),
+    ("Coffee", md3_icons::COFFEE),
+    ("Home", md3_icons::HOME),
+];
 
 impl Render for ButtonGroupPage {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -81,6 +97,30 @@ impl Render for ButtonGroupPage {
                     .icon(md3_icons::CONTENT_PASTE),
             ));
 
+        let single = SingleChoiceConnectedButtonGroup::new("connected-single", Some(self.period))
+            .aria_label("Period")
+            .on_change(cx.listener(|this, period: &usize, _, cx| {
+                this.period = *period;
+                cx.notify();
+            }))
+            .items(
+                PERIODS
+                    .iter()
+                    .enumerate()
+                    .map(|(index, name)| ConnectedButton::new(*name, index, *name)),
+            );
+        let multi = MultiChoiceConnectedButtonGroup::new("connected-multi")
+            .aria_label("Places")
+            .variant(ToggleButtonVariant::Outlined)
+            .items(PLACES.iter().enumerate().map(|(index, (name, icon))| {
+                ConnectedToggleButton::new(*name, self.places[index], *name)
+                    .icon(*icon)
+                    .on_change(cx.listener(move |this, checked: &bool, _, cx| {
+                        this.places[index] = *checked;
+                        cx.notify();
+                    }))
+            }));
+
         div()
             .id("button-group-page")
             .size_full()
@@ -109,6 +149,18 @@ impl Render for ButtonGroupPage {
             .child(tonal)
             .child(label(&theme, "outlined-label", "Outlined with icons"))
             .child(outlined)
+            .child(label(
+                &theme,
+                "connected-single-label",
+                "Connected, single choice",
+            ))
+            .child(single)
+            .child(label(
+                &theme,
+                "connected-multi-label",
+                "Connected, multiple choice (outlined)",
+            ))
+            .child(multi)
     }
 }
 

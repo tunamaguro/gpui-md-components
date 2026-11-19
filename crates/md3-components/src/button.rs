@@ -12,11 +12,15 @@
 
 //! MD3 のボタン
 
+use std::cell::Cell;
+use std::rc::Rc;
+
 use gpui::{
-    AnimationExt, AnyElement, App, ClickEvent, Div, ElementId, FocusHandle, Hsla,
-    InteractiveElement, IntoElement, ParentElement, Pixels, Refineable, RenderOnce, SharedString,
-    SpringAnimation, StatefulInteractiveElement, StyleRefinement, Styled, Window, div,
-    prelude::FluentBuilder, px, svg,
+    AnimationExt, AnyElement, App, BorderStyle, Bounds, ClickEvent, Corners, Div, ElementId,
+    FocusHandle, Hsla, InteractiveElement, IntoElement, ParentElement, Pixels, Refineable,
+    RenderOnce, SharedString, SpringAnimation, SpringConfig, StatefulInteractiveElement,
+    StyleRefinement, Styled, Window, canvas, div, prelude::FluentBuilder, quad, svg,
+    transparent_black,
 };
 use gpui_headless::button::Button as HeadlessButton;
 use gpui_headless::toggle::ToggleButton as HeadlessToggleButton;
@@ -33,7 +37,7 @@ use md3_theme::md3_tokens::component::{
 };
 use md3_theme::md3_tokens::elevation::Elevation;
 use md3_theme::md3_tokens::motion::MotionSchemeKey;
-use md3_theme::md3_tokens::shape::ShapeKey;
+use md3_theme::md3_tokens::shape::{CornerShape, ShapeKey};
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::md3_tokens::{Dp, focus_ring, state, supplement};
 use md3_theme::{SharedTheme, ThemeExt, dp};
@@ -488,6 +492,9 @@ impl RenderOnce for Button {
                 ButtonShape::Round => size.round,
                 ButtonShape::Square => size.square,
             },
+            corner_shape: None,
+            morph: None,
+            ring_slot: None,
             size,
             theme: theme.clone(),
             container,
@@ -503,7 +510,7 @@ impl RenderOnce for Button {
                 this.aria_label(label)
             })
             .when_some(self.on_click, |this, on_click| this.on_click(on_click));
-        button = look.apply(button, None);
+        button = look.apply(button);
         #[cfg(feature = "menu")]
         if let Some(menu) = self.menu {
             button = menu.attach(
@@ -531,10 +538,17 @@ fn outline_color(theme: &SharedTheme, outline: (ColorRole, f32), disabled: bool)
 }
 
 /// [`Button`] と [`ToggleButton`] で共通の見た目
-struct Look {
+pub(crate) struct Look {
     theme: SharedTheme,
     size: SizeTokens,
     shape: ShapeKey,
+    /// `shape` の代わりに使う角ごとの形
+    pub(crate) corner_shape: Option<CornerShape>,
+    /// 選ばれているかで形を変える動き
+    pub(crate) morph: Option<Morph>,
+    /// 指定すると、ボタンはフォーカスリングを描かず、リングを描く矩形 (外側に広げる前) と角の半径を prepaint で書く。
+    /// 呼び出し側が [`paint_ring`] で描く
+    pub(crate) ring_slot: Option<RingSlot>,
     /// `None` は透明
     container: Option<Hsla>,
     content: Hsla,
@@ -549,18 +563,62 @@ struct Look {
     children: Vec<AnyElement>,
 }
 
+/// フォーカスリングを描く矩形と角の半径を受け取る場所。描画のたびに作り直す
+pub(crate) type RingSlot = Rc<Cell<Option<(Bounds<Pixels>, Corners<Pixels>)>>>;
+
+/// `ring` に書かれた矩形の外側にフォーカスリングを描く要素。リングを手前に描く要素の最後の子に置く。
+/// ほかの要素と同じく親の中で描くため、祖先の切り取りの範囲と不透明度が効く
+pub(crate) fn paint_ring(ring: RingSlot, theme: SharedTheme) -> impl IntoElement {
+    canvas(
+        |_, _, _| {},
+        move |_, _, window, _| {
+            let Some((bounds, radii)) = ring.get() else {
+                return;
+            };
+            let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
+            window.paint_quad(quad(
+                bounds.dilate(outset),
+                Corners {
+                    top_left: radii.top_left + outset,
+                    top_right: radii.top_right + outset,
+                    bottom_right: radii.bottom_right + outset,
+                    bottom_left: radii.bottom_left + outset,
+                },
+                transparent_black(),
+                dp(focus_ring::WIDTH),
+                theme.color(focus_ring::COLOR),
+                BorderStyle::Solid,
+            ));
+        },
+    )
+    .absolute()
+}
+
+/// トグルボタンが、選ばれているかで形を変える動き
+pub(crate) struct Morph {
+    /// 選ばれているときの形
+    pub(crate) target: ShapeKey,
+    pub(crate) checked: bool,
+    /// 形を変えるバネ
+    pub(crate) spring: SpringConfig,
+}
+
 impl Look {
     /// 容器・内容・フォーカスリングを `button` に描く
     ///
-    /// `morph` を渡すと、容器とリングの形を `shape` から渡した形へその割合だけ近づける
-    fn apply<E>(self, button: E, morph: Option<(ShapeKey, f32)>) -> E
+    /// [`Look::morph`] があれば、容器とリングの形を選ばれているときの形へバネで近づけ、
+    /// 枠線を同じバネで細く薄くして、選ばれているときは描かない
+    pub(crate) fn apply<E>(self, button: E) -> E
     where
-        E: ParentElement + Styled + InteractiveElement + FluentBuilder,
+        E: ParentElement + Styled + InteractiveElement,
     {
         let Self {
             theme,
             size,
             shape,
+            corner_shape,
+            morph,
+            ring_slot,
             container,
             content,
             outline,
@@ -570,53 +628,121 @@ impl Look {
             icon,
             children,
         } = self;
-        let shaped = |inner: Div| {
-            let shaped = Shaped::new(inner, theme.clone(), shape);
-            match morph {
-                Some((target, phase)) => shaped.morph(target, phase),
-                None => shaped,
-            }
-        };
         // 状態レイヤーは内容の色を重ねる (Compose の `ripple()` は LocalContentColor を使う)
-        let state_layer = |opacity: f32| -> Hsla {
+        let state_layer = move |opacity: f32| -> Hsla {
             let layer = content.opacity(opacity);
             match container {
                 Some(container) => container.blend(layer),
                 None => layer,
             }
         };
+        let label = size.label;
+        // 指定が無ければ、リングはボタンの最後の子で、子の内容より手前に描く
+        let own_ring = ring_slot.is_none();
+        let slot = ring_slot.unwrap_or_default();
+        let painted_slot = slot.clone();
 
-        // 角丸は描画時の大きさで決まるため、背景・枠線・影は Shaped で包んだ層に描き、ボタン自身は透明な箱にする
-        let layer = div()
-            .absolute()
-            .top_0()
-            .left_0()
-            .right_0()
-            .bottom_0()
-            .when_some(container, |this, container| this.bg(container))
-            .when_some(outline, |this, (color, width)| {
-                this.border(width).border_color(color)
-            })
-            .when(!disabled, |this| {
-                // Compose の OutlinedButton と TextButton は elevation の既定が null で、影を持たない
-                let shadow = |pick: fn(&Elevations) -> Elevation| {
-                    elevations.as_ref().map(|e| theme.shadow(pick(e)))
+        // 容器とリングは形の動きの進み `phase` で描く。角丸は描画時の大きさで決まるため、
+        // 背景・枠線・影は Shaped で包んだ層に描き、ボタン自身は透明な箱にする
+        let theme_for_decoration = theme.clone();
+        let target = morph.as_ref().map(|morph| morph.target);
+        let decoration = move |phase: f32| {
+            let theme = theme_for_decoration;
+            let shaped = |inner: Div| {
+                let shaped = Shaped::new(inner, theme.clone(), shape);
+                let shaped = match corner_shape {
+                    Some(corner_shape) => shaped.corner_shape(corner_shape),
+                    None => shaped,
                 };
-                let this = if focus_visible {
-                    this.bg(state_layer(state::FOCUS_STATE_LAYER_OPACITY))
-                        .when_some(shadow(|e| e.focused), |this, s| this.shadow(s))
-                } else {
-                    this.when_some(shadow(|e| e.default), |this, s| this.shadow(s))
-                };
-                // gpui は group_hover を自身のスタイルの後に重ねるため、hover がフォーカスより優先される
-                this.group_hover(GROUP, |style| {
-                    let style = style.bg(state_layer(state::HOVER_STATE_LAYER_OPACITY));
-                    match shadow(|e| e.hovered) {
-                        Some(s) => style.shadow(s),
-                        None => style,
-                    }
-                })
+                match target {
+                    Some(target) => shaped.morph(target, phase),
+                    None => shaped,
+                }
+            };
+            // トグルの枠線は選ばれていないときだけ描き (`OutlinedToggleButtonDefaults.border`)、形と同じバネで変える。
+            // gpui は正の太さを 1 物理ピクセルより細く描かないため、不透明度も下げて消す
+            let outline = outline.map(|(color, width)| match target {
+                Some(_) => {
+                    let remaining = (1.0 - phase).clamp(0.0, 1.0);
+                    (color.opacity(remaining), width * remaining)
+                }
+                None => (color, width),
             });
+            let layer = div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .right_0()
+                .bottom_0()
+                .when_some(container, |this, container| this.bg(container))
+                .when_some(outline, |this, (color, width)| {
+                    this.border(width).border_color(color)
+                })
+                .when(!disabled, |this| {
+                    // Compose の OutlinedButton と TextButton は elevation の既定が null で、影を持たない
+                    let shadow = |pick: fn(&Elevations) -> Elevation| {
+                        elevations.as_ref().map(|e| theme.shadow(pick(e)))
+                    };
+                    let this = if focus_visible {
+                        this.bg(state_layer(state::FOCUS_STATE_LAYER_OPACITY))
+                            .when_some(shadow(|e| e.focused), |this, s| this.shadow(s))
+                    } else {
+                        this.when_some(shadow(|e| e.default), |this, s| this.shadow(s))
+                    };
+                    // gpui は group_hover を自身のスタイルの後に重ねるため、hover がフォーカスより優先される
+                    this.group_hover(GROUP, |style| {
+                        let style = style.bg(state_layer(state::HOVER_STATE_LAYER_OPACITY));
+                        match shadow(|e| e.hovered) {
+                            Some(s) => style.shadow(s),
+                            None => style,
+                        }
+                    })
+                });
+            div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .right_0()
+                .bottom_0()
+                .child(shaped(layer))
+                .when(focus_visible, |this| {
+                    // 形の動きの途中の角丸で、リングを描く矩形と角の半径を書く。
+                    // 半径は gpui が容器を描くときと同じく短辺の半分までにする
+                    let shape = shaped(div());
+                    let slot = slot.clone();
+                    this.child(
+                        canvas(
+                            move |bounds, _, _| {
+                                let radii = shape.radii(bounds.size);
+                                slot.set(Some((
+                                    bounds,
+                                    radii.clamp_radii_for_quad_size(bounds.size),
+                                )));
+                            },
+                            |_, _, _, _| {},
+                        )
+                        .absolute()
+                        .size_full(),
+                    )
+                })
+        };
+        let decoration = match morph {
+            // 動きの要素はボタンの子に置き、ボタン自身の型を変えない。
+            // 子が付ける文字列の id と重ならないよう、ソースの位置を id にする
+            Some(morph) => div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .right_0()
+                .bottom_0()
+                .with_spring(
+                    ElementId::CodeLocation(*std::panic::Location::caller()),
+                    SpringAnimation::new(morph.spring).to(morph.checked),
+                    move |this, phase| this.child(decoration(phase.0)),
+                )
+                .into_any_element(),
+            None => decoration(0.0).into_any_element(),
+        };
 
         // 左右の余白は縮められる子で取り、内容より狭い幅を指定されたときは余白から縮める
         let horizontal_padding = || {
@@ -637,33 +763,26 @@ impl Look {
             .py(dp(size.vertical_padding))
             .text_color(content)
             .whitespace_nowrap()
-            .child(shaped(layer))
-            .child(horizontal_padding())
-            .when_some(icon, |this, icon| {
-                this.child(
-                    svg()
-                        .data(icon.svg().as_bytes())
-                        .flex_none()
-                        .size(dp(size.icon_size))
-                        .mr(dp(size.icon_spacing))
-                        .text_color(content),
-                )
-            })
+            .child(decoration)
+            .child(horizontal_padding());
+        // 項目を型で受け取るグループの項目 (gpui-headless の Radio など) は FluentBuilder を持たないため、分岐で付ける
+        if let Some(icon) = icon {
+            button = button.child(
+                svg()
+                    .data(icon.svg().as_bytes())
+                    .flex_none()
+                    .size(dp(size.icon_size))
+                    .mr(dp(size.icon_spacing))
+                    .text_color(content),
+            );
+        }
+        button = button
             .child(div().flex().items_center().children(children))
-            .child(horizontal_padding())
-            .when(focus_visible, |this| {
-                let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
-                let ring = div()
-                    .absolute()
-                    .top(-outset)
-                    .left(-outset)
-                    .right(-outset)
-                    .bottom(-outset)
-                    .border(dp(focus_ring::WIDTH))
-                    .border_color(theme.color(focus_ring::COLOR));
-                this.child(shaped(ring).outset(outset))
-            });
-        button.text_style().refine(&theme.text_style(size.label));
+            .child(horizontal_padding());
+        if own_ring {
+            button = button.child(paint_ring(painted_slot, theme.clone()));
+        }
+        button.text_style().refine(&theme.text_style(label));
         button
     }
 }
@@ -940,20 +1059,14 @@ impl ToggleButton {
     }
 }
 
-impl RenderOnce for ToggleButton {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
+impl ToggleButton {
+    /// 色・形・枠線・アイコン・子の内容から見た目を作る。アイコンと子の内容は見た目に移す
+    pub(crate) fn look(&mut self, theme: &SharedTheme, focus_visible: bool) -> Look {
         let tokens = self.variant.tokens();
         let button_tokens = self.variant.button_variant().tokens();
         let colors = self.colors;
         let disabled = self.disabled;
         let checked = self.checked;
-
-        let focus_handle = self
-            .focus_handle
-            .unwrap_or_else(|| util::keyed_focus_handle(&self.id, window, cx));
-        // リングはボタンの外側に描くため、ボタン自身のスタイルでは表せない
-        let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
 
         // Compose の `ToggleButtonColors` と同じく、無効なときは選ばれているかによらず無効の色にする
         let (container, content) = if disabled {
@@ -986,46 +1099,52 @@ impl RenderOnce for ToggleButton {
             ButtonShape::Round => (size.round, size.square),
             ButtonShape::Square => (size.square, size.round),
         };
-        let look = Look {
-            // 枠線の太さは下の形のバネで決める
-            outline: button_tokens
-                .outline
-                .map(|outline| (outline_color(&theme, outline, disabled), px(0.0))),
+        Look {
+            // 枠線の太さはどのサイズでも Small の値 (`outlinedButtonBorder`)
+            outline: button_tokens.outline.map(|outline| {
+                (
+                    outline_color(theme, outline, disabled),
+                    dp(button_small::OUTLINED_OUTLINE_WIDTH),
+                )
+            }),
             elevations: button_tokens.elevations,
             disabled,
             size,
             shape,
+            corner_shape: None,
+            ring_slot: None,
+            // Compose は形を FastSpatial のバネで変える
+            morph: Some(Morph {
+                target: checked_shape,
+                checked,
+                spring: theme.spring(MotionSchemeKey::FastSpatial),
+            }),
             container,
             content,
             focus_visible,
-            icon: self.icon,
-            children: self.children,
+            icon: self.icon.take(),
+            children: std::mem::take(&mut self.children),
             theme: theme.clone(),
-        };
-        // Compose は形を FastSpatial のバネで変える
-        let spring = theme.spring(MotionSchemeKey::FastSpatial);
-        let button = HeadlessToggleButton::new(self.id.clone(), checked)
+        }
+    }
+}
+
+impl RenderOnce for ToggleButton {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = self.theme.clone().unwrap_or_else(|| cx.md3_theme().clone());
+        let focus_handle = self
+            .focus_handle
+            .clone()
+            .unwrap_or_else(|| util::keyed_focus_handle(&self.id, window, cx));
+        // リングはボタンの外側に描くため、ボタン自身のスタイルでは表せない
+        let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
+        let look = self.look(&theme, focus_visible);
+        let button = HeadlessToggleButton::new(self.id, self.checked)
             .track_focus(&focus_handle)
-            .disabled(disabled)
+            .disabled(self.disabled)
             .when_some(self.aria_label, |this, label| this.aria_label(label))
             .when_some(self.on_change, |this, on_change| this.on_change(on_change));
-
-        self.outer.child(button.with_spring(
-            self.id,
-            SpringAnimation::new(spring).to(checked),
-            move |button, phase| {
-                // 枠線は選ばれていないときだけ描き (`OutlinedToggleButtonDefaults.border`)、
-                // 太さと不透明度を形と同じバネで変える。太さはどのサイズでも Small の値 (`outlinedButtonBorder`)。
-                // gpui は正の太さを 1 物理ピクセルより細く描かないため、不透明度も下げて消す
-                let mut look = look;
-                let remaining = (1.0 - phase.0).clamp(0.0, 1.0);
-                look.outline = look.outline.map(|(color, _)| {
-                    let width = dp(button_small::OUTLINED_OUTLINE_WIDTH) * remaining;
-                    (color.opacity(remaining), width)
-                });
-                look.apply(button, Some((checked_shape, phase.0)))
-            },
-        ))
+        self.outer.child(look.apply(button))
     }
 }
 
@@ -1233,5 +1352,40 @@ mod tests {
         assert!(painted(cx), "選ばれていても無効の色で塗ること");
         click(cx);
         assert!(state.get(), "無効な間は押しても変えないこと");
+    }
+
+    #[gpui::test]
+    fn フォーカスリングは子の内容より後に描く(cx: &mut TestAppContext) {
+        cx.update(crate::init);
+        let (_, cx) = cx.add_window_view(|window, cx| {
+            cx.init_md3_theme(window);
+            ElementView(Box::new(|| {
+                // ボタンより広く縮まない子は、ボタンの外側へはみ出してリングと重なる
+                Button::new("button")
+                    .w(px(100.0))
+                    .child(div().flex_none().w(px(120.0)).h(px(10.0)).bg(gpui::red()))
+                    .into_any_element()
+            }))
+        });
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_keystrokes("tab");
+        cx.run_until_parked();
+        let (ring, content) = cx.update(|window, cx| {
+            let ring = cx.md3_theme().color(focus_ring::COLOR);
+            let content: gpui::Background = gpui::red().into();
+            let quads = window.painted_quads();
+            (
+                quads
+                    .iter()
+                    .filter(|quad| quad.border_color == ring && quad.border_widths.top.0 > 0.0)
+                    .map(|quad| quad.order)
+                    .max(),
+                quads
+                    .iter()
+                    .find(|quad| quad.background == content)
+                    .map(|quad| quad.order),
+            )
+        });
+        assert!(ring.expect("リングを描くこと") > content.expect("子を描くこと"));
     }
 }
