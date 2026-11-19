@@ -6,7 +6,8 @@
 //         ComponentStyles.kt (`NavigationRailStyle.Default`、`NavigationRailItemStyle.Default`)、
 //         NavigationItem.kt (`TopIconOrIconOnlyMeasurePolicy`、`StartIconMeasurePolicy`、
 //         `animateIndicatorProgressAsState`、`IndicatorRipple`) @ 2a941dd11aabd9bb7d2016ed159764b220117c20
-// Copyright 2024 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
+// Copyright 2024 (WideNavigationRail.kt、NavigationItem.kt)、2026 (ComponentStyles.kt) The Android Open Source Project.
+// Licensed under the Apache License, Version 2.0.
 // Compose の既定の設定はフォーカスをインジケーターの形の状態レイヤーだけで示す。この実装はそれに、ほかの部品と同じ外向きのフォーカスリングを
 // インジケーターの形で加える。押している間の ripple は描かない。
 // Compose は展開と折りたたみでアイコンの位置も動かすが、この実装はレールの幅だけを動かし、項目の配置はすぐに切り替える
@@ -16,9 +17,9 @@
 
 use gpui::{
     AnimationExt, AnyElement, App, ElementId, FocusHandle, InteractiveElement, IntoElement,
-    ParentElement, Refineable, RenderOnce, SharedString, SpringAnimation,
-    StatefulInteractiveElement, StyleRefinement, Styled, Window, div, prelude::FluentBuilder, px,
-    relative, svg,
+    ParentElement, Pixels, Refineable, RenderOnce, ScrollHandle, SharedString, SpringAnimation,
+    StatefulInteractiveElement, StyleRefinement, Styled, Window, canvas, div,
+    prelude::FluentBuilder, px, relative, svg,
 };
 use gpui_headless::tabs::{Tab as HeadlessTab, TabList, TabListOrientation};
 use md3_icons::StyledIcon;
@@ -178,6 +179,7 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
 
         // 同じ値の項目が複数あっても、支援技術に公開する状態と同じく最初の項目だけを選ばれた見た目にする
         let mut selected = self.selected.as_ref();
+        let mut focus_handles = Vec::with_capacity(self.items.len());
         let items: Vec<_> = self
             .items
             .into_iter()
@@ -194,6 +196,7 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                 });
                 // フォーカスのある項目が無効になってもフォーカスは残るため、リングは無効な項目でも描く
                 let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
+                focus_handles.push(focus_handle.clone());
 
                 // 色 (`NavigationRailItemStyle.Default`)。無効な項目は選ばれていない色を薄くする。
                 // ラベルの前にアイコンを置くと、選ばれたラベルはアイコンと同じ色にする
@@ -238,8 +241,8 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                 label.text_style().refine(&label_font);
                 let label = label.child(item.label.clone());
 
-                // インジケーターは選ばれると幅が中央から広がり、同時に濃くなる。
-                // 幅と不透明度は DefaultSpatial のバネの進みで、0 から 1 に収める
+                // インジケーターは選ばれると幅が先頭側から広がり、同時に濃くなる (`placeLabelAndIcon` はインジケーターを
+                // 先頭に置く)。幅と不透明度は DefaultSpatial のバネの進みで、0 から 1 に収める
                 let indicator_theme = theme.clone();
                 let indicator = div()
                     .absolute()
@@ -248,7 +251,6 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                     .left_0()
                     .right_0()
                     .flex()
-                    .justify_center()
                     .with_spring(
                         "indicator",
                         SpringAnimation::new(spatial).to(is_selected),
@@ -374,55 +376,125 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
         } else {
             collapsed::TOP_SPACE
         });
-        let center = self.arrangement == NavigationRailArrangement::Center;
+        // ヘッダーは並べ方にかかわらず上端に置き、レールの幅に引き伸ばさず `header` 自身の幅で描く。
+        // ヘッダーは項目の並び (tablist) の外に置き、支援技術には並びの前の兄弟として公開する
         let header = self.header.map(|header| {
-            // ヘッダーはレールの幅に引き伸ばさず、`header` 自身の幅で描く
-            let header = div().flex().flex_none().child(header);
-            if center {
-                // 項目はヘッダーを除かずにレールの高さの中央に置くため、ヘッダーは並びから外して上端に置く
-                header.absolute().top(top_space).left_0()
-            } else {
-                header.when(has_items, |this| {
+            div()
+                .flex()
+                .flex_none()
+                .when(has_items, |this| {
                     this.mb(dp(baseline::HEADER_SPACE_MINIMUM))
                 })
-            }
+                .child(header)
         });
 
-        let mut rail = TabList::new(self.id, self.selected)
+        // 項目がレールの高さに収まらないときは並びを縦にスクロールし、キーボードでフォーカスが移った項目を表示範囲に入れる。
+        // 中央と下端に寄せる並べ方は、項目の前後の縮む余白で寄せ、項目があふれたら余白を 0 にしてスクロールする
+        let (scroll_handle, last_focused) =
+            window.with_element_namespace(self.id.clone(), |window| {
+                (
+                    window.use_keyed_state("scroll", cx, |_, _| ScrollHandle::new()),
+                    window.use_keyed_state("last-focused", cx, |_, _| None::<usize>),
+                )
+            });
+        let scroll_handle = scroll_handle.read(cx).clone();
+        let leading_space = matches!(
+            self.arrangement,
+            NavigationRailArrangement::Center | NavigationRailArrangement::Bottom
+        );
+        let trailing_space = self.arrangement == NavigationRailArrangement::Center;
+        let focused = focus_handles
+            .iter()
+            .position(|handle| handle.is_focused(window));
+        if focused != *last_focused.read(cx) {
+            if let Some(index) = focused {
+                scroll_handle.scroll_to_item(index + usize::from(leading_space));
+            }
+            last_focused.update(cx, |last, _| *last = focused);
+        }
+        // Compose の中央の並べ方は項目をヘッダーを除かずにレールの高さの中央に置くが、
+        // この実装はヘッダーの下に残る高さの中央に置く
+        let list = TabList::new(self.id.clone(), self.selected)
             .orientation(TabListOrientation::Vertical)
             .when_some(self.aria_label, |this, label| this.aria_label(label))
             .when_some(self.on_change, |this, on_change| this.on_change(on_change))
+            .flex()
+            .flex_col()
+            .flex_1()
+            .min_h_0()
+            .overflow_y_scroll()
+            .track_scroll(&scroll_handle)
+            .when(leading_space, |this| this.child(div().flex_1()))
+            .items(items)
+            .when(trailing_space, |this| this.child(div().flex_1()));
+
+        // 幅を動かし始めるときの起点にするため、描いた幅を記録する
+        let expanded = self.expanded;
+        let (painted_width, collapse_from, was_expanded) =
+            window.with_element_namespace(self.id.clone(), |window| {
+                (
+                    window.use_keyed_state("painted-width", cx, |_, _| None::<Pixels>),
+                    window.use_keyed_state("collapse-from", cx, |_, _| None::<Pixels>),
+                    window.use_keyed_state("was-expanded", cx, move |_, _| expanded),
+                )
+            });
+        // 折りたたみ始めたときは、展開していた幅から折りたたむ (`currentWidth`)
+        if *was_expanded.read(cx) != self.expanded {
+            let from = (!self.expanded).then(|| *painted_width.read(cx)).flatten();
+            collapse_from.update(cx, |collapse_from, _| *collapse_from = from);
+            was_expanded.update(cx, |was_expanded, _| *was_expanded = self.expanded);
+        }
+        let measure = canvas(
+            move |bounds, _, cx| {
+                if *painted_width.read(cx) != Some(bounds.size.width) {
+                    painted_width.update(cx, |width, _| *width = Some(bounds.size.width));
+                }
+            },
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .size_full();
+
+        let rail = div()
+            .id((self.id.clone(), "rail"))
             .relative()
             .flex()
             .flex_col()
             .flex_none()
             .h_full()
+            .pt(top_space)
             // 幅が動いている間に内容がはみ出さないよう、レールの形で切る
             .overflow_hidden()
-            .bg(theme.color(collapsed::CONTAINER_COLOR));
-        rail = match self.arrangement {
-            NavigationRailArrangement::Top => rail.justify_start().pt(top_space),
-            NavigationRailArrangement::Center => rail.justify_center(),
-            NavigationRailArrangement::Bottom => rail.justify_end().pt(top_space),
-        };
-        rail.style().refine(&self.style);
-        let rail = rail.children(header).items(items);
+            .bg(theme.color(collapsed::CONTAINER_COLOR))
+            .children(header)
+            .child(list)
+            .child(measure);
 
         // 幅は折りたたんだ 96dp と、展開したときの最小 220dp・最大 360dp の間をバネで動き、範囲の中で内容に合わせる。
-        // 展開すると内容の左右に 20dp を空ける
+        // 折りたたむときは展開していた幅から動く。展開すると内容の左右に 20dp を空ける。
+        // 呼び出し側のスタイルは、幅と余白の既定の後に重ねる
         let collapsed_width = dp(collapsed::CONTAINER_WIDTH);
-        let min_width = dp(expanded::CONTAINER_WIDTH_MINIMUM);
-        let max_width = dp(expanded::CONTAINER_WIDTH_MAXIMUM);
+        let (min_width, max_width) = match *collapse_from.read(cx) {
+            Some(from) if !self.expanded => (from, from),
+            _ => (
+                dp(expanded::CONTAINER_WIDTH_MINIMUM),
+                dp(expanded::CONTAINER_WIDTH_MAXIMUM),
+            ),
+        };
         let padding = dp(supplement::navigation_rail::EXPANDED_HORIZONTAL_PADDING);
+        let style = self.style;
         rail.with_spring(
-            "width",
+            (self.id, "width"),
             SpringAnimation::new(spatial).to(self.expanded),
             move |rail, phase| {
                 // 行き過ぎで折りたたんだ幅より狭くならないよう、0 を下限にする
                 let progress = phase.0.max(0.0);
-                rail.min_w(collapsed_width + (min_width - collapsed_width) * progress)
+                let mut rail = rail
+                    .min_w(collapsed_width + (min_width - collapsed_width) * progress)
                     .max_w(collapsed_width + (max_width - collapsed_width) * progress)
-                    .px(padding * progress.min(1.0))
+                    .px(padding * progress.min(1.0));
+                rail.style().refine(&style);
+                rail
             },
         )
     }
@@ -522,6 +594,7 @@ mod tests {
         cx: &mut TestAppContext,
         element: impl Fn() -> AnyElement + 'static,
     ) -> &mut VisualTestContext {
+        cx.update(crate::init);
         let (_, cx) = cx.add_window_view(move |window, cx| {
             cx.init_md3_theme(window);
             ElementView(Box::new(element))
@@ -602,19 +675,118 @@ mod tests {
     }
 
     #[gpui::test]
-    fn 中央の並びはヘッダーがあっても項目をレールの高さの中央に置く(
+    fn 中央と下の並びはヘッダーを上端に残し項目だけを寄せる(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = open(cx, || {
+            let rail = |id: &'static str, arrangement| {
+                NavigationRail::new(id, Some(0))
+                    .arrangement(arrangement)
+                    .header(div().size(px(56.0)).bg(gpui::red()))
+                    .item(NavigationRailItem::new("home", 0, HOME, "Home"))
+            };
+            div()
+                .flex()
+                .size_full()
+                .child(rail("center", NavigationRailArrangement::Center))
+                .child(rail("bottom", NavigationRailArrangement::Bottom))
+                .into_any_element()
+        });
+        let headers: Vec<(f32, f32)> = cx.update(|window, _| {
+            let scale = window.scale_factor();
+            let red: gpui::Background = gpui::red().into();
+            window
+                .painted_quads()
+                .into_iter()
+                .filter(|quad| quad.background == red)
+                .map(|quad| {
+                    (
+                        quad.bounds.origin.x.0 / scale,
+                        quad.bounds.origin.y.0 / scale,
+                    )
+                })
+                .collect()
+        });
+        assert_eq!(
+            headers,
+            vec![(0.0, 44.0), (96.0, 44.0)],
+            "ヘッダーはどちらも上端"
+        );
+        // ヘッダーと 40dp の間隔の下に残る 460dp の中央と下端に、64dp の項目を置く
+        let indicator = quads_of(cx, color::ITEM_ACTIVE_INDICATOR);
+        assert_eq!(
+            indicator,
+            vec![
+                (20.0, 140.0 + 198.0 + 6.0, 56.0, 32.0),
+                (96.0 + 20.0, 600.0 - 64.0 + 6.0, 56.0, 32.0),
+            ]
+        );
+    }
+
+    #[gpui::test]
+    fn 並べたレールは幅のアニメーションを共有しない(cx: &mut TestAppContext) {
+        let cx = open(cx, || {
+            div()
+                .flex()
+                .size_full()
+                .child(
+                    NavigationRail::new("a", Some(0))
+                        .item(NavigationRailItem::new("home", 0, HOME, "Home")),
+                )
+                .child(
+                    NavigationRail::new("b", Some(0))
+                        .expanded(true)
+                        .item(NavigationRailItem::new("home", 0, HOME, "Home")),
+                )
+                .into_any_element()
+        });
+        let container = quads_of(cx, collapsed::CONTAINER_COLOR);
+        assert!(
+            container.contains(&(0.0, 0.0, 96.0, 600.0))
+                && container.contains(&(96.0, 0.0, 220.0, 600.0)),
+            "最初の描画からそれぞれ 96dp と 220dp: {container:?}"
+        );
+    }
+
+    #[gpui::test]
+    fn 高さに収まらない項目へキーボードで移るとスクロールして表示する(
         cx: &mut TestAppContext,
     ) {
         let cx = open(cx, || {
             NavigationRail::new("rail", Some(0))
-                .arrangement(NavigationRailArrangement::Center)
-                .header(div().size(px(56.0)))
-                .item(NavigationRailItem::new("home", 0, HOME, "Home"))
+                .items(
+                    (0..10usize)
+                        .map(|index| NavigationRailItem::new(("item", index), index, HOME, "Item")),
+                )
                 .into_any_element()
         });
-        // 64dp の項目を 600dp の中央に置く
-        let indicator = quads_of(cx, color::ITEM_ACTIVE_INDICATOR);
-        assert_eq!(indicator, vec![(20.0, 268.0 + 6.0, 56.0, 32.0)]);
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_keystrokes("tab end");
+        cx.run_until_parked();
+        // 最後の項目のフォーカスリングが表示範囲の中に描かれる
+        let ring: Vec<(f32, f32)> = cx.update(|window, cx| {
+            let scale = window.scale_factor();
+            let color = cx.md3_theme().color(focus_ring::COLOR);
+            window
+                .painted_quads()
+                .into_iter()
+                .filter(|quad| quad.border_color == color && quad.border_widths.top.0 > 0.)
+                .map(|quad| {
+                    (
+                        quad.bounds.origin.y.0 / scale,
+                        quad.bounds.size.height.0 / scale,
+                    )
+                })
+                .collect()
+        });
+        // スクロールしなければ最後の項目は上端から 44 + 68 × 9 = 656dp にあり、表示範囲の外になる
+        assert!(
+            !ring.is_empty()
+                && ring
+                    .iter()
+                    .all(|(y, height)| *y >= 0.0 && y + height <= 600.0),
+            "表示範囲の中: {ring:?}"
+        );
     }
 
     #[gpui::test]
