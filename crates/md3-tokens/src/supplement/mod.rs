@@ -12,6 +12,7 @@ pub mod dialog;
 pub mod fab;
 pub mod loading_indicator;
 pub mod menu;
+pub mod navigation_bar;
 pub mod progress_indicator;
 pub mod radio_button;
 pub mod segmented_button;

@@ -8,6 +8,8 @@
 //         `placeLabelAndTopIcon`、`placeLabelAndStartIcon`、`animateIndicatorProgressAsState`、`Indicator`、
 //         `IndicatorRipple`) @ 2a941dd11aabd9bb7d2016ed159764b220117c20
 // Copyright 2024 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
+// Compose はフォーカスをインジケーターの形の状態レイヤーだけで示す。この実装はそれに、ほかの部品と同じ外向きのフォーカスリングを
+// インジケーターの形で加える。押している間の ripple は描かない
 // トークンの値と版は md3-tokens の各ファイルにある
 
 //! MD3 Expressive のナビゲーションバー
@@ -15,7 +17,7 @@
 use gpui::{
     AnimationExt, App, ElementId, FocusHandle, InteractiveElement, IntoElement, ParentElement,
     Refineable, RenderOnce, SharedString, SpringAnimation, StatefulInteractiveElement,
-    StyleRefinement, Styled, Window, div, prelude::FluentBuilder, px, relative, svg,
+    StyleRefinement, Styled, Window, div, prelude::FluentBuilder, relative, svg,
 };
 use gpui_headless::tabs::{Tab as HeadlessTab, TabList};
 use md3_icons::StyledIcon;
@@ -24,7 +26,7 @@ use md3_theme::md3_tokens::component::{
     navigation_bar_vertical_item as vertical,
 };
 use md3_theme::md3_tokens::motion::MotionSchemeKey;
-use md3_theme::md3_tokens::{focus_ring, state};
+use md3_theme::md3_tokens::{focus_ring, state, supplement};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
 use crate::shape::Shaped;
@@ -32,9 +34,6 @@ use crate::util;
 
 /// 項目の中の層が項目の hover を知るための group 名
 const GROUP: &str = "md3-navigation-bar-item";
-
-/// 無効な項目の内容の不透明度 (`DisabledAlpha`)
-const DISABLED_ALPHA: f32 = 0.38;
 
 type ChangeHandler<T> = Box<dyn Fn(&T, &mut Window, &mut App)>;
 
@@ -68,6 +67,9 @@ pub enum NavigationItemIconPosition {
 /// - 左右の矢印キーで隣の項目へフォーカスを移し、移った先の項目を選ぶよう求める。端では反対の端に戻る。
 ///   Home と End では最初と最後の項目へ移り、移った先を選ぶよう求める。無効な項目は飛ばす
 /// - フォーカス中の Enter と Space・マウスのクリックで、項目を選ぶよう求める
+///
+/// 矢印キーでも選ぶよう求めるため、行き先の内容は [`NavigationBar::on_change`] を受けた次の描画で遅れなく差し替えること。
+/// バーは行き先の内容 (role `tabpanel`) を公開しない。選ばれた項目と、表示している行き先の内容を一致させるのは呼び出し側の責務になる
 ///
 /// 支援技術には role `tablist` として公開され、[`NavigationBar::aria_label`] がアクセシブルな名前になる。
 /// 項目は role `tab` と選ばれているかどうかの状態として公開され、ラベルが名前になる
@@ -149,8 +151,8 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationBar<T> {
         let count = self.items.len();
         let label_font = theme.text_style(navigation_bar::LABEL_TEXT_FONT);
         let spatial = theme.spring(MotionSchemeKey::DefaultSpatial);
-        // Compose の項目の ripple は、項目の色を渡されていないバーの内容の色 (`contentColorFor(containerColor)`) を使う
-        let state_color = theme.color(md3_theme::md3_color::ColorRole::OnSurface);
+        let state_color = theme.color(supplement::navigation_bar::STATE_LAYER_COLOR);
+        let disabled_opacity = supplement::navigation_bar::DISABLED_CONTENT_OPACITY;
 
         // 同じ値の項目が複数あっても、支援技術に公開する状態と同じく最初の項目だけを選ばれた見た目にする
         let mut selected = self.selected.as_ref();
@@ -167,8 +169,8 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationBar<T> {
                         util::keyed_focus_handle(&item.id, window, cx)
                     })
                 });
-                let focus_visible =
-                    !item.disabled && gpui_headless::is_focus_visible(&focus_handle, window, cx);
+                // フォーカスのある項目が無効になってもフォーカスは残るため、リングは無効な項目でも描く
+                let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
                 let top = item.icon_position == NavigationItemIconPosition::Top;
 
                 // 色 (`ShortNavigationBarItemDefaults.colors`)。無効な項目は選ばれていない色を薄くする。
@@ -177,10 +179,10 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationBar<T> {
                     (
                         theme
                             .color(navigation_bar::ITEM_INACTIVE_ICON_COLOR)
-                            .opacity(DISABLED_ALPHA),
+                            .opacity(disabled_opacity),
                         theme
                             .color(navigation_bar::ITEM_INACTIVE_LABEL_TEXT_COLOR)
-                            .opacity(DISABLED_ALPHA),
+                            .opacity(disabled_opacity),
                     )
                 } else if is_selected {
                     (
@@ -205,16 +207,18 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationBar<T> {
                 } else {
                     item.icon
                 };
+                let icon_size = dp(if top {
+                    vertical::ICON_SIZE
+                } else {
+                    horizontal::ICON_SIZE
+                });
                 let icon = svg()
                     .data(icon.svg().as_bytes())
                     .flex_none()
-                    .size(dp(if top {
-                        vertical::ICON_SIZE
-                    } else {
-                        horizontal::ICON_SIZE
-                    }))
+                    .size(icon_size)
                     .text_color(icon_color);
-                let mut label = div().flex_none().text_color(label_color);
+                // ラベルは項目の幅に収まらなければ折り返し、インジケーターや項目の高さを広げる
+                let mut label = div().min_w_0().text_color(label_color);
                 label.text_style().refine(&label_font);
                 let label = label.child(item.label.clone());
 
@@ -245,7 +249,8 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationBar<T> {
                             ))
                         },
                     );
-                // 状態レイヤーとフォーカスリングは項目全体ではなくインジケーターの形に描く (`IndicatorRipple`)
+                // 状態レイヤーとフォーカスリングは項目全体ではなくインジケーターの形に描く (`IndicatorRipple`)。
+                // 無効な項目には状態レイヤーを描かない
                 let state_layer = (!item.disabled).then(|| {
                     Shaped::new(
                         div()
@@ -282,21 +287,29 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationBar<T> {
                     .outset(outset)
                 });
 
-                let pill = div().relative().flex().flex_none().items_center();
+                // インジケーターは内容の周りに余白を取った大きさにする。余白はアイコンだけのときに
+                // インジケーターの寸法になる値 (`TopIconIndicatorHorizontalPadding` などのファイル末尾の値)
+                let pill = div()
+                    .relative()
+                    .flex()
+                    .flex_none()
+                    .max_w_full()
+                    .items_center();
                 let pill = if top {
-                    // アイコンの周りに、インジケーターの大きさになるまで余白を取る
-                    pill.justify_center()
-                        .w(dp(vertical::ACTIVE_INDICATOR_WIDTH))
-                        .h(dp(vertical::ACTIVE_INDICATOR_HEIGHT))
+                    pill.px((dp(vertical::ACTIVE_INDICATOR_WIDTH) - icon_size) / 2.0)
+                        .py((dp(vertical::ACTIVE_INDICATOR_HEIGHT) - icon_size) / 2.0)
                 } else {
-                    // アイコン・間隔・ラベルの周りに、左右は決まった余白、上下はインジケーターの高さになる余白を取る
-                    pill.h(dp(horizontal::ACTIVE_INDICATOR_HEIGHT))
+                    // 上下の余白は、アイコンとラベルの高い方に足す
+                    pill.py((dp(horizontal::ACTIVE_INDICATOR_HEIGHT) - icon_size) / 2.0)
                         .pl(dp(horizontal::ACTIVE_INDICATOR_LEADING_SPACE))
                         .pr(dp(horizontal::ACTIVE_INDICATOR_TRAILING_SPACE))
                         .gap(dp(navigation_bar::ITEM_ACTIVE_INDICATOR_ICON_LABEL_SPACE))
                 };
                 let (inline_label, below_label) = if top {
-                    (None, Some(label.mt(px(4.0))))
+                    let label = label.max_w_full().text_center().mt(dp(
+                        supplement::navigation_bar::TOP_ICON_INDICATOR_TO_LABEL_PADDING,
+                    ));
+                    (None, Some(label))
                 } else {
                     (Some(label), None)
                 };
@@ -316,14 +329,27 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationBar<T> {
                     .flex_col()
                     .items_center()
                     .justify_center()
-                    .min_w(px(48.0))
-                    .min_h(px(48.0));
+                    .flex_none();
+                // Compose の項目の最小の大きさ (`LocalMinimumInteractiveComponentSize`) は、どちらの並べ方でも
+                // 項目の幅と高さを決める値より小さいため扱わない
                 let headless = match self.arrangement {
                     NavigationBarArrangement::EqualWeight => {
-                        headless.flex_none().w(relative(1.0 / count.max(1) as f32))
+                        headless.w(relative(1.0 / count.max(1) as f32))
                     }
-                    // 項目は同じ幅を最小とし、内容がそれより広ければ広げる (`CenteredContentMeasurePolicy`)
-                    NavigationBarArrangement::Centered => headless.flex_1(),
+                    // 項目は内容の幅を、余白を除いたバーの幅の等分から、バーの幅の等分までに収める
+                    // (`CenteredContentMeasurePolicy`)。項目の割合はバーの幅に対する値で、並びはバーの中央に置く
+                    NavigationBarArrangement::Centered => {
+                        let padding = if count <= 6 {
+                            // バーの幅に対する左右の余白の割合 (`calculateCenteredContentHorizontalPadding`)
+                            (100.0 - 10.0 * (count as f32 + 3.0)) / 2.0 / 100.0
+                        } else {
+                            0.0
+                        };
+                        let count = count.max(1) as f32;
+                        headless
+                            .min_w(relative((1.0 - padding * 2.0) / count))
+                            .max_w(relative(1.0 / count))
+                    }
                 };
                 let headless = if top {
                     headless.py(dp(vertical::CONTAINER_BETWEEN_SPACE))
@@ -338,14 +364,10 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationBar<T> {
             .when_some(self.aria_label, |this, label| this.aria_label(label))
             .when_some(self.on_change, |this, on_change| this.on_change(on_change))
             .flex()
+            .justify_center()
             .w_full()
             .min_h(dp(navigation_bar::CONTAINER_HEIGHT))
             .bg(theme.color(navigation_bar::CONTAINER_COLOR));
-        if self.arrangement == NavigationBarArrangement::Centered && count <= 6 {
-            // バーの幅に対する左右の余白の割合 (`calculateCenteredContentHorizontalPadding`)
-            let padding = (100.0 - 10.0 * (count as f32 + 3.0)) / 2.0 / 100.0;
-            bar = bar.px(relative(padding));
-        }
         bar.style().refine(&self.style);
         bar.items(items)
     }
@@ -430,7 +452,9 @@ mod tests {
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    use gpui::{AnyElement, Context, Modifiers, Render, TestAppContext, VisualTestContext, point};
+    use gpui::{
+        AnyElement, Context, Modifiers, Render, TestAppContext, VisualTestContext, point, px,
+    };
     use md3_icons::{HOME, SEARCH, SETTINGS};
     use md3_theme::md3_color::ColorRole;
 
@@ -588,5 +612,80 @@ mod tests {
             vec![1],
             "無効な項目のクリックは選ぶよう求めない"
         );
+    }
+
+    #[gpui::test]
+    fn 前にアイコンを置く項目のインジケーターは複数行のラベルに合わせて伸びる(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = open(cx, || {
+            NavigationBar::new("bar", Some(0))
+                .item(
+                    NavigationBarItem::new("home", 0, HOME, "Long\nLabel\nMultiple\nLines")
+                        .icon_position(NavigationItemIconPosition::Start),
+                )
+                .into_any_element()
+        });
+        // LabelMedium の行の高さ 16dp の 4 行に、上下 8dp ずつの余白を足す
+        let indicator = quads_of(cx, navigation_bar::ITEM_ACTIVE_INDICATOR_COLOR);
+        assert_eq!(indicator.len(), 1);
+        assert_eq!((indicator[0].1, indicator[0].3), (0.0, 80.0));
+        let container = quads_of(cx, navigation_bar::CONTAINER_COLOR);
+        assert_eq!(
+            container,
+            vec![(0.0, 0.0, 400.0, 80.0)],
+            "バーは最も高い項目に合わせる"
+        );
+    }
+
+    #[gpui::test]
+    fn 中央に寄せる並びの割合は親ではなくバーの幅に対する値(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = open(cx, || {
+            NavigationBar::new("bar", Some(0))
+                .arrangement(NavigationBarArrangement::Centered)
+                .items([
+                    NavigationBarItem::new("home", 0, HOME, "Home"),
+                    NavigationBarItem::new("search", 1, SEARCH, "Search"),
+                    NavigationBarItem::new("settings", 2, SETTINGS, "Settings"),
+                ])
+                .w(px(300.0))
+                .into_any_element()
+        });
+        // 幅 300dp のバーの左右に 20% の 60dp を空け、項目は 60dp ずつになる
+        let indicator = quads_of(cx, navigation_bar::ITEM_ACTIVE_INDICATOR_COLOR);
+        assert_eq!(indicator, vec![(62.0, 6.0, 56.0, 32.0)]);
+    }
+
+    #[gpui::test]
+    fn 中央に寄せる並びは等分より広い項目を内容の幅まで広げて中央に置く(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = open(cx, || {
+            let item = |id: &'static str, value: usize, label: &'static str| {
+                NavigationBarItem::new(id, value, HOME, label)
+                    .icon_position(NavigationItemIconPosition::Start)
+            };
+            NavigationBar::new("bar", Some(0))
+                .arrangement(NavigationBarArrangement::Centered)
+                .items([
+                    item("a", 0, "Abc"),
+                    item("b", 1, "A"),
+                    item("c", 2, "B"),
+                    item("d", 3, "C"),
+                ])
+                .into_any_element()
+        });
+        // 4 項目では項目の幅を 400dp × 70% の等分の 70dp から、400dp の等分の 100dp までに収める。
+        // 2 つ目以降の項目は 70dp で、最初の項目はインジケーターの幅に広がり、並び全体をバーの中央に置く
+        let indicator = quads_of(cx, navigation_bar::ITEM_ACTIVE_INDICATOR_COLOR);
+        assert_eq!(indicator.len(), 1);
+        let (x, _, width, _) = indicator[0];
+        assert!(
+            width > 70.0 && width < 100.0,
+            "等分より広く上限より狭い: {width}"
+        );
+        assert_eq!(x, (400.0 - width - 70.0 * 3.0) / 2.0);
     }
 }
