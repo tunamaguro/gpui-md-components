@@ -16,10 +16,11 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use gpui::{
-    AnimationExt, AnyElement, App, Bounds, ClickEvent, Corners, Div, ElementId, FocusHandle, Hsla,
-    InteractiveElement, IntoElement, ParentElement, Pixels, Refineable, RenderOnce, SharedString,
-    SpringAnimation, SpringConfig, StatefulInteractiveElement, StyleRefinement, Styled, Window,
-    canvas, div, prelude::FluentBuilder, svg,
+    AnimationExt, AnyElement, App, BorderStyle, Bounds, ClickEvent, Corners, Div, ElementId,
+    FocusHandle, Hsla, InteractiveElement, IntoElement, ParentElement, Pixels, Refineable,
+    RenderOnce, SharedString, SpringAnimation, SpringConfig, StatefulInteractiveElement,
+    StyleRefinement, Styled, Window, canvas, div, prelude::FluentBuilder, quad, svg,
+    transparent_black,
 };
 use gpui_headless::button::Button as HeadlessButton;
 use gpui_headless::toggle::ToggleButton as HeadlessToggleButton;
@@ -545,7 +546,8 @@ pub(crate) struct Look {
     pub(crate) corner_shape: Option<CornerShape>,
     /// 選ばれているかで形を変える動き
     pub(crate) morph: Option<Morph>,
-    /// 指定すると、フォーカスリングを描かず、リングを描く矩形 (外側に広げる前) と角の半径を prepaint で書く
+    /// 指定すると、ボタンはフォーカスリングを描かず、リングを描く矩形 (外側に広げる前) と角の半径を prepaint で書く。
+    /// 呼び出し側が [`paint_ring`] で描く
     pub(crate) ring_slot: Option<RingSlot>,
     /// `None` は透明
     container: Option<Hsla>,
@@ -563,6 +565,34 @@ pub(crate) struct Look {
 
 /// フォーカスリングを描く矩形と角の半径を受け取る場所。描画のたびに作り直す
 pub(crate) type RingSlot = Rc<Cell<Option<(Bounds<Pixels>, Corners<Pixels>)>>>;
+
+/// `ring` に書かれた矩形の外側にフォーカスリングを描く要素。リングを手前に描く要素の最後の子に置く。
+/// ほかの要素と同じく親の中で描くため、祖先の切り取りの範囲と不透明度が効く
+pub(crate) fn paint_ring(ring: RingSlot, theme: SharedTheme) -> impl IntoElement {
+    canvas(
+        |_, _, _| {},
+        move |_, _, window, _| {
+            let Some((bounds, radii)) = ring.get() else {
+                return;
+            };
+            let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
+            window.paint_quad(quad(
+                bounds.dilate(outset),
+                Corners {
+                    top_left: radii.top_left + outset,
+                    top_right: radii.top_right + outset,
+                    bottom_right: radii.bottom_right + outset,
+                    bottom_left: radii.bottom_left + outset,
+                },
+                transparent_black(),
+                dp(focus_ring::WIDTH),
+                theme.color(focus_ring::COLOR),
+                BorderStyle::Solid,
+            ));
+        },
+    )
+    .absolute()
+}
 
 /// トグルボタンが、選ばれているかで形を変える動き
 pub(crate) struct Morph {
@@ -607,6 +637,10 @@ impl Look {
             }
         };
         let label = size.label;
+        // 指定が無ければ、リングはボタンの最後の子で、子の内容より手前に描く
+        let own_ring = ring_slot.is_none();
+        let slot = ring_slot.unwrap_or_default();
+        let painted_slot = slot.clone();
 
         // 容器とリングは形の動きの進み `phase` で描く。角丸は描画時の大きさで決まるため、
         // 背景・枠線・影は Shaped で包んだ層に描き、ボタン自身は透明な箱にする
@@ -672,31 +706,24 @@ impl Look {
                 .bottom_0()
                 .child(shaped(layer))
                 .when(focus_visible, |this| {
-                    let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
-                    let ring = div()
+                    // 形の動きの途中の角丸で、リングを描く矩形と角の半径を書く。
+                    // 半径は gpui が容器を描くときと同じく短辺の半分までにする
+                    let shape = shaped(div());
+                    let slot = slot.clone();
+                    this.child(
+                        canvas(
+                            move |bounds, _, _| {
+                                let radii = shape.radii(bounds.size);
+                                slot.set(Some((
+                                    bounds,
+                                    radii.clamp_radii_for_quad_size(bounds.size),
+                                )));
+                            },
+                            |_, _, _, _| {},
+                        )
                         .absolute()
-                        .top(-outset)
-                        .left(-outset)
-                        .right(-outset)
-                        .bottom(-outset)
-                        .border(dp(focus_ring::WIDTH))
-                        .border_color(theme.color(focus_ring::COLOR));
-                    match ring_slot {
-                        Some(slot) => {
-                            let shape = shaped(div());
-                            this.child(
-                                canvas(
-                                    move |bounds, _, _| {
-                                        slot.set(Some((bounds, shape.radii(bounds.size))));
-                                    },
-                                    |_, _, _, _| {},
-                                )
-                                .absolute()
-                                .size_full(),
-                            )
-                        }
-                        None => this.child(shaped(ring).outset(outset)),
-                    }
+                        .size_full(),
+                    )
                 })
         };
         let decoration = match morph {
@@ -752,6 +779,9 @@ impl Look {
         button = button
             .child(div().flex().items_center().children(children))
             .child(horizontal_padding());
+        if own_ring {
+            button = button.child(paint_ring(painted_slot, theme.clone()));
+        }
         button.text_style().refine(&theme.text_style(label));
         button
     }
@@ -1322,5 +1352,40 @@ mod tests {
         assert!(painted(cx), "選ばれていても無効の色で塗ること");
         click(cx);
         assert!(state.get(), "無効な間は押しても変えないこと");
+    }
+
+    #[gpui::test]
+    fn フォーカスリングは子の内容より後に描く(cx: &mut TestAppContext) {
+        cx.update(crate::init);
+        let (_, cx) = cx.add_window_view(|window, cx| {
+            cx.init_md3_theme(window);
+            ElementView(Box::new(|| {
+                // ボタンより広く縮まない子は、ボタンの外側へはみ出してリングと重なる
+                Button::new("button")
+                    .w(px(100.0))
+                    .child(div().flex_none().w(px(120.0)).h(px(10.0)).bg(gpui::red()))
+                    .into_any_element()
+            }))
+        });
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_keystrokes("tab");
+        cx.run_until_parked();
+        let (ring, content) = cx.update(|window, cx| {
+            let ring = cx.md3_theme().color(focus_ring::COLOR);
+            let content: gpui::Background = gpui::red().into();
+            let quads = window.painted_quads();
+            (
+                quads
+                    .iter()
+                    .filter(|quad| quad.border_color == ring && quad.border_widths.top.0 > 0.0)
+                    .map(|quad| quad.order)
+                    .max(),
+                quads
+                    .iter()
+                    .find(|quad| quad.background == content)
+                    .map(|quad| quad.order),
+            )
+        });
+        assert!(ring.expect("リングを描くこと") > content.expect("子を描くこと"));
     }
 }

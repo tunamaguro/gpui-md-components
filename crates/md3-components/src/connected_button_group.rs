@@ -9,19 +9,18 @@
 //! MD3 Expressive の Connected button group
 
 use gpui::{
-    App, BorderStyle, Corners, ElementId, FocusHandle, InteractiveElement, IntoElement,
-    ParentElement, Refineable, RenderOnce, SharedString, StatefulInteractiveElement,
-    StyleRefinement, Styled, Window, canvas, prelude::FluentBuilder, quad, transparent_black,
+    App, ElementId, FocusHandle, InteractiveElement, IntoElement, ParentElement, Refineable,
+    RenderOnce, SharedString, StatefulInteractiveElement, StyleRefinement, Styled, Window,
+    prelude::FluentBuilder,
 };
 use gpui_headless::radio::{Radio as HeadlessRadio, RadioGroup as HeadlessRadioGroup};
 use gpui_headless::toggle::{ToggleButton as HeadlessToggleButton, ToggleGroup};
 
-use crate::button::RingSlot;
+use crate::button::{RingSlot, paint_ring};
 use crate::util;
 use crate::{ToggleButton, ToggleButtonVariant};
 use md3_icons::StyledIcon;
 use md3_theme::md3_tokens::component::connected_button_group_small as tokens;
-use md3_theme::md3_tokens::focus_ring;
 use md3_theme::md3_tokens::shape::{CornerShape, ShapeKey};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
@@ -123,34 +122,6 @@ impl Item {
         // 項目はラベルに合わせた幅にし、並びの幅に広げない
         look.apply(item).flex_none()
     }
-}
-
-/// `ring` に書かれた矩形の外側にフォーカスリングを描く要素。並びの最後の子に置き、すべての項目の後に描く。
-/// ほかの要素と同じく並びの中で描くため、祖先の切り取りの範囲と不透明度が効く
-fn paint_ring(ring: RingSlot, theme: SharedTheme) -> impl IntoElement {
-    canvas(
-        |_, _, _| {},
-        move |_, _, window, _| {
-            let Some((bounds, radii)) = ring.get() else {
-                return;
-            };
-            let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
-            window.paint_quad(quad(
-                bounds.dilate(outset),
-                Corners {
-                    top_left: radii.top_left + outset,
-                    top_right: radii.top_right + outset,
-                    bottom_right: radii.bottom_right + outset,
-                    bottom_left: radii.bottom_left + outset,
-                },
-                transparent_black(),
-                dp(focus_ring::WIDTH),
-                theme.color(focus_ring::COLOR),
-                BorderStyle::Solid,
-            ));
-        },
-    )
-    .absolute()
 }
 
 /// 1 つだけを選ぶ、MD3 Expressive の Connected button group

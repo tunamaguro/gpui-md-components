@@ -47,11 +47,12 @@ impl Shaped {
 
     // フォーカスリングを描く部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
     #[cfg(any(
-        feature = "button",
         feature = "card",
         feature = "chip",
         feature = "fab",
+        feature = "icon-button",
         feature = "list",
+        feature = "menu",
         feature = "navigation-bar",
         feature = "navigation-rail",
         feature = "slider"
