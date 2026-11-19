@@ -347,13 +347,12 @@ impl ListItem {
         } else {
             list::ITEM_CONTAINER_EXPRESSIVE_SHAPE
         };
-        // 角丸の半径は描画時の大きさで決まるが、hover の形は大きさを知らずに決めるため、割合でない形の半径を使う
-        let hovered_radius = theme
-            .corner_radii(
-                list::ITEM_HOVERED_CONTAINER_EXPRESSIVE_SHAPE,
-                size(px(f32::MAX), px(f32::MAX)),
-            )
-            .top_left;
+        // hover の形は gpui の group_hover で描くため、描画時の大きさを知らずに半径を決める。
+        // 割合の角は大きさの短辺から求まらず、gpui が短辺の半分に切り詰めた半径で描く
+        let hovered_radii = theme.corner_radii(
+            list::ITEM_HOVERED_CONTAINER_EXPRESSIVE_SHAPE,
+            size(px(f32::MAX), px(f32::MAX)),
+        );
         // 状態レイヤーは内容の色を重ねる (Compose の ripple は LocalContentColor を使う)
         let state_layer = |opacity: f32| -> Hsla { container.blend(content.opacity(opacity)) };
         let layer =
@@ -371,7 +370,11 @@ impl ListItem {
                         if selected || focus_visible {
                             style
                         } else {
-                            style.rounded(hovered_radius)
+                            style
+                                .rounded_tl(hovered_radii.top_left)
+                                .rounded_tr(hovered_radii.top_right)
+                                .rounded_br(hovered_radii.bottom_right)
+                                .rounded_bl(hovered_radii.bottom_left)
                         }
                     })
                 });

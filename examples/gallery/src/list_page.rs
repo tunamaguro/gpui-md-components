@@ -1,8 +1,8 @@
 //! リストを並べるページ
 
 use gpui::{
-    Context, IntoElement, ParentElement as _, Refineable as _, Render, Styled as _, Window, div,
-    prelude::*, px,
+    Context, IntoElement, ParentElement as _, Refineable as _, Render, Styled as _, Window,
+    accesskit, div, prelude::*, px,
 };
 use md3_components::{Divider, List, ListItem, ListItemKind};
 use md3_theme::ThemeExt as _;
@@ -123,7 +123,14 @@ impl Render for ListPage {
                 status
             }))
             .child(checkboxes)
-            .child(radios)
+            // ラジオボタンの項目は、リストを radiogroup で包んで組として公開する
+            .child(
+                div()
+                    .id("fruit")
+                    .role(accesskit::Role::RadioGroup)
+                    .aria_label("Fruit")
+                    .child(radios),
+            )
             .child(texts)
     }
 }

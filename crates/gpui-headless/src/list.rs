@@ -20,15 +20,16 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
 /// 項目を縦に並べる、見た目を持たないリスト
 ///
-/// 項目は [`List::item`] で、項目でない要素 (区切りや見出しなど) は `child` で加え、加えた順に並ぶ。
-/// 項目は上から下へ並べること
+/// 項目は [`List::item`] で、項目でない要素は `child` で加え、加えた順に並ぶ。項目は上から下へ並べること。
+/// `child` には区切り線のように支援技術に公開しない要素だけを置くこと。
+/// 公開する要素 (見出しなど) を置くと role `list` の直下に `listitem` 以外のノードが並ぶため、リストの外に置くこと
 ///
 /// - 操作できる項目 ([`ListItemKind::Text`] 以外) のうち、Tab で到達できるのは 1 つだけで、最初のフォーカスできる項目にする。
 ///   項目にフォーカスがある間は、その項目だけが Tab で到達できる。フォーカスできる項目が無ければ Tab で入らない
 /// - 修飾キーなしの上下の矢印キーで前後の操作できる項目へ、Home と End で最初と最後の操作できる項目へフォーカスを移す。
 ///   項目の状態は変えない。上下の矢印キーは端で反対の端に戻る。
 ///   [`Availability::Disabled`] の項目は飛ばし、[`Availability::DisabledFocusable`] の項目にはフォーカスを移す。
-///   移れる項目がほかに無い場合は、キー入力を祖先に渡す
+///   移る先がフォーカスのある項目自身になる場合は、キー入力を祖先に渡す
 ///
 /// 支援技術には role `list` として公開される。名前を与える場合は `aria_label` で与えること。
 /// 見た目は [`Styled`] と [`InteractiveElement`] で呼び出し側が付ける
@@ -135,6 +136,7 @@ impl RenderOnce for List {
                         } else {
                             items.iter().rposition(focusable)
                         }
+                        .filter(|&ix| !items[ix].focus_handle.is_focused(window))
                     }
                     _ => return,
                 };
@@ -169,7 +171,6 @@ impl InteractiveElement for List {
 
 impl StatefulInteractiveElement for List {}
 
-// TODO: フォーカス・無効状態・クリックの扱いは [`Button`](crate::button::Button) と同じ処理を複製している。1 つにまとめたい
 /// `item` の、見た目を付ける要素を作る。操作できる項目では操作の対象にする
 ///
 /// `roving` は操作できる項目のときの、矢印キーの移動先としての状態と Tab で到達できるかどうか
@@ -260,7 +261,10 @@ pub enum ListItemKind {
     Action,
     /// オンとオフを切り替える項目。値はチェックの状態。支援技術には role `checkbox` として公開する
     Checkbox(CheckedState),
-    /// 同じリストの中から 1 つを選ぶ項目。値は選ばれているかどうか。支援技術には role `radio` として公開する
+    /// 組の中から 1 つを選ぶ項目。値は選ばれているかどうか。支援技術には role `radio` として公開する
+    ///
+    /// 選ばれている項目が組の中で 1 つだけになるよう、呼び出し側が値を渡すこと。
+    /// リストは組を支援技術に公開しないため、組として公開するには、名前を持つ role `radiogroup` の要素でリストを包むこと
     Radio(bool),
 }
 
@@ -387,6 +391,8 @@ mod tests {
         after: FocusHandle,
         clicks: Rc<RefCell<Vec<&'static str>>>,
         parent_presses: Rc<RefCell<usize>>,
+        /// リストが祖先に渡したキー入力
+        parent_keys: Rc<RefCell<Vec<String>>>,
         list_node: Option<accesskit::Node>,
     }
 
@@ -421,8 +427,12 @@ mod tests {
             list.write_a11y_info(&mut node);
             self.list_node = Some(node);
             let parent_presses = self.parent_presses.clone();
+            let parent_keys = self.parent_keys.clone();
             div()
                 .size_full()
+                .on_key_down(move |event, _, _| {
+                    parent_keys.borrow_mut().push(event.keystroke.key.clone());
+                })
                 .on_mouse_down(MouseButton::Left, move |_, _, _| {
                     *parent_presses.borrow_mut() += 1;
                 })
@@ -441,6 +451,7 @@ mod tests {
             after: cx.focus_handle(),
             clicks: Rc::default(),
             parent_presses: Rc::default(),
+            parent_keys: Rc::default(),
             list_node: None,
         })
     }
@@ -668,6 +679,30 @@ mod tests {
         assert_eq!(focused(&view, cx), Some("radio"));
         cx.simulate_keystrokes("home");
         assert_eq!(focused(&view, cx), Some("action"));
+        let parent_keys = view.read_with(cx, |view, _| view.parent_keys.borrow().clone());
+        assert!(
+            !parent_keys.iter().any(|key| key == "home" || key == "end"),
+            "移ったキー入力は祖先に渡さないこと: {parent_keys:?}"
+        );
+    }
+
+    #[gpui::test]
+    fn 移る先がフォーカスのある項目なら_home_と_end_を祖先に渡す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(
+            cx,
+            [
+                Availability::Enabled,
+                Availability::Disabled,
+                Availability::Disabled,
+            ],
+        );
+        cx.simulate_keystrokes("tab home end");
+        assert_eq!(focused(&view, cx), Some("action"));
+        let parent_keys = view.read_with(cx, |view, _| view.parent_keys.borrow().clone());
+        assert!(parent_keys.contains(&"home".to_string()));
+        assert!(parent_keys.contains(&"end".to_string()));
     }
 
     #[gpui::test]
