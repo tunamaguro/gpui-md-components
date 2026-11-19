@@ -25,6 +25,7 @@
 - [x] M9: Dialog
 - [x] M10: Select (Listbox)
 - [x] M11: TextField
+- [x] M12: List
 
 ## 共通の完了条件
 
@@ -574,6 +575,48 @@ MD3 (md3-components) で決めたこと:
 
 - 3 段目は MD3 の TextField で確かめた。テキストフィールドは名前 (ラベル)・説明 (補足の文)・文字列を持つ entry として渡り、カーソルの位置と選択が読める。
   支援技術からのフォーカスの要求と選択の設定が届く。無効なテキストフィールドは read-only として渡る (M3 の disabled の扱い)
+
+## M12: List
+
+対象: 縦に並べる List と、その項目 (操作できない項目、実行する項目、チェックボックスの項目、ラジオボタンの項目)
+
+対応する APG のパターンは無い。HTML の `<ul>` と、項目の中に操作の対象を置く `<li><button>` の構造に合わせ、矢印キーの移動は M4 の仕組みを使う
+
+決めたこと:
+
+- `list::List` は role `list`、`list::ListItem` は role `listitem` として公開する。操作できる項目は listitem の子に操作の対象を置き、種類 (`ListItemKind`) に応じて role `button`・`checkbox`・`radio` と状態を公開する
+  - 見た目を付ける要素は操作の対象で、listitem の要素はそれをリストの幅に合わせて包むだけにする
+  - Material Web は項目自身を role `listitem` にしたまま `aria-checked` などを付ける (TODO として button の公開を待っている)。Compose は項目を radio や checkbox として公開し、list の構造を持たない。
+    listitem の中に操作の対象を置けば、list の中の位置と操作の種類の両方を公開できるため、こちらを採った
+- 操作できる項目の間を M4 と同じく 1 つの Tab stop と矢印キーで移る。操作できない項目は移動先に含めない
+  - 縦に並べる配置だけを扱い、上下の矢印キーで移る。端では反対の端に戻る。Home と End で最初と最後の操作できる項目へ移る
+  - 矢印キーの移動では項目の状態を変えない。ラジオボタンの項目も移っただけでは選ばない (Compose と Material Web と同じ)
+  - フォーカスがないときの Tab stop は最初のフォーカスできる項目にする。最後にフォーカスがあった項目に戻すことはしない (M4 の ToggleGroup と同じ)
+- 項目は `on_click` で操作を受ける。Space・クリック・支援技術からのクリックで呼び、Enter では実行する項目だけが呼ぶ (Checkbox と Radio Group のパターンは Enter を定義しない)
+- 切り替える項目の状態の変更は呼び出し側が `on_click` で決める (M8 の MenuItem と同じ)
+
+扱わないこと:
+
+- 横に並べる配置と左右の矢印キー (Material Web の list は左右でも移る)
+- 項目の中の別の操作できる要素 (末尾のボタンなど)。項目の中に置くと Tab stop が増え、矢印キーの移動先にも入らない
+- 複数選択の操作 (Shift と矢印キーでの範囲の選択など)。必要になったら独立した Listbox として扱う
+- 並べ替え、スワイプ、長押し
+
+MD3 (md3-components) で決めたこと:
+
+- Compose の Expressive の `ListItem` (`InteractiveListItem`) を移植した。項目の文 (見出し・overline・補足の文)、先頭と末尾のアイコン、末尾の補足の文を扱う
+  - 最小の高さは文の行の数で決める (`ListItemType`)。補足の文が折り返したかは調べず、overline と補足の文の両方があるときだけ 3 行にする
+  - 3 行の項目は内容を上にそろえ、それ以外は中央にそろえる (`ListItemDefaults.verticalAlignment` の境目)
+  - チェックボックスのオンの項目とラジオボタンの選ばれている項目は、Compose と同じく選ばれた容器の色と形にする。無効な項目は選ばれていても無効の色にする
+  - 形は選ばれている間、キーボードのフォーカスを示している間、hover の間で変える (`shapeForInteraction`)。押している間の形と形の変化の動きは扱わない
+  - フォーカスリングは Material Web と同じく項目の内側に描く
+- 文字列をそのまま子にしたテキストは支援技術に公開されないため、項目の文は M3 の `text::StaticText` で label として公開する。操作の対象の名前は、その子孫の文をつなげたものになる
+- 先頭のアバターや画像、末尾のチェックボックスやスイッチなど、任意の要素は置けない
+
+気を付けること:
+
+- 3 段目は MD3 の List で確かめた。list の中に list item が並び、操作できる項目はその子に button・check box・radio button として渡り、名前は項目の文をつなげたものになる。
+  支援技術の click で checked が変わる。無効な項目は click と focusable を持たない。操作できない項目は list item の中に文の label が並ぶ
 
 ## 随時
 

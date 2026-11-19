@@ -11,6 +11,7 @@ mod dialog_page;
 mod divider_page;
 mod fab_page;
 mod icon_button_page;
+mod list_page;
 mod menu_page;
 mod progress_indicator_page;
 mod radio_button_page;
@@ -40,6 +41,7 @@ use crate::dialog_page::DialogPage;
 use crate::divider_page::DividerPage;
 use crate::fab_page::FabPage;
 use crate::icon_button_page::IconButtonPage;
+use crate::list_page::ListPage;
 use crate::menu_page::MenuPage;
 use crate::progress_indicator_page::ProgressIndicatorPage;
 use crate::radio_button_page::RadioButtonPage;
@@ -71,6 +73,7 @@ enum Page {
     Tabs,
     Chip,
     Tooltip,
+    List,
     Menu,
     Dialog,
     Select,
@@ -96,6 +99,7 @@ struct Gallery {
     tabs_page: Entity<TabsPage>,
     chip_page: Entity<ChipPage>,
     tooltip_page: Entity<TooltipPage>,
+    list_page: Entity<ListPage>,
     menu_page: Entity<MenuPage>,
     dialog_page: Entity<DialogPage>,
     select_page: Entity<SelectPage>,
@@ -122,6 +126,7 @@ impl Gallery {
             tabs_page: cx.new(TabsPage::new),
             chip_page: cx.new(ChipPage::new),
             tooltip_page: cx.new(|_| TooltipPage::default()),
+            list_page: cx.new(|_| ListPage::default()),
             menu_page: cx.new(|_| MenuPage::default()),
             dialog_page: cx.new(DialogPage::new),
             select_page: cx.new(|_| SelectPage::default()),
@@ -162,6 +167,7 @@ impl Render for Gallery {
             Page::Tabs => self.tabs_page.clone().into(),
             Page::Chip => self.chip_page.clone().into(),
             Page::Tooltip => self.tooltip_page.clone().into(),
+            Page::List => self.list_page.clone().into(),
             Page::Menu => self.menu_page.clone().into(),
             Page::Dialog => self.dialog_page.clone().into(),
             Page::Select => self.select_page.clone().into(),
@@ -198,7 +204,8 @@ impl Render for Gallery {
                         .child(tab(Page::Menu, "Menus", cx))
                         .child(tab(Page::Dialog, "Dialogs", cx))
                         .child(tab(Page::Select, "Selects", cx))
-                        .child(tab(Page::TextField, "Text fields", cx)),
+                        .child(tab(Page::TextField, "Text fields", cx))
+                        .child(tab(Page::List, "Lists", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )

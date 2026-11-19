@@ -8,6 +8,7 @@ pub mod choice;
 pub mod dialog;
 mod focus_visible;
 mod interaction;
+pub mod list;
 pub mod menu;
 mod navigation;
 mod popup;
