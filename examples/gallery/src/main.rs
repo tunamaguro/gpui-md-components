@@ -21,6 +21,7 @@ mod radio_button_page;
 mod segmented_button_page;
 mod select_page;
 mod slider_page;
+mod split_button_page;
 mod switch_page;
 mod tabs_page;
 mod text_field_page;
@@ -54,6 +55,7 @@ use crate::radio_button_page::RadioButtonPage;
 use crate::segmented_button_page::SegmentedButtonPage;
 use crate::select_page::SelectPage;
 use crate::slider_page::SliderPage;
+use crate::split_button_page::SplitButtonPage;
 use crate::switch_page::SwitchPage;
 use crate::tabs_page::TabsPage;
 use crate::text_field_page::TextFieldPage;
@@ -66,6 +68,7 @@ enum Page {
     Theme,
     Button,
     ButtonGroup,
+    SplitButton,
     IconButton,
     Checkbox,
     RadioButton,
@@ -95,6 +98,7 @@ struct Gallery {
     theme_page: Entity<ThemePage>,
     button_page: Entity<ButtonPage>,
     button_group_page: Entity<ButtonGroupPage>,
+    split_button_page: Entity<SplitButtonPage>,
     icon_button_page: Entity<IconButtonPage>,
     checkbox_page: Entity<CheckboxPage>,
     radio_button_page: Entity<RadioButtonPage>,
@@ -125,6 +129,7 @@ impl Gallery {
             theme_page: cx.new(|_| ThemePage),
             button_page: cx.new(|_| ButtonPage::default()),
             button_group_page: cx.new(|_| ButtonGroupPage::default()),
+            split_button_page: cx.new(|_| SplitButtonPage::default()),
             icon_button_page: cx.new(|_| IconButtonPage::default()),
             checkbox_page: cx.new(CheckboxPage::new),
             radio_button_page: cx.new(|_| RadioButtonPage::default()),
@@ -169,6 +174,7 @@ impl Render for Gallery {
             Page::Theme => self.theme_page.clone().into(),
             Page::Button => self.button_page.clone().into(),
             Page::ButtonGroup => self.button_group_page.clone().into(),
+            Page::SplitButton => self.split_button_page.clone().into(),
             Page::IconButton => self.icon_button_page.clone().into(),
             Page::Checkbox => self.checkbox_page.clone().into(),
             Page::RadioButton => self.radio_button_page.clone().into(),
@@ -206,6 +212,7 @@ impl Render for Gallery {
                         .child(tab(Page::Theme, "Theme", cx))
                         .child(tab(Page::Button, "Button", cx))
                         .child(tab(Page::ButtonGroup, "Button group", cx))
+                        .child(tab(Page::SplitButton, "Split button", cx))
                         .child(tab(Page::IconButton, "Icon button", cx))
                         .child(tab(Page::Checkbox, "Checkbox", cx))
                         .child(tab(Page::RadioButton, "Radio button", cx))

@@ -20,7 +20,8 @@ pub(crate) struct Shaped {
     bottom_key: Option<ShapeKey>,
     /// `key` の代わりに使う角ごとの形
     corner_shape: Option<CornerShape>,
-    morph: Option<(ShapeKey, f32)>,
+    /// 形を変える動きの目標の形と進み。進みが 0 なら元の形、1 なら目標の形
+    morph: Option<(CornerShape, f32)>,
     outset: Pixels,
     /// 形の角丸を付ける角。`false` の角は直角にする
     rounded: Corners<bool>,
@@ -63,8 +64,17 @@ impl Shaped {
     }
 
     /// 形を `key` から `target` へ `phase` だけ近づける。`phase` が 0 なら `key`、1 なら `target` の角丸で描く
+    #[cfg(feature = "icon-button")]
+    pub(crate) fn morph(self, target: ShapeKey, phase: f32) -> Self {
+        let target = target.resolve(&self.theme.settings().shapes);
+        self.morph_to(target, phase)
+    }
+
+    /// 形を元の形から `target` へ `phase` だけ近づける。`phase` が 0 なら元の形、1 なら `target` の角丸で描く
+    ///
+    /// 角ごとの半径を `phase` で線形に補間する。0 から 1 の外の値は外挿する
     #[cfg(feature = "button")]
-    pub(crate) fn morph(mut self, target: ShapeKey, phase: f32) -> Self {
+    pub(crate) fn morph_to(mut self, target: CornerShape, phase: f32) -> Self {
         self.morph = Some((target, phase));
         self
     }
@@ -105,7 +115,7 @@ impl Shaped {
         }
         if let Some((target, phase)) = self.morph {
             // Compose の `rememberAnimatedShape` と同じく、角ごとの半径を線形に補間する
-            let target = self.theme.corner_radii(target, shape_size);
+            let target = md3_theme::shape_radii(target, shape_size);
             radii = Corners {
                 top_left: radii.top_left + (target.top_left - radii.top_left) * phase,
                 top_right: radii.top_right + (target.top_right - radii.top_right) * phase,

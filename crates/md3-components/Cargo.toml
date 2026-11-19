@@ -41,6 +41,7 @@ default = [
   "segmented-button",
   "select",
   "slider",
+  "split-button",
   "switch",
   "tabs",
   "text-field",
@@ -69,6 +70,8 @@ radio-button = []
 segmented-button = []
 select = []
 slider = []
+# 後ろのボタンでメニューを開く
+split-button = ["menu"]
 switch = []
 tabs = []
 text-field = []
