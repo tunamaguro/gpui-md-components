@@ -407,16 +407,8 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
         let focused = focus_handles
             .iter()
             .position(|handle| handle.is_focused(window));
-        // フォーカスが移ったときと、表示領域の高さが変わったときに、フォーカスのある項目を表示範囲に入れる
-        let viewport = scroll_handle.bounds().size.height;
-        if (focused, viewport) != *last_focused.read(cx) {
-            if let Some(index) = focused {
-                scroll_handle.scroll_to_item(index + usize::from(leading_space));
-            }
-            last_focused.update(cx, |last, _| *last = (focused, viewport));
-        }
-        // フォーカスリングはインジケーターの外に張り出すため、スクロール領域の上下にその分の余白を取る。
-        // 上の余白は負のマージンで打ち消し、上から詰める項目の位置を変えない。下の余白は打ち消さず、
+        // フォーカスリングはインジケーターの外に張り出すため、スクロール領域の上下左右にその分の余白を取る。
+        // 上と左右の余白は負のマージンで打ち消し、上から詰める項目の位置と横の位置を変えない。下の余白は打ち消さず、
         // 下端と中央に寄せた項目はその分だけ上に寄る。最後の項目までスクロールしてもリングが切れない
         let ring_outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
         // Compose の中央の並べ方は項目をヘッダーを除かずにレールの高さの中央に置くが、
@@ -430,7 +422,9 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
             .flex_1()
             .min_h_0()
             .mt(-ring_outset)
+            .mx(-ring_outset)
             .py(ring_outset)
+            .px(ring_outset)
             .overflow_y_scroll()
             .track_scroll(&scroll_handle)
             .when(leading_space, |this| this.child(div().flex_1()))
@@ -442,10 +436,37 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
             window.use_keyed_state("painted-width", cx, |_, _| None::<Pixels>)
         });
         let collapsing_from = (!self.expanded).then(|| *painted_width.read(cx)).flatten();
+        // フォーカスが移ったときと、表示領域の高さが変わったときに、フォーカスのある項目をリングの張り出しも含めて
+        // 表示範囲に入れる。並びの後に置いた canvas の prepaint で、この描画のレイアウトで決まった範囲を使う
+        let focused_child = focused.map(|index| index + usize::from(leading_space));
+        let scroll = scroll_handle.clone();
         let measure = canvas(
-            move |bounds, _, cx| {
+            move |bounds, window, cx| {
                 if *painted_width.read(cx) != Some(bounds.size.width) {
                     painted_width.update(cx, |width, _| *width = Some(bounds.size.width));
+                }
+                let viewport = scroll.bounds();
+                if (focused, viewport.size.height) == *last_focused.read(cx) {
+                    return;
+                }
+                last_focused.update(cx, |last, _| *last = (focused, viewport.size.height));
+                let Some(item) = focused_child.and_then(|child| scroll.bounds_for_item(child))
+                else {
+                    return;
+                };
+                // 子の範囲はスクロールする前の位置なので、今のオフセットを足して画面上の位置にする
+                let mut offset = scroll.offset();
+                let top = item.top() + offset.y - ring_outset;
+                let bottom = item.bottom() + offset.y + ring_outset;
+                if top < viewport.top() {
+                    offset.y += viewport.top() - top;
+                } else if bottom > viewport.bottom() {
+                    offset.y -= bottom - viewport.bottom();
+                }
+                if offset != scroll.offset() {
+                    scroll.set_offset(offset);
+                    // 変えたオフセットで描き直す
+                    window.request_animation_frame();
                 }
             },
             |_, _, _, _| {},
@@ -486,7 +507,9 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                 // 行き過ぎで折りたたんだ幅より狭くならないよう、0 を下限にする
                 let progress = phase.0.max(0.0);
                 let min = collapsed_width + (min_width - collapsed_width) * progress;
-                let max = collapsed_width + (max_width - collapsed_width) * progress;
+                // 行き過ぎで展開したときの最大の幅を超えないよう、最大の幅で頭打ちにする
+                let max =
+                    (collapsed_width + (max_width - collapsed_width) * progress).min(max_width);
                 let rail = match collapsing_from {
                     Some(from) => rail.w(max.clamp(min, from.max(min))),
                     None => rail.min_w(min).max_w(max),
@@ -749,43 +772,58 @@ mod tests {
     }
 
     #[gpui::test]
-    fn 高さに収まらない項目へキーボードで移るとスクロールして表示する(
+    fn 高さに収まらない項目へキーボードで移るとリングまで含めてスクロールして表示する(
         cx: &mut TestAppContext,
     ) {
         let cx = open(cx, || {
             NavigationRail::new("rail", Some(0))
+                .expanded(true)
                 .items(
-                    (0..10usize)
+                    (0..12usize)
                         .map(|index| NavigationRailItem::new(("item", index), index, HOME, "Item")),
                 )
                 .into_any_element()
         });
         cx.update(|window, _| window.activate_window());
+        // フォーカスリングが、切り抜きの範囲を合わせた範囲に収まっていること。
+        // 角の形に切り抜くため、1 つのリングを切り抜きの範囲の違う複数の矩形で描く
+        let ring_fits = |cx: &mut VisualTestContext| {
+            cx.update(|window, cx| {
+                let color = cx.md3_theme().color(focus_ring::COLOR);
+                let ring: Vec<_> = window
+                    .painted_quads()
+                    .into_iter()
+                    .filter(|quad| quad.border_color == color && quad.border_widths.top.0 > 0.)
+                    .collect();
+                let Some(first) = ring.first() else {
+                    return false;
+                };
+                let mask = ring.iter().fold(first.content_mask.bounds, |mask, quad| {
+                    mask.union(&quad.content_mask.bounds)
+                });
+                let ring = first.bounds;
+                ring.top() >= mask.top()
+                    && ring.bottom() <= mask.bottom()
+                    && ring.left() >= mask.left()
+                    && ring.right() <= mask.right()
+            })
+        };
+        // スクロールしなければ最後の項目は上端から 44 + 56 × 11 = 660dp にあり、表示範囲の外になる
         cx.simulate_keystrokes("tab end");
+        // 描いたレイアウトでスクロールを補正し、補正したオフセットで次のフレームを描く
+        cx.update(|window, cx| window.simulate_next_frame(cx));
         cx.run_until_parked();
-        // 最後の項目のフォーカスリングが表示範囲の中に描かれる
-        let ring: Vec<(f32, f32)> = cx.update(|window, cx| {
-            let scale = window.scale_factor();
-            let color = cx.md3_theme().color(focus_ring::COLOR);
-            window
-                .painted_quads()
-                .into_iter()
-                .filter(|quad| quad.border_color == color && quad.border_widths.top.0 > 0.)
-                .map(|quad| {
-                    (
-                        quad.bounds.origin.y.0 / scale,
-                        quad.bounds.size.height.0 / scale,
-                    )
-                })
-                .collect()
-        });
-        // スクロールしなければ最後の項目は上端から 44 + 68 × 9 = 656dp にあり、表示範囲の外になる
         assert!(
-            !ring.is_empty()
-                && ring
-                    .iter()
-                    .all(|(y, height)| *y >= 0.0 && y + height <= 600.0),
-            "表示範囲の中: {ring:?}"
+            ring_fits(cx),
+            "End で移った最後の項目のリングが切れないこと"
+        );
+        cx.simulate_keystrokes("home");
+        // 描いたレイアウトでスクロールを補正し、補正したオフセットで次のフレームを描く
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        assert!(
+            ring_fits(cx),
+            "Home で移った最初の項目のリングが切れないこと"
         );
     }
 
