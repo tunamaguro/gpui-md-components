@@ -433,6 +433,8 @@ pub struct IconButton {
     colors: ButtonColors,
     /// フォーカスリングの色。`None` はトークンの色
     focus_ring: Option<ColorRole>,
+    /// [`ButtonColors::content`] が `None` のときのアイコンの色。`None` はバリアントの色
+    default_content: Option<ColorRole>,
     size: ButtonSize,
     width: IconButtonWidth,
     shape: ButtonShape,
@@ -467,6 +469,7 @@ impl IconButton {
             variant: IconButtonVariant::default(),
             colors: ButtonColors::default(),
             focus_ring: None,
+            default_content: None,
             size: ButtonSize::default(),
             width: IconButtonWidth::default(),
             shape: ButtonShape::default(),
@@ -496,6 +499,13 @@ impl IconButton {
     #[cfg(feature = "snackbar")]
     pub(crate) fn focus_ring(mut self, role: ColorRole) -> Self {
         self.focus_ring = Some(role);
+        self
+    }
+
+    /// [`IconButton::colors`] でアイコンの色を指定しなかったときに、バリアントの色の代わりに `role` の色で描く
+    #[cfg(feature = "app-bar")]
+    pub(crate) fn default_content(mut self, role: ColorRole) -> Self {
+        self.default_content = Some(role);
         self
     }
 
@@ -573,7 +583,11 @@ impl RenderOnce for IconButton {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
         let mut tokens = self.variant.tokens();
         tokens.container = self.colors.container.or(tokens.container);
-        tokens.content = self.colors.content.unwrap_or(tokens.content);
+        tokens.content = self
+            .colors
+            .content
+            .or(self.default_content)
+            .unwrap_or(tokens.content);
         tokens.disabled_container = self.colors.disabled_container.or(tokens.disabled_container);
         tokens.disabled_content = self
             .colors

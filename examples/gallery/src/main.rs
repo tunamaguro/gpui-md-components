@@ -2,6 +2,7 @@
 // Web 版は `start` から起動するので、wasm では `main` を置かない。
 #![cfg_attr(target_family = "wasm", no_main)]
 
+mod app_bar_page;
 mod badge_page;
 mod button_group_page;
 mod button_page;
@@ -37,6 +38,7 @@ use md3_components::{Button, ButtonVariant};
 use md3_theme::ThemeExt as _;
 use md3_theme::md3_color::ColorRole;
 
+use crate::app_bar_page::AppBarPage;
 use crate::badge_page::BadgePage;
 use crate::button_group_page::ButtonGroupPage;
 use crate::button_page::ButtonPage;
@@ -86,6 +88,7 @@ enum Page {
     Chip,
     Tooltip,
     Snackbar,
+    AppBar,
     List,
     NavigationBar,
     NavigationRail,
@@ -117,6 +120,7 @@ struct Gallery {
     chip_page: Entity<ChipPage>,
     tooltip_page: Entity<TooltipPage>,
     snackbar_page: Entity<SnackbarPage>,
+    app_bar_page: Entity<AppBarPage>,
     list_page: Entity<ListPage>,
     navigation_bar_page: Entity<NavigationBarPage>,
     navigation_rail_page: Entity<NavigationRailPage>,
@@ -149,6 +153,7 @@ impl Gallery {
             chip_page: cx.new(ChipPage::new),
             tooltip_page: cx.new(|_| TooltipPage::default()),
             snackbar_page: cx.new(SnackbarPage::new),
+            app_bar_page: cx.new(|_| AppBarPage),
             list_page: cx.new(|_| ListPage::default()),
             navigation_bar_page: cx.new(NavigationBarPage::new),
             navigation_rail_page: cx.new(NavigationRailPage::new),
@@ -195,6 +200,7 @@ impl Render for Gallery {
             Page::Chip => self.chip_page.clone().into(),
             Page::Tooltip => self.tooltip_page.clone().into(),
             Page::Snackbar => self.snackbar_page.clone().into(),
+            Page::AppBar => self.app_bar_page.clone().into(),
             Page::List => self.list_page.clone().into(),
             Page::NavigationBar => self.navigation_bar_page.clone().into(),
             Page::NavigationRail => self.navigation_rail_page.clone().into(),
@@ -234,6 +240,7 @@ impl Render for Gallery {
                         .child(tab(Page::Chip, "Chips", cx))
                         .child(tab(Page::Tooltip, "Tooltips", cx))
                         .child(tab(Page::Snackbar, "Snackbars", cx))
+                        .child(tab(Page::AppBar, "App bars", cx))
                         .child(tab(Page::Menu, "Menus", cx))
                         .child(tab(Page::Dialog, "Dialogs", cx))
                         .child(tab(Page::Select, "Selects", cx))

@@ -23,6 +23,7 @@ default = [
   "badge",
   "button",
   "icon-button",
+  "app-bar",
   "button-group",
   "connected-button-group",
   "card",
@@ -52,6 +53,8 @@ badge = []
 button = []
 # 色・大きさ・形の型を Button と共有する
 icon-button = ["button"]
+# ナビゲーションのアイコンに使う
+app-bar = ["icon-button"]
 button-group = []
 connected-button-group = ["button"]
 card = []
