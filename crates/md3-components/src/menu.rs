@@ -128,7 +128,7 @@ impl MenuVariant {
 
 /// MD3 Expressive のメニュー
 ///
-/// [`IconButton::menu`](crate::IconButton::menu) などに渡し、そのボタンから開く。
+/// `IconButton::menu` などに渡し、そのボタンから開く。
 /// 開いているかどうかは呼び出し側が持ち、[`Menu::new`] に毎回渡す。
 /// メニュー自身は状態を変えず、開閉は [`Menu::on_expanded_change`] で求める。
 /// 項目は [`MenuGroup`] にまとめて [`Menu::group`] で加え、組ごとに影の付いた容器に描く。
@@ -155,7 +155,7 @@ impl MenuVariant {
 /// ウィンドウより大きければ縦にスクロールする
 ///
 /// 支援技術には role `menu` として公開され、名前はボタンのアクセシブルな名前になる
-/// ([`IconButton::new`](crate::IconButton::new) の `label`、[`Button::aria_label`](crate::Button::aria_label))。
+/// (`IconButton::new` の `label`、[`Button::aria_label`](crate::Button::aria_label))。
 /// ボタンの名前を子の内容から決める場合は [`Menu::aria_label`] で名前を与えること
 pub struct Menu {
     id: ElementId,

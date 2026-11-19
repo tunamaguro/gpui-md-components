@@ -7,12 +7,14 @@
 
 //! MD3 Expressive の分割ボタン
 
+use std::cell::Cell;
 use std::f32::consts::PI;
+use std::rc::Rc;
 
 use gpui::{
     AnimationExt, AnyElement, App, ClickEvent, Div, ElementId, IntoElement, ParentElement,
     RenderOnce, SharedString, SpringAnimation, StatefulInteractiveElement, StyleRefinement, Styled,
-    Transformation, Window, div, prelude::FluentBuilder, radians, svg,
+    Transformation, Window, canvas, div, prelude::FluentBuilder, radians, svg,
 };
 use gpui_headless::button::Button as HeadlessButton;
 use gpui_headless::press::{PressArea, PressScope};
@@ -269,13 +271,17 @@ impl RenderOnce for SplitButton {
         let effects = theme.spring(MotionSchemeKey::DefaultEffects);
 
         let id = self.id.clone();
-        let (leading_focus, trailing_focus, leading_pressed, trailing_pressed) = window
-            .with_element_namespace(id.clone(), |window| {
+        let (leading_focus, trailing_focus, leading_pressed, trailing_pressed, trailing_height) =
+            window.with_element_namespace(id.clone(), |window| {
                 (
                     util::keyed_focus_handle(&"leading".into(), window, cx),
                     util::keyed_focus_handle(&"trailing".into(), window, cx),
                     window.use_keyed_state("leading-pressed", cx, |_, _| false),
                     window.use_keyed_state("trailing-pressed", cx, |_, _| false),
+                    window
+                        .use_keyed_state("trailing-height", cx, |_, _| Rc::new(Cell::new(None)))
+                        .read(cx)
+                        .clone(),
                 )
             });
 
@@ -360,7 +366,8 @@ impl RenderOnce for SplitButton {
             target: if *trailing_pressed.read(cx) {
                 corner_dp(tokens.inner_pressed_corner, tokens.height)
             } else if expanded {
-                tokens.height.0 / 2.0
+                // Styled で高さを変えても丸くなるよう、前の描画で測った高さを使う
+                trailing_height.get().unwrap_or(tokens.height.0) / 2.0
             } else {
                 corner_dp(tokens.inner_corner, tokens.height)
             },
@@ -411,7 +418,20 @@ impl RenderOnce for SplitButton {
                         .disabled(disabled)
                         .flex_none()
                         .flex()
-                        .child(trailing_button),
+                        .child(trailing_button)
+                        .child(
+                            canvas(
+                                move |bounds, window, _| {
+                                    let height = Some(f32::from(bounds.size.height));
+                                    if trailing_height.replace(height) != height {
+                                        window.refresh();
+                                    }
+                                },
+                                |_, _, _, _| {},
+                            )
+                            .absolute()
+                            .size_full(),
+                        ),
                 )
                 .child(paint_ring(ring, theme.clone())),
         )
@@ -713,5 +733,38 @@ mod tests {
         });
         assert!(overlay, "開いている間は内容の色を重ねること");
         assert!(hover, "hover の状態レイヤーも描くこと");
+    }
+
+    #[gpui::test]
+    fn 高さを変えても開いている後ろのボタンは丸くする(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = open(cx, || {
+            SplitButton::new("split", "More")
+                .h(px(56.0))
+                .menu(
+                    Menu::new("menu", true)
+                        .group(MenuGroup::new("group").item(MenuItem::new("edit", "Edit"))),
+                )
+                .child(div().w(px(60.0)).h(px(10.0)))
+                .into_any_element()
+        });
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        let trailing = cx.update(|window, _| {
+            let scale = window.scale_factor();
+            window
+                .painted_quads()
+                .into_iter()
+                .filter(|quad| quad.bounds.size.height.0 / scale == 56.0)
+                .max_by(|a, b| a.bounds.origin.x.0.total_cmp(&b.bounds.origin.x.0))
+                .map(|quad| {
+                    (
+                        quad.corner_radii.top_left.0 / scale,
+                        quad.corner_radii.top_right.0 / scale,
+                    )
+                })
+        });
+        assert_eq!(trailing, Some((24.0, 24.0)), "短辺の半分の半径にすること");
     }
 }
