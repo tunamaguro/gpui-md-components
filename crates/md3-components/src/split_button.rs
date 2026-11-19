@@ -740,9 +740,11 @@ mod tests {
     fn 高さを変えても開いている後ろのボタンは丸くする(
         cx: &mut TestAppContext,
     ) {
-        let cx = open(cx, || {
+        let height = Rc::new(Cell::new(40.0));
+        let state = height.clone();
+        let cx = open(cx, move || {
             SplitButton::new("split", "More")
-                .h(px(56.0))
+                .h(px(state.get()))
                 .menu(
                     Menu::new("menu", true)
                         .group(MenuGroup::new("group").item(MenuItem::new("edit", "Edit"))),
@@ -750,7 +752,14 @@ mod tests {
                 .child(div().w(px(60.0)).h(px(10.0)))
                 .into_any_element()
         });
+        // 開いたときの最初の描画で測った高さによるフレームの求めを済ませる
         cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        height.set(56.0);
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        let frames = cx.update(|window, cx| window.simulate_next_frame(cx));
+        assert!(frames > 0, "高さが変わったら次のフレームを求めること");
         cx.run_until_parked();
         let trailing = cx.update(|window, _| {
             let scale = window.scale_factor();
