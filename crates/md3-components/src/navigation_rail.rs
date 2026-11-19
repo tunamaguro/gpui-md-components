@@ -31,6 +31,8 @@ use md3_theme::md3_tokens::component::{
 use md3_theme::md3_tokens::motion::MotionSchemeKey;
 use md3_theme::md3_tokens::{focus_ring, state, supplement};
 use md3_theme::{SharedTheme, ThemeExt, dp};
+use std::cell::Cell;
+use std::rc::Rc;
 
 use crate::shape::Shaped;
 use crate::util;
@@ -181,6 +183,18 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
         // 同じ値の項目が複数あっても、支援技術に公開する状態と同じく最初の項目だけを選ばれた見た目にする
         let mut selected = self.selected.as_ref();
         let mut focus_handles = Vec::with_capacity(self.items.len());
+        // 展開したときに内容で最小の幅より広がるかを決めるため、展開した項目のインジケーターとヘッダーのうち
+        // 最も広い幅を、この描画の prepaint で測る
+        let widest = Rc::new(Cell::new(px(0.0)));
+        let measure_width = |widest: &Rc<Cell<Pixels>>| {
+            let widest = widest.clone();
+            canvas(
+                move |bounds, _, _| widest.set(widest.get().max(bounds.size.width)),
+                |_, _, _, _| {},
+            )
+            .absolute()
+            .size_full()
+        };
         let items: Vec<_> = self
             .items
             .into_iter()
@@ -337,7 +351,8 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                     .children(state_layer)
                     .child(icon)
                     .children(inline_label)
-                    .children(ring);
+                    .children(ring)
+                    .when(!top, |this| this.child(measure_width(&widest)));
 
                 let headless = HeadlessTab::new(item.id, item.value)
                     .track_focus(&focus_handle)
@@ -377,14 +392,23 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
         } else {
             collapsed::TOP_SPACE
         });
+        // フォーカスリングはインジケーターの外に張り出すため、スクロール領域の上下左右にその分の余白を取る。
+        // 上の余白は負のマージンで打ち消し、上から詰める項目の位置を変えない。下の余白は打ち消さず、
+        // 下端と中央に寄せた項目はその分だけ上に寄る。最後の項目までスクロールしてもリングが切れない
+        let ring_outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
         // ヘッダーは並べ方にかかわらず上端に置き、レールの幅に引き伸ばさず `header` 自身の幅で描く。
         // ヘッダーは項目の並び (tablist) の外に置き、支援技術には並びの前の兄弟として公開する
         let header = self.header.map(|header| {
             div()
+                .relative()
                 .flex()
                 .flex_none()
                 .when(has_items, |this| {
                     this.mb(dp(baseline::HEADER_SPACE_MINIMUM))
+                })
+                // 展開した配置では、項目の並びと同じくレールの余白から引いたリングの張り出し分を空ける
+                .when(self.expanded, |this| {
+                    this.px(ring_outset).child(measure_width(&widest))
                 })
                 .child(header)
         });
@@ -409,10 +433,6 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
         let focused = focus_handles
             .iter()
             .position(|handle| handle.is_focused(window));
-        // フォーカスリングはインジケーターの外に張り出すため、スクロール領域の上下左右にその分の余白を取る。
-        // 上の余白は負のマージンで打ち消し、上から詰める項目の位置を変えない。下の余白は打ち消さず、
-        // 下端と中央に寄せた項目はその分だけ上に寄る。最後の項目までスクロールしてもリングが切れない
-        let ring_outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
         // Compose の中央の並べ方は項目をヘッダーを除かずにレールの高さの中央に置くが、
         // この実装はヘッダーの下に残る高さの中央に置く
         let list = TabList::new(self.id.clone(), self.selected)
@@ -437,6 +457,7 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
 
         // 折りたたむ間の幅は前の描画の幅を上限にするため、描いた幅を記録する。
         // あわせて、展開したときに内容で最小の幅より広がったかを記録する
+        let padding = dp(supplement::navigation_rail::EXPANDED_HORIZONTAL_PADDING);
         let collapsed_width = dp(collapsed::CONTAINER_WIDTH);
         let min_width = dp(expanded::CONTAINER_WIDTH_MINIMUM);
         let max_width = dp(expanded::CONTAINER_WIDTH_MAXIMUM);
@@ -459,7 +480,8 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                 if *painted_width.read(cx) != Some(bounds.size.width) {
                     painted_width.update(cx, |width, _| *width = Some(bounds.size.width));
                 }
-                if expanded && !*widened.read(cx) && bounds.size.width > min_width {
+                // Compose と同じく、一度広がった記録は残す (`actualMaxExpandedWidth`)
+                if expanded && !*widened.read(cx) && widest.get() + padding * 2.0 > min_width {
                     widened.update(cx, |widened, _| *widened = true);
                 }
                 let viewport = scroll.bounds();
@@ -516,7 +538,6 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
         // (`widthFullRange.coerceIn(actualMinWidth, currentWidth)`)。広がっていなければ最小の幅の動きにする。
         // そのため、どの時点で折りたたみ始めても、描いていた幅から続けて縮む。展開すると内容の左右に 20dp を空ける。
         // 呼び出し側のスタイルは、幅と余白の既定の後に重ねる
-        let padding = dp(supplement::navigation_rail::EXPANDED_HORIZONTAL_PADDING);
         let style = self.style;
         rail.with_spring(
             (self.id, "width"),
@@ -984,5 +1005,34 @@ mod tests {
         cx.simulate_keystrokes("tab");
         cx.run_until_parked();
         assert!(ring_fits(cx), "レールの外枠でリングが切れないこと");
+    }
+
+    #[gpui::test]
+    fn 展開したレールはヘッダーと項目を左端から_20dp_に置く(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = open(cx, || {
+            NavigationRail::new("rail", Some(0))
+                .expanded(true)
+                .header(div().size(px(56.0)).bg(gpui::red()))
+                .item(NavigationRailItem::new("home", 0, HOME, "Home"))
+                .into_any_element()
+        });
+        cx.update(|_, cx| cx.set_reduce_motion(true));
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        let header_x: Vec<f32> = cx.update(|window, _| {
+            let scale = window.scale_factor();
+            let red: gpui::Background = gpui::red().into();
+            window
+                .painted_quads()
+                .into_iter()
+                .filter(|quad| quad.background == red)
+                .map(|quad| quad.bounds.origin.x.0 / scale)
+                .collect()
+        });
+        assert_eq!(header_x, vec![20.0], "ヘッダーは左端から 20dp");
+        let indicator = quads_of(cx, color::ITEM_ACTIVE_INDICATOR);
+        assert_eq!(indicator[0].0, 20.0, "インジケーターは左端から 20dp");
     }
 }
