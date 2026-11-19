@@ -50,6 +50,7 @@ pub enum LoadingIndicatorVariant {
 /// フォーカスも操作も持たない。アクセシブルな名前は [`LoadingIndicator::aria_label`] で与えること
 ///
 /// 既定の大きさは 48×48dp で、形は大きさの短い方の辺に合わせて描く。[`Styled`] で指定したスタイルは既定の大きさより優先する
+/// [`LoadingIndicatorVariant::Contained`] では、指定した背景は既定の容器の色の代わりに円形の容器を塗る
 ///
 /// 進み具合が分からないときの動きは、モーション低減の設定 ([`App::reduce_motion`]) では止まり、最初の形の 1 枚の絵になる
 #[derive(IntoElement)]
@@ -97,7 +98,7 @@ impl LoadingIndicator {
 }
 
 impl RenderOnce for LoadingIndicator {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
         let reduce_motion = cx.reduce_motion();
         let (container, indicator) = match self.variant {
@@ -123,14 +124,15 @@ impl RenderOnce for LoadingIndicator {
             .h(size.height)
             .overflow_hidden()
             .when_some(container, |this, role| {
+                // 指定された背景は容器の色にし、容器の外を塗らない
+                let background = self
+                    .style
+                    .background
+                    .take()
+                    .unwrap_or_else(|| theme.color(role).into());
                 // 容器の形は描画時の大きさから決め、大きさを変えても円形を保つ
                 this.child(Shaped::new(
-                    div()
-                        .absolute()
-                        .top_0()
-                        .left_0()
-                        .size_full()
-                        .bg(theme.color(role)),
+                    div().absolute().top_0().left_0().size_full().bg(background),
                     theme.clone(),
                     loading_indicator::CONTAINER_SHAPE,
                 ))
@@ -554,8 +556,8 @@ mod tests {
         }
     }
 
-    /// 種類と、指定する大きさ (論理ピクセル)
-    struct ElementView(LoadingIndicatorVariant, Option<f32>);
+    /// 種類と、指定する大きさ (論理ピクセル)・背景
+    struct ElementView(LoadingIndicatorVariant, Option<f32>, Option<Hsla>);
 
     impl gpui::Render for ElementView {
         fn render(
@@ -567,7 +569,8 @@ mod tests {
                 LoadingIndicator::new("indicator", Progress::Determinate(0.5))
                     .variant(self.0)
                     .aria_label("Loading")
-                    .when_some(self.1, |this, side| this.size(px(side))),
+                    .when_some(self.1, |this, side| this.size(px(side)))
+                    .when_some(self.2, |this, color| this.bg(color)),
             )
         }
     }
@@ -580,10 +583,11 @@ mod tests {
         cx: &mut TestAppContext,
         variant: LoadingIndicatorVariant,
         side: Option<f32>,
+        background: Option<Hsla>,
     ) -> (Vec<Quad>, Hsla) {
         let (_, cx) = cx.add_window_view(|window, cx| {
             cx.init_md3_theme(window);
-            ElementView(variant, side)
+            ElementView(variant, side, background)
         });
         cx.run_until_parked();
         cx.update(|window, cx| {
@@ -611,7 +615,7 @@ mod tests {
 
     #[gpui::test]
     fn 容器のある種類は_48dp_の円形の容器を塗る(cx: &mut TestAppContext) {
-        let (quads, container) = painted_quads(cx, LoadingIndicatorVariant::Contained, None);
+        let (quads, container) = painted_quads(cx, LoadingIndicatorVariant::Contained, None, None);
         assert_eq!(
             quads,
             vec![((8.0, 8.0, 48.0, 48.0), container.into(), 24.0)],
@@ -621,7 +625,8 @@ mod tests {
 
     #[gpui::test]
     fn 大きさを変えても容器は円形を保つ(cx: &mut TestAppContext) {
-        let (quads, container) = painted_quads(cx, LoadingIndicatorVariant::Contained, Some(80.0));
+        let (quads, container) =
+            painted_quads(cx, LoadingIndicatorVariant::Contained, Some(80.0), None);
         assert_eq!(
             quads,
             vec![((8.0, 8.0, 80.0, 80.0), container.into(), 40.0)],
@@ -630,8 +635,19 @@ mod tests {
     }
 
     #[gpui::test]
+    fn 容器のある種類に指定した背景は容器の色になる(cx: &mut TestAppContext) {
+        let red = gpui::red();
+        let (quads, _) = painted_quads(cx, LoadingIndicatorVariant::Contained, None, Some(red));
+        assert_eq!(
+            quads,
+            vec![((8.0, 8.0, 48.0, 48.0), red.into(), 24.0)],
+            "容器の外は塗らず、容器を指定した色で塗る"
+        );
+    }
+
+    #[gpui::test]
     fn 容器のない種類は矩形を塗らない(cx: &mut TestAppContext) {
-        let (quads, _) = painted_quads(cx, LoadingIndicatorVariant::Uncontained, None);
+        let (quads, _) = painted_quads(cx, LoadingIndicatorVariant::Uncontained, None, None);
         assert!(
             quads.is_empty(),
             "形はパスで描き、矩形は塗らない: {quads:?}"
