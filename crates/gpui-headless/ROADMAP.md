@@ -651,9 +651,10 @@ MD3 (md3-components) で決めたこと:
   - 実機 (AT-SPI) で MD3 の Badge を確かめた。名前を与えたバッジは渡した文字列の label になる
 - [x] 押している間の追跡 (対応する APG のパターンは無い)
   - `press::PressArea` は、領域の中でポインターの主ボタンを押してから、ウィンドウのどこかで離すまでを押している状態として知らせる。役割は公開しない
-  - 子孫がイベントの伝播を止めても追えるよう、押す操作は要素の Capture で、離す操作とウィンドウの外で離したことはウィンドウ全体の Capture で受ける。
+  - 子孫がイベントの伝播を止めても追えるよう、押す操作は要素の Capture で、離す操作とウィンドウの外で離したことはウィンドウ全体の Capture で、子孫より先に受ける。
     押している間に無効にすると押していない状態に戻す
-  - キーボードと支援技術の操作は押している状態にしない。MD3 の Button group で、押している項目を広げるために使う
+  - キーボードの操作は押している状態にしない。支援技術のクリックのうち、gpui がマウスの押下と離しとして配送するものは追う。
+    MD3 の Button group で、押している項目を広げるために使う
 - [ ] Link ([APG](../../.agents/skills/a11y/references/aria-practices/content/patterns/link/link-pattern.html))
 - [ ] Disclosure ([APG](../../.agents/skills/a11y/references/aria-practices/content/patterns/disclosure/disclosure-pattern.html))
 

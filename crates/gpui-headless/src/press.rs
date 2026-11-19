@@ -15,7 +15,8 @@ type PressHandler = Rc<dyn Fn(bool, &mut Window, &mut App)>;
 /// ポインターの主ボタンで押している間を追う領域
 ///
 /// 領域の中で主ボタンを押すと押している状態になり、ウィンドウのどこで離しても押していない状態に戻る。
-/// 子孫がイベントの伝播を止めても状態を追う。キーボードと支援技術の操作は押している状態にしない。
+/// 子孫がイベントの伝播を止めても状態を追う。キーボードの操作は押している状態にしない。
+/// 支援技術のクリックのうち、gpui がマウスの押下と離しとして配送するものは、ほかのポインターの操作と同じく追う。
 /// 支援技術には役割を公開しない
 ///
 /// 見た目は [`Styled`] で呼び出し側が付ける
@@ -166,17 +167,8 @@ impl<E: Element> Element for ReleaseLayer<E> {
         window: &mut Window,
         cx: &mut App,
     ) {
-        self.inner.paint(
-            id,
-            inspector_id,
-            bounds,
-            request_layout,
-            prepaint,
-            window,
-            cx,
-        );
         // gpui の要素のマウスのリスナーは、ポインタが要素の上にある間しか受けないため、ウィンドウ全体で受ける。
-        // 後から描かれた要素が Bubble で伝播を止めても受けるよう Capture で受ける
+        // 子孫が伝播を止めても受けるよう Capture で受け、子孫の Capture のリスナーより先に受けるよう子孫より先に登録する
         let release = {
             let pressed = self.pressed.clone();
             let handler = self.handler.clone();
@@ -207,6 +199,15 @@ impl<E: Element> Element for ReleaseLayer<E> {
                 release(window, cx);
             }
         });
+        self.inner.paint(
+            id,
+            inspector_id,
+            bounds,
+            request_layout,
+            prepaint,
+            window,
+            cx,
+        );
     }
 }
 
@@ -241,7 +242,8 @@ mod tests {
                             .id("child")
                             .size_full()
                             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                            .on_mouse_up(MouseButton::Left, |_, _, cx| cx.stop_propagation()),
+                            .on_mouse_up(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                            .capture_any_mouse_up(|_, _, cx| cx.stop_propagation()),
                     ),
             )
         }

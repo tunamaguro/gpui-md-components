@@ -27,15 +27,34 @@ impl Render for ButtonGroupPage {
                 .child(gpui::text!(text))
         };
         let filled = ButtonGroup::new("filled-group")
-            .child(button("filled-back", "Back"))
-            .child(button("filled-play", "Play").icon(md3_icons::PLAY_ARROW))
-            .child(button("filled-forward", "Forward"));
+            .item(ButtonGroupItem::new(
+                "filled-back",
+                button("filled-back", "Back"),
+            ))
+            .item(ButtonGroupItem::new(
+                "filled-play",
+                button("filled-play", "Play").icon(md3_icons::PLAY_ARROW),
+            ))
+            .item(ButtonGroupItem::new(
+                "filled-forward",
+                button("filled-forward", "Forward"),
+            ));
         let tonal = ButtonGroup::new("tonal-group")
-            .child(button("tonal-day", "Day").variant(ButtonVariant::FilledTonal))
-            .child(button("tonal-week", "Week").variant(ButtonVariant::FilledTonal))
-            .child(button("tonal-month", "Month").variant(ButtonVariant::FilledTonal))
+            .item(ButtonGroupItem::new(
+                "tonal-day",
+                button("tonal-day", "Day").variant(ButtonVariant::FilledTonal),
+            ))
+            .item(ButtonGroupItem::new(
+                "tonal-week",
+                button("tonal-week", "Week").variant(ButtonVariant::FilledTonal),
+            ))
+            .item(ButtonGroupItem::new(
+                "tonal-month",
+                button("tonal-month", "Month").variant(ButtonVariant::FilledTonal),
+            ))
             .item(
                 ButtonGroupItem::new(
+                    "tonal-year",
                     button("tonal-year", "Year")
                         .variant(ButtonVariant::FilledTonal)
                         .disabled(true),
@@ -43,21 +62,24 @@ impl Render for ButtonGroupPage {
                 .disabled(true),
             );
         let outlined = ButtonGroup::new("outlined-group")
-            .child(
+            .item(ButtonGroupItem::new(
+                "outlined-cut",
                 button("outlined-cut", "Cut")
                     .variant(ButtonVariant::Outlined)
                     .icon(md3_icons::CONTENT_CUT),
-            )
-            .child(
+            ))
+            .item(ButtonGroupItem::new(
+                "outlined-copy",
                 button("outlined-copy", "Copy")
                     .variant(ButtonVariant::Outlined)
                     .icon(md3_icons::CONTENT_COPY),
-            )
-            .child(
+            ))
+            .item(ButtonGroupItem::new(
+                "outlined-paste",
                 button("outlined-paste", "Paste")
                     .variant(ButtonVariant::Outlined)
                     .icon(md3_icons::CONTENT_PASTE),
-            );
+            ));
 
         div()
             .id("button-group-page")
