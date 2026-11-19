@@ -20,7 +20,7 @@ pub(crate) struct Shaped {
     bottom_key: Option<ShapeKey>,
     /// `key` の代わりに使う角ごとの形
     corner_shape: Option<CornerShape>,
-    /// 形を変える動きの目標の形と進み。[`Shaped::morph_to`] を参照
+    /// 形を変える動きの目標の形と進み。進みが 0 なら元の形、1 なら目標の形
     morph: Option<(CornerShape, f32)>,
     outset: Pixels,
     /// 形の角丸を付ける角。`false` の角は直角にする

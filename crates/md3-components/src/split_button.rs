@@ -424,7 +424,8 @@ impl RenderOnce for SplitButton {
                                 move |bounds, window, _| {
                                     let height = Some(f32::from(bounds.size.height));
                                     if trailing_height.replace(height) != height {
-                                        window.refresh();
+                                        // 描画中の refresh は効かないため、次のフレームを求める
+                                        window.request_animation_frame();
                                     }
                                 },
                                 |_, _, _, _| {},
@@ -749,7 +750,7 @@ mod tests {
                 .child(div().w(px(60.0)).h(px(10.0)))
                 .into_any_element()
         });
-        cx.update(|window, _| window.refresh());
+        cx.update(|window, cx| window.simulate_next_frame(cx));
         cx.run_until_parked();
         let trailing = cx.update(|window, _| {
             let scale = window.scale_factor();
