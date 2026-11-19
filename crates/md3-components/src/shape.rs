@@ -48,6 +48,7 @@ impl Shaped {
         feature = "card",
         feature = "chip",
         feature = "fab",
+        feature = "list",
         feature = "slider"
     ))]
     pub(crate) fn outset(mut self, outset: Pixels) -> Self {

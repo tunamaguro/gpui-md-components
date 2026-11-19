@@ -29,6 +29,7 @@ default = [
   "dialog",
   "divider",
   "fab",
+  "list",
   "menu",
   "progress-indicator",
   "radio-button",
@@ -50,6 +51,7 @@ chip = []
 dialog = []
 divider = []
 fab = []
+list = []
 # メニューを開くボタンと、組の中の区切り線を使う
 menu = ["button", "divider"]
 progress-indicator = []

@@ -26,6 +26,8 @@ mod interaction;
 // 入力欄を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(any(feature = "select", feature = "text-field"))]
 mod field;
+#[cfg(feature = "list")]
+mod list;
 #[cfg(feature = "menu")]
 mod menu;
 #[cfg(feature = "progress-indicator")]
@@ -45,6 +47,7 @@ mod select;
     feature = "dialog",
     feature = "fab",
     feature = "icon-button",
+    feature = "list",
     feature = "menu",
     feature = "segmented-button",
     feature = "select",
@@ -70,6 +73,7 @@ mod tooltip;
     feature = "checkbox",
     feature = "chip",
     feature = "fab",
+    feature = "list",
     feature = "menu",
     feature = "radio-button",
     feature = "segmented-button",
@@ -105,6 +109,8 @@ pub use icon_button::{
 };
 #[cfg(feature = "checkbox")]
 pub use interaction::InteractionSource;
+#[cfg(feature = "list")]
+pub use list::{List, ListItem, ListItemKind};
 #[cfg(feature = "menu")]
 pub use menu::{Menu, MenuGroup, MenuItem, MenuItemKind, MenuVariant};
 #[cfg(feature = "progress-indicator")]
