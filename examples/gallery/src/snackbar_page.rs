@@ -84,7 +84,9 @@ impl Render for SnackbarPage {
             .child(self.show_button(
                 "show-action",
                 "With action",
-                SnackbarMessage::new("Message archived").action("Undo"),
+                SnackbarMessage::new("Message archived")
+                    .action("Undo")
+                    .dismiss_action("Dismiss"),
                 cx,
             ))
             .child(self.show_button(

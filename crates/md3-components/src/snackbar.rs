@@ -9,13 +9,12 @@
 
 //! MD3 のスナックバー
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use gpui::{
     AnimationExt, App, AppContext, Div, ElementId, Entity, InteractiveElement, IntoElement,
     ParentElement, Refineable, RenderOnce, SharedString, SpringAnimation, StyleRefinement, Styled,
-    Window, div, prelude::FluentBuilder,
+    Window, canvas, div, prelude::FluentBuilder,
 };
 use gpui_headless::snackbar::{SnackbarQueue, SnackbarRegion, SnackbarResult as HeadlessResult};
 use md3_theme::md3_tokens::component::snackbar;
@@ -133,8 +132,10 @@ impl SnackbarHostState {
     /// `message` を列の末尾に加える
     ///
     /// 表示中のスナックバーが無ければすぐに表示し、あれば表示を終えてから順に表示する。
-    /// 表示する長さは表示し始めたときから数える。
-    /// 表示を終えたときに、終えた理由を `on_result` に渡して 1 回だけ呼ぶ
+    /// 表示する長さは、[`SnackbarHost`] がスナックバーを画面に描いている間だけ数える。
+    /// 表示を終えたときに、終えた理由を `on_result` に渡して 1 回だけ呼ぶ。
+    /// `on_result` は表示を終えるまで列に持たれるため、同じ [`SnackbarHostState`] を持たせると互いを持ち合って解放されない。
+    /// `on_result` から次の通知を出す場合は、この状態を持つビューの弱い参照を通して使うこと
     pub fn show(
         &self,
         message: SnackbarMessage,
@@ -223,30 +224,17 @@ impl SnackbarHost {
 }
 
 impl RenderOnce for SnackbarHost {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
         let queue = self.state.queue.clone();
         let current = {
             let queue = queue.read(cx);
             queue.current().cloned().zip(queue.current_id())
         };
-        if let Some((_, serial)) = current {
-            // 表示する長さは、この要素がスナックバーを描いている間だけ数える。
-            // 要素の状態は続けて描いたフレームの間だけ残るため、描かなくなると状態ごとタスクを捨てて止まる
-            let queue = queue.clone();
-            window.use_keyed_state(
-                ElementId::NamedChild(Arc::new(self.id.clone()), format!("timer-{serial}").into()),
-                cx,
-                move |_, cx| queue.update(cx, |queue, cx| queue.timer(serial, cx)),
-            );
-        }
-
         // 読み上げの領域は、スナックバーが無い間も同じ場所に描き、表示した文だけを置く。
         // ボタンの id が同じ親に置いた別のホストと重ならないよう、ホストの id の下に置く
         let outer = self.outer.id(self.id);
-        let region = SnackbarRegion::new("status")
-            .py(dp(supplement::VERTICAL_PADDING))
-            .min_w_0();
+        let region = SnackbarRegion::new("status").min_w_0();
         let Some((message, serial)) = current else {
             return outer.child(div().child(region));
         };
@@ -296,7 +284,9 @@ impl RenderOnce for SnackbarHost {
             .children(action)
             .children(dismiss);
         let region = region.child(fade_in(
-            div().child(gpui::text!(id = "message", message.message.clone())),
+            div()
+                .py(dp(supplement::VERTICAL_PADDING))
+                .child(gpui::text!(id = "message", message.message.clone())),
             "snackbar-message",
         ));
         let new_line = message.action_on_new_line && message.action_label.is_some();
@@ -343,7 +333,27 @@ impl RenderOnce for SnackbarHost {
                         snackbar::CONTAINER_SHAPE,
                     )),
                 "snackbar-container",
-            ));
+            ))
+            .child({
+                // 表示する長さは、スナックバーを描いている間だけ数える。`display: none` の親の下では
+                // prepaint が呼ばれないため、prepaint で計時の状態を取る。要素の状態は続けて描いたフレームの間だけ残り、
+                // 描かなくなると状態ごとタスクを捨てて止まる。列を替えても番号が重なるため、列の id も鍵に含める
+                let queue = queue.clone();
+                canvas(
+                    move |_, window, cx| {
+                        window.use_keyed_state(
+                            ElementId::NamedInteger(
+                                format!("timer-{}", queue.entity_id()).into(),
+                                serial,
+                            ),
+                            cx,
+                            move |_, cx| queue.update(cx, |queue, cx| queue.timer(serial, cx)),
+                        );
+                    },
+                    |_, _, _, _| {},
+                )
+                .absolute()
+            });
         body.text_style()
             .refine(&theme.text_style(snackbar::SUPPORTING_TEXT_FONT));
         let body = if new_line {
@@ -406,7 +416,10 @@ mod tests {
         #[default]
         Start,
         Centered,
+        /// ホストを置かない
         Hidden,
+        /// ホストを `display: none` の親の下に置く
+        Collapsed,
     }
 
     /// `behind` に後ろの要素でマウスのボタンを押した回数を数え、`placement` に従ってホストを置く
@@ -435,8 +448,15 @@ mod tests {
                     this.w(px(100.0 + 800.0)).flex().justify_center()
                 })
                 .when(placement != Placement::Hidden, |this| {
-                    this.child(SnackbarHost::new("host", &self.state))
+                    this.child(
+                        div()
+                            .w_full()
+                            .when(placement == Placement::Collapsed, |this| this.hidden())
+                            .child(SnackbarHost::new("host", &self.state)),
+                    )
                 })
+                // ホストの下端の位置を測る
+                .child(div().h(px(1.0)).bg(gpui::red()))
         }
     }
 
@@ -651,5 +671,96 @@ mod tests {
         show(&state, SnackbarMessage::new("Saved"), &results, cx);
         // 幅 800 の中央に、周りの余白を含めて幅 648 のスナックバーを置く
         assert_eq!(containers(cx), vec![(76.0 + 12.0, 12.0, 624.0, 48.0)]);
+    }
+
+    #[gpui::test]
+    fn 表示しない親の下に置いたホストは数えない(cx: &mut TestAppContext) {
+        let placement = Rc::new(Cell::new(Placement::Collapsed));
+        let (state, cx) = open_with(cx, Rc::default(), placement.clone());
+        let results = Results::default();
+        show(&state, SnackbarMessage::new("Saved"), &results, cx);
+        cx.executor().advance_clock(Duration::from_secs(60));
+        cx.run_until_parked();
+        assert_eq!(*results.borrow(), vec![]);
+
+        placement.set(Placement::Start);
+        cx.update(|window, _| window.refresh());
+        // 次の更新で汚れたウィンドウを描き直す
+        cx.update(|_, _| {});
+        cx.run_until_parked();
+        cx.executor().advance_clock(Duration::from_millis(3999));
+        cx.run_until_parked();
+        assert_eq!(*results.borrow(), vec![]);
+        cx.executor().advance_clock(Duration::from_millis(1));
+        cx.run_until_parked();
+        assert_eq!(*results.borrow(), vec![SnackbarResult::Dismissed]);
+    }
+
+    /// `use_first` が `true` なら `first` を、`false` なら `second` を同じ id のホストで描く
+    struct SwitchView {
+        first: SnackbarHostState,
+        second: SnackbarHostState,
+        use_first: Rc<Cell<bool>>,
+    }
+
+    impl Render for SwitchView {
+        fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+            let state = if self.use_first.get() {
+                &self.first
+            } else {
+                &self.second
+            };
+            div().w(px(648.0)).child(SnackbarHost::new("host", state))
+        }
+    }
+
+    #[gpui::test]
+    fn 同じホストで列を替えると新しい列の通知を数える(
+        cx: &mut TestAppContext,
+    ) {
+        cx.update(crate::init);
+        let first = cx.update(SnackbarHostState::new);
+        let second = cx.update(SnackbarHostState::new);
+        let use_first = Rc::new(Cell::new(true));
+        let (first_view, second_view, flag) = (first.clone(), second.clone(), use_first.clone());
+        let (_, cx) = cx.add_window_view(move |window, cx| {
+            cx.init_md3_theme(window);
+            SwitchView {
+                first: first_view,
+                second: second_view,
+                use_first: flag,
+            }
+        });
+        let results = Results::default();
+        show(
+            &first,
+            SnackbarMessage::new("Stay").duration(SnackbarDuration::Indefinite),
+            &results,
+            cx,
+        );
+        show(&second, SnackbarMessage::new("Saved"), &results, cx);
+        use_first.set(false);
+        cx.update(|window, _| window.refresh());
+        // 次の更新で汚れたウィンドウを描き直す
+        cx.update(|_, _| {});
+        cx.run_until_parked();
+        cx.executor().advance_clock(Duration::from_secs(4));
+        cx.run_until_parked();
+        assert_eq!(*results.borrow(), vec![SnackbarResult::Dismissed]);
+        assert!(cx.update(|_, cx| second.current(cx)).is_none());
+    }
+
+    #[gpui::test]
+    fn スナックバーが無い間はホストが高さを取らない(cx: &mut TestAppContext) {
+        let (_state, cx) = open(cx);
+        let after = cx.update(|window, _| {
+            let red: gpui::Background = gpui::red().into();
+            window
+                .painted_quads()
+                .into_iter()
+                .find(|quad| quad.background == red)
+                .map(|quad| quad.bounds.origin.y.0 / window.scale_factor())
+        });
+        assert_eq!(after, Some(100.0));
     }
 }
