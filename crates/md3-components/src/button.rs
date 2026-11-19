@@ -3,15 +3,20 @@
 // Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/Button.kt
 //         (`Button`、`ButtonDefaults`、`ButtonElevation`) @ 2a941dd11aabd9bb7d2016ed159764b220117c20
 // Copyright 2021 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
+// トグルボタンの色・形・枠線・モーションは同じく次から移植している
+// Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/ToggleButton.kt
+//         (`ToggleButton`、`ToggleButtonDefaults`、`ElevatedToggleButtonDefaults`、
+//         `FilledTonalToggleButtonDefaults`、`OutlinedToggleButtonDefaults`) @ 2a941dd11aabd9bb7d2016ed159764b220117c20
+// Copyright 2024 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 // トークンの値と版は md3-tokens の各ファイルにある
 
 //! MD3 のボタン
 
 use gpui::{
     AnimationExt, AnyElement, App, ClickEvent, Div, ElementId, FocusHandle, Hsla,
-    InteractiveElement, IntoElement, ParentElement, Refineable, RenderOnce, SharedString,
+    InteractiveElement, IntoElement, ParentElement, Pixels, Refineable, RenderOnce, SharedString,
     SpringAnimation, StatefulInteractiveElement, StyleRefinement, Styled, Window, div,
-    prelude::FluentBuilder, svg,
+    prelude::FluentBuilder, px, svg,
 };
 use gpui_headless::button::Button as HeadlessButton;
 use gpui_headless::toggle::ToggleButton as HeadlessToggleButton;
@@ -471,9 +476,12 @@ impl RenderOnce for Button {
         };
         let size = self.size.tokens();
         let look = Look {
-            outline: tokens
-                .outline
-                .map(|outline| outline_color(&theme, outline, disabled)),
+            outline: tokens.outline.map(|outline| {
+                (
+                    outline_color(&theme, outline, disabled),
+                    dp(size.outline_width),
+                )
+            }),
             elevations: tokens.elevations,
             disabled,
             shape: match self.shape {
@@ -530,8 +538,8 @@ struct Look {
     /// `None` は透明
     container: Option<Hsla>,
     content: Hsla,
-    /// `None` は枠線なし
-    outline: Option<Hsla>,
+    /// 枠線の色と太さ。`None` は枠線なし
+    outline: Option<(Hsla, Pixels)>,
     /// `None` は影なし。無効なときは影を描かない
     elevations: Option<Elevations>,
     /// 無効なときは状態レイヤーと影を描かない
@@ -586,8 +594,8 @@ impl Look {
             .right_0()
             .bottom_0()
             .when_some(container, |this, container| this.bg(container))
-            .when_some(outline, |this, color| {
-                this.border(dp(size.outline_width)).border_color(color)
+            .when_some(outline, |this, (color, width)| {
+                this.border(width).border_color(color)
             })
             .when(!disabled, |this| {
                 // Compose の OutlinedButton と TextButton は elevation の既定が null で、影を持たない
@@ -979,11 +987,10 @@ impl RenderOnce for ToggleButton {
             ButtonShape::Square => (size.square, size.round),
         };
         let look = Look {
-            // 枠線は選ばれていないときだけ描く (`OutlinedToggleButtonDefaults.border`)
+            // 枠線の太さは下の形のバネで決める
             outline: button_tokens
                 .outline
-                .filter(|_| !checked)
-                .map(|outline| outline_color(&theme, outline, disabled)),
+                .map(|outline| (outline_color(&theme, outline, disabled), px(0.0))),
             elevations: button_tokens.elevations,
             disabled,
             size,
@@ -1006,7 +1013,16 @@ impl RenderOnce for ToggleButton {
         self.outer.child(button.with_spring(
             self.id,
             SpringAnimation::new(spring).to(checked),
-            move |button, phase| look.apply(button, Some((checked_shape, phase.0))),
+            move |button, phase| {
+                // 枠線は選ばれていないときだけ描き (`OutlinedToggleButtonDefaults.border`)、
+                // 太さを形と同じバネで変える。太さはどのサイズでも Small の値 (`outlinedButtonBorder`)
+                let mut look = look;
+                look.outline = look.outline.map(|(color, _)| {
+                    let width = dp(button_small::OUTLINED_OUTLINE_WIDTH) * (1.0 - phase.0);
+                    (color, width.max(px(0.0)))
+                });
+                look.apply(button, Some((checked_shape, phase.0)))
+            },
         ))
     }
 }
@@ -1198,7 +1214,18 @@ mod tests {
         let (state, cx) = open_toggle(cx, true, |checked| {
             ToggleButton::new("toggle", checked).disabled(true)
         });
-        assert_eq!(container(cx, ColorRole::Primary), None);
+        let disabled = cx.update(|_, cx| {
+            gpui::Background::from(cx.md3_theme().color(ColorRole::OnSurface).opacity(0.1))
+        });
+        let painted = |cx: &mut VisualTestContext| {
+            cx.update(|window, _| {
+                window
+                    .painted_quads()
+                    .iter()
+                    .any(|quad| quad.background == disabled)
+            })
+        };
+        assert!(painted(cx), "選ばれていても無効の色で塗ること");
         click(cx);
         assert!(state.get(), "無効な間は押しても変えないこと");
     }
