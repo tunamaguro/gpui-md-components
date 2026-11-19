@@ -8,11 +8,13 @@
 //! MD3 のボタン
 
 use gpui::{
-    AnyElement, App, ClickEvent, Div, ElementId, FocusHandle, Hsla, InteractiveElement,
-    IntoElement, ParentElement, Refineable, RenderOnce, SharedString, StatefulInteractiveElement,
-    StyleRefinement, Styled, Window, div, prelude::FluentBuilder, svg,
+    AnimationExt, AnyElement, App, ClickEvent, Div, ElementId, FocusHandle, Hsla,
+    InteractiveElement, IntoElement, ParentElement, Refineable, RenderOnce, SharedString,
+    SpringAnimation, StatefulInteractiveElement, StyleRefinement, Styled, Window, div,
+    prelude::FluentBuilder, svg,
 };
 use gpui_headless::button::Button as HeadlessButton;
+use gpui_headless::toggle::ToggleButton as HeadlessToggleButton;
 
 #[cfg(feature = "menu")]
 use crate::Menu;
@@ -22,9 +24,10 @@ use md3_icons::StyledIcon;
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::{
     button_large, button_medium, button_small, button_x_large, button_x_small, elevated_button,
-    filled_button, filled_tonal_button, outlined_button, text_button,
+    filled_button, filled_tonal_button, outlined_button, text_button, tonal_button,
 };
 use md3_theme::md3_tokens::elevation::Elevation;
+use md3_theme::md3_tokens::motion::MotionSchemeKey;
 use md3_theme::md3_tokens::shape::ShapeKey;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::md3_tokens::{Dp, focus_ring, state, supplement};
@@ -443,7 +446,6 @@ impl RenderOnce for Button {
             .colors
             .disabled_content
             .unwrap_or(tokens.disabled_content);
-        let size = self.size.tokens();
         let disabled = self.disabled;
 
         let focus_handle = self
@@ -467,6 +469,106 @@ impl RenderOnce for Button {
                 theme.color(tokens.content),
             )
         };
+        let size = self.size.tokens();
+        let look = Look {
+            outline: tokens
+                .outline
+                .map(|outline| outline_color(&theme, outline, disabled)),
+            elevations: tokens.elevations,
+            disabled,
+            shape: match self.shape {
+                ButtonShape::Round => size.round,
+                ButtonShape::Square => size.square,
+            },
+            size,
+            theme: theme.clone(),
+            container,
+            content,
+            focus_visible,
+            icon: self.icon,
+            children: self.children,
+        };
+        let mut button = HeadlessButton::new(self.id.clone())
+            .track_focus(&focus_handle)
+            .disabled(disabled)
+            .when_some(self.aria_label.clone(), |this, label| {
+                this.aria_label(label)
+            })
+            .when_some(self.on_click, |this, on_click| this.on_click(on_click));
+        button = look.apply(button, None);
+        #[cfg(feature = "menu")]
+        if let Some(menu) = self.menu {
+            button = menu.attach(
+                button,
+                &self.id,
+                self.aria_label.as_ref(),
+                &theme,
+                window,
+                cx,
+            );
+        }
+
+        self.outer.child(button)
+    }
+}
+
+/// 枠線の色。無効なときは `outline` の不透明度を掛ける
+fn outline_color(theme: &SharedTheme, outline: (ColorRole, f32), disabled: bool) -> Hsla {
+    let color = theme.color(outline.0);
+    if disabled {
+        color.opacity(outline.1)
+    } else {
+        color
+    }
+}
+
+/// [`Button`] と [`ToggleButton`] で共通の見た目
+struct Look {
+    theme: SharedTheme,
+    size: SizeTokens,
+    shape: ShapeKey,
+    /// `None` は透明
+    container: Option<Hsla>,
+    content: Hsla,
+    /// `None` は枠線なし
+    outline: Option<Hsla>,
+    /// `None` は影なし。無効なときは影を描かない
+    elevations: Option<Elevations>,
+    /// 無効なときは状態レイヤーと影を描かない
+    disabled: bool,
+    focus_visible: bool,
+    icon: Option<StyledIcon>,
+    children: Vec<AnyElement>,
+}
+
+impl Look {
+    /// 容器・内容・フォーカスリングを `button` に描く
+    ///
+    /// `morph` を渡すと、容器とリングの形を `shape` から渡した形へその割合だけ近づける
+    fn apply<E>(self, button: E, morph: Option<(ShapeKey, f32)>) -> E
+    where
+        E: ParentElement + Styled + InteractiveElement + FluentBuilder,
+    {
+        let Self {
+            theme,
+            size,
+            shape,
+            container,
+            content,
+            outline,
+            elevations,
+            disabled,
+            focus_visible,
+            icon,
+            children,
+        } = self;
+        let shaped = |inner: Div| {
+            let shaped = Shaped::new(inner, theme.clone(), shape);
+            match morph {
+                Some((target, phase)) => shaped.morph(target, phase),
+                None => shaped,
+            }
+        };
         // 状態レイヤーは内容の色を重ねる (Compose の `ripple()` は LocalContentColor を使う)
         let state_layer = |opacity: f32| -> Hsla {
             let layer = content.opacity(opacity);
@@ -475,32 +577,22 @@ impl RenderOnce for Button {
                 None => layer,
             }
         };
-        let shape = match self.shape {
-            ButtonShape::Round => size.round,
-            ButtonShape::Square => size.square,
-        };
 
         // 角丸は描画時の大きさで決まるため、背景・枠線・影は Shaped で包んだ層に描き、ボタン自身は透明な箱にする
-        let container = div()
+        let layer = div()
             .absolute()
             .top_0()
             .left_0()
             .right_0()
             .bottom_0()
             .when_some(container, |this, container| this.bg(container))
-            .when_some(tokens.outline, |this, (role, disabled_opacity)| {
-                let color = theme.color(role);
-                this.border(dp(size.outline_width))
-                    .border_color(if disabled {
-                        color.opacity(disabled_opacity)
-                    } else {
-                        color
-                    })
+            .when_some(outline, |this, color| {
+                this.border(dp(size.outline_width)).border_color(color)
             })
             .when(!disabled, |this| {
                 // Compose の OutlinedButton と TextButton は elevation の既定が null で、影を持たない
                 let shadow = |pick: fn(&Elevations) -> Elevation| {
-                    tokens.elevations.as_ref().map(|e| theme.shadow(pick(e)))
+                    elevations.as_ref().map(|e| theme.shadow(pick(e)))
                 };
                 let this = if focus_visible {
                     this.bg(state_layer(state::FOCUS_STATE_LAYER_OPACITY))
@@ -525,9 +617,7 @@ impl RenderOnce for Button {
                 .flex_shrink(1.0)
                 .min_w_0()
         };
-        let mut button = HeadlessButton::new(self.id.clone())
-            .track_focus(&focus_handle)
-            .disabled(disabled)
+        let mut button = button
             .group(GROUP)
             .relative()
             .flex_grow_1()
@@ -539,9 +629,9 @@ impl RenderOnce for Button {
             .py(dp(size.vertical_padding))
             .text_color(content)
             .whitespace_nowrap()
-            .child(Shaped::new(container, theme.clone(), shape))
+            .child(shaped(layer))
             .child(horizontal_padding())
-            .when_some(self.icon, |this, icon| {
+            .when_some(icon, |this, icon| {
                 this.child(
                     svg()
                         .data(icon.svg().as_bytes())
@@ -551,7 +641,7 @@ impl RenderOnce for Button {
                         .text_color(content),
                 )
             })
-            .child(div().flex().items_center().children(self.children))
+            .child(div().flex().items_center().children(children))
             .child(horizontal_padding())
             .when(focus_visible, |this| {
                 let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
@@ -563,26 +653,10 @@ impl RenderOnce for Button {
                     .bottom(-outset)
                     .border(dp(focus_ring::WIDTH))
                     .border_color(theme.color(focus_ring::COLOR));
-                this.child(Shaped::new(ring, theme.clone(), shape).outset(outset))
-            })
-            .when_some(self.aria_label.clone(), |this, label| {
-                this.aria_label(label)
-            })
-            .when_some(self.on_click, |this, on_click| this.on_click(on_click));
+                this.child(shaped(ring).outset(outset))
+            });
         button.text_style().refine(&theme.text_style(size.label));
-        #[cfg(feature = "menu")]
-        if let Some(menu) = self.menu {
-            button = menu.attach(
-                button,
-                &self.id,
-                self.aria_label.as_ref(),
-                &theme,
-                window,
-                cx,
-            );
-        }
-
-        self.outer.child(button)
+        button
     }
 }
 
@@ -593,6 +667,357 @@ impl Styled for Button {
 }
 
 impl ParentElement for Button {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.children.extend(elements);
+    }
+}
+
+/// トグルボタンの種類。強調の度合いが高い順に Filled、FilledTonal、Elevated、Outlined
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum ToggleButtonVariant {
+    /// 選ばれると塗りつぶすトグルボタン
+    #[default]
+    Filled,
+    /// 影で浮かせたトグルボタン
+    Elevated,
+    /// 二次的な色のトグルボタン
+    FilledTonal,
+    /// 選ばれていない間は枠線で描くトグルボタン
+    Outlined,
+}
+
+/// トグルボタンのバリアントごとの色
+struct ToggleTokens {
+    /// `None` は透明
+    container: Option<ColorRole>,
+    content: ColorRole,
+    checked_container: ColorRole,
+    checked_content: ColorRole,
+    disabled_container: (ColorRole, f32),
+    disabled_content: (ColorRole, f32),
+}
+
+impl ToggleButtonVariant {
+    /// 枠線と影は同じ種類の [`ButtonVariant`] と同じ
+    fn button_variant(self) -> ButtonVariant {
+        match self {
+            Self::Filled => ButtonVariant::Filled,
+            Self::Elevated => ButtonVariant::Elevated,
+            Self::FilledTonal => ButtonVariant::FilledTonal,
+            Self::Outlined => ButtonVariant::Outlined,
+        }
+    }
+
+    fn tokens(self) -> ToggleTokens {
+        match self {
+            // `defaultToggleButtonColors`
+            Self::Filled => ToggleTokens {
+                container: Some(filled_button::UNSELECTED_CONTAINER_COLOR),
+                content: filled_button::UNSELECTED_PRESSED_LABEL_TEXT_COLOR,
+                checked_container: filled_button::SELECTED_CONTAINER_COLOR,
+                checked_content: filled_button::SELECTED_PRESSED_LABEL_TEXT_COLOR,
+                disabled_container: (
+                    filled_button::DISABLED_CONTAINER_COLOR,
+                    filled_button::DISABLED_CONTAINER_OPACITY,
+                ),
+                disabled_content: (
+                    filled_button::DISABLED_LABEL_TEXT_COLOR,
+                    filled_button::DISABLED_LABEL_TEXT_OPACITY,
+                ),
+            },
+            // `defaultElevatedToggleButtonColors`
+            Self::Elevated => ToggleTokens {
+                container: Some(elevated_button::UNSELECTED_CONTAINER_COLOR),
+                content: elevated_button::UNSELECTED_PRESSED_LABEL_TEXT_COLOR,
+                checked_container: elevated_button::SELECTED_CONTAINER_COLOR,
+                checked_content: elevated_button::SELECTED_PRESSED_LABEL_TEXT_COLOR,
+                disabled_container: (
+                    elevated_button::DISABLED_CONTAINER_COLOR,
+                    elevated_button::DISABLED_CONTAINER_OPACITY,
+                ),
+                disabled_content: (
+                    elevated_button::DISABLED_LABEL_TEXT_COLOR,
+                    elevated_button::DISABLED_LABEL_TEXT_OPACITY,
+                ),
+            },
+            // `defaultFilledTonalToggleButtonColors`
+            Self::FilledTonal => ToggleTokens {
+                container: Some(tonal_button::UNSELECTED_CONTAINER_COLOR),
+                content: tonal_button::UNSELECTED_LABEL_TEXT_COLOR,
+                checked_container: tonal_button::SELECTED_CONTAINER_COLOR,
+                checked_content: tonal_button::SELECTED_LABEL_TEXT_COLOR,
+                disabled_container: (
+                    tonal_button::DISABLED_CONTAINER_COLOR,
+                    tonal_button::DISABLED_CONTAINER_OPACITY,
+                ),
+                disabled_content: (
+                    tonal_button::DISABLED_LABEL_TEXT_COLOR,
+                    tonal_button::DISABLED_LABEL_TEXT_OPACITY,
+                ),
+            },
+            // `defaultOutlinedToggleButtonColors`。無効なときは選ばれているかによらず容器を薄く塗る
+            Self::Outlined => ToggleTokens {
+                container: None,
+                content: outlined_button::UNSELECTED_LABEL_TEXT_COLOR,
+                checked_container: outlined_button::SELECTED_CONTAINER_COLOR,
+                checked_content: outlined_button::SELECTED_LABEL_TEXT_COLOR,
+                disabled_container: (
+                    outlined_button::DISABLED_OUTLINE_COLOR,
+                    outlined_button::DISABLED_CONTAINER_OPACITY,
+                ),
+                disabled_content: (
+                    outlined_button::DISABLED_LABEL_TEXT_COLOR,
+                    outlined_button::DISABLED_LABEL_TEXT_OPACITY,
+                ),
+            },
+        }
+    }
+}
+
+/// トグルボタンの色の上書き。`None` の項目はバリアントの色のまま
+///
+/// 色は役割で指定するため、テーマの明暗や配色が変わると追従する。
+/// 状態レイヤーは内容の色から作る。枠線の色は変わらない
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ToggleButtonColors {
+    /// 選ばれていないときの容器の色
+    pub container: Option<ColorRole>,
+    /// 選ばれていないときのラベルとアイコンの色
+    pub content: Option<ColorRole>,
+    /// 選ばれているときの容器の色
+    pub checked_container: Option<ColorRole>,
+    /// 選ばれているときのラベルとアイコンの色
+    pub checked_content: Option<ColorRole>,
+    /// 無効なときの容器の色と不透明度
+    pub disabled_container: Option<(ColorRole, f32)>,
+    /// 無効なときのラベルとアイコンの色と不透明度
+    pub disabled_content: Option<(ColorRole, f32)>,
+}
+
+type ChangeHandler = Box<dyn Fn(&bool, &mut Window, &mut App)>;
+
+/// MD3 のトグルボタン。選ばれているかで色と形が変わるボタン
+///
+/// 選ばれている状態は呼び出し側が持ち、[`ToggleButton::new`] に毎回渡す。ボタン自身は状態を変えない。
+/// 選ばれると、[`ButtonShape::Round`] は角を丸めた形に、[`ButtonShape::Square`] は短辺の両端を半円にした形に変わる。
+/// [`ToggleButtonVariant::Outlined`] は選ばれていない間だけ枠線を描く
+///
+/// 子の内容をラベルとして描く。支援技術には role `button` と押されているかどうかの状態として公開され、
+/// 子孫に置いたテキストがアクセシブルな名前になる。テキストは `gpui::text!` のように id を持つ要素にする。
+/// 名前は選ばれているかによって変えないこと。
+/// マウスのクリック・フォーカス中の Enter と Space で [`ToggleButton::on_change`] のハンドラを呼ぶ
+///
+/// [`Styled`] で指定したスタイルはボタンの外側の箱に付く。大きさや外側の余白、flex の指定に使い、
+/// 箱を広げるとボタンも箱いっぱいに広がる。箱を内容より狭くすると、ボタンは左右の余白を縮めて箱に合わせる。
+/// 色や形は変えられないため、[`ToggleButton::colors`] と [`ToggleButton::shape`] を使う
+///
+/// テーマの密度 ([`ThemeSettings::density`](md3_theme::ThemeSettings::density)) は反映しない。
+/// 大きさは [`ToggleButton::size`] で選ぶ
+///
+/// 押せる範囲はボタンの形を囲む矩形で、角丸の外側も含む
+#[derive(IntoElement)]
+pub struct ToggleButton {
+    id: ElementId,
+    outer: Div,
+    children: Vec<AnyElement>,
+    checked: bool,
+    variant: ToggleButtonVariant,
+    colors: ToggleButtonColors,
+    size: ButtonSize,
+    shape: ButtonShape,
+    icon: Option<StyledIcon>,
+    on_change: Option<ChangeHandler>,
+    aria_label: Option<SharedString>,
+    disabled: bool,
+    focus_handle: Option<FocusHandle>,
+    theme: Option<SharedTheme>,
+}
+
+impl ToggleButton {
+    /// `checked` の状態を表示する、[`ToggleButtonVariant::Filled`]、[`ButtonSize::Small`]、[`ButtonShape::Round`] のトグルボタンを作る
+    ///
+    /// `id` は同じ親の中で一意にし、描画のたびに同じ値を渡すこと。[`ToggleButton::track_focus`] を指定しない場合、
+    /// `id` が変わるか 1 フレームでも描画されないとフォーカスが外れる
+    pub fn new(id: impl Into<ElementId>, checked: bool) -> Self {
+        Self {
+            id: id.into(),
+            // 利用者が Styled で指定した display を render で上書きしないよう、既定はここで付ける
+            outer: div().flex(),
+            children: Vec::new(),
+            checked,
+            variant: ToggleButtonVariant::default(),
+            colors: ToggleButtonColors::default(),
+            size: ButtonSize::default(),
+            shape: ButtonShape::default(),
+            icon: None,
+            on_change: None,
+            aria_label: None,
+            disabled: false,
+            focus_handle: None,
+            theme: None,
+        }
+    }
+
+    /// トグルボタンの種類を設定する
+    pub fn variant(mut self, variant: ToggleButtonVariant) -> Self {
+        self.variant = variant;
+        self
+    }
+
+    /// バリアントの色を `colors` で上書きする
+    pub fn colors(mut self, colors: ToggleButtonColors) -> Self {
+        self.colors = colors;
+        self
+    }
+
+    /// トグルボタンの大きさを設定する
+    pub fn size(mut self, size: ButtonSize) -> Self {
+        self.size = size;
+        self
+    }
+
+    /// 選ばれていないときの形を設定する
+    pub fn shape(mut self, shape: ButtonShape) -> Self {
+        self.shape = shape;
+        self
+    }
+
+    /// ラベルの前にアイコンを置く
+    ///
+    /// アイコンはラベルと同じ色になり、大きさとラベルとの間隔はサイズに合わせる。
+    /// [`md3_icons::Icon`] を渡すと Outlined の塗りのない形で描く。スタイルや塗りは [`StyledIcon`] で指定する。
+    /// アイコンは装飾として扱い、アクセシブルな名前には含めない
+    pub fn icon(mut self, icon: impl Into<StyledIcon>) -> Self {
+        self.icon = Some(icon.into());
+        self
+    }
+
+    /// 子の内容の代わりに `label` をアクセシブルな名前にする
+    ///
+    /// 子孫に id を持つテキストがなく、名前を子の内容から決められない場合に使う
+    pub fn aria_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.aria_label = Some(label.into());
+        self
+    }
+
+    /// 押されたときに、反転した状態で `handler` を呼ぶ。複数回呼んだ場合は最後に渡した `handler` だけを呼ぶ
+    ///
+    /// 表示を変えるには、`handler` で呼び出し側の状態を更新し、次の描画で [`ToggleButton::new`] に渡すこと
+    pub fn on_change(mut self, handler: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
+        self.on_change = Some(Box::new(handler));
+        self
+    }
+
+    /// トグルボタンを無効にする。`false` を渡すと有効に戻す
+    ///
+    /// 無効なトグルボタンは選ばれているかによらず無効の色で描かれ、押されてもハンドラを呼ばず、Tab でも到達できない。
+    /// フォーカス中に無効になった場合は、フォーカスが外れるまでフォーカスを保つ
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self
+    }
+
+    /// `focus_handle` をこのトグルボタンのフォーカスとして使う
+    ///
+    /// 指定しない場合はトグルボタンが内部でフォーカスを持つ
+    pub fn track_focus(mut self, focus_handle: &FocusHandle) -> Self {
+        self.focus_handle = Some(focus_handle.clone());
+        self
+    }
+
+    /// アプリ全体のテーマ ([`ThemeExt::md3_theme`]) の代わりに `theme` で描く
+    pub fn theme(mut self, theme: SharedTheme) -> Self {
+        self.theme = Some(theme);
+        self
+    }
+}
+
+impl RenderOnce for ToggleButton {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
+        let tokens = self.variant.tokens();
+        let button_tokens = self.variant.button_variant().tokens();
+        let colors = self.colors;
+        let disabled = self.disabled;
+        let checked = self.checked;
+
+        let focus_handle = self
+            .focus_handle
+            .unwrap_or_else(|| util::keyed_focus_handle(&self.id, window, cx));
+        // リングはボタンの外側に描くため、ボタン自身のスタイルでは表せない
+        let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
+
+        // Compose の `ToggleButtonColors` と同じく、無効なときは選ばれているかによらず無効の色にする
+        let (container, content) = if disabled {
+            let (role, opacity) = colors
+                .disabled_container
+                .unwrap_or(tokens.disabled_container);
+            let (content, content_opacity) =
+                colors.disabled_content.unwrap_or(tokens.disabled_content);
+            (
+                Some(theme.color(role).opacity(opacity)),
+                theme.color(content).opacity(content_opacity),
+            )
+        } else if checked {
+            (
+                Some(theme.color(colors.checked_container.unwrap_or(tokens.checked_container))),
+                theme.color(colors.checked_content.unwrap_or(tokens.checked_content)),
+            )
+        } else {
+            (
+                colors
+                    .container
+                    .or(tokens.container)
+                    .map(|role| theme.color(role)),
+                theme.color(colors.content.unwrap_or(tokens.content)),
+            )
+        };
+        let size = self.size.tokens();
+        // 選ばれると、丸い形は角を丸めた形に、角を丸めた形は丸い形に変わる
+        let (shape, checked_shape) = match self.shape {
+            ButtonShape::Round => (size.round, size.square),
+            ButtonShape::Square => (size.square, size.round),
+        };
+        let look = Look {
+            // 枠線は選ばれていないときだけ描く (`OutlinedToggleButtonDefaults.border`)
+            outline: button_tokens
+                .outline
+                .filter(|_| !checked)
+                .map(|outline| outline_color(&theme, outline, disabled)),
+            elevations: button_tokens.elevations,
+            disabled,
+            size,
+            shape,
+            container,
+            content,
+            focus_visible,
+            icon: self.icon,
+            children: self.children,
+            theme: theme.clone(),
+        };
+        // Compose は形を FastSpatial のバネで変える
+        let spring = theme.spring(MotionSchemeKey::FastSpatial);
+        let button = HeadlessToggleButton::new(self.id.clone(), checked)
+            .track_focus(&focus_handle)
+            .disabled(disabled)
+            .when_some(self.aria_label, |this, label| this.aria_label(label))
+            .when_some(self.on_change, |this, on_change| this.on_change(on_change));
+
+        self.outer.child(button.with_spring(
+            self.id,
+            SpringAnimation::new(spring).to(checked),
+            move |button, phase| look.apply(button, Some((checked_shape, phase.0))),
+        ))
+    }
+}
+
+impl Styled for ToggleButton {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.outer.style()
+    }
+}
+
+impl ParentElement for ToggleButton {
     fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
         self.children.extend(elements);
     }
@@ -660,5 +1085,121 @@ mod tests {
         let (container, label) = layout(cx, || Button::new("button").w(px(80.0)));
         assert_eq!(container, (0.0, 80.0));
         assert_eq!(label, (10.0, 60.0), "余白を 6dp ずつ縮めること");
+    }
+
+    /// 左上 (100, 100) に置いたトグルボタン。押すと `checked` を反転する
+    fn open_toggle(
+        cx: &mut TestAppContext,
+        checked: bool,
+        button: fn(bool) -> ToggleButton,
+    ) -> (std::rc::Rc<std::cell::Cell<bool>>, &mut VisualTestContext) {
+        let state = std::rc::Rc::new(std::cell::Cell::new(checked));
+        let view_state = state.clone();
+        let (_, cx) = cx.add_window_view(move |window, cx| {
+            cx.init_md3_theme(window);
+            let state = view_state.clone();
+            ElementView(Box::new(move || {
+                let state = state.clone();
+                button(state.get())
+                    .on_change(move |checked, window, _| {
+                        state.set(*checked);
+                        window.refresh();
+                    })
+                    .child(div().w(px(60.0)).h(px(10.0)))
+                    .into_any_element()
+            }))
+        });
+        // 形のバネを終端まで即座に進める
+        cx.update(|_, cx| cx.set_reduce_motion(true));
+        cx.run_until_parked();
+        (state, cx)
+    }
+
+    /// トグルボタンを押し、hover の色が重ならないようポインターを外へ動かす
+    fn click(cx: &mut VisualTestContext) {
+        cx.simulate_click(gpui::point(px(130.0), px(120.0)), gpui::Modifiers::none());
+        cx.simulate_mouse_move(
+            gpui::point(px(10.0), px(10.0)),
+            None,
+            gpui::Modifiers::none(),
+        );
+        cx.run_until_parked();
+    }
+
+    /// `role` の色で塗った容器の、左上の角の半径と枠線の太さ
+    fn container(cx: &mut VisualTestContext, role: ColorRole) -> Option<(f32, f32)> {
+        cx.update(|window, cx| {
+            let scale = window.scale_factor();
+            let background: gpui::Background = cx.md3_theme().color(role).into();
+            window
+                .painted_quads()
+                .into_iter()
+                .find(|quad| quad.background == background)
+                .map(|quad| {
+                    (
+                        quad.corner_radii.top_left.0 / scale,
+                        quad.border_widths.top.0 / scale,
+                    )
+                })
+        })
+    }
+
+    #[gpui::test]
+    fn トグルボタンは押すと選ばれ_色と形が変わる(cx: &mut TestAppContext) {
+        let (state, cx) = open_toggle(cx, false, |checked| ToggleButton::new("toggle", checked));
+        assert_eq!(
+            container(cx, ColorRole::SurfaceContainer),
+            Some((20.0, 0.0)),
+            "選ばれていない間は丸い形にすること"
+        );
+        click(cx);
+        assert!(state.get(), "押すと選ぶよう求めること");
+        assert_eq!(
+            container(cx, ColorRole::Primary),
+            Some((12.0, 0.0)),
+            "選ばれると角を丸めた形にすること"
+        );
+    }
+
+    #[gpui::test]
+    fn 角を丸めたトグルボタンは選ばれると丸くなる(cx: &mut TestAppContext) {
+        let (_, cx) = open_toggle(cx, true, |checked| {
+            ToggleButton::new("toggle", checked).shape(ButtonShape::Square)
+        });
+        assert_eq!(container(cx, ColorRole::Primary), Some((20.0, 0.0)));
+    }
+
+    #[gpui::test]
+    fn 枠線のトグルボタンは選ばれていない間だけ枠線を描く(
+        cx: &mut TestAppContext,
+    ) {
+        let (_, cx) = open_toggle(cx, false, |checked| {
+            ToggleButton::new("toggle", checked).variant(ToggleButtonVariant::Outlined)
+        });
+        let outlined = cx.update(|window, _| {
+            window
+                .painted_quads()
+                .iter()
+                .any(|quad| quad.border_widths.top.0 > 0.0)
+        });
+        assert!(outlined, "選ばれていない間は枠線を描くこと");
+        click(cx);
+        assert_eq!(
+            container(cx, ColorRole::InverseSurface),
+            Some((12.0, 0.0)),
+            "選ばれると枠線を描かないこと"
+        );
+    }
+
+    #[gpui::test]
+    fn 無効なトグルボタンは選ばれていても無効の色で描く(
+        cx: &mut TestAppContext,
+    ) {
+        let (state, cx) = open_toggle(cx, true, |checked| {
+            ToggleButton::new("toggle", checked).disabled(true)
+        });
+        assert_eq!(container(cx, ColorRole::Primary), None);
+        click(cx);
+        assert!(state.get(), "無効な間は押しても変えないこと");
     }
 }

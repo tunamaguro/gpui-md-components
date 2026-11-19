@@ -59,7 +59,7 @@ impl Shaped {
     }
 
     /// 形を `key` から `target` へ `phase` だけ近づける。`phase` が 0 なら `key`、1 なら `target` の角丸で描く
-    #[cfg(feature = "icon-button")]
+    #[cfg(feature = "button")]
     pub(crate) fn morph(mut self, target: ShapeKey, phase: f32) -> Self {
         self.morph = Some((target, phase));
         self
