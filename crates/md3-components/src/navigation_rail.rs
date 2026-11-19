@@ -513,6 +513,10 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
         let header_width = if has_header {
             header_width.read(cx).unwrap_or_default()
         } else {
+            // 後から付けたヘッダーに、外したヘッダーの幅を使わない
+            if header_width.read(cx).is_some() {
+                header_width.update(cx, |width, _| *width = None);
+            }
             px(0.0)
         };
         // 展開したときの幅。内容が最小の幅に収まるなら最小の幅にする
@@ -1133,12 +1137,14 @@ mod tests {
     #[gpui::test]
     fn 広いヘッダーを測ってレールを広げ_外すと戻す(cx: &mut TestAppContext) {
         let with_header = Rc::new(std::cell::Cell::new(true));
-        let state = with_header.clone();
+        let narrow = Rc::new(std::cell::Cell::new(false));
+        let state = (with_header.clone(), narrow.clone());
         let cx = open(cx, move || {
+            let header_width = if state.1.get() { 56.0 } else { 240.0 };
             NavigationRail::new("rail", Some(0))
                 .expanded(true)
-                .when(state.get(), |rail| {
-                    rail.header(div().w(px(240.0)).h(px(40.0)))
+                .when(state.0.get(), |rail| {
+                    rail.header(div().w(px(header_width)).h(px(40.0)))
                 })
                 .item(NavigationRailItem::new("item", 0, HOME, "Home"))
                 .into_any_element()
@@ -1153,5 +1159,14 @@ mod tests {
         cx.update(|window, _| window.refresh());
         cx.run_until_parked();
         assert_eq!(width(cx), 220.0, "ヘッダーを外すと最小の幅に戻ること");
+        // 狭いヘッダーを付け直しても、外したヘッダーの幅では広がらない
+        narrow.set(true);
+        with_header.set(true);
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        assert_eq!(width(cx), 220.0, "付け直した最初の描画で広がらないこと");
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        assert_eq!(width(cx), 220.0, "狭いヘッダーを測った後も最小の幅のまま");
     }
 }
