@@ -480,6 +480,7 @@ impl Button {
                 )
             }),
             elevations: tokens.elevations,
+            overlay: None,
             disabled,
             shape: match self.shape {
                 ButtonShape::Round => size.round,
@@ -569,6 +570,8 @@ pub(crate) struct Look {
     content: Hsla,
     /// 枠線の色と太さ。`None` は枠線なし
     outline: Option<(Hsla, Pixels)>,
+    /// 容器の上に重ねる色
+    overlay: Option<Hsla>,
     /// `None` は影なし。無効なときは影を描かない
     elevations: Option<Elevations>,
     /// 無効なときは状態レイヤーと影を描かない
@@ -611,8 +614,8 @@ pub(crate) fn paint_ring(ring: RingSlot, theme: SharedTheme) -> impl IntoElement
 
 /// 状態に合わせて形を変える動き
 pub(crate) struct Morph {
-    /// バネの値 `i` (1 以上) で描く形。値 0 は [`Look`] の形で、間の値は隣り合う形を補間する
-    pub(crate) shapes: Vec<CornerShape>,
+    /// バネの値 1 で描く形。値 0 は [`Look`] の形で、ほかの値は 2 つの形を補間・外挿する
+    pub(crate) shape: CornerShape,
     /// バネの目標の値
     pub(crate) target: f32,
     /// 形を変えるバネ
@@ -634,14 +637,18 @@ impl Look {
         self.children.push(child.into_any_element());
     }
 
-    /// 容器に内容の色を不透明度 `opacity` で重ねる
+    /// 容器・枠線・状態レイヤーの上に、容器の形で内容の色を不透明度 `opacity` で重ねる
     #[cfg(feature = "split-button")]
     pub(crate) fn overlay_content(&mut self, opacity: f32) {
-        let layer = self.content.opacity(opacity);
-        self.container = Some(match self.container {
-            Some(container) => container.blend(layer),
-            None => layer,
-        });
+        self.overlay = Some(self.content.opacity(opacity));
+    }
+
+    /// 枠線があれば太さを `width` にする
+    #[cfg(feature = "split-button")]
+    pub(crate) fn outline_width(&mut self, width: Pixels) {
+        if let Some((_, outline)) = self.outline.as_mut() {
+            *outline = width;
+        }
     }
 
     /// 容器・内容・フォーカスリングを `button` に描く
@@ -664,6 +671,7 @@ impl Look {
             container,
             content,
             outline,
+            overlay,
             elevations,
             disabled,
             focus_visible,
@@ -687,7 +695,7 @@ impl Look {
         // 容器とリングは形の動きの進み `phase` で描く。角丸は描画時の大きさで決まるため、
         // 背景・枠線・影は Shaped で包んだ層に描き、ボタン自身は透明な箱にする
         let theme_for_decoration = theme.clone();
-        let shapes = morph.as_ref().map(|morph| morph.shapes.clone());
+        let target = morph.as_ref().map(|morph| morph.shape);
         let fade_outline = morph.as_ref().is_some_and(|morph| morph.fade_outline);
         let decoration = move |phase: f32| {
             let theme = theme_for_decoration;
@@ -697,8 +705,8 @@ impl Look {
                     Some(corner_shape) => shaped.corner_shape(corner_shape),
                     None => shaped,
                 };
-                match &shapes {
-                    Some(shapes) => shaped.morph_through(shapes.clone(), phase),
+                match target {
+                    Some(target) => shaped.morph_to(target, phase),
                     None => shaped,
                 }
             };
@@ -749,6 +757,17 @@ impl Look {
                 .right_0()
                 .bottom_0()
                 .child(shaped(layer))
+                .when_some(overlay, |this, overlay| {
+                    this.child(shaped(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .left_0()
+                            .right_0()
+                            .bottom_0()
+                            .bg(overlay),
+                    ))
+                })
                 .when(focus_visible, |this| {
                     // 形の動きの途中の角丸で、リングを描く矩形と角の半径を書く。
                     // 半径は gpui が容器を描くときと同じく短辺の半分までにする
@@ -1149,6 +1168,7 @@ impl ToggleButton {
                 )
             }),
             elevations: button_tokens.elevations,
+            overlay: None,
             disabled,
             size,
             shape,
@@ -1156,7 +1176,7 @@ impl ToggleButton {
             ring_slot: None,
             // Compose は形を FastSpatial のバネで変える
             morph: Some(Morph {
-                shapes: vec![checked_shape.resolve(&theme.settings().shapes)],
+                shape: checked_shape.resolve(&theme.settings().shapes),
                 target: if checked { 1.0 } else { 0.0 },
                 spring: theme.spring(MotionSchemeKey::FastSpatial),
                 fade_outline: true,

@@ -18,15 +18,15 @@ use gpui_headless::button::Button as HeadlessButton;
 use gpui_headless::press::{PressArea, PressScope};
 use md3_icons::StyledIcon;
 use md3_theme::md3_tokens::component::{
-    split_button_large, split_button_medium, split_button_small, split_button_x_large,
-    split_button_x_small,
+    button_small, split_button_large, split_button_medium, split_button_small,
+    split_button_x_large, split_button_x_small,
 };
 use md3_theme::md3_tokens::motion::MotionSchemeKey;
 use md3_theme::md3_tokens::shape::{CornerShape, CornerSize};
 use md3_theme::md3_tokens::{Dp, state, supplement};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
-use crate::button::Morph;
+use crate::button::{Morph, RingSlot, paint_ring};
 use crate::{Button, ButtonSize, ButtonVariant, Menu, util};
 
 /// 分割ボタンの種類。強調の度合いが高い順に Filled、FilledTonal、Elevated、Outlined
@@ -66,6 +66,7 @@ struct SizeTokens {
     inner_pressed_corner: CornerSize,
     trailing_icon_size: Dp,
     between_space: Dp,
+    height: Dp,
 }
 
 fn size_tokens(size: ButtonSize) -> SizeTokens {
@@ -84,6 +85,7 @@ fn size_tokens(size: ButtonSize) -> SizeTokens {
                 inner_pressed_corner: $tokens::INNER_PRESSED_CORNER_CORNER_SIZE,
                 trailing_icon_size: $tokens::TRAILING_ICON_SIZE,
                 between_space: $tokens::BETWEEN_SPACE,
+                height: $tokens::CONTAINER_HEIGHT,
             }
         };
     }
@@ -93,6 +95,14 @@ fn size_tokens(size: ButtonSize) -> SizeTokens {
         ButtonSize::Medium => tokens!(split_button_medium),
         ButtonSize::Large => tokens!(split_button_large),
         ButtonSize::ExtraLarge => tokens!(split_button_x_large),
+    }
+}
+
+/// 高さ `height` の形の角の大きさ `corner` を dp で
+fn corner_dp(corner: CornerSize, height: Dp) -> f32 {
+    match corner {
+        CornerSize::Dp(value) => value.0,
+        CornerSize::Percent(percent) => height.0 * percent / 100.0,
     }
 }
 
@@ -269,6 +279,8 @@ impl RenderOnce for SplitButton {
                 )
             });
 
+        // 間は 2dp で、前のボタンの外側にはみ出すリングは後ろのボタンに隠れるため、2 つのボタンの後に描く
+        let ring = RingSlot::default();
         let mut leading = Button::new("leading")
             .variant(variant)
             .size(self.size)
@@ -279,13 +291,25 @@ impl RenderOnce for SplitButton {
         }
         let leading_focus_visible = gpui_headless::is_focus_visible(&leading_focus, window, cx);
         let mut look = leading.look(&theme, leading_focus_visible);
-        look.corner_shape = Some(shape(true, tokens.inner_corner));
+        // 向き合う角の半径 (dp) をバネの値にし、0dp の形と 1dp の形の補間で描く。
+        // 状態がどう変わっても、今の半径から目標の半径へ同じ速さの動きで変わる
+        look.corner_shape = Some(shape(true, CornerSize::ZERO));
         look.morph = Some(Morph {
-            shapes: vec![shape(true, tokens.inner_pressed_corner)],
-            target: if *leading_pressed.read(cx) { 1.0 } else { 0.0 },
+            shape: shape(true, CornerSize::Dp(Dp(1.0))),
+            target: corner_dp(
+                if *leading_pressed.read(cx) {
+                    tokens.inner_pressed_corner
+                } else {
+                    tokens.inner_corner
+                },
+                tokens.height,
+            ),
             spring: effects,
             fade_outline: false,
         });
+        look.ring_slot = Some(ring.clone());
+        // Compose の分割ボタンの枠線は、どのサイズでも Small の太さ (`outlinedButtonBorder`)
+        look.outline_width(dp(button_small::OUTLINED_OUTLINE_WIDTH));
         // Compose の分割ボタンは左右にだけ余白を取る
         look.padding = tokens.leading_padding;
         look.vertical_padding = Dp(0.0);
@@ -328,23 +352,23 @@ impl RenderOnce for SplitButton {
         if expanded {
             look.overlay_content(state::PRESSED_STATE_LAYER_OPACITY);
         }
-        look.corner_shape = Some(shape(false, tokens.inner_corner));
+        look.corner_shape = Some(shape(false, CornerSize::ZERO));
         look.morph = Some(Morph {
-            shapes: vec![
-                shape(false, tokens.inner_pressed_corner),
-                CornerShape::CIRCLE,
-            ],
-            // 押している間は、開いているかによらず押しているときの形にする
+            shape: shape(false, CornerSize::Dp(Dp(1.0))),
+            // 押している間は、開いているかによらず押しているときの形にする。
+            // 開いている間は高さの半分の半径で丸い形にする
             target: if *trailing_pressed.read(cx) {
-                1.0
+                corner_dp(tokens.inner_pressed_corner, tokens.height)
             } else if expanded {
-                2.0
+                tokens.height.0 / 2.0
             } else {
-                0.0
+                corner_dp(tokens.inner_corner, tokens.height)
             },
             spring: effects,
             fade_outline: false,
         });
+        look.ring_slot = Some(ring.clone());
+        look.outline_width(dp(button_small::OUTLINED_OUTLINE_WIDTH));
         look.padding = tokens.trailing_padding;
         look.vertical_padding = Dp(0.0);
         look.min_width = supplement::split_button::MIN_WIDTH;
@@ -388,7 +412,8 @@ impl RenderOnce for SplitButton {
                         .flex_none()
                         .flex()
                         .child(trailing_button),
-                ),
+                )
+                .child(paint_ring(ring, theme.clone())),
         )
     }
 }
@@ -550,7 +575,7 @@ mod tests {
         let expanded = Rc::new(Cell::new(false));
         let state = expanded.clone();
         let cx = open(cx, move || split(Rc::new(Cell::new(0)), state.clone()));
-        let trailing = containers(cx)[1];
+        let trailing = *containers(cx).last().expect("後ろのボタンを描くこと");
         cx.simulate_click(
             point(px(100.0 + trailing.0 + trailing.1 / 2.0), px(120.0)),
             Modifiers::none(),
@@ -559,11 +584,9 @@ mod tests {
         assert!(expanded.get(), "開くよう求めること");
         let overlay = cx.update(|_, cx| {
             let theme = cx.md3_theme();
-            theme.color(ColorRole::Primary).blend(
-                theme
-                    .color(ColorRole::OnPrimary)
-                    .opacity(state::PRESSED_STATE_LAYER_OPACITY),
-            )
+            theme
+                .color(ColorRole::OnPrimary)
+                .opacity(state::PRESSED_STATE_LAYER_OPACITY)
         });
         let open_trailing = cx.update(|window, _| {
             let background: gpui::Background = overlay.into();
@@ -611,5 +634,84 @@ mod tests {
         cx.simulate_mouse_up(position, MouseButton::Left, Modifiers::none());
         move_away(cx);
         assert_eq!(clicks.get(), 0);
+    }
+
+    #[gpui::test]
+    fn 前のボタンのフォーカスリングは後ろのボタンより後に描く(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = open(cx, || {
+            split(Rc::new(Cell::new(0)), Rc::new(Cell::new(false)))
+        });
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_keystrokes("tab");
+        cx.run_until_parked();
+        let (ring, trailing) = cx.update(|window, cx| {
+            let scale = window.scale_factor();
+            let ring = cx
+                .md3_theme()
+                .color(md3_theme::md3_tokens::focus_ring::COLOR);
+            let quads = window.painted_quads();
+            (
+                quads
+                    .iter()
+                    .filter(|quad| quad.border_color == ring && quad.border_widths.top.0 > 0.0)
+                    .max_by_key(|quad| quad.order)
+                    .map(|quad| (quad.order, quad.bounds.origin.x.0 / scale - 100.0)),
+                quads
+                    .iter()
+                    .filter(|quad| quad.bounds.size.height.0 / scale == 40.0)
+                    .max_by(|a, b| a.bounds.origin.x.0.total_cmp(&b.bounds.origin.x.0))
+                    .map(|quad| quad.order),
+            )
+        });
+        let (ring_order, ring_x) = ring.expect("リングを描くこと");
+        assert!(ring_x < 0.0, "前のボタンにリングを描くこと");
+        assert!(ring_order > trailing.expect("後ろのボタンを描くこと"));
+    }
+
+    #[gpui::test]
+    fn 開いている枠線の分割ボタンでも後ろのボタンの_hover_を描く(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = open(cx, || {
+            SplitButton::new("split", "More")
+                .variant(SplitButtonVariant::Outlined)
+                .menu(
+                    Menu::new("menu", true)
+                        .group(MenuGroup::new("group").item(MenuItem::new("edit", "Edit"))),
+                )
+                .child(div().w(px(60.0)).h(px(10.0)))
+                .into_any_element()
+        });
+        let trailing = *containers(cx).last().expect("後ろのボタンを描くこと");
+        cx.simulate_mouse_move(
+            point(px(100.0 + trailing.0 + trailing.1 / 2.0), px(120.0)),
+            None,
+            Modifiers::none(),
+        );
+        cx.run_until_parked();
+        let (overlay, hover) = cx.update(|window, cx| {
+            let content = cx.md3_theme().color(ColorRole::OnSurfaceVariant);
+            let overlay: gpui::Background =
+                content.opacity(state::PRESSED_STATE_LAYER_OPACITY).into();
+            let hover: gpui::Background = content.opacity(state::HOVER_STATE_LAYER_OPACITY).into();
+            let scale = window.scale_factor();
+            // 後ろのボタンの容器の大きさの層
+            let quads: Vec<_> = window
+                .painted_quads()
+                .into_iter()
+                .filter(|quad| {
+                    quad.bounds.origin.x.0 / scale - 100.0 == trailing.0
+                        && quad.bounds.size.height.0 / scale == 40.0
+                })
+                .collect();
+            (
+                quads.iter().any(|quad| quad.background == overlay),
+                quads.iter().any(|quad| quad.background == hover),
+            )
+        });
+        assert!(overlay, "開いている間は内容の色を重ねること");
+        assert!(hover, "hover の状態レイヤーも描くこと");
     }
 }

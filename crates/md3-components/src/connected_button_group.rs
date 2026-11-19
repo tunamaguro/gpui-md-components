@@ -117,7 +117,7 @@ impl Item {
         // 項目の間は 2dp で、項目の外側にはみ出すリングは隣の項目に隠れるため、並びがすべての項目の後に描く
         look.ring_slot = Some(ring.clone());
         if let Some(morph) = look.morph.as_mut() {
-            morph.shapes = vec![tokens::CONTAINER_SHAPE.resolve(&theme.settings().shapes)];
+            morph.shape = tokens::CONTAINER_SHAPE.resolve(&theme.settings().shapes);
         }
         // 項目はラベルに合わせた幅にし、並びの幅に広げない
         look.apply(item).flex_none()
