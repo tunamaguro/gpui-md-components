@@ -32,6 +32,7 @@ default = [
   "list",
   "loading-indicator",
   "menu",
+  "navigation-bar",
   "progress-indicator",
   "radio-button",
   "segmented-button",
@@ -56,6 +57,7 @@ list = []
 loading-indicator = []
 # メニューを開くボタンと、組の中の区切り線を使う
 menu = ["button", "divider"]
+navigation-bar = []
 progress-indicator = []
 radio-button = []
 segmented-button = []
