@@ -531,6 +531,16 @@ mod tests {
         for (kind, role, toggled) in [
             (ListItemKind::Action, accesskit::Role::Button, None),
             (
+                ListItemKind::Checkbox(CheckedState::Unchecked),
+                accesskit::Role::CheckBox,
+                Some(accesskit::Toggled::False),
+            ),
+            (
+                ListItemKind::Checkbox(CheckedState::Checked),
+                accesskit::Role::CheckBox,
+                Some(accesskit::Toggled::True),
+            ),
+            (
                 ListItemKind::Checkbox(CheckedState::Mixed),
                 accesskit::Role::CheckBox,
                 Some(accesskit::Toggled::Mixed),
