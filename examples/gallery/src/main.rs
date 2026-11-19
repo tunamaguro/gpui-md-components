@@ -21,6 +21,7 @@ mod radio_button_page;
 mod segmented_button_page;
 mod select_page;
 mod slider_page;
+mod snackbar_page;
 mod split_button_page;
 mod switch_page;
 mod tabs_page;
@@ -55,6 +56,7 @@ use crate::radio_button_page::RadioButtonPage;
 use crate::segmented_button_page::SegmentedButtonPage;
 use crate::select_page::SelectPage;
 use crate::slider_page::SliderPage;
+use crate::snackbar_page::SnackbarPage;
 use crate::split_button_page::SplitButtonPage;
 use crate::switch_page::SwitchPage;
 use crate::tabs_page::TabsPage;
@@ -83,6 +85,7 @@ enum Page {
     Tabs,
     Chip,
     Tooltip,
+    Snackbar,
     List,
     NavigationBar,
     NavigationRail,
@@ -113,6 +116,7 @@ struct Gallery {
     tabs_page: Entity<TabsPage>,
     chip_page: Entity<ChipPage>,
     tooltip_page: Entity<TooltipPage>,
+    snackbar_page: Entity<SnackbarPage>,
     list_page: Entity<ListPage>,
     navigation_bar_page: Entity<NavigationBarPage>,
     navigation_rail_page: Entity<NavigationRailPage>,
@@ -144,6 +148,7 @@ impl Gallery {
             tabs_page: cx.new(TabsPage::new),
             chip_page: cx.new(ChipPage::new),
             tooltip_page: cx.new(|_| TooltipPage::default()),
+            snackbar_page: cx.new(SnackbarPage::new),
             list_page: cx.new(|_| ListPage::default()),
             navigation_bar_page: cx.new(NavigationBarPage::new),
             navigation_rail_page: cx.new(NavigationRailPage::new),
@@ -189,6 +194,7 @@ impl Render for Gallery {
             Page::Tabs => self.tabs_page.clone().into(),
             Page::Chip => self.chip_page.clone().into(),
             Page::Tooltip => self.tooltip_page.clone().into(),
+            Page::Snackbar => self.snackbar_page.clone().into(),
             Page::List => self.list_page.clone().into(),
             Page::NavigationBar => self.navigation_bar_page.clone().into(),
             Page::NavigationRail => self.navigation_rail_page.clone().into(),
@@ -227,6 +233,7 @@ impl Render for Gallery {
                         .child(tab(Page::Tabs, "Tabs", cx))
                         .child(tab(Page::Chip, "Chips", cx))
                         .child(tab(Page::Tooltip, "Tooltips", cx))
+                        .child(tab(Page::Snackbar, "Snackbars", cx))
                         .child(tab(Page::Menu, "Menus", cx))
                         .child(tab(Page::Dialog, "Dialogs", cx))
                         .child(tab(Page::Select, "Selects", cx))

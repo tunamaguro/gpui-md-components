@@ -73,6 +73,8 @@ mod select;
 mod shape;
 #[cfg(feature = "slider")]
 mod slider;
+#[cfg(feature = "snackbar")]
+mod snackbar;
 #[cfg(feature = "split-button")]
 mod split_button;
 #[cfg(feature = "switch")]
@@ -169,6 +171,10 @@ pub use segmented_button::{
 pub use select::{Select, SelectOption, SelectVariant};
 #[cfg(feature = "slider")]
 pub use slider::Slider;
+#[cfg(feature = "snackbar")]
+pub use snackbar::{
+    SnackbarDuration, SnackbarHost, SnackbarHostState, SnackbarMessage, SnackbarResult,
+};
 #[cfg(feature = "split-button")]
 pub use split_button::{SplitButton, SplitButtonVariant};
 #[cfg(feature = "switch")]

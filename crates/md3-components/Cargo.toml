@@ -41,6 +41,7 @@ default = [
   "segmented-button",
   "select",
   "slider",
+  "snackbar",
   "split-button",
   "switch",
   "tabs",
@@ -72,6 +73,8 @@ select = []
 slider = []
 # 後ろのボタンでメニューを開く
 split-button = ["menu"]
+# 操作のボタンと閉じるボタンを使う
+snackbar = ["icon-button"]
 switch = []
 tabs = []
 text-field = []

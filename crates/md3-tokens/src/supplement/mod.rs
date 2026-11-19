@@ -21,6 +21,7 @@ pub mod radio_button;
 pub mod segmented_button;
 pub mod select;
 pub mod slider;
+pub mod snackbar;
 pub mod split_button;
 pub mod switch;
 pub mod tabs;
