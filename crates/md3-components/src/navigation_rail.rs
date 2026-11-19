@@ -396,7 +396,7 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                 (
                     window.use_keyed_state("scroll", cx, |_, _| ScrollHandle::new()),
                     window.use_keyed_state("last-focused", cx, |_, _| {
-                        (None::<usize>, px(0.0), false)
+                        (None::<usize>, px(0.0), None::<(Pixels, Pixels)>)
                     }),
                 )
             });
@@ -410,7 +410,7 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
             .iter()
             .position(|handle| handle.is_focused(window));
         // フォーカスリングはインジケーターの外に張り出すため、スクロール領域の上下左右にその分の余白を取る。
-        // 上と左右の余白は負のマージンで打ち消し、上から詰める項目の位置と横の位置を変えない。下の余白は打ち消さず、
+        // 上の余白は負のマージンで打ち消し、上から詰める項目の位置を変えない。下の余白は打ち消さず、
         // 下端と中央に寄せた項目はその分だけ上に寄る。最後の項目までスクロールしてもリングが切れない
         let ring_outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
         // Compose の中央の並べ方は項目をヘッダーを除かずにレールの高さの中央に置くが、
@@ -424,7 +424,9 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
             .flex_1()
             .min_h_0()
             .mt(-ring_outset)
-            .mx(-ring_outset)
+            // 折りたたんだ項目は内側に余白を持つため、左右の余白を負のマージンで打ち消してレールの幅に合わせる。
+            // 展開した項目は左に寄るため打ち消さず、その分をレールの左右の余白から引く
+            .when(!self.expanded, |this| this.mx(-ring_outset))
             .py(ring_outset)
             .px(ring_outset)
             .overflow_y_scroll()
@@ -433,14 +435,22 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
             .items(items)
             .when(trailing_space, |this| this.child(div().flex_1()));
 
-        // 折りたたむ間の幅は前の描画の幅を上限にするため、描いた幅を記録する
-        let painted_width = window.with_element_namespace(self.id.clone(), |window| {
-            window.use_keyed_state("painted-width", cx, |_, _| None::<Pixels>)
+        // 折りたたむ間の幅は前の描画の幅を上限にするため、描いた幅を記録する。
+        // あわせて、展開したときに内容で最小の幅より広がったかを記録する
+        let collapsed_width = dp(collapsed::CONTAINER_WIDTH);
+        let min_width = dp(expanded::CONTAINER_WIDTH_MINIMUM);
+        let max_width = dp(expanded::CONTAINER_WIDTH_MAXIMUM);
+        let (painted_width, widened) = window.with_element_namespace(self.id.clone(), |window| {
+            (
+                window.use_keyed_state("painted-width", cx, |_, _| None::<Pixels>),
+                window.use_keyed_state("widened", cx, |_, _| false),
+            )
         });
         let collapsing_from = (!self.expanded).then(|| *painted_width.read(cx)).flatten();
-        // フォーカスが移ったとき・表示領域の高さが変わったとき・展開と折りたたみで項目の配置が変わったときに、
-        // フォーカスのある項目をリングの張り出しも含めて
-        // 表示範囲に入れる。並びの後に置いた canvas の prepaint で、この描画のレイアウトで決まった範囲を使う
+        let widened_before = *widened.read(cx);
+        // フォーカスが移ったとき・表示領域の高さが変わったとき・項目の配置が変わったときに、
+        // フォーカスのある項目をリングの張り出しも含めて表示範囲に入れる。
+        // 並びの後に置いた canvas の prepaint で、この描画のレイアウトで決まった範囲を使う
         let expanded = self.expanded;
         let focused_child = focused.map(|index| index + usize::from(leading_space));
         let scroll = scroll_handle.clone();
@@ -449,17 +459,23 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                 if *painted_width.read(cx) != Some(bounds.size.width) {
                     painted_width.update(cx, |width, _| *width = Some(bounds.size.width));
                 }
+                if expanded && !*widened.read(cx) && bounds.size.width > min_width {
+                    widened.update(cx, |widened, _| *widened = true);
+                }
                 let viewport = scroll.bounds();
-                let key = (focused, viewport.size.height, expanded);
+                let item = focused_child.and_then(|child| scroll.bounds_for_item(child));
+                // 子の範囲はスクロールする前の位置なので、表示領域からの位置はスクロールで変わらず、配置が変わると変わる
+                let placement =
+                    item.map(|item| (item.top() - viewport.top(), item.bottom() - viewport.top()));
+                let key = (focused, viewport.size.height, placement);
                 if key == *last_focused.read(cx) {
                     return;
                 }
                 last_focused.update(cx, |last, _| *last = key);
-                let Some(item) = focused_child.and_then(|child| scroll.bounds_for_item(child))
-                else {
+                let Some(item) = item else {
                     return;
                 };
-                // 子の範囲はスクロールする前の位置なので、今のオフセットを足して画面上の位置にする
+                // 今のオフセットを足して画面上の位置にする
                 let mut offset = scroll.offset();
                 let top = item.top() + offset.y - ring_outset;
                 let bottom = item.bottom() + offset.y + ring_outset;
@@ -495,14 +511,11 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
             .child(measure);
 
         // 幅は折りたたんだ 96dp と、展開したときの最小 220dp・最大 360dp の間をバネで動く。
-        // 展開する間と展開した後は、範囲の中で内容に合わせる。折りたたむ間は、最大の幅の動きを、最小の幅の動きと
-        // 前の描画の幅の間に収めた幅にする (`widthFullRange.coerceIn(actualMinWidth, currentWidth)`)。
+        // 展開する間と展開した後は、範囲の中で内容に合わせる。折りたたむ間は、展開したときに内容で最小の幅より
+        // 広がっていれば、最大の幅の動きを、最小の幅の動きと前の描画の幅の間に収めた幅にする
+        // (`widthFullRange.coerceIn(actualMinWidth, currentWidth)`)。広がっていなければ最小の幅の動きにする。
         // そのため、どの時点で折りたたみ始めても、描いていた幅から続けて縮む。展開すると内容の左右に 20dp を空ける。
         // 呼び出し側のスタイルは、幅と余白の既定の後に重ねる
-        let collapsed_width = dp(collapsed::CONTAINER_WIDTH);
-        let min_width = dp(expanded::CONTAINER_WIDTH_MINIMUM);
-        let max_width = dp(expanded::CONTAINER_WIDTH_MAXIMUM);
-
         let padding = dp(supplement::navigation_rail::EXPANDED_HORIZONTAL_PADDING);
         let style = self.style;
         rail.with_spring(
@@ -516,12 +529,13 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                 let max =
                     (collapsed_width + (max_width - collapsed_width) * progress).min(max_width);
                 let rail = match collapsing_from {
-                    Some(from) => rail.w(max.clamp(min, from.max(min))),
+                    Some(from) if widened_before => rail.w(max.clamp(min, from.max(min))),
+                    Some(_) => rail.w(min),
                     None => rail.min_w(min).max_w(max),
                 };
-                // 展開の配置で描く間は、項目の左右にフォーカスリングの張り出し分を空ける
+                // 展開の配置では並びがフォーカスリングの張り出し分を左右に空けるため、その分を除く
                 let padding = if expanded {
-                    (padding * progress.min(1.0)).max(ring_outset)
+                    (padding * progress.min(1.0) - ring_outset).max(px(0.0))
                 } else {
                     padding * progress.min(1.0)
                 };
@@ -921,5 +935,54 @@ mod tests {
             ring_fits(cx),
             "折りたたんだ配置でも最後の項目を表示すること"
         );
+    }
+
+    #[gpui::test]
+    fn 項目の高さが変わってもフォーカスのある項目を表示する(
+        cx: &mut TestAppContext,
+    ) {
+        let two_lines = Rc::new(std::cell::Cell::new(false));
+        let state = two_lines.clone();
+        let cx = open(cx, move || {
+            let label = if state.get() { "Item\nItem" } else { "Item" };
+            NavigationRail::new("rail", Some(0))
+                .expanded(true)
+                .items(
+                    (0..12usize)
+                        .map(|index| NavigationRailItem::new(("item", index), index, HOME, label)),
+                )
+                .into_any_element()
+        });
+        cx.update(|_, cx| cx.set_reduce_motion(true));
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_keystrokes("tab end");
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        assert!(ring_fits(cx), "1 行のラベルで最後の項目を表示すること");
+        // ラベルを 2 行にすると項目が高くなり、同じオフセットでは最後の項目が表示範囲の外に出る
+        two_lines.set(true);
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        assert!(ring_fits(cx), "2 行のラベルでも最後の項目を表示すること");
+    }
+
+    #[gpui::test]
+    fn 左右の余白を消しても展開した項目のリングが切れない(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = open(cx, || {
+            NavigationRail::new("rail", Some(0))
+                .expanded(true)
+                .px_0()
+                .item(NavigationRailItem::new("item", 0usize, HOME, "Item"))
+                .into_any_element()
+        });
+        cx.update(|_, cx| cx.set_reduce_motion(true));
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_keystrokes("tab");
+        cx.run_until_parked();
+        assert!(ring_fits(cx), "レールの外枠でリングが切れないこと");
     }
 }
