@@ -32,9 +32,9 @@ mod list;
 mod loading_indicator;
 #[cfg(feature = "menu")]
 mod menu;
-// 進み具合を表す部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(feature = "navigation-bar")]
 mod navigation_bar;
+// 進み具合を表す部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(any(feature = "loading-indicator", feature = "progress-indicator"))]
 mod progress;
 #[cfg(feature = "progress-indicator")]

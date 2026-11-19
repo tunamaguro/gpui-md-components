@@ -301,23 +301,30 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationBar<T> {
                 } else {
                     // 上下の余白は、アイコンとラベルの高い方に足す
                     pill.py((dp(horizontal::ACTIVE_INDICATOR_HEIGHT) - icon_size) / 2.0)
-                        .pl(dp(horizontal::ACTIVE_INDICATOR_LEADING_SPACE))
-                        .pr(dp(horizontal::ACTIVE_INDICATOR_TRAILING_SPACE))
-                        .gap(dp(navigation_bar::ITEM_ACTIVE_INDICATOR_ICON_LABEL_SPACE))
                 };
+                // Compose はラベルを項目の幅からアイコンと間隔だけを除いた幅で測り、インジケーターを項目の幅に収める。
+                // 左右の余白は padding ではなく縮む要素で取り、縮める割合を大きくしてラベルより先に縮める
+                let side_space =
+                    |space| (!top).then(|| div().flex_shrink(1000.0).min_w_0().w(dp(space)));
+                let leading = side_space(horizontal::ACTIVE_INDICATOR_LEADING_SPACE);
+                let trailing = side_space(horizontal::ACTIVE_INDICATOR_TRAILING_SPACE);
                 let (inline_label, below_label) = if top {
                     let label = label.max_w_full().text_center().mt(dp(
                         supplement::navigation_bar::TOP_ICON_INDICATOR_TO_LABEL_PADDING,
                     ));
                     (None, Some(label))
                 } else {
+                    let label =
+                        label.ml(dp(navigation_bar::ITEM_ACTIVE_INDICATOR_ICON_LABEL_SPACE));
                     (Some(label), None)
                 };
                 let pill = pill
                     .child(indicator)
                     .children(state_layer)
+                    .children(leading)
                     .child(icon)
                     .children(inline_label)
+                    .children(trailing)
                     .children(ring);
 
                 let headless = HeadlessTab::new(item.id, item.value)
@@ -328,10 +335,9 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationBar<T> {
                     .flex()
                     .flex_col()
                     .items_center()
-                    .justify_center()
                     .flex_none();
-                // Compose の項目の最小の大きさ (`LocalMinimumInteractiveComponentSize`) は、どちらの並べ方でも
-                // 項目の幅と高さを決める値より小さいため扱わない
+                // Compose の項目の最小の大きさ (`LocalMinimumInteractiveComponentSize`) は、親が項目の大きさを
+                // 決めると効かない。項目の幅はバーが割り当てる幅に従うため扱わない
                 let headless = match self.arrangement {
                     NavigationBarArrangement::EqualWeight => {
                         headless.w(relative(1.0 / count.max(1) as f32))
@@ -351,10 +357,14 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationBar<T> {
                             .max_w(relative(1.0 / count))
                     }
                 };
+                // バーが最も高い項目に合わせて伸びても、ラベルの上にアイコンを置く項目の内容は上端に、
+                // ラベルの前にアイコンを置く項目の内容は上下中央に置く (`placeLabelAndTopIcon`、`placeLabelAndStartIcon`)
                 let headless = if top {
-                    headless.py(dp(vertical::CONTAINER_BETWEEN_SPACE))
-                } else {
                     headless
+                        .justify_start()
+                        .py(dp(vertical::CONTAINER_BETWEEN_SPACE))
+                } else {
+                    headless.justify_center()
                 };
                 headless.child(pill).children(below_label)
             })
@@ -687,5 +697,53 @@ mod tests {
             "等分より広く上限より狭い: {width}"
         );
         assert_eq!(x, (400.0 - width - 70.0 * 3.0) / 2.0);
+    }
+
+    #[gpui::test]
+    fn 前にアイコンを置く項目は狭いときラベルを先に取り左右の余白を縮める(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = open(cx, || {
+            let item = |id: &'static str, value: usize| {
+                NavigationBarItem::new(id, value, HOME, "Label")
+                    .icon_position(NavigationItemIconPosition::Start)
+            };
+            NavigationBar::new("bar", Some(0))
+                .items([
+                    item("a", 0),
+                    item("b", 1),
+                    item("c", 2),
+                    item("d", 3),
+                    item("e", 4),
+                ])
+                .w(px(320.0))
+                .into_any_element()
+        });
+        // 64dp の項目からアイコンと間隔を除いた 36dp にラベルを収め、インジケーターは項目の幅を超えない
+        let indicator = quads_of(cx, navigation_bar::ITEM_ACTIVE_INDICATOR_COLOR);
+        assert_eq!(indicator.len(), 1);
+        let (x, _, width, _) = indicator[0];
+        assert!(
+            x >= 0.0 && x + width <= 64.0,
+            "項目の中に収める: {x} {width}"
+        );
+    }
+
+    #[gpui::test]
+    fn 上にアイコンを置く項目はバーが伸びてもインジケーターを上端から_6dp_に置く(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = open(cx, || {
+            NavigationBar::new("bar", Some(0))
+                .items([
+                    NavigationBarItem::new("home", 0, HOME, "Home"),
+                    NavigationBarItem::new("search", 1, SEARCH, "Long\nLabel\nLines"),
+                ])
+                .into_any_element()
+        });
+        let container = quads_of(cx, navigation_bar::CONTAINER_COLOR);
+        assert_eq!(container[0].3, 96.0, "3 行のラベルでバーが伸びる");
+        let indicator = quads_of(cx, navigation_bar::ITEM_ACTIVE_INDICATOR_COLOR);
+        assert_eq!(indicator, vec![(72.0, 6.0, 56.0, 32.0)]);
     }
 }

@@ -2,10 +2,11 @@
 
 use gpui::{
     Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
-    StatefulInteractiveElement as _, Styled as _, Window, div, px,
+    SharedString, StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
 use md3_components::{
     NavigationBar, NavigationBarArrangement, NavigationBarItem, NavigationItemIconPosition,
+    TabPanel,
 };
 use md3_icons::StyledIcon;
 use md3_theme::md3_color::ColorRole;
@@ -42,6 +43,15 @@ impl Render for NavigationBarPage {
                         .disabled(prefix == "compact" && index == 3)
                 })
         };
+        // 選ばれた行き先の内容。バーは内容を公開しないため、行き先の名前を付けたパネルとして同じ描画で差し替える
+        let panel = |id: &'static str, index: usize| {
+            let name = DESTINATIONS[index].0;
+            TabPanel::new(id)
+                .aria_label(name)
+                .w(px(412.))
+                .p_4()
+                .child(label(&theme, id, format!("{name} content")))
+        };
 
         div()
             .id("navigation-bar-page")
@@ -54,7 +64,8 @@ impl Render for NavigationBarPage {
             .flex_col()
             .items_start()
             .gap_6()
-            .child(label(&theme, "Equal weight, icon on top"))
+            .child(label(&theme, "equal-weight", "Equal weight, icon on top"))
+            .child(panel("compact-panel", self.compact))
             .child(
                 NavigationBar::new("compact", Some(self.compact))
                     .aria_label("Compact navigation")
@@ -65,7 +76,8 @@ impl Render for NavigationBarPage {
                     .items(items("compact", NavigationItemIconPosition::Top))
                     .w(px(412.)),
             )
-            .child(label(&theme, "Centered, icon at start"))
+            .child(label(&theme, "centered", "Centered, icon at start"))
+            .child(panel("wide-panel", self.wide))
             .child(
                 NavigationBar::new("wide", Some(self.wide))
                     .aria_label("Wide navigation")
@@ -82,11 +94,11 @@ impl Render for NavigationBarPage {
 
 /// 支援技術に公開されるテキスト
 ///
-/// `text` を支援技術のノードの id にも使うため、ページ内で重ならない文字列を渡すこと
-fn label(theme: &Theme, text: &'static str) -> gpui::Div {
+/// `id` は支援技術のノードの id になるため、ページ内で重ならない文字列を渡すこと
+fn label(theme: &Theme, id: &'static str, text: impl Into<SharedString>) -> gpui::Div {
     let mut element = div();
     element
         .text_style()
         .refine(&theme.text_style(TypeScale::BodyMedium));
-    element.child(gpui::text!(id = text, text))
+    element.child(gpui::text!(id = id, text.into()))
 }
