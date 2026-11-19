@@ -18,32 +18,14 @@ use gpui::{
     point, prelude::FluentBuilder, px,
 };
 use gpui_headless::progress::{Progress as HeadlessProgress, ProgressBar};
+
+use crate::Progress;
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::{
     circular_progress_indicator, linear_progress_indicator, progress_indicator,
 };
 use md3_theme::md3_tokens::supplement::progress_indicator as supplement;
 use md3_theme::{SharedTheme, ThemeExt, dp, easing};
-
-/// 進捗インジケーターが表す進み具合
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Progress {
-    /// 進み具合が分からない。線が動き続け、モーション低減の設定では止まる
-    Indeterminate,
-    /// 全体のうち進んだ割合。0.0 で未着手、1.0 で完了
-    ///
-    /// 0.0〜1.0 の外の値はその範囲に収め、NaN は 0.0 として扱う
-    Determinate(f32),
-}
-
-impl From<Progress> for HeadlessProgress {
-    fn from(value: Progress) -> Self {
-        match value {
-            Progress::Indeterminate => HeadlessProgress::Indeterminate,
-            Progress::Determinate(fraction) => HeadlessProgress::Determinate(fraction),
-        }
-    }
-}
 
 /// 進捗インジケーターの形。既定の大きさと、進み具合を描く向きが決まる
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

@@ -32,6 +32,9 @@ mod list;
 mod loading_indicator;
 #[cfg(feature = "menu")]
 mod menu;
+// 進み具合を表す部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
+#[cfg(any(feature = "loading-indicator", feature = "progress-indicator"))]
+mod progress;
 #[cfg(feature = "progress-indicator")]
 mod progress_indicator;
 #[cfg(feature = "radio-button")]
@@ -50,6 +53,7 @@ mod select;
     feature = "fab",
     feature = "icon-button",
     feature = "list",
+    feature = "loading-indicator",
     feature = "menu",
     feature = "segmented-button",
     feature = "select",
@@ -104,6 +108,7 @@ pub use divider::{Divider, DividerOrientation};
 #[cfg(feature = "fab")]
 pub use fab::{ExtendedFab, ExtendedFabSize, Fab, FabColor, FabSize};
 pub use gpui;
+#[cfg(feature = "platform")]
 pub use gpui_platform;
 #[cfg(feature = "icon-button")]
 pub use icon_button::{
@@ -117,9 +122,11 @@ pub use list::{List, ListItem, ListItemKind};
 pub use loading_indicator::{LoadingIndicator, LoadingIndicatorVariant};
 #[cfg(feature = "menu")]
 pub use menu::{Menu, MenuGroup, MenuItem, MenuItemKind, MenuVariant};
+#[cfg(any(feature = "loading-indicator", feature = "progress-indicator"))]
+pub use progress::Progress;
 #[cfg(feature = "progress-indicator")]
 pub use progress_indicator::{
-    Progress, ProgressIndicator, ProgressIndicatorColors, ProgressIndicatorVariant,
+    ProgressIndicator, ProgressIndicatorColors, ProgressIndicatorVariant,
 };
 #[cfg(feature = "radio-button")]
 pub use radio_button::{RadioButton, RadioButtonIndicator, RadioGroup};

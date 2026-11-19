@@ -3,9 +3,11 @@
 // Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/LoadingIndicator.kt
 //         (`LoadingIndicator`、`ContainedLoadingIndicator`、`LoadingIndicatorImpl`、`LoadingIndicatorDefaults`、
 //         `buildMorphSequence`、`calculateScaleFactor`、`processPath`) @ 2a941dd11aabd9bb7d2016ed159764b220117c20
+// Copyright 2024 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
+// バネが止まる時刻の推定 (`morph_settle_time`) は Jetpack Compose の animation-core から移植している
 // Source: compose/animation/animation-core/src/commonMain/kotlin/androidx/compose/animation/core/SpringEstimation.kt
 //         (`estimateUnderDamped`) @ 2a941dd11aabd9bb7d2016ed159764b220117c20
-// Copyright 2024 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
+// Copyright 2020 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 // トークンの値と版は md3-tokens の loading_indicator にある
 
 //! MD3 Expressive のローディングインジケーター
@@ -18,15 +20,16 @@ use std::time::Duration;
 
 use gpui::{
     Animation, AnimationExt, App, Bounds, ElementId, Hsla, IntoElement, ParentElement, PathBuilder,
-    Pixels, Refineable, RenderOnce, SharedString, SpringConfig, SpringState,
-    StatefulInteractiveElement, StyleRefinement, Styled, Window, canvas, div,
-    prelude::FluentBuilder, px,
+    Pixels, Refineable, RenderOnce, SharedString, SpringState, StatefulInteractiveElement,
+    StyleRefinement, Styled, Window, canvas, div, prelude::FluentBuilder, px,
 };
-use gpui_headless::progress::ProgressBar;
+use gpui_headless::progress::{Progress as HeadlessProgress, ProgressBar};
 use md3_theme::md3_tokens::component::loading_indicator;
-use md3_theme::{SharedTheme, ThemeExt, dp};
+use md3_theme::md3_tokens::supplement::loading_indicator as supplement;
+use md3_theme::{SharedTheme, ThemeExt, dp, spring};
 
 use crate::Progress;
+use crate::shape::Shaped;
 use material_shapes::{MaterialShape, rotate};
 use shapes::{Morph, Point};
 
@@ -120,28 +123,27 @@ impl RenderOnce for LoadingIndicator {
             .h(size.height)
             .overflow_hidden()
             .when_some(container, |this, role| {
-                this.bg(theme.color(role)).rounded(
-                    theme
-                        .corner_radii(loading_indicator::CONTAINER_SHAPE, size)
-                        .top_left,
-                )
+                // 容器の形は描画時の大きさから決め、大きさを変えても円形を保つ
+                this.child(Shaped::new(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .size_full()
+                        .bg(theme.color(role)),
+                    theme.clone(),
+                    loading_indicator::CONTAINER_SHAPE,
+                ))
             });
         bar.style().refine(&self.style);
 
-        match self.progress {
-            Progress::Determinate(fraction) => {
-                let fraction = if fraction.is_nan() {
-                    0.0
-                } else {
-                    fraction.clamp(0.0, 1.0)
-                };
-                bar.child(shape_canvas(indicator, determinate_frame(fraction)))
-            }
-            Progress::Indeterminate if reduce_motion => bar.child(shape_canvas(
+        match HeadlessProgress::from(self.progress).fraction() {
+            Some(fraction) => bar.child(shape_canvas(indicator, determinate_frame(fraction))),
+            None if reduce_motion => bar.child(shape_canvas(
                 indicator,
                 indeterminate_frame(Duration::ZERO, Duration::ZERO),
             )),
-            Progress::Indeterminate => bar.child(
+            None => bar.child(
                 // 全体の回転と形の変化は周期が違うため、別のアニメーションで時刻を求める
                 div()
                     .absolute()
@@ -150,11 +152,11 @@ impl RenderOnce for LoadingIndicator {
                     .size_full()
                     .with_animation(
                         "loading-indicator-rotation",
-                        Animation::new(GLOBAL_ROTATION_DURATION).repeat(),
+                        Animation::new(supplement::GLOBAL_ROTATION_DURATION).repeat(),
                         move |this, rotation_delta| {
-                            let rotation_time = GLOBAL_ROTATION_DURATION.mul_f32(rotation_delta);
-                            let morph_cycle =
-                                MORPH_INTERVAL * indeterminate_sequence().morphs.len() as u32;
+                            let rotation_time =
+                                supplement::GLOBAL_ROTATION_DURATION.mul_f32(rotation_delta);
+                            let morph_cycle = indeterminate_morph_cycle();
                             this.child(
                                 div()
                                     .absolute()
@@ -186,14 +188,14 @@ impl Styled for LoadingIndicator {
     }
 }
 
-/// 全体が 1 回転する時間 (`GlobalRotationDurationMillis`)
-const GLOBAL_ROTATION_DURATION: Duration = Duration::from_millis(4666);
-/// 次の形へ変わり始めるまでの間隔 (`MorphIntervalMillis`)
-const MORPH_INTERVAL: Duration = Duration::from_millis(650);
-/// 形が変わるバネ (`spring(dampingRatio = 0.6f, stiffness = 200f, visibilityThreshold = 0.1f)`)
-const MORPH_DAMPING_RATIO: f32 = 0.6;
-const MORPH_STIFFNESS: f32 = 200.0;
-const MORPH_VISIBILITY_THRESHOLD: f32 = 0.1;
+/// 変化ごとに 90 度ずつ進む回転の目標が一周する変化の数
+const QUARTER_TURNS: usize = 4;
+
+/// 形の列と回転の目標の両方が始めに戻るまでの時間
+fn indeterminate_morph_cycle() -> Duration {
+    // 形の数 (7) は 4 と互いに素なので、形の数 × 4 回の変化で両方がそろう
+    supplement::MORPH_INTERVAL * (indeterminate_sequence().morphs.len() * QUARTER_TURNS) as u32
+}
 
 /// 形の変化の列と、回しても容器からはみ出さないための縮小率
 struct Sequence {
@@ -319,18 +321,13 @@ fn determinate_frame(fraction: f32) -> Frame {
 fn indeterminate_frame(rotation_time: Duration, morph_time: Duration) -> Frame {
     let sequence = indeterminate_sequence();
     let len = sequence.morphs.len().max(1);
-    let interval = (morph_time.as_millis() / MORPH_INTERVAL.as_millis()) as usize;
-    let in_interval = morph_time - MORPH_INTERVAL * interval as u32;
+    let interval = (morph_time.as_millis() / supplement::MORPH_INTERVAL.as_millis()) as usize;
+    let in_interval = morph_time - supplement::MORPH_INTERVAL * interval as u32;
     let global_rotation =
-        rotation_time.as_secs_f32() / GLOBAL_ROTATION_DURATION.as_secs_f32() * 360.0;
+        rotation_time.as_secs_f32() / supplement::GLOBAL_ROTATION_DURATION.as_secs_f32() * 360.0;
     // バネが止まると次の形の始まりへ移り、回転の目標を 90 度進める
     let (morph_index, morph_progress, target_angle) = if in_interval < morph_settle_time() {
-        let config = SpringConfig::new(
-            MORPH_STIFFNESS,
-            2.0 * MORPH_DAMPING_RATIO * MORPH_STIFFNESS.sqrt(),
-            1.0,
-        );
-        let state = config.step(
+        let state = spring(supplement::MORPH_SPRING).step(
             SpringState {
                 position: 0.0,
                 velocity: 0.0,
@@ -341,13 +338,13 @@ fn indeterminate_frame(rotation_time: Duration, morph_time: Duration) -> Frame {
         (
             interval % len,
             state.position,
-            90.0 * ((interval + 1) % 4) as f32,
+            90.0 * ((interval + 1) % QUARTER_TURNS) as f32,
         )
     } else {
         (
             (interval + 1) % len,
             0.0,
-            90.0 * ((interval + 2) % 4) as f32,
+            90.0 * ((interval + 2) % QUARTER_TURNS) as f32,
         )
     };
     Frame {
@@ -363,11 +360,11 @@ fn indeterminate_frame(rotation_time: Duration, morph_time: Duration) -> Frame {
 fn morph_settle_time() -> Duration {
     // 0 から 1 へ初速 0 で動く減衰不足のバネで、振幅の包絡線が閾値を下回る時刻 (`estimateUnderDamped`)。
     // 移植元に合わせて、変位と速度は閾値で割った値で求め、ミリ秒に切り捨てる
-    let stiffness = f64::from(MORPH_STIFFNESS);
-    let damping = 2.0 * f64::from(MORPH_DAMPING_RATIO) * stiffness.sqrt();
+    let stiffness = f64::from(supplement::MORPH_SPRING.stiffness);
+    let damping = 2.0 * f64::from(supplement::MORPH_SPRING.damping_ratio) * stiffness.sqrt();
     let real = -damping * 0.5;
     let imaginary = (4.0 * stiffness - damping * damping).sqrt() * 0.5;
-    let p0 = 1.0 / f64::from(MORPH_VISIBILITY_THRESHOLD);
+    let p0 = 1.0 / f64::from(supplement::MORPH_VISIBILITY_THRESHOLD);
     let c2 = -real * p0 / imaginary;
     let amplitude = (p0 * p0 + c2 * c2).sqrt();
     Duration::from_millis(((1.0 / amplitude).ln() / real * 1000.0) as u64)
@@ -492,6 +489,22 @@ mod tests {
     }
 
     #[test]
+    fn 形の列が一周しても回転の目標は続きから進む() {
+        let cycle = indeterminate_morph_cycle();
+        assert_eq!(cycle, ms(650 * 7 * 4));
+        // 形の列が 1 周する 4550ms の前後でも、回転の目標は続きから進む
+        let before = indeterminate_frame(ms(0), ms(4550 - 1));
+        let after = indeterminate_frame(ms(0), ms(4550));
+        assert_eq!((before.morph_index, after.morph_index), (0, 0));
+        assert_close(after.rotation, before.rotation, 1e-3, "4550ms の前後の回転");
+        // 周期の終わりから始めに戻るときも回転が続く
+        let end = indeterminate_frame(ms(0), cycle - ms(1));
+        let start = indeterminate_frame(ms(0), ms(0));
+        assert_eq!(end.morph_index, start.morph_index);
+        assert_close(end.rotation, start.rotation, 1e-3, "周期の境の回転");
+    }
+
+    #[test]
     fn 全体の回転は_4666ms_で_1_周する() {
         let quarter = indeterminate_frame(ms(4666 / 4), ms(400));
         assert_close(quarter.rotation, 180.0 + 90.0, 0.1, "4 分の 1 周の回転");
@@ -521,7 +534,7 @@ mod tests {
         let bounds = Bounds::new(gpui::point(px(0.0), px(0.0)), size(px(48.0), px(48.0)));
         let frames = (0..4666)
             .step_by(37)
-            .map(|t| indeterminate_frame(ms(t as u64), ms(t as u64 % 4550)))
+            .map(|t| indeterminate_frame(ms(t as u64), ms(t as u64 * 3)))
             .chain((0..=10).map(|i| determinate_frame(i as f32 / 10.0)));
         for frame in frames {
             let sequence = frame.sequence;
@@ -541,7 +554,8 @@ mod tests {
         }
     }
 
-    struct ElementView(LoadingIndicatorVariant);
+    /// 種類と、指定する大きさ (論理ピクセル)
+    struct ElementView(LoadingIndicatorVariant, Option<f32>);
 
     impl gpui::Render for ElementView {
         fn render(
@@ -552,7 +566,8 @@ mod tests {
             div().p(px(8.0)).child(
                 LoadingIndicator::new("indicator", Progress::Determinate(0.5))
                     .variant(self.0)
-                    .aria_label("Loading"),
+                    .aria_label("Loading")
+                    .when_some(self.1, |this, side| this.size(px(side))),
             )
         }
     }
@@ -560,14 +575,15 @@ mod tests {
     /// 矩形の論理ピクセルの x, y, 幅, 高さと塗り、左上の角の半径
     type Quad = ((f32, f32, f32, f32), gpui::Background, f32);
 
-    /// `variant` を描いたときの矩形と、容器の色
+    /// `variant` を大きさ `side` で描いたときの矩形と、容器の色。`side` が `None` なら既定の大きさ
     fn painted_quads(
         cx: &mut TestAppContext,
         variant: LoadingIndicatorVariant,
+        side: Option<f32>,
     ) -> (Vec<Quad>, Hsla) {
         let (_, cx) = cx.add_window_view(|window, cx| {
             cx.init_md3_theme(window);
-            ElementView(variant)
+            ElementView(variant, side)
         });
         cx.run_until_parked();
         cx.update(|window, cx| {
@@ -595,7 +611,7 @@ mod tests {
 
     #[gpui::test]
     fn 容器のある種類は_48dp_の円形の容器を塗る(cx: &mut TestAppContext) {
-        let (quads, container) = painted_quads(cx, LoadingIndicatorVariant::Contained);
+        let (quads, container) = painted_quads(cx, LoadingIndicatorVariant::Contained, None);
         assert_eq!(
             quads,
             vec![((8.0, 8.0, 48.0, 48.0), container.into(), 24.0)],
@@ -604,8 +620,18 @@ mod tests {
     }
 
     #[gpui::test]
+    fn 大きさを変えても容器は円形を保つ(cx: &mut TestAppContext) {
+        let (quads, container) = painted_quads(cx, LoadingIndicatorVariant::Contained, Some(80.0));
+        assert_eq!(
+            quads,
+            vec![((8.0, 8.0, 80.0, 80.0), container.into(), 40.0)],
+            "角の半径は描画時の短辺の半分"
+        );
+    }
+
+    #[gpui::test]
     fn 容器のない種類は矩形を塗らない(cx: &mut TestAppContext) {
-        let (quads, _) = painted_quads(cx, LoadingIndicatorVariant::Uncontained);
+        let (quads, _) = painted_quads(cx, LoadingIndicatorVariant::Uncontained, None);
         assert!(
             quads.is_empty(),
             "形はパスで描き、矩形は塗らない: {quads:?}"

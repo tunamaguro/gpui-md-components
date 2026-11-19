@@ -6,7 +6,7 @@
 //         Shapes.kt (`circle`、`star`)、Morph.kt (`Morph`)、PolygonMeasure.kt (`MeasuredPolygon`、
 //         `LengthMeasurer`)、FeatureMapping.kt (`featureMapper`、`doMapping`)、
 //         FloatMapping.kt (`DoubleMapper`、`linearMap`) @ 2a941dd11aabd9bb7d2016ed159764b220117c20
-// Copyright 2022 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
+// Copyright 2022, 2023 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 //
 // 移すのはローディングインジケーターの形を作って変形させる部分だけ。
 // 入力はこのモジュールの中で決めた形に限るため、移植元の入力検査 (`require`) は移していない。
