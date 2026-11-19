@@ -3,6 +3,7 @@
 #![cfg_attr(target_family = "wasm", no_main)]
 
 mod badge_page;
+mod button_group_page;
 mod button_page;
 mod card_page;
 mod checkbox_page;
@@ -35,6 +36,7 @@ use md3_theme::ThemeExt as _;
 use md3_theme::md3_color::ColorRole;
 
 use crate::badge_page::BadgePage;
+use crate::button_group_page::ButtonGroupPage;
 use crate::button_page::ButtonPage;
 use crate::card_page::CardPage;
 use crate::checkbox_page::CheckboxPage;
@@ -63,6 +65,7 @@ use crate::tooltip_page::TooltipPage;
 enum Page {
     Theme,
     Button,
+    ButtonGroup,
     IconButton,
     Checkbox,
     RadioButton,
@@ -91,6 +94,7 @@ struct Gallery {
     page: Page,
     theme_page: Entity<ThemePage>,
     button_page: Entity<ButtonPage>,
+    button_group_page: Entity<ButtonGroupPage>,
     icon_button_page: Entity<IconButtonPage>,
     checkbox_page: Entity<CheckboxPage>,
     radio_button_page: Entity<RadioButtonPage>,
@@ -120,6 +124,7 @@ impl Gallery {
             page: Page::Theme,
             theme_page: cx.new(|_| ThemePage),
             button_page: cx.new(|_| ButtonPage::default()),
+            button_group_page: cx.new(|_| ButtonGroupPage::default()),
             icon_button_page: cx.new(|_| IconButtonPage::default()),
             checkbox_page: cx.new(CheckboxPage::new),
             radio_button_page: cx.new(|_| RadioButtonPage::default()),
@@ -163,6 +168,7 @@ impl Render for Gallery {
         let page: AnyView = match self.page {
             Page::Theme => self.theme_page.clone().into(),
             Page::Button => self.button_page.clone().into(),
+            Page::ButtonGroup => self.button_group_page.clone().into(),
             Page::IconButton => self.icon_button_page.clone().into(),
             Page::Checkbox => self.checkbox_page.clone().into(),
             Page::RadioButton => self.radio_button_page.clone().into(),
@@ -199,6 +205,7 @@ impl Render for Gallery {
                         .p_2()
                         .child(tab(Page::Theme, "Theme", cx))
                         .child(tab(Page::Button, "Button", cx))
+                        .child(tab(Page::ButtonGroup, "Button group", cx))
                         .child(tab(Page::IconButton, "Icon button", cx))
                         .child(tab(Page::Checkbox, "Checkbox", cx))
                         .child(tab(Page::RadioButton, "Radio button", cx))
