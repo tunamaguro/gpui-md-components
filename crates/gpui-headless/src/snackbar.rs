@@ -11,29 +11,6 @@ use gpui::{
 
 use crate::accessibility::A11yInfoExt;
 
-/// 通知を表示し続ける長さ
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum SnackbarDuration {
-    /// 4 秒
-    #[default]
-    Short,
-    /// 10 秒
-    Long,
-    /// 閉じるか操作されるまで表示し続ける
-    Indefinite,
-}
-
-impl SnackbarDuration {
-    /// 表示し続ける長さ。[`SnackbarDuration::Indefinite`] なら `None`
-    pub fn duration(self) -> Option<Duration> {
-        match self {
-            Self::Short => Some(Duration::from_millis(4000)),
-            Self::Long => Some(Duration::from_millis(10000)),
-            Self::Indefinite => None,
-        }
-    }
-}
-
 /// 通知が表示を終えた理由
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SnackbarResult {
@@ -47,16 +24,16 @@ type ResultHandler = Box<dyn FnOnce(SnackbarResult, &mut App)>;
 
 struct Entry<T> {
     content: T,
-    duration: SnackbarDuration,
+    duration: Option<Duration>,
     on_result: Option<ResultHandler>,
 }
 
 /// 通知を 1 つずつ表示する列
 ///
 /// [`SnackbarQueue::show`] で加えた通知を、加えた順に 1 つずつ表示中にする。
-/// 表示中の通知は、[`SnackbarQueue::dismiss`] か [`SnackbarQueue::perform_action`] を呼ぶか、
+/// 表示中の通知は、[`SnackbarQueue::dismiss`] か [`SnackbarQueue::perform_action`] で終えるか、
 /// 表示する長さを過ぎると表示を終え、次の通知が表示中になる。
-/// 表示する長さは、通知が表示中になったときから数える。
+/// 表示する長さは、[`SnackbarQueue::start_timer`] で通知を画面に出したと伝えたときから数える。
 /// 状態が変わるたびに、この列の [`gpui::Entity`] を通知する
 pub struct SnackbarQueue<T: 'static> {
     current: Option<Entry<T>>,
@@ -85,12 +62,13 @@ impl<T: 'static> SnackbarQueue<T> {
 
     /// 通知 `content` を列の末尾に加える
     ///
-    /// 表示中の通知が無ければ、すぐに表示中にする。
-    /// 表示を終えたときに、終えた理由を `on_result` に渡して 1 回だけ呼ぶ
+    /// 表示中の通知が無ければ、すぐに表示中にする。`duration` は表示する長さで、`None` なら終えるまで表示し続ける。
+    /// 表示を終えたときに、終えた理由を `on_result` に渡して 1 回だけ呼ぶ。
+    /// `on_result` は列の更新を終えた後に呼ぶため、その中で同じ列を読み書きできる
     pub fn show(
         &mut self,
         content: T,
-        duration: SnackbarDuration,
+        duration: Option<Duration>,
         on_result: impl FnOnce(SnackbarResult, &mut App) + 'static,
         cx: &mut Context<Self>,
     ) {
@@ -114,46 +92,53 @@ impl<T: 'static> SnackbarQueue<T> {
         self.current.as_ref().map(|_| self.serial)
     }
 
-    /// 表示中の通知を閉じ、[`SnackbarResult::Dismissed`] を伝える。表示中の通知が無ければ何もしない
-    pub fn dismiss(&mut self, cx: &mut Context<Self>) {
-        self.finish(SnackbarResult::Dismissed, cx);
+    /// 番号 `id` の通知を画面に出したと伝え、表示する長さを数え始める
+    ///
+    /// `id` の通知が表示中でないか、すでに数え始めていれば何もしない。状態を変えても通知しない
+    pub fn start_timer(&mut self, id: u64, cx: &mut Context<Self>) {
+        if self.current_id() != Some(id) || self.timer.is_some() {
+            return;
+        }
+        let Some(duration) = self.current.as_ref().and_then(|entry| entry.duration) else {
+            return;
+        };
+        self.timer = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(duration).await;
+            this.update(cx, |queue, cx| queue.dismiss(id, cx)).ok();
+        }));
     }
 
-    /// 表示中の通知の操作が選ばれたとして表示を終え、[`SnackbarResult::ActionPerformed`] を伝える。
-    /// 表示中の通知が無ければ何もしない
-    pub fn perform_action(&mut self, cx: &mut Context<Self>) {
-        self.finish(SnackbarResult::ActionPerformed, cx);
+    /// 番号 `id` の通知を閉じ、[`SnackbarResult::Dismissed`] を伝える。`id` の通知が表示中でなければ何もしない
+    pub fn dismiss(&mut self, id: u64, cx: &mut Context<Self>) {
+        self.finish(id, SnackbarResult::Dismissed, cx);
     }
 
-    fn finish(&mut self, result: SnackbarResult, cx: &mut Context<Self>) {
+    /// 番号 `id` の通知の操作が選ばれたとして表示を終え、[`SnackbarResult::ActionPerformed`] を伝える。
+    /// `id` の通知が表示中でなければ何もしない
+    pub fn perform_action(&mut self, id: u64, cx: &mut Context<Self>) {
+        self.finish(id, SnackbarResult::ActionPerformed, cx);
+    }
+
+    fn finish(&mut self, id: u64, result: SnackbarResult, cx: &mut Context<Self>) {
+        if self.current_id() != Some(id) {
+            return;
+        }
         let Some(mut entry) = self.current.take() else {
             return;
         };
         self.timer = None;
-        if let Some(on_result) = entry.on_result.take() {
-            on_result(result, cx);
-        }
         self.advance(cx);
+        if let Some(on_result) = entry.on_result.take() {
+            // 列を更新している間は、`on_result` から同じ列を読み書きできないため、更新を終えてから呼ぶ
+            cx.defer(move |cx| on_result(result, cx));
+        }
     }
 
-    /// 次の通知を表示中にし、表示する長さの後に閉じる
+    /// 次の通知を表示中にする
     fn advance(&mut self, cx: &mut Context<Self>) {
         self.current = self.pending.pop_front();
-        if let Some(entry) = &self.current {
+        if self.current.is_some() {
             self.serial += 1;
-            let serial = self.serial;
-            self.timer = entry.duration.duration().map(|duration| {
-                cx.spawn(async move |this, cx| {
-                    cx.background_executor().timer(duration).await;
-                    this.update(cx, |queue, cx| {
-                        // 先に閉じられて次の通知に変わっていれば、その通知は閉じない
-                        if queue.current_id() == Some(serial) {
-                            queue.dismiss(cx);
-                        }
-                    })
-                    .ok();
-                })
-            });
         }
         cx.notify();
     }
@@ -161,8 +146,9 @@ impl<T: 'static> SnackbarQueue<T> {
 
 /// 通知を表示する、見た目を持たない領域
 ///
-/// 支援技術には role `status` として公開され、内容が変わると支援技術が読み上げを待つ間に読み上げる (live region の polite)。
-/// 領域は通知が無い間も描き続けること。支援技術は、領域ができたときにすでにある内容を読み上げないことがある。
+/// 支援技術には role `status` として公開され、内容が変わると、支援技術は手の空いたときに領域の内容全体を読み上げる
+/// (live region の polite と atomic)。領域には読み上げる文だけを置き、ボタンなどの操作は領域の外に置くこと。
+/// 領域は通知が無い間も同じ場所で描き続けること。支援技術は、領域ができたときにすでにある内容を読み上げないことがある。
 /// フォーカスも操作も持たない。見た目は [`Styled`] と子の要素で呼び出し側が付ける
 #[derive(IntoElement)]
 pub struct SnackbarRegion {
@@ -184,7 +170,11 @@ impl RenderOnce for SnackbarRegion {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
         self.inner
             .role(accesskit::Role::Status)
-            .a11y_info(|node: &mut accesskit::Node| node.set_live(accesskit::Live::Polite))
+            .a11y_info(|node: &mut accesskit::Node| {
+                // WAI-ARIA の status が暗黙に持つ aria-live と aria-atomic
+                node.set_live(accesskit::Live::Polite);
+                node.set_live_atomic();
+            })
     }
 }
 
@@ -213,16 +203,16 @@ mod tests {
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    use gpui::{AppContext as _, TestAppContext};
+    use gpui::{AppContext as _, Element, Entity, TestAppContext};
 
     use super::*;
 
     type Log = Rc<RefCell<Vec<(&'static str, SnackbarResult)>>>;
 
     fn show(
-        queue: &gpui::Entity<SnackbarQueue<&'static str>>,
+        queue: &Entity<SnackbarQueue<&'static str>>,
         content: &'static str,
-        duration: SnackbarDuration,
+        duration: Option<Duration>,
         log: &Log,
         cx: &mut TestAppContext,
     ) {
@@ -237,68 +227,75 @@ mod tests {
         });
     }
 
-    #[gpui::test]
-    fn 通知は加えた順に_1_つずつ表示し_長さを過ぎると次に進む(
+    fn current(
+        queue: &Entity<SnackbarQueue<&'static str>>,
         cx: &mut TestAppContext,
-    ) {
-        let queue = cx.new(|_| SnackbarQueue::new());
-        let log = Log::default();
-        show(&queue, "first", SnackbarDuration::Short, &log, cx);
-        show(&queue, "second", SnackbarDuration::Long, &log, cx);
-        assert_eq!(
-            queue.read_with(cx, |queue, _| queue.current().copied()),
-            Some("first")
-        );
+    ) -> Option<&'static str> {
+        queue.read_with(cx, |queue, _| queue.current().copied())
+    }
 
-        cx.executor().advance_clock(Duration::from_millis(3999));
-        cx.run_until_parked();
-        assert_eq!(
-            queue.read_with(cx, |queue, _| queue.current().copied()),
-            Some("first")
-        );
-        cx.executor().advance_clock(Duration::from_millis(1));
-        cx.run_until_parked();
-        assert_eq!(
-            queue.read_with(cx, |queue, _| queue.current().copied()),
-            Some("second")
-        );
-        assert_eq!(*log.borrow(), vec![("first", SnackbarResult::Dismissed)]);
-
-        // 次の通知の長さは、表示中になったときから数える
-        cx.executor().advance_clock(Duration::from_millis(9999));
-        cx.run_until_parked();
-        assert_eq!(
-            queue.read_with(cx, |queue, _| queue.current().copied()),
-            Some("second")
-        );
-        cx.executor().advance_clock(Duration::from_millis(1));
-        cx.run_until_parked();
-        assert_eq!(
-            queue.read_with(cx, |queue, _| queue.current().copied()),
-            None
-        );
+    fn start(queue: &Entity<SnackbarQueue<&'static str>>, cx: &mut TestAppContext) {
+        queue.update(cx, |queue, cx| {
+            if let Some(id) = queue.current_id() {
+                queue.start_timer(id, cx);
+            }
+        });
     }
 
     #[gpui::test]
-    fn 操作か閉じる求めで表示を終え_前の通知の時間切れは次の通知を閉じない(
+    fn 通知は加えた順に_1_つずつ表示し_画面に出してから長さを過ぎると次に進む(
         cx: &mut TestAppContext,
     ) {
         let queue = cx.new(|_| SnackbarQueue::new());
         let log = Log::default();
-        show(&queue, "first", SnackbarDuration::Short, &log, cx);
-        show(&queue, "second", SnackbarDuration::Indefinite, &log, cx);
-        let first = queue.read_with(cx, |queue, _| queue.current_id());
-        queue.update(cx, |queue, cx| queue.perform_action(cx));
-        assert_ne!(queue.read_with(cx, |queue, _| queue.current_id()), first);
+        show(&queue, "first", Some(Duration::from_secs(4)), &log, cx);
+        show(&queue, "second", Some(Duration::from_secs(10)), &log, cx);
+        assert_eq!(current(&queue, cx), Some("first"));
 
         cx.executor().advance_clock(Duration::from_secs(60));
         cx.run_until_parked();
         assert_eq!(
-            queue.read_with(cx, |queue, _| queue.current().copied()),
-            Some("second"),
-            "期限の無い通知は表示し続けること"
+            current(&queue, cx),
+            Some("first"),
+            "画面に出すまでは数えないこと"
         );
-        queue.update(cx, |queue, cx| queue.dismiss(cx));
+
+        start(&queue, cx);
+        start(&queue, cx);
+        cx.executor().advance_clock(Duration::from_millis(3999));
+        cx.run_until_parked();
+        assert_eq!(current(&queue, cx), Some("first"));
+        cx.executor().advance_clock(Duration::from_millis(1));
+        cx.run_until_parked();
+        assert_eq!(current(&queue, cx), Some("second"));
+        assert_eq!(*log.borrow(), vec![("first", SnackbarResult::Dismissed)]);
+
+        start(&queue, cx);
+        cx.executor().advance_clock(Duration::from_secs(10));
+        cx.run_until_parked();
+        assert_eq!(current(&queue, cx), None);
+    }
+
+    #[gpui::test]
+    fn 終えるのは指定した番号の通知だけで_長さの無い通知は表示し続ける(
+        cx: &mut TestAppContext,
+    ) {
+        let queue = cx.new(|_| SnackbarQueue::new());
+        let log = Log::default();
+        show(&queue, "first", Some(Duration::from_secs(4)), &log, cx);
+        show(&queue, "second", None, &log, cx);
+        let first = queue.read_with(cx, |queue, _| queue.current_id()).unwrap();
+        queue.update(cx, |queue, cx| queue.perform_action(first, cx));
+        cx.run_until_parked();
+        // 前の通知への求めは、次の通知を終えない
+        queue.update(cx, |queue, cx| queue.dismiss(first, cx));
+        start(&queue, cx);
+        cx.executor().advance_clock(Duration::from_secs(60));
+        cx.run_until_parked();
+        assert_eq!(current(&queue, cx), Some("second"));
+        let second = queue.read_with(cx, |queue, _| queue.current_id()).unwrap();
+        queue.update(cx, |queue, cx| queue.dismiss(second, cx));
+        cx.run_until_parked();
         assert_eq!(
             *log.borrow(),
             vec![
@@ -306,11 +303,66 @@ mod tests {
                 ("second", SnackbarResult::Dismissed)
             ]
         );
-        queue.update(cx, |queue, cx| queue.dismiss(cx));
+    }
+
+    #[gpui::test]
+    fn 結果を受けて同じ列に次の通知を加えられる(cx: &mut TestAppContext) {
+        let queue = cx.new(|_| SnackbarQueue::new());
+        let log = Log::default();
+        show(&queue, "waiting", None, &log, cx);
+        let handle = queue.clone();
+        queue.update(cx, |queue, cx| {
+            queue.show(
+                "first",
+                None,
+                move |_, cx| {
+                    handle.update(cx, |queue, cx| queue.show("follow-up", None, |_, _| {}, cx))
+                },
+                cx,
+            )
+        });
+        show(&queue, "queued", None, &log, cx);
+        let dismiss = |cx: &mut TestAppContext| {
+            let id = queue.read_with(cx, |queue, _| queue.current_id()).unwrap();
+            queue.update(cx, |queue, cx| queue.dismiss(id, cx));
+            cx.run_until_parked();
+        };
+        dismiss(cx);
+        assert_eq!(current(&queue, cx), Some("first"));
+        dismiss(cx);
         assert_eq!(
-            log.borrow().len(),
-            2,
-            "表示中の通知が無ければ何もしないこと"
+            current(&queue, cx),
+            Some("queued"),
+            "先に待っていた通知を先に表示すること"
         );
+        dismiss(cx);
+        assert_eq!(current(&queue, cx), Some("follow-up"));
+    }
+
+    struct RegionView(Option<accesskit::Node>);
+
+    impl gpui::Render for RegionView {
+        fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            let element = SnackbarRegion::new("region")
+                .render(window, cx)
+                .into_element();
+            // テスト用ウィンドウは支援技術を有効にできず a11y ツリーを組み立てないため、
+            // 描画する要素から直接ノードを書き出す
+            let mut node = accesskit::Node::new(element.a11y_role().expect("role を持つこと"));
+            element.write_a11y_info(&mut node);
+            self.0 = Some(node);
+            element
+        }
+    }
+
+    #[gpui::test]
+    fn 領域は_status_として_polite_と_atomic_で公開する(cx: &mut TestAppContext) {
+        let (view, cx) = crate::test_window::add_test_window(cx, |_, _| RegionView(None));
+        let node = view
+            .read_with(cx, |view, _| view.0.clone())
+            .expect("描画されていること");
+        assert_eq!(node.role(), accesskit::Role::Status);
+        assert_eq!(node.live(), Some(accesskit::Live::Polite));
+        assert!(node.is_live_atomic());
     }
 }

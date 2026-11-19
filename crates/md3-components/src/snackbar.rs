@@ -9,15 +9,14 @@
 
 //! MD3 のスナックバー
 
+use std::time::Duration;
+
 use gpui::{
-    AnimationExt, App, AppContext, Div, ElementId, Entity, IntoElement, ParentElement, Refineable,
-    RenderOnce, SharedString, SpringAnimation, StyleRefinement, Styled, Window, div,
-    prelude::FluentBuilder,
+    AnimationExt, App, AppContext, Div, ElementId, Entity, InteractiveElement, IntoElement,
+    ParentElement, Refineable, RenderOnce, SharedString, SpringAnimation, StyleRefinement, Styled,
+    Window, div, prelude::FluentBuilder,
 };
-use gpui_headless::snackbar::{
-    SnackbarDuration as HeadlessDuration, SnackbarQueue, SnackbarRegion,
-    SnackbarResult as HeadlessResult,
-};
+use gpui_headless::snackbar::{SnackbarQueue, SnackbarRegion, SnackbarResult as HeadlessResult};
 use md3_theme::md3_tokens::component::snackbar;
 use md3_theme::md3_tokens::motion::MotionSchemeKey;
 use md3_theme::md3_tokens::supplement::snackbar as supplement;
@@ -92,6 +91,21 @@ impl SnackbarMessage {
         self
     }
 
+    /// 文
+    pub fn message(&self) -> &SharedString {
+        &self.message
+    }
+
+    /// 操作のボタンのラベル。操作が無ければ `None`
+    pub fn action_label(&self) -> Option<&SharedString> {
+        self.action_label.as_ref()
+    }
+
+    /// 閉じるボタンのアクセシブルな名前。閉じるボタンが無ければ `None`
+    pub fn dismiss_label(&self) -> Option<&SharedString> {
+        self.dismiss_label.as_ref()
+    }
+
     /// `true` なら、操作のボタンを文の下の行に置く。文が長い場合に使う
     pub fn action_on_new_line(mut self, action_on_new_line: bool) -> Self {
         self.action_on_new_line = action_on_new_line;
@@ -127,11 +141,12 @@ impl SnackbarHostState {
         cx: &mut App,
     ) {
         let duration = match message.duration {
-            Some(SnackbarDuration::Short) => HeadlessDuration::Short,
-            Some(SnackbarDuration::Long) => HeadlessDuration::Long,
-            Some(SnackbarDuration::Indefinite) => HeadlessDuration::Indefinite,
-            None if message.action_label.is_some() => HeadlessDuration::Indefinite,
-            None => HeadlessDuration::Short,
+            // Compose `SnackbarDuration.toMillis`
+            Some(SnackbarDuration::Short) => Some(Duration::from_millis(4000)),
+            Some(SnackbarDuration::Long) => Some(Duration::from_millis(10000)),
+            Some(SnackbarDuration::Indefinite) => None,
+            None if message.action_label.is_some() => None,
+            None => Some(Duration::from_millis(4000)),
         };
         self.queue.update(cx, |queue, cx| {
             queue.show(
@@ -153,7 +168,11 @@ impl SnackbarHostState {
 
     /// 表示中のスナックバーを閉じ、[`SnackbarResult::Dismissed`] を伝える。表示中のものが無ければ何もしない
     pub fn dismiss(&self, cx: &mut App) {
-        self.queue.update(cx, |queue, cx| queue.dismiss(cx));
+        self.queue.update(cx, |queue, cx| {
+            if let Some(id) = queue.current_id() {
+                queue.dismiss(id, cx);
+            }
+        });
     }
 
     /// 表示中のスナックバーの内容。無ければ `None`
@@ -164,11 +183,13 @@ impl SnackbarHostState {
 
 /// [`SnackbarHostState`] の表示中のスナックバーを描く要素
 ///
-/// スナックバーは幅 600dp までで、置いた場所の幅に広がる。周りに 12dp の余白を取る。
+/// スナックバーは置いた場所の幅に広がり、文の幅が 600dp を超えないところで止まる。周りに 12dp の余白を取る。
 /// 表示し始めると不透明度を上げて現れ、表示を終えるとすぐに消える。
+/// 表示する長さは、この要素がスナックバーを初めて描いたときから数える。
+/// スナックバーの容器の上のマウスの操作は、後ろの要素に届かない。
 /// 画面の下端などへの配置は [`Styled`] で呼び出し側が付ける
 ///
-/// 支援技術には role `status` の領域として公開され、表示したスナックバーの文を読み上げる。
+/// 支援技術には、スナックバーの文を置く role `status` の領域を公開し、表示した文を読み上げる。
 /// 領域はスナックバーが無い間も描かれるため、表示する前から描いておくこと。
 /// 操作のボタンと閉じるボタンは Tab で到達でき、フォーカスはスナックバーへ移さない
 #[derive(IntoElement)]
@@ -202,107 +223,140 @@ impl SnackbarHost {
 impl RenderOnce for SnackbarHost {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
-        let queue = self.state.queue.read(cx);
-        let current = queue.current().cloned().zip(queue.current_id());
+        let queue = self.state.queue.clone();
+        let current = {
+            let queue = queue.read(cx);
+            queue.current().cloned().zip(queue.current_id())
+        };
+        if let Some((_, serial)) = &current {
+            // 表示する長さは、画面に出したときから数える
+            queue.update(cx, |queue, cx| queue.start_timer(*serial, cx));
+        }
 
-        let snackbar = current.map(|(message, serial)| {
-            let action_colors = ButtonColors {
-                content: Some(snackbar::ACTION_LABEL_TEXT_COLOR),
-                ..ButtonColors::default()
-            };
-            let has_dismiss = message.dismiss_label.is_some();
-            let action = message.action_label.clone().map(|label| {
-                let queue = self.state.queue.clone();
-                Button::new("action")
-                    .variant(ButtonVariant::Text)
-                    .colors(action_colors)
-                    .theme(theme.clone())
-                    .on_click(move |_, _, cx| {
-                        queue.update(cx, |queue, cx| queue.perform_action(cx))
-                    })
-                    .child(gpui::text!(id = "action-label", label))
-            });
-            let dismiss = message.dismiss_label.clone().map(|label| {
-                let queue = self.state.queue.clone();
-                IconButton::new("dismiss", md3_icons::CLOSE, label.clone())
-                    .colors(ButtonColors {
-                        content: Some(snackbar::ICON_COLOR),
-                        ..ButtonColors::default()
-                    })
-                    .tooltip(Tooltip::new(label))
-                    .theme(theme.clone())
-                    .on_click(move |_, _, cx| queue.update(cx, |queue, cx| queue.dismiss(cx)))
-            });
-            let text = div()
-                .py(dp(supplement::VERTICAL_PADDING))
-                .child(gpui::text!(id = "message", message.message.clone()));
+        // 読み上げの領域は、スナックバーが無い間も同じ場所に描き、表示した文だけを置く
+        let region = SnackbarRegion::new(self.id)
+            .py(dp(supplement::VERTICAL_PADDING))
+            .min_w_0();
+        let Some((message, serial)) = current else {
+            return self.outer.child(div().child(region));
+        };
 
-            let mut body = div()
-                .w_full()
-                .max_w(dp(supplement::CONTAINER_MAX_WIDTH))
-                .min_h(dp(snackbar::SINGLE_LINE_CONTAINER_HEIGHT))
-                .relative()
-                .text_color(theme.color(snackbar::SUPPORTING_TEXT_COLOR))
-                .child(Shaped::new(
-                    div()
-                        .absolute()
-                        .top_0()
-                        .left_0()
-                        .right_0()
-                        .bottom_0()
-                        .bg(theme.color(snackbar::CONTAINER_COLOR))
-                        .shadow(theme.shadow(snackbar::CONTAINER_ELEVATION)),
-                    theme.clone(),
-                    snackbar::CONTAINER_SHAPE,
-                ));
-            body.text_style()
-                .refine(&theme.text_style(snackbar::SUPPORTING_TEXT_FONT));
-            let body = if message.action_on_new_line && action.is_some() {
-                // `NewLineButtonSnackbar`。文の下の行の末尾にボタンを並べる
-                body.flex()
-                    .flex_col()
-                    .pl(dp(supplement::HORIZONTAL_SPACING))
-                    .child(text.relative().pr(dp(supplement::HORIZONTAL_SPACING)))
-                    .child(
-                        div()
-                            .relative()
-                            .flex()
-                            .items_center()
-                            .self_end()
-                            .pb(dp(supplement::ACTION_BUTTON_BOTTOM_PADDING))
-                            .when(!has_dismiss, |this| {
-                                this.pr(dp(supplement::HORIZONTAL_SPACING_BUTTON_SIDE))
-                            })
-                            .children(action)
-                            .children(dismiss),
-                    )
-            } else {
-                // `OneRowSnackbar`。文は残りの幅で折り返し、ボタンは上下の中央にそろえる
-                body.flex()
-                    .items_center()
-                    .pl(dp(supplement::HORIZONTAL_SPACING))
-                    .when(!has_dismiss, |this| {
-                        this.pr(dp(supplement::TEXT_END_EXTRA_SPACING))
-                    })
-                    .child(text.relative().flex_1().min_w_0())
-                    .children(action.map(|action| action.relative().flex_none()))
-                    .children(dismiss.map(|dismiss| dismiss.relative().flex_none()))
-            };
-            // 表示し始めるたびに不透明度を 0 から上げる。番号で表示ごとに別の動きにする
-            div()
-                .p(dp(supplement::HOST_PADDING))
-                .child(body)
-                .with_spring(
-                    ElementId::NamedInteger("snackbar".into(), serial),
-                    SpringAnimation::new(theme.spring(MotionSchemeKey::FastEffects))
-                        .to(1.0_f32)
-                        .from(0.0),
-                    |this, opacity| this.opacity(opacity.clamp(0.0, 1.0)),
-                )
+        // 表示し始めるたびに不透明度を 0 から上げる。番号で表示ごとに別の動きにする
+        let fade_in = |element: Div, name: &'static str| {
+            element.with_spring(
+                ElementId::NamedInteger(name.into(), serial),
+                SpringAnimation::new(theme.spring(MotionSchemeKey::FastEffects))
+                    .to(1.0_f32)
+                    .from(0.0),
+                |this, opacity| this.opacity(opacity.clamp(0.0, 1.0)),
+            )
+        };
+        let has_dismiss = message.dismiss_label.is_some();
+        let action = message.action_label.clone().map(|label| {
+            let queue = queue.clone();
+            Button::new("action")
+                .variant(ButtonVariant::Text)
+                .colors(ButtonColors {
+                    content: Some(snackbar::ACTION_LABEL_TEXT_COLOR),
+                    ..ButtonColors::default()
+                })
+                .theme(theme.clone())
+                // 描いたときのスナックバーだけを終える。時間切れで次のものに変わっていれば何もしない
+                .on_click(move |_, _, cx| {
+                    queue.update(cx, |queue, cx| queue.perform_action(serial, cx))
+                })
+                .child(gpui::text!(id = "action-label", label))
         });
+        let dismiss = message.dismiss_label.clone().map(|label| {
+            let queue = queue.clone();
+            IconButton::new("dismiss", md3_icons::CLOSE, label.clone())
+                .colors(ButtonColors {
+                    content: Some(snackbar::ICON_COLOR),
+                    ..ButtonColors::default()
+                })
+                .tooltip(Tooltip::new(label))
+                .theme(theme.clone())
+                .on_click(move |_, _, cx| queue.update(cx, |queue, cx| queue.dismiss(serial, cx)))
+        });
+        let buttons = div()
+            .relative()
+            .flex()
+            .flex_none()
+            .items_center()
+            .children(action)
+            .children(dismiss);
+        let region = region.child(fade_in(
+            div().child(gpui::text!(id = "message", message.message.clone())),
+            "snackbar-message",
+        ));
+        let new_line = message.action_on_new_line && message.action_label.is_some();
+        let horizontal = dp(supplement::HORIZONTAL_SPACING);
+        // `OneRowSnackbar` は左右の余白を除いた幅に、`NewLineButtonSnackbar` は余白を含む幅に最大の幅を当てる
+        let end_padding = match (new_line, has_dismiss) {
+            (false, false) => dp(supplement::TEXT_END_EXTRA_SPACING),
+            _ => gpui::px(0.0),
+        };
+        let max_width = if new_line {
+            dp(supplement::CONTAINER_MAX_WIDTH)
+        } else {
+            dp(supplement::CONTAINER_MAX_WIDTH) + horizontal + end_padding
+        };
 
+        let mut body = div()
+            .relative()
+            .w_full()
+            .max_w(max_width)
+            .min_h(dp(snackbar::SINGLE_LINE_CONTAINER_HEIGHT))
+            .pl(horizontal)
+            .pr(end_padding)
+            .flex()
+            .text_color(theme.color(snackbar::SUPPORTING_TEXT_COLOR))
+            // 容器の上の押下とホバーを、後ろの要素に届けない
+            .block_mouse_except_scroll()
+            .child(fade_in(
+                div()
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .right_0()
+                    .bottom_0()
+                    .child(Shaped::new(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .left_0()
+                            .right_0()
+                            .bottom_0()
+                            .bg(theme.color(snackbar::CONTAINER_COLOR))
+                            .shadow(theme.shadow(snackbar::CONTAINER_ELEVATION)),
+                        theme.clone(),
+                        snackbar::CONTAINER_SHAPE,
+                    )),
+                "snackbar-container",
+            ));
+        body.text_style()
+            .refine(&theme.text_style(snackbar::SUPPORTING_TEXT_FONT));
+        let body = if new_line {
+            // `NewLineButtonSnackbar`。文の下の行の末尾にボタンを並べる
+            body.flex_col()
+                .child(region.relative().pr(horizontal))
+                .child(fade_in(
+                    buttons
+                        .self_end()
+                        .pb(dp(supplement::ACTION_BUTTON_BOTTOM_PADDING))
+                        .when(!has_dismiss, |this| {
+                            this.pr(dp(supplement::HORIZONTAL_SPACING_BUTTON_SIDE))
+                        }),
+                    "snackbar-buttons",
+                ))
+        } else {
+            // `OneRowSnackbar`。文は残りの幅で折り返し、ボタンは上下の中央にそろえる
+            body.items_center()
+                .child(region.relative().flex_1())
+                .child(fade_in(buttons, "snackbar-buttons"))
+        };
         self.outer
-            .child(SnackbarRegion::new(self.id).children(snackbar))
+            .child(div().p(dp(supplement::HOST_PADDING)).child(body))
     }
 }
 
@@ -314,7 +368,7 @@ impl Styled for SnackbarHost {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
     use std::rc::Rc;
     use std::time::Duration;
 
@@ -323,12 +377,19 @@ mod tests {
 
     use super::*;
 
-    struct HostView(SnackbarHostState);
+    /// 後ろの要素でマウスのボタンを押した回数を `1` に数える
+    struct HostView(SnackbarHostState, Rc<Cell<usize>>);
 
     impl Render for HostView {
         fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+            let behind = self.1.clone();
             // 原点のマウスの位置で hover にならないよう、原点から離す
             div()
+                .id("behind")
+                .size_full()
+                .on_mouse_down(gpui::MouseButton::Left, move |_, _, _| {
+                    behind.set(behind.get() + 1)
+                })
                 .pl(px(100.0))
                 .pt(px(100.0))
                 .w(px(900.0))
@@ -337,12 +398,19 @@ mod tests {
     }
 
     fn open(cx: &mut TestAppContext) -> (SnackbarHostState, &mut VisualTestContext) {
+        open_counting(cx, Rc::default())
+    }
+
+    fn open_counting(
+        cx: &mut TestAppContext,
+        behind: Rc<Cell<usize>>,
+    ) -> (SnackbarHostState, &mut VisualTestContext) {
         cx.update(crate::init);
         let state = cx.update(SnackbarHostState::new);
         let host = state.clone();
         let (_, cx) = cx.add_window_view(move |window, cx| {
             cx.init_md3_theme(window);
-            HostView(host)
+            HostView(host, behind)
         });
         cx.update(|_, cx| cx.set_reduce_motion(true));
         cx.run_until_parked();
@@ -404,7 +472,8 @@ mod tests {
         assert_eq!(containers(cx), vec![], "表示する前は描かないこと");
         let results = Results::default();
         show(&state, SnackbarMessage::new("Saved"), &results, cx);
-        assert_eq!(containers(cx), vec![(12.0, 12.0, 600.0, 48.0)]);
+        // 文の幅 600dp に、左の 16dp と右の 8dp を足した幅
+        assert_eq!(containers(cx), vec![(12.0, 12.0, 624.0, 48.0)]);
 
         cx.executor().advance_clock(Duration::from_millis(4000));
         cx.run_until_parked();
@@ -433,7 +502,7 @@ mod tests {
             "操作のボタンがあれば閉じるまで表示し続けること"
         );
         // 操作のボタンは右端から 8dp 内側にある
-        click(cx, 12.0 + 600.0 - 8.0 - 10.0, 12.0 + 24.0);
+        click(cx, 12.0 + 624.0 - 8.0 - 10.0, 12.0 + 24.0);
         assert_eq!(*results.borrow(), vec![SnackbarResult::ActionPerformed]);
         assert_eq!(
             cx.update(|_, cx| state.current(cx).map(|message| message.message)),
@@ -451,8 +520,9 @@ mod tests {
             &results,
             cx,
         );
-        // 閉じるボタンは右端にある
-        click(cx, 12.0 + 600.0 - 20.0, 12.0 + 24.0);
+        // 閉じるボタンがあれば右の余白は取らず、文の幅 600dp に左の 16dp を足した幅になる
+        assert_eq!(containers(cx), vec![(12.0, 12.0, 616.0, 48.0)]);
+        click(cx, 12.0 + 616.0 - 20.0, 12.0 + 24.0);
         assert_eq!(*results.borrow(), vec![SnackbarResult::Dismissed]);
         assert_eq!(containers(cx), vec![]);
     }
@@ -472,5 +542,17 @@ mod tests {
         let found = containers(cx);
         assert_eq!(found.len(), 1);
         assert!(found[0].3 > 48.0, "文の下にボタンの行を置くこと: {found:?}");
+    }
+
+    #[gpui::test]
+    fn 容器の上のマウスの操作は後ろの要素に届けない(cx: &mut TestAppContext) {
+        let behind = Rc::new(Cell::new(0));
+        let (state, cx) = open_counting(cx, behind.clone());
+        let results = Results::default();
+        click(cx, 300.0, 400.0);
+        assert_eq!(behind.get(), 1, "容器の外は後ろの要素に届くこと");
+        show(&state, SnackbarMessage::new("Saved"), &results, cx);
+        click(cx, 12.0 + 100.0, 12.0 + 24.0);
+        assert_eq!(behind.get(), 1, "容器の上は後ろの要素に届けないこと");
     }
 }
