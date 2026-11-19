@@ -1,12 +1,12 @@
-//! 進捗インジケーターを並べるページ
+//! 進捗インジケーターとローディングインジケーターを並べるページ
 
 use gpui::{
     Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
     StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
 use md3_components::{
-    Button, ButtonVariant, Progress, ProgressIndicator, ProgressIndicatorColors,
-    ProgressIndicatorVariant,
+    Button, ButtonVariant, LoadingIndicator, LoadingIndicatorVariant, Progress, ProgressIndicator,
+    ProgressIndicatorColors, ProgressIndicatorVariant,
 };
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::typography::TypeScale;
@@ -15,7 +15,7 @@ use md3_theme::{Theme, ThemeExt as _};
 /// 1 回の操作で変える進み具合 (%)
 const STEP: i32 = 10;
 
-/// 進捗インジケーターを並べるページ。操作で変える進み具合を持つ
+/// 進捗インジケーターとローディングインジケーターを並べるページ。操作で変える進み具合を持つ
 pub struct ProgressIndicatorPage {
     /// 進み具合 (%)。0 と 100 をちょうど表せるよう整数で持つ
     percent: i32,
@@ -104,6 +104,21 @@ impl Render for ProgressIndicatorPage {
                                 track: Some(ColorRole::TertiaryContainer),
                             })
                             .aria_label("Circular indeterminate with track"),
+                    ),
+            )
+            .child(row("Loading").child(
+                LoadingIndicator::new("loading", progress).aria_label("Loading determinate"),
+            ))
+            .child(
+                row("Loading indeterminate")
+                    .child(
+                        LoadingIndicator::new("loading-indeterminate", Progress::Indeterminate)
+                            .aria_label("Loading indeterminate"),
+                    )
+                    .child(
+                        LoadingIndicator::new("loading-contained", Progress::Indeterminate)
+                            .variant(LoadingIndicatorVariant::Contained)
+                            .aria_label("Loading contained"),
                     ),
             )
     }

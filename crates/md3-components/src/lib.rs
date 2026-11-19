@@ -28,6 +28,8 @@ mod interaction;
 mod field;
 #[cfg(feature = "list")]
 mod list;
+#[cfg(feature = "loading-indicator")]
+mod loading_indicator;
 #[cfg(feature = "menu")]
 mod menu;
 #[cfg(feature = "progress-indicator")]
@@ -111,6 +113,8 @@ pub use icon_button::{
 pub use interaction::InteractionSource;
 #[cfg(feature = "list")]
 pub use list::{List, ListItem, ListItemKind};
+#[cfg(feature = "loading-indicator")]
+pub use loading_indicator::{LoadingIndicator, LoadingIndicatorVariant};
 #[cfg(feature = "menu")]
 pub use menu::{Menu, MenuGroup, MenuItem, MenuItemKind, MenuVariant};
 #[cfg(feature = "progress-indicator")]
