@@ -5,7 +5,7 @@ use gpui::{
     InspectorElementId, IntoElement, LayoutId, Pixels, Styled, Window, px, size,
 };
 use md3_theme::SharedTheme;
-use md3_theme::md3_tokens::shape::ShapeKey;
+use md3_theme::md3_tokens::shape::{CornerShape, ShapeKey};
 
 /// `inner` を形 `key` の角丸で描く要素
 ///
@@ -18,6 +18,8 @@ pub(crate) struct Shaped {
     key: ShapeKey,
     /// 下の 2 つの角の形。`None` なら `key`
     bottom_key: Option<ShapeKey>,
+    /// `key` の代わりに使う角ごとの形
+    corner_shape: Option<CornerShape>,
     morph: Option<(ShapeKey, f32)>,
     outset: Pixels,
     /// 形の角丸を付ける角。`false` の角は直角にする
@@ -31,6 +33,7 @@ impl Shaped {
             theme,
             key,
             bottom_key: None,
+            corner_shape: None,
             morph: None,
             outset: px(0.0),
             rounded: Corners {
@@ -62,6 +65,13 @@ impl Shaped {
     #[cfg(feature = "button")]
     pub(crate) fn morph(mut self, target: ShapeKey, phase: f32) -> Self {
         self.morph = Some((target, phase));
+        self
+    }
+
+    /// `key` の代わりに、角ごとの形 `shape` で描く。[`Shaped::morph`] の動きは `shape` から始める
+    #[cfg(feature = "button")]
+    pub(crate) fn corner_shape(mut self, shape: CornerShape) -> Self {
+        self.corner_shape = Some(shape);
         self
     }
 
@@ -125,7 +135,10 @@ impl Element for Shaped {
             bounds.size.width - self.outset * 2.0,
             bounds.size.height - self.outset * 2.0,
         );
-        let mut radii = self.theme.corner_radii(self.key, shape_size);
+        let mut radii = match self.corner_shape {
+            Some(shape) => md3_theme::shape_radii(shape, shape_size),
+            None => self.theme.corner_radii(self.key, shape_size),
+        };
         if let Some(bottom_key) = self.bottom_key {
             let bottom = self.theme.corner_radii(bottom_key, shape_size);
             radii.bottom_right = bottom.bottom_right;
