@@ -37,6 +37,12 @@ struct Item {
 
 impl Item {
     fn new(id: ElementId, label: SharedString) -> Self {
+        // ラベルは 1 行で描くが、gpui のテキストは改行で行を分けるため、改行を空白に置き換える
+        let label = if label.contains('\n') {
+            label.lines().collect::<Vec<_>>().join(" ").into()
+        } else {
+            label
+        };
         Self {
             id,
             label,
@@ -86,13 +92,13 @@ impl Item {
         }
         let mut look = button.look(theme, focus_visible);
         // 端の項目は外側の角を丸く、内側の角を小さく丸める。間の項目は Small の形にする。
+        // Compose のサンプルと同じく、1 つだけの項目は先頭の形にする。
         // 選ばれるとどの項目も丸い形に変わる (`connectedButtonCheckedShape`)
         let full = ShapeKey::CornerFull.resolve(&theme.settings().shapes);
         let middle = ShapeKey::CornerSmall.resolve(&theme.settings().shapes);
         let inner = tokens::INNER_CORNER_CORNER_SIZE;
         look.corner_shape = Some(match (index == 0, index + 1 == count) {
-            (true, true) => full,
-            (true, false) => CornerShape {
+            (true, _) => CornerShape {
                 top_start: full.top_start,
                 bottom_start: full.bottom_start,
                 top_end: inner,
@@ -106,6 +112,8 @@ impl Item {
             },
             (false, false) => middle,
         });
+        // 項目の間は 2dp で、リングは項目の外側にはみ出す
+        look.raise_ring = true;
         if let Some(morph) = look.morph.as_mut() {
             morph.target = tokens::CONTAINER_SHAPE;
         }
@@ -482,6 +490,8 @@ mod tests {
         cx: &mut TestAppContext,
         element: impl Fn() -> AnyElement + 'static,
     ) -> &mut VisualTestContext {
+        // Tab のキー割り当てを登録する
+        cx.update(crate::init);
         let (_, cx) = cx.add_window_view(move |window, cx| {
             cx.init_md3_theme(window);
             ElementView(Box::new(element))
@@ -617,5 +627,47 @@ mod tests {
             vec![true, true, false]
         );
         assert_eq!(containers(cx, ColorRole::Primary).len(), 2);
+    }
+
+    #[gpui::test]
+    fn 項目が_1_つなら先頭の形にする(cx: &mut TestAppContext) {
+        let cx = open(cx, || {
+            SingleChoiceConnectedButtonGroup::new("group", None::<usize>)
+                .item(ConnectedButton::new("only", 0, "Only"))
+                .into_any_element()
+        });
+        let unchecked = containers(cx, ColorRole::SurfaceContainer);
+        assert_eq!((unchecked[0].2, unchecked[0].3), (20.0, 8.0));
+    }
+
+    #[gpui::test]
+    fn フォーカスリングは隣の項目より後に描く(cx: &mut TestAppContext) {
+        let selected = Rc::new(Cell::new(Some(0)));
+        let state = selected.clone();
+        let cx = open(cx, move || single(state.clone()));
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_keystrokes("tab");
+        cx.run_until_parked();
+        let (ring, neighbor) = cx.update(|window, cx| {
+            let theme = cx.md3_theme().clone();
+            let ring = theme.color(md3_theme::md3_tokens::focus_ring::COLOR);
+            let neighbor: gpui::Background = theme.color(ColorRole::SurfaceContainer).into();
+            let quads = window.painted_quads();
+            (
+                quads
+                    .iter()
+                    .filter(|quad| quad.border_color == ring && quad.border_widths.top.0 > 0.0)
+                    .map(|quad| quad.order)
+                    .max(),
+                // 先頭の項目の右隣
+                quads
+                    .iter()
+                    .filter(|quad| quad.background == neighbor)
+                    .min_by(|a, b| a.bounds.origin.x.0.total_cmp(&b.bounds.origin.x.0))
+                    .map(|quad| quad.order),
+            )
+        });
+        let ring = ring.expect("先頭の項目にリングを描くこと");
+        assert!(ring > neighbor.expect("隣の項目を描くこと"));
     }
 }

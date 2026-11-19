@@ -191,3 +191,86 @@ impl Element for Shaped {
         );
     }
 }
+
+/// 子を、祖先の兄弟を含むほかの要素を描いた後に描く要素
+///
+/// レイアウトは置いた場所のまま決まる。gpui の `deferred` と違い、置いた場所の切り取りの範囲を保つ。
+/// 祖先の不透明度は効かない
+#[cfg(feature = "button")]
+pub(crate) struct Raised {
+    child: Option<gpui::AnyElement>,
+}
+
+#[cfg(feature = "button")]
+impl Raised {
+    pub(crate) fn new(child: impl IntoElement) -> Self {
+        Self {
+            child: Some(child.into_any_element()),
+        }
+    }
+}
+
+#[cfg(feature = "button")]
+impl IntoElement for Raised {
+    type Element = Self;
+
+    fn into_element(self) -> Self::Element {
+        self
+    }
+}
+
+#[cfg(feature = "button")]
+impl Element for Raised {
+    type RequestLayoutState = ();
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, ()) {
+        let child = self
+            .child
+            .as_mut()
+            .expect("child is taken only in prepaint");
+        (child.request_layout(window, cx), ())
+    }
+
+    fn prepaint(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        _bounds: Bounds<Pixels>,
+        _request_layout: &mut (),
+        window: &mut Window,
+        _cx: &mut App,
+    ) {
+        if let Some(child) = self.child.take() {
+            let offset = window.element_offset();
+            let mask = window.content_mask();
+            window.defer_draw(child, offset, 0, Some(mask));
+        }
+    }
+
+    fn paint(
+        &mut self,
+        _id: Option<&GlobalElementId>,
+        _inspector_id: Option<&InspectorElementId>,
+        _bounds: Bounds<Pixels>,
+        _request_layout: &mut (),
+        _prepaint: &mut (),
+        _window: &mut Window,
+        _cx: &mut App,
+    ) {
+    }
+}

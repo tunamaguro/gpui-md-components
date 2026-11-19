@@ -490,6 +490,7 @@ impl RenderOnce for Button {
             },
             corner_shape: None,
             morph: None,
+            raise_ring: false,
             size,
             theme: theme.clone(),
             container,
@@ -541,6 +542,8 @@ pub(crate) struct Look {
     pub(crate) corner_shape: Option<CornerShape>,
     /// 選ばれているかで形を変える動き
     pub(crate) morph: Option<Morph>,
+    /// フォーカスリングを、後に並ぶ兄弟の要素より手前に描くか
+    pub(crate) raise_ring: bool,
     /// `None` は透明
     container: Option<Hsla>,
     content: Hsla,
@@ -579,6 +582,7 @@ impl Look {
             shape,
             corner_shape,
             morph,
+            raise_ring,
             container,
             content,
             outline,
@@ -671,7 +675,20 @@ impl Look {
                         .bottom(-outset)
                         .border(dp(focus_ring::WIDTH))
                         .border_color(theme.color(focus_ring::COLOR));
-                    this.child(shaped(ring).outset(outset))
+                    let ring = shaped(ring).outset(outset);
+                    if raise_ring {
+                        // リングはボタンの外側にはみ出すため、隣に詰めて並べた要素に隠れないよう、後から描く
+                        return this.child(crate::shape::Raised::new(
+                            div()
+                                .absolute()
+                                .top_0()
+                                .left_0()
+                                .right_0()
+                                .bottom_0()
+                                .child(ring),
+                        ));
+                    }
+                    this.child(ring)
                 })
         };
         let decoration = match morph {
@@ -1057,6 +1074,7 @@ impl ToggleButton {
             size,
             shape,
             corner_shape: None,
+            raise_ring: false,
             // Compose は形を FastSpatial のバネで変える
             morph: Some(Morph {
                 target: checked_shape,
