@@ -194,6 +194,8 @@ impl SnackbarHostState {
 ///
 /// 支援技術には、スナックバーの文を置く role `status` の領域を公開し、表示した文を読み上げる。
 /// 領域はスナックバーが無い間も描かれるため、表示する前から描いておくこと。
+/// 画面から隠すときは、ホストを置かないか `display: none` の親の下に置くこと。
+/// `visibility: hidden` の親の下では、画面に出ていないスナックバーも支援技術に公開される。
 /// 操作のボタンと閉じるボタンは Tab で到達でき、フォーカスはスナックバーへ移さない
 #[derive(IntoElement)]
 pub struct SnackbarHost {
@@ -258,10 +260,10 @@ impl RenderOnce for SnackbarHost {
                 .variant(ButtonVariant::Text)
                 .colors(ButtonColors {
                     content: Some(snackbar::ACTION_LABEL_TEXT_COLOR),
-                    // 既定のリングの色は InverseSurface の容器の上で 3:1 に届かないため、文の色で描く
-                    focus_ring: Some(snackbar::SUPPORTING_TEXT_COLOR),
                     ..ButtonColors::default()
                 })
+                // 既定のリングの色は InverseSurface の容器の上で 3:1 に届かないため、文の色で描く
+                .focus_ring(snackbar::SUPPORTING_TEXT_COLOR)
                 .theme(theme.clone())
                 // 描いたときのスナックバーだけを終える。時間切れで次のものに変わっていれば何もしない
                 .on_click(move |_, _, cx| {
@@ -274,9 +276,9 @@ impl RenderOnce for SnackbarHost {
             IconButton::new("dismiss", md3_icons::CLOSE, label.clone())
                 .colors(ButtonColors {
                     content: Some(snackbar::ICON_COLOR),
-                    focus_ring: Some(snackbar::SUPPORTING_TEXT_COLOR),
                     ..ButtonColors::default()
                 })
+                .focus_ring(snackbar::SUPPORTING_TEXT_COLOR)
                 .tooltip(Tooltip::new(label))
                 .theme(theme.clone())
                 .on_click(move |_, _, cx| queue.update(cx, |queue, cx| queue.dismiss(serial, cx)))

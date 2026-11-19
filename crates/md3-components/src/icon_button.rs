@@ -431,6 +431,8 @@ pub struct IconButton {
     label: SharedString,
     variant: IconButtonVariant,
     colors: ButtonColors,
+    /// フォーカスリングの色。`None` はトークンの色
+    focus_ring: Option<ColorRole>,
     size: ButtonSize,
     width: IconButtonWidth,
     shape: ButtonShape,
@@ -464,6 +466,7 @@ impl IconButton {
             label: label.into(),
             variant: IconButtonVariant::default(),
             colors: ButtonColors::default(),
+            focus_ring: None,
             size: ButtonSize::default(),
             width: IconButtonWidth::default(),
             shape: ButtonShape::default(),
@@ -486,6 +489,13 @@ impl IconButton {
     /// バリアントの色を `colors` で上書きする
     pub fn colors(mut self, colors: ButtonColors) -> Self {
         self.colors = colors;
+        self
+    }
+
+    /// キーボードでフォーカスしたときに外側に描くリングを `role` の色で描く
+    #[cfg(feature = "snackbar")]
+    pub(crate) fn focus_ring(mut self, role: ColorRole) -> Self {
+        self.focus_ring = Some(role);
         self
     }
 
@@ -621,7 +631,7 @@ impl RenderOnce for IconButton {
             tooltip.attach(this, &focus_handle, &self.label, &theme, window)
         });
         let look = Look {
-            ring_color: theme.color(self.colors.focus_ring.unwrap_or(focus_ring::COLOR)),
+            ring_color: theme.color(self.focus_ring.unwrap_or(focus_ring::COLOR)),
             theme,
             icon: self.icon,
             size: self.size,

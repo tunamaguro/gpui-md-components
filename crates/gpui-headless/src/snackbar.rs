@@ -34,7 +34,7 @@ struct Entry<T> {
 /// 表示中の通知は、[`SnackbarQueue::dismiss`] か [`SnackbarQueue::perform_action`] で終えるか、
 /// 表示する長さを過ぎると表示を終え、次の通知が表示中になる。
 /// 表示する長さは、描く側が [`SnackbarQueue::timer`] で受け取ったタスクを持っている間だけ数える。
-/// 状態が変わるたびに、この列の [`gpui::Entity`] を通知する
+/// 表示中の通知が変わったときに、この列の [`gpui::Entity`] を通知する
 pub struct SnackbarQueue<T: 'static> {
     current: Option<Entry<T>>,
     /// 表示中になった通知ごとに増える番号

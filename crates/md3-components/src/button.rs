@@ -293,8 +293,6 @@ pub struct ButtonColors {
     pub disabled_container: Option<(ColorRole, f32)>,
     /// 無効なときのラベルとアイコンの色と不透明度
     pub disabled_content: Option<(ColorRole, f32)>,
-    /// キーボードでフォーカスしたときに外側に描くリングの色
-    pub focus_ring: Option<ColorRole>,
 }
 
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
@@ -321,6 +319,8 @@ pub struct Button {
     children: Vec<AnyElement>,
     variant: ButtonVariant,
     colors: ButtonColors,
+    /// フォーカスリングの色。`None` はトークンの色
+    focus_ring: Option<ColorRole>,
     size: ButtonSize,
     shape: ButtonShape,
     icon: Option<StyledIcon>,
@@ -346,6 +346,7 @@ impl Button {
             children: Vec::new(),
             variant: ButtonVariant::default(),
             colors: ButtonColors::default(),
+            focus_ring: None,
             size: ButtonSize::default(),
             shape: ButtonShape::default(),
             icon: None,
@@ -370,6 +371,13 @@ impl Button {
     /// 削除のような取り消せない操作を目立たせる場合などに使う
     pub fn colors(mut self, colors: ButtonColors) -> Self {
         self.colors = colors;
+        self
+    }
+
+    /// キーボードでフォーカスしたときに外側に描くリングを `role` の色で描く
+    #[cfg(feature = "snackbar")]
+    pub(crate) fn focus_ring(mut self, role: ColorRole) -> Self {
+        self.focus_ring = Some(role);
         self
     }
 
@@ -494,7 +502,7 @@ impl Button {
             vertical_padding: size.vertical_padding,
             min_width: supplement::button::MIN_WIDTH,
             ring_slot: None,
-            ring_color: theme.color(self.colors.focus_ring.unwrap_or(focus_ring::COLOR)),
+            ring_color: theme.color(self.focus_ring.unwrap_or(focus_ring::COLOR)),
             size,
             theme: theme.clone(),
             container,
