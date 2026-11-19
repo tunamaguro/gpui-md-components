@@ -8,7 +8,7 @@
 //         `placeLabelAndTopIcon`、`placeLabelAndStartIcon`、`animateIndicatorProgressAsState`、`Indicator`、
 //         `IndicatorRipple`) @ 2a941dd11aabd9bb7d2016ed159764b220117c20
 // Copyright 2024 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
-// Compose はフォーカスをインジケーターの形の状態レイヤーだけで示す。この実装はそれに、ほかの部品と同じ外向きのフォーカスリングを
+// Compose の既定の設定はフォーカスをインジケーターの形の状態レイヤーだけで示す。この実装はそれに、ほかの部品と同じ外向きのフォーカスリングを
 // インジケーターの形で加える。押している間の ripple は描かない
 // トークンの値と版は md3-tokens の各ファイルにある
 
