@@ -20,7 +20,8 @@ pub(crate) struct Shaped {
     bottom_key: Option<ShapeKey>,
     /// `key` の代わりに使う角ごとの形
     corner_shape: Option<CornerShape>,
-    morph: Option<(ShapeKey, f32)>,
+    /// 形を変える動きの途中の形と進み。[`Shaped::morph_through`] を参照
+    morph: Option<(Vec<CornerShape>, f32)>,
     outset: Pixels,
     /// 形の角丸を付ける角。`false` の角は直角にする
     rounded: Corners<bool>,
@@ -63,9 +64,18 @@ impl Shaped {
     }
 
     /// 形を `key` から `target` へ `phase` だけ近づける。`phase` が 0 なら `key`、1 なら `target` の角丸で描く
+    #[cfg(feature = "icon-button")]
+    pub(crate) fn morph(self, target: ShapeKey, phase: f32) -> Self {
+        let target = target.resolve(&self.theme.settings().shapes);
+        self.morph_through(vec![target], phase)
+    }
+
+    /// 形を、`phase` が 0 なら元の形、`i` (1 以上) なら `shapes[i - 1]` の角丸で描く
+    ///
+    /// 間の値は隣り合う 2 つの形の角ごとの半径を線形に補間する。範囲の外の値は端の 2 つの形から外挿する
     #[cfg(feature = "button")]
-    pub(crate) fn morph(mut self, target: ShapeKey, phase: f32) -> Self {
-        self.morph = Some((target, phase));
+    pub(crate) fn morph_through(mut self, shapes: Vec<CornerShape>, phase: f32) -> Self {
+        self.morph = Some((shapes, phase));
         self
     }
 
@@ -103,15 +113,22 @@ impl Shaped {
             radii.bottom_right = bottom.bottom_right;
             radii.bottom_left = bottom.bottom_left;
         }
-        if let Some((target, phase)) = self.morph {
+        if let Some((shapes, phase)) = &self.morph
+            && !shapes.is_empty()
+        {
             // Compose の `rememberAnimatedShape` と同じく、角ごとの半径を線形に補間する
-            let target = self.theme.corner_radii(target, shape_size);
+            let segment = (phase.floor().max(0.0) as usize).min(shapes.len() - 1);
+            let from = match segment {
+                0 => radii,
+                _ => md3_theme::shape_radii(shapes[segment - 1], shape_size),
+            };
+            let to = md3_theme::shape_radii(shapes[segment], shape_size);
+            let t = phase - segment as f32;
             radii = Corners {
-                top_left: radii.top_left + (target.top_left - radii.top_left) * phase,
-                top_right: radii.top_right + (target.top_right - radii.top_right) * phase,
-                bottom_right: radii.bottom_right
-                    + (target.bottom_right - radii.bottom_right) * phase,
-                bottom_left: radii.bottom_left + (target.bottom_left - radii.bottom_left) * phase,
+                top_left: from.top_left + (to.top_left - from.top_left) * t,
+                top_right: from.top_right + (to.top_right - from.top_right) * t,
+                bottom_right: from.bottom_right + (to.bottom_right - from.bottom_right) * t,
+                bottom_left: from.bottom_left + (to.bottom_left - from.bottom_left) * t,
             };
         }
         radii
