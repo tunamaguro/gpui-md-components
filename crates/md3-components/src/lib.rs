@@ -6,6 +6,8 @@
 mod badge;
 #[cfg(feature = "button")]
 mod button;
+#[cfg(feature = "button-group")]
+mod button_group;
 #[cfg(feature = "card")]
 mod card;
 #[cfg(feature = "checkbox")]
@@ -103,6 +105,8 @@ mod util;
 pub use badge::{Badge, BadgeColors, BadgedBox};
 #[cfg(feature = "button")]
 pub use button::{Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant};
+#[cfg(feature = "button-group")]
+pub use button_group::{ButtonGroup, ButtonGroupItem};
 #[cfg(feature = "card")]
 pub use card::{Card, CardVariant};
 #[cfg(feature = "checkbox")]

@@ -293,7 +293,8 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 /// マウスのクリック・フォーカス中の Enter と Space で [`Button::on_click`] のハンドラを呼ぶ。
 ///
 /// [`Styled`] で指定したスタイルはボタンの外側の箱に付く。大きさや外側の余白、flex の指定に使い、
-/// 箱を広げるとボタンも箱いっぱいに広がる。色や形は変えられないため、[`Button::colors`] と [`Button::shape`] を使う
+/// 箱を広げるとボタンも箱いっぱいに広がる。箱を内容より狭くすると、ボタンは左右の余白を縮めて箱に合わせる。
+/// 色や形は変えられないため、[`Button::colors`] と [`Button::shape`] を使う
 ///
 /// テーマの密度 ([`ThemeSettings::density`](md3_theme::ThemeSettings::density)) は反映しない。
 /// 大きさは [`Button::size`] で選ぶ
@@ -517,6 +518,13 @@ impl RenderOnce for Button {
                 })
             });
 
+        // 左右の余白は縮められる子で取り、内容より狭い幅を指定されたときは余白から縮める
+        let horizontal_padding = || {
+            div()
+                .w(dp(size.horizontal_padding))
+                .flex_shrink(1.0)
+                .min_w_0()
+        };
         let mut button = HeadlessButton::new(self.id.clone())
             .track_focus(&focus_handle)
             .disabled(disabled)
@@ -526,24 +534,25 @@ impl RenderOnce for Button {
             .flex()
             .items_center()
             .justify_center()
-            .gap(dp(size.icon_spacing))
             .min_w(dp(supplement::button::MIN_WIDTH))
             .min_h(dp(size.height))
-            .px(dp(size.horizontal_padding))
             .py(dp(size.vertical_padding))
             .text_color(content)
             .whitespace_nowrap()
             .child(Shaped::new(container, theme.clone(), shape))
+            .child(horizontal_padding())
             .when_some(self.icon, |this, icon| {
                 this.child(
                     svg()
                         .data(icon.svg().as_bytes())
                         .flex_none()
                         .size(dp(size.icon_size))
+                        .mr(dp(size.icon_spacing))
                         .text_color(content),
                 )
             })
             .child(div().flex().items_center().children(self.children))
+            .child(horizontal_padding())
             .when(focus_visible, |this| {
                 let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
                 let ring = div()
@@ -586,5 +595,70 @@ impl Styled for Button {
 impl ParentElement for Button {
     fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
         self.children.extend(elements);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui::{Context, Render, TestAppContext, VisualTestContext, px};
+    use md3_theme::md3_color::ColorRole;
+
+    use super::*;
+
+    struct ElementView(Box<dyn Fn() -> AnyElement>);
+
+    impl Render for ElementView {
+        fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+            // 原点のマウスの位置で hover にならないよう、ボタンを原点から離す
+            div()
+                .flex()
+                .items_start()
+                .pl(px(100.0))
+                .pt(px(100.0))
+                .child((self.0)())
+        }
+    }
+
+    /// 容器と、幅 60dp のラベルの x と幅
+    fn layout(cx: &mut TestAppContext, button: fn() -> Button) -> ((f32, f32), (f32, f32)) {
+        let (_, cx) = cx.add_window_view(move |window, cx| {
+            cx.init_md3_theme(window);
+            ElementView(Box::new(move || {
+                button()
+                    .child(div().w(px(60.0)).h(px(10.0)).bg(gpui::red()))
+                    .into_any_element()
+            }))
+        });
+        cx.run_until_parked();
+        let rect = |cx: &mut VisualTestContext, background: gpui::Background| {
+            cx.update(|window, _| {
+                let scale = window.scale_factor();
+                let quad = window
+                    .painted_quads()
+                    .into_iter()
+                    .find(|quad| quad.background == background)
+                    .expect("描かれていること");
+                (
+                    quad.bounds.origin.x.0 / scale - 100.0,
+                    quad.bounds.size.width.0 / scale,
+                )
+            })
+        };
+        let container = cx.update(|_, cx| cx.md3_theme().color(ColorRole::Primary).into());
+        (rect(cx, container), rect(cx, gpui::red().into()))
+    }
+
+    #[gpui::test]
+    fn 内容の左右に余白を取った幅になる(cx: &mut TestAppContext) {
+        let (container, label) = layout(cx, || Button::new("button"));
+        assert_eq!(container, (0.0, 92.0), "16dp + 60dp + 16dp");
+        assert_eq!(label, (16.0, 60.0));
+    }
+
+    #[gpui::test]
+    fn 内容より狭い幅では左右の余白を縮める(cx: &mut TestAppContext) {
+        let (container, label) = layout(cx, || Button::new("button").w(px(80.0)));
+        assert_eq!(container, (0.0, 80.0));
+        assert_eq!(label, (10.0, 60.0), "余白を 6dp ずつ縮めること");
     }
 }
