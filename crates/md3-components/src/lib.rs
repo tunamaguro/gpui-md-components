@@ -104,7 +104,10 @@ mod util;
 #[cfg(feature = "badge")]
 pub use badge::{Badge, BadgeColors, BadgedBox};
 #[cfg(feature = "button")]
-pub use button::{Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant};
+pub use button::{
+    Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant, ToggleButton, ToggleButtonColors,
+    ToggleButtonVariant,
+};
 #[cfg(feature = "button-group")]
 pub use button_group::{ButtonGroup, ButtonGroupItem};
 #[cfg(feature = "card")]

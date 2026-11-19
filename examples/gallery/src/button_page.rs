@@ -4,7 +4,11 @@ use gpui::{
     Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
     SharedString, StatefulInteractiveElement as _, Styled as _, Window, div,
 };
-use md3_components::{Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant};
+use std::collections::HashSet;
+
+use md3_components::{
+    Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant, ToggleButton, ToggleButtonVariant,
+};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{Theme, ThemeExt as _};
@@ -25,11 +29,19 @@ const VARIANTS: [(ButtonVariant, &str); 5] = [
     (ButtonVariant::Text, "Text"),
 ];
 
-/// ボタンを並べるページ。押した回数と最後に押したボタンを持つ
+const TOGGLE_VARIANTS: [(ToggleButtonVariant, &str); 4] = [
+    (ToggleButtonVariant::Filled, "Toggle filled"),
+    (ToggleButtonVariant::Elevated, "Toggle elevated"),
+    (ToggleButtonVariant::FilledTonal, "Toggle tonal"),
+    (ToggleButtonVariant::Outlined, "Toggle outlined"),
+];
+
+/// ボタンを並べるページ。押した回数と最後に押したボタンと、選ばれているトグルボタンを持つ
 #[derive(Default)]
 pub struct ButtonPage {
     clicks: usize,
     last_clicked: Option<SharedString>,
+    checked: HashSet<SharedString>,
 }
 
 impl Render for ButtonPage {
@@ -80,6 +92,42 @@ impl Render for ButtonPage {
                 ),
             ))
             .children(rows)
+            .children(TOGGLE_VARIANTS.map(|(variant, name)| {
+                let toggle = |suffix: &str| {
+                    toggle_button(format!("{name}-{suffix}"), &self.checked, cx).variant(variant)
+                };
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_4()
+                    .child(label(&theme, name, name).w_32())
+                    .child(toggle("plain").child(gpui::text!("Toggle")))
+                    .child(
+                        toggle("icon")
+                            .icon(md3_icons::FAVORITE)
+                            .child(gpui::text!("With icon")),
+                    )
+                    .child(
+                        toggle("square")
+                            .shape(ButtonShape::Square)
+                            .child(gpui::text!("Square")),
+                    )
+                    .child(
+                        ToggleButton::new(SharedString::from(format!("{name}-disabled")), false)
+                            .variant(variant)
+                            .disabled(true)
+                            .child(gpui::text!("Disabled")),
+                    )
+                    .child(
+                        ToggleButton::new(
+                            SharedString::from(format!("{name}-disabled-checked")),
+                            true,
+                        )
+                        .variant(variant)
+                        .disabled(true)
+                        .child(gpui::text!("Disabled checked")),
+                    )
+            }))
             .child(
                 div()
                     .flex()
@@ -175,6 +223,25 @@ fn button(id: impl Into<SharedString>, cx: &Context<ButtonPage>) -> Button {
         this.last_clicked = Some(id.clone());
         cx.notify();
     }))
+}
+
+/// 押すと選ばれているかを反転するトグルボタン
+fn toggle_button(
+    id: impl Into<SharedString>,
+    checked: &HashSet<SharedString>,
+    cx: &Context<ButtonPage>,
+) -> ToggleButton {
+    let id = id.into();
+    ToggleButton::new(id.clone(), checked.contains(&id)).on_change(cx.listener(
+        move |this, checked: &bool, _, cx| {
+            if *checked {
+                this.checked.insert(id.clone());
+            } else {
+                this.checked.remove(&id);
+            }
+            cx.notify();
+        },
+    ))
 }
 
 /// 支援技術に公開されるテキスト
