@@ -31,8 +31,6 @@ use md3_theme::md3_tokens::component::{
 use md3_theme::md3_tokens::motion::MotionSchemeKey;
 use md3_theme::md3_tokens::{focus_ring, state, supplement};
 use md3_theme::{SharedTheme, ThemeExt, dp};
-use std::cell::Cell;
-use std::rc::Rc;
 
 use crate::shape::Shaped;
 use crate::util;
@@ -183,18 +181,39 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
         // 同じ値の項目が複数あっても、支援技術に公開する状態と同じく最初の項目だけを選ばれた見た目にする
         let mut selected = self.selected.as_ref();
         let mut focus_handles = Vec::with_capacity(self.items.len());
-        // 展開したときに内容で最小の幅より広がるかを決めるため、展開した項目のインジケーターとヘッダーのうち
-        // 最も広い幅を、この描画の prepaint で測る
-        let widest = Rc::new(Cell::new(px(0.0)));
-        let measure_width = |widest: &Rc<Cell<Pixels>>| {
-            let widest = widest.clone();
-            canvas(
-                move |bounds, _, _| widest.set(widest.get().max(bounds.size.width)),
-                |_, _, _, _| {},
-            )
-            .absolute()
-            .size_full()
-        };
+        // 展開したときに内容で最小の幅より広がるかを決めるため、展開した項目のインジケーターが要る幅のうち
+        // 最も広いものを、ラベルの幅から求める。折りたたんでいる間も求め、展開を始めたときの幅に使う
+        let mut expanded_text_style = window.text_style();
+        expanded_text_style.refine(&theme.text_style(horizontal::LABEL_TEXT_FONT));
+        let expanded_font_size = expanded_text_style.font_size.to_pixels(window.rem_size());
+        let widest_item = self
+            .items
+            .iter()
+            .map(|item| {
+                // 改行を含むラベルは最も長い行の幅にする
+                let label = item
+                    .label
+                    .split('\n')
+                    .map(|line| {
+                        window
+                            .text_system()
+                            .shape_line(
+                                SharedString::from(line.to_owned()),
+                                expanded_font_size,
+                                &[expanded_text_style.to_run(line.len())],
+                                None,
+                            )
+                            .width
+                            .ceil()
+                    })
+                    .fold(px(0.0), Pixels::max);
+                dp(horizontal::FULL_WIDTH_LEADING_SPACE)
+                    + icon_size
+                    + dp(horizontal::ICON_LABEL_SPACE)
+                    + label
+                    + dp(horizontal::FULL_WIDTH_TRAILING_SPACE)
+            })
+            .fold(px(0.0), Pixels::max);
         let items: Vec<_> = self
             .items
             .into_iter()
@@ -351,8 +370,7 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                     .children(state_layer)
                     .child(icon)
                     .children(inline_label)
-                    .children(ring)
-                    .when(!top, |this| this.child(measure_width(&widest)));
+                    .children(ring);
 
                 let headless = HeadlessTab::new(item.id, item.value)
                     .track_focus(&focus_handle)
@@ -392,6 +410,23 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
         } else {
             collapsed::TOP_SPACE
         });
+        // ヘッダーの幅を、レールの幅に引き伸ばされない内側の要素で測る
+        let header_width = window.with_element_namespace(self.id.clone(), |window| {
+            window.use_keyed_state("header-width", cx, |_, _| None::<Pixels>)
+        });
+        let header_measure = {
+            let header_width = header_width.clone();
+            canvas(
+                move |bounds, _, cx| {
+                    if *header_width.read(cx) != Some(bounds.size.width) {
+                        header_width.update(cx, |width, _| *width = Some(bounds.size.width));
+                    }
+                },
+                |_, _, _, _| {},
+            )
+            .absolute()
+            .size_full()
+        };
         // フォーカスリングはインジケーターの外に張り出すため、スクロール領域の上下左右にその分の余白を取る。
         // 上の余白は負のマージンで打ち消し、上から詰める項目の位置を変えない。下の余白は打ち消さず、
         // 下端と中央に寄せた項目はその分だけ上に寄る。最後の項目までスクロールしてもリングが切れない
@@ -407,10 +442,14 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                     this.mb(dp(baseline::HEADER_SPACE_MINIMUM))
                 })
                 // 展開した配置では、項目の並びと同じくレールの余白から引いたリングの張り出し分を空ける
-                .when(self.expanded, |this| {
-                    this.px(ring_outset).child(measure_width(&widest))
-                })
-                .child(header)
+                .when(self.expanded, |this| this.px(ring_outset))
+                .child(
+                    div()
+                        .relative()
+                        .flex_none()
+                        .child(header)
+                        .child(header_measure),
+                )
         });
 
         // 項目がレールの高さに収まらないときは並びを縦にスクロールし、キーボードでフォーカスが移った項目を表示範囲に入れる。
@@ -461,14 +500,14 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
         let collapsed_width = dp(collapsed::CONTAINER_WIDTH);
         let min_width = dp(expanded::CONTAINER_WIDTH_MINIMUM);
         let max_width = dp(expanded::CONTAINER_WIDTH_MAXIMUM);
-        let (painted_width, widened) = window.with_element_namespace(self.id.clone(), |window| {
-            (
-                window.use_keyed_state("painted-width", cx, |_, _| None::<Pixels>),
-                window.use_keyed_state("widened", cx, |_, _| false),
-            )
+        let painted_width = window.with_element_namespace(self.id.clone(), |window| {
+            window.use_keyed_state("painted-width", cx, |_, _| None::<Pixels>)
         });
         let collapsing_from = (!self.expanded).then(|| *painted_width.read(cx)).flatten();
-        let widened_before = *widened.read(cx);
+        // ヘッダーは前の描画で測った幅を使う。ヘッダーは展開と折りたたみで配置を変えないため、
+        // 展開を始めたときには測り終えている
+        let widened =
+            widest_item.max(header_width.read(cx).unwrap_or_default()) + padding * 2.0 > min_width;
         // フォーカスが移ったとき・表示領域の高さが変わったとき・項目の配置が変わったときに、
         // フォーカスのある項目をリングの張り出しも含めて表示範囲に入れる。
         // 並びの後に置いた canvas の prepaint で、この描画のレイアウトで決まった範囲を使う
@@ -479,10 +518,6 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
             move |bounds, window, cx| {
                 if *painted_width.read(cx) != Some(bounds.size.width) {
                     painted_width.update(cx, |width, _| *width = Some(bounds.size.width));
-                }
-                // Compose と同じく、一度広がった記録は残す (`actualMaxExpandedWidth`)
-                if expanded && !*widened.read(cx) && widest.get() + padding * 2.0 > min_width {
-                    widened.update(cx, |widened, _| *widened = true);
                 }
                 let viewport = scroll.bounds();
                 let item = focused_child.and_then(|child| scroll.bounds_for_item(child));
@@ -533,9 +568,9 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
             .child(measure);
 
         // 幅は折りたたんだ 96dp と、展開したときの最小 220dp・最大 360dp の間をバネで動く。
-        // 展開する間と展開した後は、範囲の中で内容に合わせる。折りたたむ間は、展開したときに内容で最小の幅より
-        // 広がっていれば、最大の幅の動きを、最小の幅の動きと前の描画の幅の間に収めた幅にする
-        // (`widthFullRange.coerceIn(actualMinWidth, currentWidth)`)。広がっていなければ最小の幅の動きにする。
+        // 展開した項目とヘッダーが最小の幅に収まるなら、展開と折りたたみのどちらも最小の幅の動きにする (`actualMinWidth`)。
+        // 収まらないなら、展開する間と展開した後は範囲の中で内容に合わせ、折りたたむ間は、最大の幅の動きを、
+        // 最小の幅の動きと前の描画の幅の間に収めた幅にする (`widthFullRange.coerceIn(actualMinWidth, currentWidth)`)。
         // そのため、どの時点で折りたたみ始めても、描いていた幅から続けて縮む。展開すると内容の左右に 20dp を空ける。
         // 呼び出し側のスタイルは、幅と余白の既定の後に重ねる
         let style = self.style;
@@ -550,8 +585,8 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                 let max =
                     (collapsed_width + (max_width - collapsed_width) * progress).min(max_width);
                 let rail = match collapsing_from {
-                    Some(from) if widened_before => rail.w(max.clamp(min, from.max(min))),
-                    Some(_) => rail.w(min),
+                    _ if !widened => rail.w(min),
+                    Some(from) => rail.w(max.clamp(min, from.max(min))),
                     None => rail.min_w(min).max_w(max),
                 };
                 // 展開の配置では並びがフォーカスリングの張り出し分を左右に空けるため、その分を除く
@@ -1034,5 +1069,38 @@ mod tests {
         assert_eq!(header_x, vec![20.0], "ヘッダーは左端から 20dp");
         let indicator = quads_of(cx, color::ITEM_ACTIVE_INDICATOR);
         assert_eq!(indicator[0].0, 20.0, "インジケーターは左端から 20dp");
+    }
+
+    #[gpui::test]
+    fn 展開した幅は内容が最小の幅に収まれば_220dp_で_収まらなければ内容に合わせる(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = open(cx, || {
+            let rail = |id: &'static str, label: &'static str| {
+                NavigationRail::new(id, Some(0))
+                    .expanded(true)
+                    .header(div().size(px(56.0)))
+                    .item(NavigationRailItem::new("item", 0, HOME, label))
+            };
+            div()
+                .flex()
+                .size_full()
+                .child(rail("short", "Home"))
+                .child(rail("long", "A destination with a long label"))
+                .into_any_element()
+        });
+        cx.update(|_, cx| cx.set_reduce_motion(true));
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        let containers = quads_of(cx, collapsed::CONTAINER_COLOR);
+        assert_eq!(
+            containers[0].2, 220.0,
+            "短いラベルとヘッダーのレールは 220dp"
+        );
+        assert!(
+            containers[1].2 > 220.0 && containers[1].2 <= 360.0,
+            "長いラベルのレールは内容に合わせて広がること: {}",
+            containers[1].2
+        );
     }
 }
