@@ -9,17 +9,19 @@
 //! MD3 Expressive の Connected button group
 
 use gpui::{
-    App, ElementId, FocusHandle, InteractiveElement, IntoElement, ParentElement, Refineable,
-    RenderOnce, SharedString, StatefulInteractiveElement, StyleRefinement, Styled, Window,
-    prelude::FluentBuilder,
+    App, BorderStyle, Corners, ElementId, FocusHandle, InteractiveElement, IntoElement,
+    ParentElement, Refineable, RenderOnce, SharedString, StatefulInteractiveElement,
+    StyleRefinement, Styled, Window, canvas, prelude::FluentBuilder, quad, transparent_black,
 };
 use gpui_headless::radio::{Radio as HeadlessRadio, RadioGroup as HeadlessRadioGroup};
 use gpui_headless::toggle::{ToggleButton as HeadlessToggleButton, ToggleGroup};
 
+use crate::button::RingSlot;
 use crate::util;
 use crate::{ToggleButton, ToggleButtonVariant};
 use md3_icons::StyledIcon;
 use md3_theme::md3_tokens::component::connected_button_group_small as tokens;
+use md3_theme::md3_tokens::focus_ring;
 use md3_theme::md3_tokens::shape::{CornerShape, ShapeKey};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
@@ -74,6 +76,7 @@ impl Item {
         count: usize,
         variant: ToggleButtonVariant,
         focus_handle: &FocusHandle,
+        ring: &RingSlot,
         theme: &SharedTheme,
         window: &mut Window,
         cx: &mut App,
@@ -112,14 +115,42 @@ impl Item {
             },
             (false, false) => middle,
         });
-        // 項目の間は 2dp で、リングは項目の外側にはみ出す
-        look.raise_ring = true;
+        // 項目の間は 2dp で、項目の外側にはみ出すリングは隣の項目に隠れるため、並びがすべての項目の後に描く
+        look.ring_slot = Some(ring.clone());
         if let Some(morph) = look.morph.as_mut() {
             morph.target = tokens::CONTAINER_SHAPE;
         }
         // 項目はラベルに合わせた幅にし、並びの幅に広げない
         look.apply(item).flex_none()
     }
+}
+
+/// `ring` に書かれた矩形の外側にフォーカスリングを描く要素。並びの最後の子に置き、すべての項目の後に描く。
+/// ほかの要素と同じく並びの中で描くため、祖先の切り取りの範囲と不透明度が効く
+fn paint_ring(ring: RingSlot, theme: SharedTheme) -> impl IntoElement {
+    canvas(
+        |_, _, _| {},
+        move |_, _, window, _| {
+            let Some((bounds, radii)) = ring.get() else {
+                return;
+            };
+            let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
+            window.paint_quad(quad(
+                bounds.dilate(outset),
+                Corners {
+                    top_left: radii.top_left + outset,
+                    top_right: radii.top_right + outset,
+                    bottom_right: radii.bottom_right + outset,
+                    bottom_left: radii.bottom_left + outset,
+                },
+                transparent_black(),
+                dp(focus_ring::WIDTH),
+                theme.color(focus_ring::COLOR),
+                BorderStyle::Solid,
+            ));
+        },
+    )
+    .absolute()
 }
 
 /// 1 つだけを選ぶ、MD3 Expressive の Connected button group
@@ -212,6 +243,7 @@ impl<T: PartialEq + 'static> RenderOnce for SingleChoiceConnectedButtonGroup<T> 
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
         let count = self.items.len();
+        let ring = RingSlot::default();
         // 同じ値の項目が複数あっても、支援技術に公開する状態と同じく最初の項目だけを選ばれた見た目にする
         let mut selected = self.selected.as_ref();
         let items: Vec<_> = self
@@ -232,6 +264,7 @@ impl<T: PartialEq + 'static> RenderOnce for SingleChoiceConnectedButtonGroup<T> 
                     count,
                     self.variant,
                     &focus_handle,
+                    &ring,
                     &theme,
                     window,
                     cx,
@@ -245,7 +278,7 @@ impl<T: PartialEq + 'static> RenderOnce for SingleChoiceConnectedButtonGroup<T> 
             .items_center()
             .gap(dp(tokens::BETWEEN_SPACE));
         group.style().refine(&self.style);
-        group.items(items)
+        group.items(items).child(paint_ring(ring, theme))
     }
 }
 
@@ -365,6 +398,7 @@ impl RenderOnce for MultiChoiceConnectedButtonGroup {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
         let count = self.items.len();
+        let ring = RingSlot::default();
         let items: Vec<_> = self
             .items
             .into_iter()
@@ -391,6 +425,7 @@ impl RenderOnce for MultiChoiceConnectedButtonGroup {
                         count,
                         self.variant,
                         &focus_handle,
+                        &ring,
                         &theme,
                         window,
                         cx,
@@ -404,7 +439,7 @@ impl RenderOnce for MultiChoiceConnectedButtonGroup {
             .items_center()
             .gap(dp(tokens::BETWEEN_SPACE));
         group.style().refine(&self.style);
-        group.items(items)
+        group.items(items).child(paint_ring(ring, theme))
     }
 }
 
@@ -669,5 +704,29 @@ mod tests {
         });
         let ring = ring.expect("先頭の項目にリングを描くこと");
         assert!(ring > neighbor.expect("隣の項目を描くこと"));
+    }
+
+    #[gpui::test]
+    fn フォーカスリングに祖先の不透明度が効く(cx: &mut TestAppContext) {
+        let cx = open(cx, || {
+            div()
+                .opacity(0.5)
+                .child(single(Rc::new(Cell::new(Some(0)))))
+                .into_any_element()
+        });
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_keystrokes("tab");
+        cx.run_until_parked();
+        let alpha = cx.update(|window, cx| {
+            let ring = cx
+                .md3_theme()
+                .color(md3_theme::md3_tokens::focus_ring::COLOR);
+            window
+                .painted_quads()
+                .iter()
+                .find(|quad| quad.border_widths.top.0 > 0.0 && quad.border_color.h == ring.h)
+                .map(|quad| quad.border_color.a)
+        });
+        assert_eq!(alpha, Some(0.5));
     }
 }

@@ -12,11 +12,14 @@
 
 //! MD3 のボタン
 
+use std::cell::Cell;
+use std::rc::Rc;
+
 use gpui::{
-    AnimationExt, AnyElement, App, ClickEvent, Div, ElementId, FocusHandle, Hsla,
+    AnimationExt, AnyElement, App, Bounds, ClickEvent, Corners, Div, ElementId, FocusHandle, Hsla,
     InteractiveElement, IntoElement, ParentElement, Pixels, Refineable, RenderOnce, SharedString,
     SpringAnimation, SpringConfig, StatefulInteractiveElement, StyleRefinement, Styled, Window,
-    div, prelude::FluentBuilder, svg,
+    canvas, div, prelude::FluentBuilder, svg,
 };
 use gpui_headless::button::Button as HeadlessButton;
 use gpui_headless::toggle::ToggleButton as HeadlessToggleButton;
@@ -490,7 +493,7 @@ impl RenderOnce for Button {
             },
             corner_shape: None,
             morph: None,
-            raise_ring: false,
+            ring_slot: None,
             size,
             theme: theme.clone(),
             container,
@@ -542,8 +545,8 @@ pub(crate) struct Look {
     pub(crate) corner_shape: Option<CornerShape>,
     /// 選ばれているかで形を変える動き
     pub(crate) morph: Option<Morph>,
-    /// フォーカスリングを、後に並ぶ兄弟の要素より手前に描くか
-    pub(crate) raise_ring: bool,
+    /// 指定すると、フォーカスリングを描かず、リングを描く矩形 (外側に広げる前) と角の半径を prepaint で書く
+    pub(crate) ring_slot: Option<RingSlot>,
     /// `None` は透明
     container: Option<Hsla>,
     content: Hsla,
@@ -557,6 +560,9 @@ pub(crate) struct Look {
     icon: Option<StyledIcon>,
     children: Vec<AnyElement>,
 }
+
+/// フォーカスリングを描く矩形と角の半径を受け取る場所。描画のたびに作り直す
+pub(crate) type RingSlot = Rc<Cell<Option<(Bounds<Pixels>, Corners<Pixels>)>>>;
 
 /// トグルボタンが、選ばれているかで形を変える動き
 pub(crate) struct Morph {
@@ -582,7 +588,7 @@ impl Look {
             shape,
             corner_shape,
             morph,
-            raise_ring,
+            ring_slot,
             container,
             content,
             outline,
@@ -675,20 +681,22 @@ impl Look {
                         .bottom(-outset)
                         .border(dp(focus_ring::WIDTH))
                         .border_color(theme.color(focus_ring::COLOR));
-                    let ring = shaped(ring).outset(outset);
-                    if raise_ring {
-                        // リングはボタンの外側にはみ出すため、隣に詰めて並べた要素に隠れないよう、後から描く
-                        return this.child(crate::shape::Raised::new(
-                            div()
+                    match ring_slot {
+                        Some(slot) => {
+                            let shape = shaped(div());
+                            this.child(
+                                canvas(
+                                    move |bounds, _, _| {
+                                        slot.set(Some((bounds, shape.radii(bounds.size))));
+                                    },
+                                    |_, _, _, _| {},
+                                )
                                 .absolute()
-                                .top_0()
-                                .left_0()
-                                .right_0()
-                                .bottom_0()
-                                .child(ring),
-                        ));
+                                .size_full(),
+                            )
+                        }
+                        None => this.child(shaped(ring).outset(outset)),
                     }
-                    this.child(ring)
                 })
         };
         let decoration = match morph {
@@ -1074,7 +1082,7 @@ impl ToggleButton {
             size,
             shape,
             corner_shape: None,
-            raise_ring: false,
+            ring_slot: None,
             // Compose は形を FastSpatial のバネで変える
             morph: Some(Morph {
                 target: checked_shape,

@@ -90,6 +90,33 @@ impl Shaped {
     }
 }
 
+impl Shaped {
+    /// 大きさが `shape_size` の形の角の半径。[`Shaped::outset`] と、直角にする角は含めない
+    pub(crate) fn radii(&self, shape_size: gpui::Size<Pixels>) -> Corners<Pixels> {
+        let mut radii = match self.corner_shape {
+            Some(shape) => md3_theme::shape_radii(shape, shape_size),
+            None => self.theme.corner_radii(self.key, shape_size),
+        };
+        if let Some(bottom_key) = self.bottom_key {
+            let bottom = self.theme.corner_radii(bottom_key, shape_size);
+            radii.bottom_right = bottom.bottom_right;
+            radii.bottom_left = bottom.bottom_left;
+        }
+        if let Some((target, phase)) = self.morph {
+            // Compose の `rememberAnimatedShape` と同じく、角ごとの半径を線形に補間する
+            let target = self.theme.corner_radii(target, shape_size);
+            radii = Corners {
+                top_left: radii.top_left + (target.top_left - radii.top_left) * phase,
+                top_right: radii.top_right + (target.top_right - radii.top_right) * phase,
+                bottom_right: radii.bottom_right
+                    + (target.bottom_right - radii.bottom_right) * phase,
+                bottom_left: radii.bottom_left + (target.bottom_left - radii.bottom_left) * phase,
+            };
+        }
+        radii
+    }
+}
+
 impl IntoElement for Shaped {
     type Element = Self;
 
@@ -135,26 +162,7 @@ impl Element for Shaped {
             bounds.size.width - self.outset * 2.0,
             bounds.size.height - self.outset * 2.0,
         );
-        let mut radii = match self.corner_shape {
-            Some(shape) => md3_theme::shape_radii(shape, shape_size),
-            None => self.theme.corner_radii(self.key, shape_size),
-        };
-        if let Some(bottom_key) = self.bottom_key {
-            let bottom = self.theme.corner_radii(bottom_key, shape_size);
-            radii.bottom_right = bottom.bottom_right;
-            radii.bottom_left = bottom.bottom_left;
-        }
-        if let Some((target, phase)) = self.morph {
-            // Compose の `rememberAnimatedShape` と同じく、角ごとの半径を線形に補間する
-            let target = self.theme.corner_radii(target, shape_size);
-            radii = Corners {
-                top_left: radii.top_left + (target.top_left - radii.top_left) * phase,
-                top_right: radii.top_right + (target.top_right - radii.top_right) * phase,
-                bottom_right: radii.bottom_right
-                    + (target.bottom_right - radii.bottom_right) * phase,
-                bottom_left: radii.bottom_left + (target.bottom_left - radii.bottom_left) * phase,
-            };
-        }
+        let radii = self.radii(shape_size);
         let outset = self.outset;
         let rounded = self.rounded;
         let radius = |radius: Pixels, rounded: bool| {
@@ -189,88 +197,5 @@ impl Element for Shaped {
             window,
             cx,
         );
-    }
-}
-
-/// 子を、祖先の兄弟を含むほかの要素を描いた後に描く要素
-///
-/// レイアウトは置いた場所のまま決まる。gpui の `deferred` と違い、置いた場所の切り取りの範囲を保つ。
-/// 祖先の不透明度は効かない
-#[cfg(feature = "button")]
-pub(crate) struct Raised {
-    child: Option<gpui::AnyElement>,
-}
-
-#[cfg(feature = "button")]
-impl Raised {
-    pub(crate) fn new(child: impl IntoElement) -> Self {
-        Self {
-            child: Some(child.into_any_element()),
-        }
-    }
-}
-
-#[cfg(feature = "button")]
-impl IntoElement for Raised {
-    type Element = Self;
-
-    fn into_element(self) -> Self::Element {
-        self
-    }
-}
-
-#[cfg(feature = "button")]
-impl Element for Raised {
-    type RequestLayoutState = ();
-    type PrepaintState = ();
-
-    fn id(&self) -> Option<ElementId> {
-        None
-    }
-
-    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
-        None
-    }
-
-    fn request_layout(
-        &mut self,
-        _id: Option<&GlobalElementId>,
-        _inspector_id: Option<&InspectorElementId>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> (LayoutId, ()) {
-        let child = self
-            .child
-            .as_mut()
-            .expect("child is taken only in prepaint");
-        (child.request_layout(window, cx), ())
-    }
-
-    fn prepaint(
-        &mut self,
-        _id: Option<&GlobalElementId>,
-        _inspector_id: Option<&InspectorElementId>,
-        _bounds: Bounds<Pixels>,
-        _request_layout: &mut (),
-        window: &mut Window,
-        _cx: &mut App,
-    ) {
-        if let Some(child) = self.child.take() {
-            let offset = window.element_offset();
-            let mask = window.content_mask();
-            window.defer_draw(child, offset, 0, Some(mask));
-        }
-    }
-
-    fn paint(
-        &mut self,
-        _id: Option<&GlobalElementId>,
-        _inspector_id: Option<&InspectorElementId>,
-        _bounds: Bounds<Pixels>,
-        _request_layout: &mut (),
-        _prepaint: &mut (),
-        _window: &mut Window,
-        _cx: &mut App,
-    ) {
     }
 }
