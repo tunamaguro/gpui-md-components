@@ -395,7 +395,9 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
             window.with_element_namespace(self.id.clone(), |window| {
                 (
                     window.use_keyed_state("scroll", cx, |_, _| ScrollHandle::new()),
-                    window.use_keyed_state("last-focused", cx, |_, _| (None::<usize>, px(0.0))),
+                    window.use_keyed_state("last-focused", cx, |_, _| {
+                        (None::<usize>, px(0.0), false)
+                    }),
                 )
             });
         let scroll_handle = scroll_handle.read(cx).clone();
@@ -436,8 +438,10 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
             window.use_keyed_state("painted-width", cx, |_, _| None::<Pixels>)
         });
         let collapsing_from = (!self.expanded).then(|| *painted_width.read(cx)).flatten();
-        // フォーカスが移ったときと、表示領域の高さが変わったときに、フォーカスのある項目をリングの張り出しも含めて
+        // フォーカスが移ったとき・表示領域の高さが変わったとき・展開と折りたたみで項目の配置が変わったときに、
+        // フォーカスのある項目をリングの張り出しも含めて
         // 表示範囲に入れる。並びの後に置いた canvas の prepaint で、この描画のレイアウトで決まった範囲を使う
+        let expanded = self.expanded;
         let focused_child = focused.map(|index| index + usize::from(leading_space));
         let scroll = scroll_handle.clone();
         let measure = canvas(
@@ -446,10 +450,11 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                     painted_width.update(cx, |width, _| *width = Some(bounds.size.width));
                 }
                 let viewport = scroll.bounds();
-                if (focused, viewport.size.height) == *last_focused.read(cx) {
+                let key = (focused, viewport.size.height, expanded);
+                if key == *last_focused.read(cx) {
                     return;
                 }
-                last_focused.update(cx, |last, _| *last = (focused, viewport.size.height));
+                last_focused.update(cx, |last, _| *last = key);
                 let Some(item) = focused_child.and_then(|child| scroll.bounds_for_item(child))
                 else {
                     return;
@@ -514,7 +519,13 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                     Some(from) => rail.w(max.clamp(min, from.max(min))),
                     None => rail.min_w(min).max_w(max),
                 };
-                let mut rail = rail.px(padding * progress.min(1.0));
+                // 展開の配置で描く間は、項目の左右にフォーカスリングの張り出し分を空ける
+                let padding = if expanded {
+                    (padding * progress.min(1.0)).max(ring_outset)
+                } else {
+                    padding * progress.min(1.0)
+                };
+                let mut rail = rail.px(padding);
                 rail.style().refine(&style);
                 rail
             },
@@ -771,6 +782,30 @@ mod tests {
         );
     }
 
+    /// フォーカスリングが、切り抜きの範囲を合わせた範囲に収まっているか。
+    /// 角の形に切り抜くため、1 つのリングを切り抜きの範囲の違う複数の矩形で描く
+    fn ring_fits(cx: &mut VisualTestContext) -> bool {
+        cx.update(|window, cx| {
+            let color = cx.md3_theme().color(focus_ring::COLOR);
+            let ring: Vec<_> = window
+                .painted_quads()
+                .into_iter()
+                .filter(|quad| quad.border_color == color && quad.border_widths.top.0 > 0.)
+                .collect();
+            let Some(first) = ring.first() else {
+                return false;
+            };
+            let mask = ring.iter().fold(first.content_mask.bounds, |mask, quad| {
+                mask.union(&quad.content_mask.bounds)
+            });
+            let ring = first.bounds;
+            ring.top() >= mask.top()
+                && ring.bottom() <= mask.bottom()
+                && ring.left() >= mask.left()
+                && ring.right() <= mask.right()
+        })
+    }
+
     #[gpui::test]
     fn 高さに収まらない項目へキーボードで移るとリングまで含めてスクロールして表示する(
         cx: &mut TestAppContext,
@@ -785,29 +820,6 @@ mod tests {
                 .into_any_element()
         });
         cx.update(|window, _| window.activate_window());
-        // フォーカスリングが、切り抜きの範囲を合わせた範囲に収まっていること。
-        // 角の形に切り抜くため、1 つのリングを切り抜きの範囲の違う複数の矩形で描く
-        let ring_fits = |cx: &mut VisualTestContext| {
-            cx.update(|window, cx| {
-                let color = cx.md3_theme().color(focus_ring::COLOR);
-                let ring: Vec<_> = window
-                    .painted_quads()
-                    .into_iter()
-                    .filter(|quad| quad.border_color == color && quad.border_widths.top.0 > 0.)
-                    .collect();
-                let Some(first) = ring.first() else {
-                    return false;
-                };
-                let mask = ring.iter().fold(first.content_mask.bounds, |mask, quad| {
-                    mask.union(&quad.content_mask.bounds)
-                });
-                let ring = first.bounds;
-                ring.top() >= mask.top()
-                    && ring.bottom() <= mask.bottom()
-                    && ring.left() >= mask.left()
-                    && ring.right() <= mask.right()
-            })
-        };
         // スクロールしなければ最後の項目は上端から 44 + 56 × 11 = 660dp にあり、表示範囲の外になる
         cx.simulate_keystrokes("tab end");
         // 描いたレイアウトでスクロールを補正し、補正したオフセットで次のフレームを描く
@@ -874,6 +886,40 @@ mod tests {
             *changes.borrow(),
             vec![1, 3],
             "クリックでフォーカスした項目から、無効な項目を飛ばして次の項目へ移る"
+        );
+    }
+
+    #[gpui::test]
+    fn 折りたたんで項目の配置が変わってもフォーカスのある項目を表示する(
+        cx: &mut TestAppContext,
+    ) {
+        let expanded = Rc::new(std::cell::Cell::new(true));
+        let state = expanded.clone();
+        let cx = open(cx, move || {
+            NavigationRail::new("rail", Some(0))
+                .expanded(state.get())
+                .items(
+                    (0..12usize)
+                        .map(|index| NavigationRailItem::new(("item", index), index, HOME, "Item")),
+                )
+                .into_any_element()
+        });
+        // バネを終端まで即座に進める
+        cx.update(|_, cx| cx.set_reduce_motion(true));
+        cx.update(|window, _| window.activate_window());
+        cx.simulate_keystrokes("tab end");
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        assert!(ring_fits(cx), "展開した配置で最後の項目を表示すること");
+        // 折りたたむと項目の高さが 56dp から 68dp に増え、同じオフセットでは最後の項目が表示範囲の外に出る
+        expanded.set(false);
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        assert!(
+            ring_fits(cx),
+            "折りたたんだ配置でも最後の項目を表示すること"
         );
     }
 }
