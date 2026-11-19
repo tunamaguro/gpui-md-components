@@ -131,7 +131,7 @@ impl Gallery {
             chip_page: cx.new(ChipPage::new),
             tooltip_page: cx.new(|_| TooltipPage::default()),
             list_page: cx.new(|_| ListPage::default()),
-            navigation_bar_page: cx.new(|_| NavigationBarPage::default()),
+            navigation_bar_page: cx.new(NavigationBarPage::new),
             menu_page: cx.new(|_| MenuPage::default()),
             dialog_page: cx.new(DialogPage::new),
             select_page: cx.new(|_| SelectPage::default()),

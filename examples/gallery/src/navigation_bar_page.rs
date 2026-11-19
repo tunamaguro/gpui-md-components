@@ -1,8 +1,9 @@
 //! ナビゲーションバーを並べるページ
 
 use gpui::{
-    Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
-    SharedString, StatefulInteractiveElement as _, Styled as _, Window, div, px,
+    Context, FocusHandle, InteractiveElement as _, IntoElement, ParentElement as _,
+    Refineable as _, Render, SharedString, StatefulInteractiveElement as _, Styled as _, Window,
+    div, px,
 };
 use md3_components::{
     NavigationBar, NavigationBarArrangement, NavigationBarItem, NavigationItemIconPosition,
@@ -21,11 +22,24 @@ const DESTINATIONS: [(&str, md3_icons::Icon); 4] = [
     ("Profile", md3_icons::PERSON),
 ];
 
-/// ナビゲーションバーを並べるページ。各バーの選ばれている行き先の位置を持つ
-#[derive(Default)]
+/// ナビゲーションバーを並べるページ。各バーの選ばれている行き先の位置と、パネルのフォーカスを持つ
 pub struct NavigationBarPage {
     compact: usize,
     wide: usize,
+    compact_panel: FocusHandle,
+    wide_panel: FocusHandle,
+}
+
+impl NavigationBarPage {
+    pub fn new(cx: &mut Context<Self>) -> Self {
+        Self {
+            compact: 0,
+            wide: 0,
+            // パネルの中に Tab で到達できる要素が無いため、パネル自身に Tab で到達できるようにする
+            compact_panel: cx.focus_handle().tab_stop(true),
+            wide_panel: cx.focus_handle().tab_stop(true),
+        }
+    }
 }
 
 impl Render for NavigationBarPage {
@@ -43,11 +57,13 @@ impl Render for NavigationBarPage {
                         .disabled(prefix == "compact" && index == 3)
                 })
         };
-        // 選ばれた行き先の内容。バーは内容を公開しないため、行き先の名前を付けたパネルとして同じ描画で差し替える
-        let panel = |id: &'static str, index: usize| {
+        // 選ばれた行き先の内容。バーは内容を公開しないため、行き先の名前を付けたパネルとして同じ描画で差し替える。
+        // Tab でバーの次にパネルへ移れるよう、バーの後に置く
+        let panel = |id: &'static str, index: usize, focus_handle: &FocusHandle| {
             let name = DESTINATIONS[index].0;
             TabPanel::new(id)
                 .aria_label(name)
+                .track_focus(focus_handle)
                 .w(px(412.))
                 .p_4()
                 .child(label(&theme, id, format!("{name} content")))
@@ -65,7 +81,6 @@ impl Render for NavigationBarPage {
             .items_start()
             .gap_6()
             .child(label(&theme, "equal-weight", "Equal weight, icon on top"))
-            .child(panel("compact-panel", self.compact))
             .child(
                 NavigationBar::new("compact", Some(self.compact))
                     .aria_label("Compact navigation")
@@ -76,8 +91,8 @@ impl Render for NavigationBarPage {
                     .items(items("compact", NavigationItemIconPosition::Top))
                     .w(px(412.)),
             )
+            .child(panel("compact-panel", self.compact, &self.compact_panel))
             .child(label(&theme, "centered", "Centered, icon at start"))
-            .child(panel("wide-panel", self.wide))
             .child(
                 NavigationBar::new("wide", Some(self.wide))
                     .aria_label("Wide navigation")
@@ -89,6 +104,7 @@ impl Render for NavigationBarPage {
                     .items(items("wide", NavigationItemIconPosition::Start))
                     .w(px(840.)),
             )
+            .child(panel("wide-panel", self.wide, &self.wide_panel))
     }
 }
 

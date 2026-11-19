@@ -223,7 +223,9 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationBar<T> {
                 let label = label.child(item.label.clone());
 
                 // インジケーターは選ばれると幅が中央から広がり、同時に濃くなる。
-                // 幅と不透明度は DefaultSpatial のバネの進みで、行き過ぎで負になる分は 0 にする
+                // 幅と不透明度は DefaultSpatial のバネの進みで、行き過ぎで負になる分は 0 にする。
+                // Compose は項目の幅に収まる範囲で 1 を超える行き過ぎを残すが、インジケーターの幅が項目の幅に達すると
+                // この箱では上限を課せないため、1 を上限にする。行き過ぎは 2% 未満で、56dp の幅で 1dp に満たない
                 let indicator_theme = theme.clone();
                 let indicator = div()
                     .absolute()
@@ -237,13 +239,13 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationBar<T> {
                         "indicator",
                         SpringAnimation::new(spatial).to(is_selected),
                         move |this, phase| {
-                            let progress = phase.0.max(0.0);
+                            let progress = phase.0.clamp(0.0, 1.0);
                             this.child(Shaped::new(
                                 div()
                                     .flex_none()
                                     .h_full()
                                     .w(relative(progress))
-                                    .bg(indicator_color.opacity(progress.min(1.0))),
+                                    .bg(indicator_color.opacity(progress)),
                                 indicator_theme.clone(),
                                 shape,
                             ))
@@ -288,7 +290,7 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationBar<T> {
                 });
 
                 // インジケーターは内容の周りに余白を取った大きさにする。余白はアイコンだけのときに
-                // インジケーターの寸法になる値 (`TopIconIndicatorHorizontalPadding` などのファイル末尾の値)
+                // インジケーターの寸法になる値 (`TopIconIndicatorVerticalPadding` などのファイル末尾の値)
                 let pill = div()
                     .relative()
                     .flex()
@@ -296,7 +298,9 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationBar<T> {
                     .max_w_full()
                     .items_center();
                 let pill = if top {
-                    pill.px((dp(vertical::ACTIVE_INDICATOR_WIDTH) - icon_size) / 2.0)
+                    // 項目がインジケーターより狭ければインジケーターを項目の幅に縮め、アイコンは中央に残す
+                    pill.justify_center()
+                        .w(dp(vertical::ACTIVE_INDICATOR_WIDTH))
                         .py((dp(vertical::ACTIVE_INDICATOR_HEIGHT) - icon_size) / 2.0)
                 } else {
                     // 上下の余白は、アイコンとラベルの高い方に足す
@@ -314,8 +318,10 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationBar<T> {
                     ));
                     (None, Some(label))
                 } else {
-                    let label =
-                        label.ml(dp(navigation_bar::ITEM_ACTIVE_INDICATOR_ICON_LABEL_SPACE));
+                    // ラベルに残る幅が 1 文字にも満たないほど項目が狭いと、ラベルは隣の項目に重ならないよう切れる
+                    let label = label
+                        .overflow_hidden()
+                        .ml(dp(navigation_bar::ITEM_ACTIVE_INDICATOR_ICON_LABEL_SPACE));
                     (Some(label), None)
                 };
                 let pill = pill
@@ -745,5 +751,28 @@ mod tests {
         assert_eq!(container[0].3, 96.0, "3 行のラベルでバーが伸びる");
         let indicator = quads_of(cx, navigation_bar::ITEM_ACTIVE_INDICATOR_COLOR);
         assert_eq!(indicator, vec![(72.0, 6.0, 56.0, 32.0)]);
+    }
+
+    #[gpui::test]
+    fn 上にアイコンを置く項目は狭いときインジケーターを項目の幅に縮めて中央に置く(
+        cx: &mut TestAppContext,
+    ) {
+        let cx = open(cx, || {
+            let item =
+                |id: &'static str, value: usize| NavigationBarItem::new(id, value, HOME, "A");
+            NavigationBar::new("bar", Some(1))
+                .items([
+                    item("a", 0),
+                    item("b", 1),
+                    item("c", 2),
+                    item("d", 3),
+                    item("e", 4),
+                ])
+                .w(px(240.0))
+                .into_any_element()
+        });
+        // 48dp の項目では、56dp のインジケーターを項目の幅に縮める
+        let indicator = quads_of(cx, navigation_bar::ITEM_ACTIVE_INDICATOR_COLOR);
+        assert_eq!(indicator, vec![(48.0, 6.0, 48.0, 32.0)]);
     }
 }
