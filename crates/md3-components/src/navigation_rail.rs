@@ -517,7 +517,20 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
         };
         // 展開したときの幅。内容が最小の幅に収まるなら最小の幅にする
         let content_width = widest_item.max(header_width) + padding * 2.0;
-        let widened = content_width > min_width;
+        // 折りたたむ間は、展開していたときに選んだ幅の動きを続ける (`actualMaxExpandedWidth`)。
+        // 折りたたむのと同時にヘッダーや項目が変わっても、幅の動きを切り替えない
+        let widened_state = window.with_element_namespace(self.id.clone(), |window| {
+            window.use_keyed_state("widened", cx, |_, _| false)
+        });
+        let widened = if self.expanded {
+            let widened = content_width > min_width;
+            if *widened_state.read(cx) != widened {
+                widened_state.update(cx, |state, _| *state = widened);
+            }
+            widened
+        } else {
+            *widened_state.read(cx)
+        };
         let expanded_width = content_width.clamp(min_width, max_width);
         // フォーカスが移ったとき・表示領域の高さが変わったとき・項目の配置が変わったときに、
         // フォーカスのある項目をリングの張り出しも含めて表示範囲に入れる。
@@ -1130,13 +1143,11 @@ mod tests {
                 .item(NavigationRailItem::new("item", 0, HOME, "Home"))
                 .into_any_element()
         });
-        cx.update(|_, cx| cx.set_reduce_motion(true));
-        cx.update(|window, _| window.refresh());
-        cx.run_until_parked();
+        let width = |cx: &mut VisualTestContext| quads_of(cx, collapsed::CONTAINER_COLOR)[0].2;
+        assert_eq!(width(cx), 220.0, "最初の描画ではヘッダーの幅を測っていない");
         // 最初の描画で測ったヘッダーの幅で、次のフレームを描く
         cx.update(|window, cx| window.simulate_next_frame(cx));
         cx.run_until_parked();
-        let width = |cx: &mut VisualTestContext| quads_of(cx, collapsed::CONTAINER_COLOR)[0].2;
         assert_eq!(width(cx), 280.0, "ヘッダーの幅と左右 20dp に広がること");
         with_header.set(false);
         cx.update(|window, _| window.refresh());
