@@ -251,10 +251,11 @@ AccessKit は tab の名前を子の内容から求めないため、tab 自身�
 M4 の矢印キーの扱いを使う
 
 - 選ばれているタブの値は呼び出し側が持ち、`on_change` で選ぶタブを求める。選べるのは 1 つまでで、どれも選ばない状態から始められる
-- 横に並べる配置を既定とし、`TabList::orientation` で縦に並べる配置 (APG では上下の矢印キーで移り、向きを vertical と公開する) にできる
+- 横向きを既定とし、`TabList::orientation` で縦向き (APG では上下の矢印キーで移り、向きを vertical と公開する) にできる。
+  向きが決めるのは矢印キーと公開する向きで、見た目の並びは呼び出し側が付ける
 - フォーカスの移動と同時に選ぶ (自動)。パネルは呼び出し側が同じ描画で差し替えるため、表示に目立つ遅延が無い。
   遅延が出る内容の場合に Enter と Space で選ぶ (手動) 方式は扱わない
-- 左右の矢印キーで移り、Home と End で最初と最後のタブへ移る (APG では任意)。移った先を選ぶよう求める。
+- 矢印キー (横向きなら左右、縦向きなら上下) で移り、Home と End で最初と最後のタブへ移る (APG では任意)。移った先を選ぶよう求める。
   フォーカス中の Enter と Space・クリック・支援技術からのクリック操作でも選ぶよう求める。選ばれているタブでは求めない
 - 削除できるタブ (APG の Delete キー) は扱わない
 - 3 段目は MD3 の Tabs で確かめた。AT-SPI のアダプタは role `tablist` を page tab list、`tab` を page tab、`tabpanel` を scroll pane として渡す。
@@ -262,12 +263,11 @@ M4 の矢印キーの扱いを使う
 - MD3 の Navigation bar も `TabList` と `Tab` で公開する。Compose (selectableGroup と Role.Tab) と Material Web (tablist と tab) に合わせる。
   Material Web は矢印キーでフォーカスだけを移し Enter と Space で選ぶが、Tabs と同じく移った先を選ぶ (行き先の画面は呼び出し側が同じ描画で差し替える)。
   パネルは持たず、tabpanel は公開しない。実機 (AT-SPI) で、page tab list の中に page tab が並び、無効な項目は click と focusable を持たず、支援技術の click で selected が移ることを確かめた
-- `TabList::orientation` で縦向きの並びにできる。縦向きでは上下の矢印キーで移り、支援技術に縦向きとして公開する。
-  MD3 の Navigation rail (Compose の selectableGroup と Role.Tab) はこれで公開する。メニューボタンなどのヘッダーは tablist の子に許されないため、並びの外に兄弟として置く
+- MD3 の Navigation rail (Compose の selectableGroup と Role.Tab) は縦向きの `TabList` で公開する。メニューボタンなどのヘッダーは tablist の子に許されないため、並びの外に兄弟として置く
 
 気を付けること:
 
-- M4 と同じく、アプリが左右の矢印キー・Home・End に割り当てた action をいずれかのリスナーが処理すると、並びの `on_key_down` は呼ばれずタブの間を移れない
+- M4 と同じく、アプリが並びの向きの矢印キー (横向きなら左右、縦向きなら上下)・Home・End に割り当てた action をいずれかのリスナーが処理すると、並びの `on_key_down` は呼ばれずタブの間を移れない
 
 参照する APG:
 

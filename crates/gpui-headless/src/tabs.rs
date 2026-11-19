@@ -16,13 +16,15 @@ use crate::{
 
 type ChangeHandler<T> = Box<dyn Fn(&T, &mut Window, &mut App)>;
 
-/// [`TabList`] のタブを並べる向き
+/// [`TabList`] のタブの並びの向き
+///
+/// 前後のタブへ移る矢印キーと、支援技術に公開する向きを決める。見た目の配置は変えない
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum TabListOrientation {
-    /// 横に並べる。左右の矢印キーで前後のタブへ移る
+    /// 横向き。左右の矢印キーで前後のタブへ移る
     #[default]
     Horizontal,
-    /// 縦に並べる。上下の矢印キーで前後のタブへ移る
+    /// 縦向き。上下の矢印キーで前後のタブへ移る
     Vertical,
 }
 
@@ -30,7 +32,8 @@ pub enum TabListOrientation {
 ///
 /// 状態 (選ばれているタブの値) は呼び出し側が持ち、[`TabList::new`] に毎回渡す。並び自身は状態を変えない。
 /// タブは [`TabList::item`] で、タブでない要素は `child` で加え、加えた順に並ぶ。
-/// タブを並べる向きは [`TabList::orientation`] で決め、既定では横に並べる。
+/// 既定では横向きとして扱う。[`TabList::orientation`] の向きは矢印キーと支援技術に公開する向きを決め、
+/// 見た目の並びは呼び出し側がスタイルで付ける。
 /// 選ばれたタブの内容は、呼び出し側が [`TabPanel`] に入れて表示する
 ///
 /// - Tab で到達できるタブは 1 つだけで、選ばれているタブ、最初のフォーカスできるタブの順に選ぶ。

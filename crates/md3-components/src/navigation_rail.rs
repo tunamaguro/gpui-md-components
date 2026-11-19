@@ -46,9 +46,9 @@ pub enum NavigationRailArrangement {
     /// ヘッダーの下に、上から詰めて並べる
     #[default]
     Top,
-    /// レールの高さの中央に並べる。ヘッダーは上端に置き、項目の位置には影響しない
+    /// ヘッダーの下に残る高さの中央に並べる
     Center,
-    /// 下端に詰めて並べる
+    /// 下端に詰めて並べる。ヘッダーは上端に残る
     Bottom,
 }
 
@@ -69,7 +69,8 @@ pub enum NavigationRailArrangement {
 ///
 /// 支援技術には role `tablist` と縦向きとして公開され、[`NavigationRail::aria_label`] がアクセシブルな名前になる。
 /// 項目は role `tab` と選ばれているかどうかの状態として公開され、ラベルが名前になる。
-/// ヘッダーは項目の前に、並びの子として公開される
+/// ヘッダーは並びの外に置き、並びの前の兄弟として公開される。
+/// 項目がレールの高さに収まらないときは並びが縦にスクロールし、フォーカスのある項目を表示範囲に入れる
 ///
 /// [`Styled`] で指定したスタイルはレールの箱に付く。既定では親の高さいっぱいに広がり、幅は上の範囲で内容に合わせる
 #[derive(IntoElement)]
@@ -241,7 +242,7 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                 label.text_style().refine(&label_font);
                 let label = label.child(item.label.clone());
 
-                // インジケーターは選ばれると幅が先頭側から広がり、同時に濃くなる (`placeLabelAndIcon` はインジケーターを
+                // インジケーターは選ばれると幅が先頭側から広がり、同時に濃くなる (`placeAnimatedLabelAndIcon` はインジケーターを
                 // 先頭に置く)。幅と不透明度は DefaultSpatial のバネの進みで、0 から 1 に収める
                 let indicator_theme = theme.clone();
                 let indicator = div()
@@ -394,7 +395,7 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
             window.with_element_namespace(self.id.clone(), |window| {
                 (
                     window.use_keyed_state("scroll", cx, |_, _| ScrollHandle::new()),
-                    window.use_keyed_state("last-focused", cx, |_, _| None::<usize>),
+                    window.use_keyed_state("last-focused", cx, |_, _| (None::<usize>, px(0.0))),
                 )
             });
         let scroll_handle = scroll_handle.read(cx).clone();
@@ -406,12 +407,18 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
         let focused = focus_handles
             .iter()
             .position(|handle| handle.is_focused(window));
-        if focused != *last_focused.read(cx) {
+        // フォーカスが移ったときと、表示領域の高さが変わったときに、フォーカスのある項目を表示範囲に入れる
+        let viewport = scroll_handle.bounds().size.height;
+        if (focused, viewport) != *last_focused.read(cx) {
             if let Some(index) = focused {
                 scroll_handle.scroll_to_item(index + usize::from(leading_space));
             }
-            last_focused.update(cx, |last, _| *last = focused);
+            last_focused.update(cx, |last, _| *last = (focused, viewport));
         }
+        // フォーカスリングはインジケーターの外に張り出すため、スクロール領域の上下にその分の余白を取る。
+        // 上の余白は負のマージンで打ち消し、上から詰める項目の位置を変えない。下の余白は打ち消さず、
+        // 下端と中央に寄せた項目はその分だけ上に寄る。最後の項目までスクロールしてもリングが切れない
+        let ring_outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
         // Compose の中央の並べ方は項目をヘッダーを除かずにレールの高さの中央に置くが、
         // この実装はヘッダーの下に残る高さの中央に置く
         let list = TabList::new(self.id.clone(), self.selected)
@@ -422,28 +429,19 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
             .flex_col()
             .flex_1()
             .min_h_0()
+            .mt(-ring_outset)
+            .py(ring_outset)
             .overflow_y_scroll()
             .track_scroll(&scroll_handle)
             .when(leading_space, |this| this.child(div().flex_1()))
             .items(items)
             .when(trailing_space, |this| this.child(div().flex_1()));
 
-        // 幅を動かし始めるときの起点にするため、描いた幅を記録する
-        let expanded = self.expanded;
-        let (painted_width, collapse_from, was_expanded) =
-            window.with_element_namespace(self.id.clone(), |window| {
-                (
-                    window.use_keyed_state("painted-width", cx, |_, _| None::<Pixels>),
-                    window.use_keyed_state("collapse-from", cx, |_, _| None::<Pixels>),
-                    window.use_keyed_state("was-expanded", cx, move |_, _| expanded),
-                )
-            });
-        // 折りたたみ始めたときは、展開していた幅から折りたたむ (`currentWidth`)
-        if *was_expanded.read(cx) != self.expanded {
-            let from = (!self.expanded).then(|| *painted_width.read(cx)).flatten();
-            collapse_from.update(cx, |collapse_from, _| *collapse_from = from);
-            was_expanded.update(cx, |was_expanded, _| *was_expanded = self.expanded);
-        }
+        // 折りたたむ間の幅は前の描画の幅を上限にするため、描いた幅を記録する
+        let painted_width = window.with_element_namespace(self.id.clone(), |window| {
+            window.use_keyed_state("painted-width", cx, |_, _| None::<Pixels>)
+        });
+        let collapsing_from = (!self.expanded).then(|| *painted_width.read(cx)).flatten();
         let measure = canvas(
             move |bounds, _, cx| {
                 if *painted_width.read(cx) != Some(bounds.size.width) {
@@ -470,17 +468,15 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
             .child(list)
             .child(measure);
 
-        // 幅は折りたたんだ 96dp と、展開したときの最小 220dp・最大 360dp の間をバネで動き、範囲の中で内容に合わせる。
-        // 折りたたむときは展開していた幅から動く。展開すると内容の左右に 20dp を空ける。
+        // 幅は折りたたんだ 96dp と、展開したときの最小 220dp・最大 360dp の間をバネで動く。
+        // 展開する間と展開した後は、範囲の中で内容に合わせる。折りたたむ間は、最大の幅の動きを、最小の幅の動きと
+        // 前の描画の幅の間に収めた幅にする (`widthFullRange.coerceIn(actualMinWidth, currentWidth)`)。
+        // そのため、どの時点で折りたたみ始めても、描いていた幅から続けて縮む。展開すると内容の左右に 20dp を空ける。
         // 呼び出し側のスタイルは、幅と余白の既定の後に重ねる
         let collapsed_width = dp(collapsed::CONTAINER_WIDTH);
-        let (min_width, max_width) = match *collapse_from.read(cx) {
-            Some(from) if !self.expanded => (from, from),
-            _ => (
-                dp(expanded::CONTAINER_WIDTH_MINIMUM),
-                dp(expanded::CONTAINER_WIDTH_MAXIMUM),
-            ),
-        };
+        let min_width = dp(expanded::CONTAINER_WIDTH_MINIMUM);
+        let max_width = dp(expanded::CONTAINER_WIDTH_MAXIMUM);
+
         let padding = dp(supplement::navigation_rail::EXPANDED_HORIZONTAL_PADDING);
         let style = self.style;
         rail.with_spring(
@@ -489,10 +485,13 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
             move |rail, phase| {
                 // 行き過ぎで折りたたんだ幅より狭くならないよう、0 を下限にする
                 let progress = phase.0.max(0.0);
-                let mut rail = rail
-                    .min_w(collapsed_width + (min_width - collapsed_width) * progress)
-                    .max_w(collapsed_width + (max_width - collapsed_width) * progress)
-                    .px(padding * progress.min(1.0));
+                let min = collapsed_width + (min_width - collapsed_width) * progress;
+                let max = collapsed_width + (max_width - collapsed_width) * progress;
+                let rail = match collapsing_from {
+                    Some(from) => rail.w(max.clamp(min, from.max(min))),
+                    None => rail.min_w(min).max_w(max),
+                };
+                let mut rail = rail.px(padding * progress.min(1.0));
                 rail.style().refine(&style);
                 rail
             },
@@ -712,13 +711,14 @@ mod tests {
             vec![(0.0, 44.0), (96.0, 44.0)],
             "ヘッダーはどちらも上端"
         );
-        // ヘッダーと 40dp の間隔の下に残る 460dp の中央と下端に、64dp の項目を置く
+        // ヘッダーと 40dp の間隔の下に残る 460dp から、フォーカスリングのための下の余白 5dp を除いた範囲の
+        // 中央と下端に、64dp の項目を置く
         let indicator = quads_of(cx, color::ITEM_ACTIVE_INDICATOR);
         assert_eq!(
             indicator,
             vec![
-                (20.0, 140.0 + 198.0 + 6.0, 56.0, 32.0),
-                (96.0 + 20.0, 600.0 - 64.0 + 6.0, 56.0, 32.0),
+                (20.0, 140.0 + 195.5 + 6.0, 56.0, 32.0),
+                (96.0 + 20.0, 600.0 - 5.0 - 64.0 + 6.0, 56.0, 32.0),
             ]
         );
     }
