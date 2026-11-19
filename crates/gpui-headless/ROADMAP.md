@@ -259,6 +259,9 @@ M4 の矢印キーの扱いを使う
 - 削除できるタブ (APG の Delete キー) は扱わない
 - 3 段目は MD3 の Tabs で確かめた。AT-SPI のアダプタは role `tablist` を page tab list、`tab` を page tab、`tabpanel` を scroll pane として渡す。
   タブの名前は `aria_label` になり、選ばれているタブに selected が付く。支援技術の click で selected が移り、フォーカスの要求ではフォーカスだけが移って選ばれない
+- MD3 の Navigation bar も `TabList` と `Tab` で公開する。Compose (selectableGroup と Role.Tab) と Material Web (tablist と tab) に合わせる。
+  Material Web は矢印キーでフォーカスだけを移し Enter と Space で選ぶが、Tabs と同じく移った先を選ぶ (行き先の画面は呼び出し側が同じ描画で差し替える)。
+  パネルは持たず、tabpanel は公開しない。実機 (AT-SPI) で、page tab list の中に page tab が並び、無効な項目は click と focusable を持たず、支援技術の click で selected が移ることを確かめた
 
 気を付けること:
 
