@@ -177,10 +177,10 @@ impl RenderOnce for ButtonGroup {
             .collect();
         let idle = progress.iter().all(|progress| *progress == 0.0) && !targets.contains(&true);
 
-        // 押している項目は、端なら片側の隣を自分の幅の 15% まで、間なら左右の隣を 15% の半分ずつまで縮めて広がる。
-        // 縮める幅は隣の上限で抑えてから押下の進みを掛ける (`ButtonGroupMeasurePolicy`)。
-        // 実際に縮める幅は、バネが行き過ぎても、ほかの項目の押下と重なっても、隣の上限とボタンの最小の幅を超えない。
-        // 進みが負になっても、隣を広げて押した項目を縮めない。測っていない項目があれば広げない
+        // 描画から外れた項目の幅は捨て、加え直した項目は測り直すまで広げない
+        natural_widths.update(cx, |widths, _| {
+            widths.retain(|id, _| self.items.iter().any(|item| item.id == *id));
+        });
         let natural: Option<Vec<Pixels>> = {
             let measured = natural_widths.read(cx);
             self.items
@@ -196,40 +196,15 @@ impl RenderOnce for ButtonGroup {
                     .unwrap_or_else(|| dp(baseline_button::TRAILING_SPACE))
             })
             .collect();
-        let widths = natural.filter(|_| !idle && count > 1).map(|natural| {
-            let ratio = supplement::button_group::EXPANDED_RATIO;
-            let min_width = dp(supplement::button::MIN_WIDTH);
-            let mut widths = natural.clone();
-            let shrink = |widths: &mut Vec<Pixels>, neighbor: usize, target: Pixels| {
-                let compressed = natural[neighbor] - widths[neighbor];
-                let growth = target
-                    .min(limits[neighbor] - compressed)
-                    .min(widths[neighbor] - min_width)
-                    .max(px(0.0));
-                widths[neighbor] -= growth;
-                growth
-            };
-            for (index, progress) in progress.iter().copied().enumerate() {
-                if progress == 0.0 {
-                    continue;
-                }
-                let own = natural[index];
-                let growth = if index == 0 {
-                    shrink(&mut widths, 1, (own * ratio).min(limits[1]) * progress)
-                } else if index == count - 1 {
-                    let target = (own * ratio).min(limits[index - 1]) * progress;
-                    shrink(&mut widths, index - 1, target)
-                } else {
-                    let target = (own * ratio / 2.0)
-                        .min(limits[index - 1])
-                        .min(limits[index + 1])
-                        * progress;
-                    shrink(&mut widths, index - 1, target) + shrink(&mut widths, index + 1, target)
-                };
-                widths[index] += growth;
-            }
-            widths
-        });
+        let held: Vec<bool> = states
+            .iter()
+            .map(|(pressed, _, _)| *pressed.read(cx))
+            .collect();
+        let widths = natural
+            .filter(|_| !idle && count > 1)
+            .map(|natural| item_widths(&natural, &limits, &progress, &held));
+        // 項目の幅を決めていない間は、どの項目も子の幅なので測り直す
+        let measuring = widths.is_none();
 
         // 先に描く項目の子が離す操作の伝播を止めても、押している状態を戻せるよう、グループで離す操作を受ける
         let mut group = PressScope::new(
@@ -262,16 +237,17 @@ impl RenderOnce for ButtonGroup {
                         element
                     },
                 );
-                // 何も押していない間だけ、項目の幅を測り直す
                 let natural_widths = natural_widths.clone();
                 let id = item.id.clone();
                 let measure = canvas(
-                    move |bounds, _, cx| {
+                    move |bounds, window, cx| {
                         let width = bounds.size.width;
-                        if idle && natural_widths.read(cx).get(&id) != Some(&width) {
+                        if measuring && natural_widths.read(cx).get(&id) != Some(&width) {
+                            // 測っていなかった項目があって広げられなかった場合に、測った幅で描き直す
                             natural_widths.update(cx, |widths, _| {
                                 widths.insert(id, width);
                             });
+                            window.request_animation_frame();
                         }
                     },
                     |_, _, _, _| {},
@@ -311,11 +287,61 @@ impl RenderOnce for ButtonGroup {
     }
 }
 
+/// 押下の動きの進みが `progress` のときの各項目の幅
+///
+/// 押している項目は、端なら片側の隣を自分の幅の 15% まで、間なら左右の隣を 15% の半分ずつまで縮めて広がる。
+/// 縮める幅は隣の上限で抑えてから進みを掛ける (`ButtonGroupMeasurePolicy`)。
+/// 実際に縮める幅は、バネが行き過ぎても、ほかの項目の押下と重なっても、隣の上限とボタンの最小の幅を超えない。
+/// 進みが負になっても、隣を広げて押した項目を縮めない。
+/// 押すのをやめた項目は、押している項目を縮めない。押している項目が動くと、押したまま離してもクリックにならないため
+fn item_widths(
+    natural: &[Pixels],
+    limits: &[Pixels],
+    progress: &[f32],
+    held: &[bool],
+) -> Vec<Pixels> {
+    let count = natural.len();
+    let ratio = supplement::button_group::EXPANDED_RATIO;
+    let min_width = dp(supplement::button::MIN_WIDTH);
+    let mut widths = natural.to_vec();
+    for (index, progress) in progress.iter().copied().enumerate() {
+        if progress == 0.0 {
+            continue;
+        }
+        let mut shrink = |neighbor: usize, target: Pixels| {
+            if held[neighbor] && !held[index] {
+                return px(0.0);
+            }
+            let compressed = natural[neighbor] - widths[neighbor];
+            let growth = target
+                .min(limits[neighbor] - compressed)
+                .min(widths[neighbor] - min_width)
+                .max(px(0.0));
+            widths[neighbor] -= growth;
+            growth
+        };
+        let own = natural[index];
+        let growth = if index == 0 {
+            shrink(1, (own * ratio).min(limits[1]) * progress)
+        } else if index == count - 1 {
+            shrink(index - 1, (own * ratio).min(limits[index - 1]) * progress)
+        } else {
+            let target = (own * ratio / 2.0)
+                .min(limits[index - 1])
+                .min(limits[index + 1])
+                * progress;
+            shrink(index - 1, target) + shrink(index + 1, target)
+        };
+        widths[index] += growth;
+    }
+    widths
+}
+
 #[cfg(test)]
 mod tests {
     use gpui::{
-        AnyElement, Context, Hsla, Modifiers, MouseButton, Render, TestAppContext,
-        VisualTestContext, point,
+        AnyElement, Context, Hsla, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent,
+        PlatformInput, Render, TestAppContext, VisualTestContext, point,
     };
 
     use super::*;
@@ -489,17 +515,33 @@ mod tests {
         cx: &mut TestAppContext,
     ) {
         let cx = open(cx, || group(None));
+        cx.update(|_, cx| cx.set_reduce_motion(false));
         // 支援技術のクリックは、押す操作と離す操作を描画を挟まずに配送する
-        cx.simulate_mouse_down(
-            point(px(162.0), px(20.0)),
-            MouseButton::Left,
-            Modifiers::none(),
-        );
-        cx.simulate_mouse_up(
-            point(px(162.0), px(20.0)),
-            MouseButton::Left,
-            Modifiers::none(),
-        );
+        cx.update(|window, cx| {
+            let position = point(px(162.0), px(20.0));
+            window.dispatch_event(
+                PlatformInput::MouseDown(MouseDownEvent {
+                    button: MouseButton::Left,
+                    position,
+                    modifiers: Modifiers::none(),
+                    click_count: 1,
+                    first_mouse: false,
+                }),
+                cx,
+            );
+            window.dispatch_event(
+                PlatformInput::MouseUp(MouseUpEvent {
+                    button: MouseButton::Left,
+                    position,
+                    modifiers: Modifiers::none(),
+                    click_count: 1,
+                }),
+                cx,
+            );
+        });
+        next_frames(cx);
+        // バネは実時間で進むため、広げる向きに動いていれば、待つと幅が変わる
+        std::thread::sleep(std::time::Duration::from_millis(50));
         next_frames(cx);
         assert_eq!(
             items(cx),
@@ -585,5 +627,57 @@ mod tests {
             vec![(212.0, 85.0), (0.0, 200.0), (309.0, 115.0)],
             "並べ替えた後も各項目の幅で広げること"
         );
+    }
+
+    #[gpui::test]
+    fn 押している間に外して加え直した項目は_測り直すまで広げない(
+        cx: &mut TestAppContext,
+    ) {
+        let phase = Rc::new(Cell::new(0));
+        let state = phase.clone();
+        let cx = open(cx, move || {
+            let item = |id: &'static str, color: Hsla| {
+                let content = div().w(px(100.0)).flex_shrink(1.0).min_w_0();
+                ButtonGroupItem::new(id, div().flex().h(px(40.0)).bg(color).child(content))
+            };
+            // 1 つ目は幅を指定した子で、外している間に幅を変える
+            let fixed = |width: f32| {
+                ButtonGroupItem::new("fixed", div().w(px(width)).h(px(40.0)).bg(gpui::red()))
+                    .compression_limit(px(0.0))
+                    .disabled(true)
+            };
+            let group = ButtonGroup::new("group");
+            let group = match state.get() {
+                0 => group.item(fixed(100.0)),
+                1 => group,
+                _ => group.item(fixed(160.0)),
+            };
+            group
+                .item(item("b", gpui::green()))
+                .item(item("c", gpui::blue()))
+                .into_any_element()
+        });
+        press(cx, 274.0);
+        for next in [1, 2] {
+            phase.set(next);
+            cx.update(|window, _| window.refresh());
+            next_frames(cx);
+        }
+        assert_eq!(
+            items(cx),
+            vec![(0.0, 160.0), (172.0, 85.0), (269.0, 115.0)],
+            "加え直した項目の今の幅で並べること"
+        );
+    }
+
+    #[test]
+    fn 押すのをやめた項目は押している項目を縮めない() {
+        let natural = [px(100.0); 2];
+        let limits = [px(24.0); 2];
+        // 1 つ目の押下の動きが戻り始める前に、2 つ目を押した
+        let widths = item_widths(&natural, &limits, &[0.5, 0.0], &[false, true]);
+        assert_eq!(widths, vec![px(100.0), px(100.0)]);
+        let widths = item_widths(&natural, &limits, &[0.5, 0.0], &[true, false]);
+        assert_eq!(widths, vec![px(107.5), px(92.5)]);
     }
 }
