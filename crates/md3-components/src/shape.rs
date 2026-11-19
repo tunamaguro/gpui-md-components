@@ -50,6 +50,7 @@ impl Shaped {
         feature = "fab",
         feature = "list",
         feature = "navigation-bar",
+        feature = "navigation-rail",
         feature = "slider"
     ))]
     pub(crate) fn outset(mut self, outset: Pixels) -> Self {
