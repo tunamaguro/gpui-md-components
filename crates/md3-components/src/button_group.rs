@@ -12,14 +12,15 @@
 //! MD3 Expressive のボタングループ
 
 use std::cell::Cell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use gpui::{
-    AnimationExt, AnyElement, App, ElementId, Entity, InteractiveElement, IntoElement,
-    ParentElement, Pixels, Refineable, RenderOnce, SpringAnimation, StyleRefinement, Styled,
-    Window, canvas, div, prelude::FluentBuilder, px,
+    AnimationExt, AnyElement, App, ElementId, IntoElement, ParentElement, Pixels, Refineable,
+    RenderOnce, SpringAnimation, StyleRefinement, Styled, Window, canvas, div,
+    prelude::FluentBuilder, px,
 };
-use gpui_headless::press::PressArea;
+use gpui_headless::press::{PressArea, PressScope};
 use md3_theme::md3_tokens::component::{baseline_button, button_group_small};
 use md3_theme::md3_tokens::motion::MotionSchemeKey;
 use md3_theme::md3_tokens::supplement;
@@ -30,8 +31,9 @@ use md3_theme::{SharedTheme, ThemeExt, dp};
 /// 項目はボタンなどの要素で、間を 12dp 空けて左から並べる。項目をポインターで押している間は、その項目が隣を縮めた分だけ広がり、
 /// 離すと元の幅に戻る。隣は [`ButtonGroupItem::compression_limit`] までと、ボタンの最小の幅 (58dp) までしか縮めない。
 /// 幅を指定しない子は項目の幅いっぱいに描かれ、`Button` は縮めると左右の余白から縮む。
-/// 幅を指定した子は項目の幅に追従しないため、その項目の `compression_limit` を 0 にする。
-/// 押しても反応しない項目は [`ButtonGroupItem::disabled`] にする
+/// 幅を指定した子は項目の幅に追従しないため、その項目は `compression_limit` を 0 にし、
+/// 押しても広がらないよう [`ButtonGroupItem::disabled`] にする。子のクリックはそのまま使える。
+/// 押しても反応しない項目も `disabled` にする
 ///
 /// グループ自身は支援技術に役割を公開しない。子のボタンがそれぞれの役割で並ぶ
 #[derive(IntoElement)]
@@ -119,15 +121,6 @@ impl ButtonGroupItem {
     }
 }
 
-/// 項目を押しているか
-#[derive(Default)]
-struct PressState {
-    /// ポインターのボタンを押したまま
-    held: bool,
-    /// 押下の動きが戻り始められるところまで進むのを待っている
-    latched: bool,
-}
-
 impl RenderOnce for ButtonGroup {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
@@ -135,15 +128,17 @@ impl RenderOnce for ButtonGroup {
         let reduce_motion = cx.reduce_motion();
         let count = self.items.len();
 
-        // 項目ごとの押している状態と、項目のバネが前の描画で記録した押下の動きの進み
-        let presses: Vec<(Entity<PressState>, Rc<Cell<f32>>)> = self
+        // 項目ごとの、ポインターで押しているか・押下の動きが戻り始められるところまで進むのを待っているか・
+        // 項目のバネが前の描画で記録した押下の動きの進み。項目の id で保つ
+        let states: Vec<_> = self
             .items
             .iter()
             .map(|item| {
                 window.with_element_namespace(self.id.clone(), |window| {
                     window.with_element_namespace(item.id.clone(), |window| {
                         (
-                            window.use_keyed_state("press", cx, |_, _| PressState::default()),
+                            window.use_keyed_state("pressed", cx, |_, _| false),
+                            window.use_keyed_state("latched", cx, |_, _| false),
                             window
                                 .use_keyed_state("progress", cx, |_, _| Rc::new(Cell::new(0.0)))
                                 .read(cx)
@@ -153,38 +148,46 @@ impl RenderOnce for ButtonGroup {
                 })
             })
             .collect();
-        // 何も押していない間に測った各項目の幅。項目の数が変わったら測り直す
+        // 何も押していない間に測った各項目の幅。項目の id で保ち、並べ替えても別の項目の幅を使わない
         let natural_widths = window.with_element_namespace(self.id.clone(), |window| {
-            window.use_keyed_state("natural-widths", cx, |_, _| Vec::<Pixels>::new())
+            window.use_keyed_state("natural-widths", cx, |_, _| {
+                HashMap::<ElementId, Pixels>::new()
+            })
         });
-        if natural_widths.read(cx).len() != count {
-            natural_widths.update(cx, |widths, _| widths.clear());
-        }
 
         // 押すのをやめても、押下の動きが戻り始められるところまで進むまでは押した状態を保つ (`EnlargeOnPressNode`)。
         // モーションを減らす設定では動きが一瞬で終わるため、押している間だけ広げる
-        let targets: Vec<bool> = presses
+        let targets: Vec<bool> = states
             .iter()
-            .map(|(press, progress)| {
-                let state = press.read(cx);
-                if state.latched
-                    && !state.held
-                    && (reduce_motion
-                        || progress.get() >= supplement::button_group::RELEASE_PROGRESS)
-                {
-                    press.update(cx, |state, _| state.latched = false);
+            .map(|(pressed, latched, progress)| {
+                let pressed = *pressed.read(cx);
+                let waiting = !reduce_motion
+                    && (pressed
+                        || (*latched.read(cx)
+                            && progress.get() < supplement::button_group::RELEASE_PROGRESS));
+                if *latched.read(cx) != waiting {
+                    latched.update(cx, |latched, _| *latched = waiting);
                 }
-                let state = press.read(cx);
-                state.held || state.latched
+                pressed || waiting
             })
             .collect();
-        let progress: Vec<f32> = presses.iter().map(|(_, progress)| progress.get()).collect();
+        let progress: Vec<f32> = states
+            .iter()
+            .map(|(_, _, progress)| progress.get())
+            .collect();
         let idle = progress.iter().all(|progress| *progress == 0.0) && !targets.contains(&true);
 
         // 押している項目は、端なら片側の隣を自分の幅の 15% まで、間なら左右の隣を 15% の半分ずつまで縮めて広がる。
-        // 縮める幅は隣の上限で先に抑えてから押下の進みを掛ける (`ButtonGroupMeasurePolicy`)。
-        // バネが行き過ぎて進みが負になっても、隣を広げて押した項目を縮めない。隣はボタンの最小の幅より狭くしない
-        let natural = natural_widths.read(cx).clone();
+        // 縮める幅は隣の上限で抑えてから押下の進みを掛ける (`ButtonGroupMeasurePolicy`)。
+        // 実際に縮める幅は、バネが行き過ぎても、ほかの項目の押下と重なっても、隣の上限とボタンの最小の幅を超えない。
+        // 進みが負になっても、隣を広げて押した項目を縮めない。測っていない項目があれば広げない
+        let natural: Option<Vec<Pixels>> = {
+            let measured = natural_widths.read(cx);
+            self.items
+                .iter()
+                .map(|item| measured.get(&item.id).copied())
+                .collect()
+        };
         let limits: Vec<Pixels> = self
             .items
             .iter()
@@ -193,12 +196,16 @@ impl RenderOnce for ButtonGroup {
                     .unwrap_or_else(|| dp(baseline_button::TRAILING_SPACE))
             })
             .collect();
-        let widths = (!idle && natural.len() == count && count > 1).then(|| {
+        let widths = natural.filter(|_| !idle && count > 1).map(|natural| {
             let ratio = supplement::button_group::EXPANDED_RATIO;
             let min_width = dp(supplement::button::MIN_WIDTH);
             let mut widths = natural.clone();
             let shrink = |widths: &mut Vec<Pixels>, neighbor: usize, target: Pixels| {
-                let growth = target.min(widths[neighbor] - min_width).max(px(0.0));
+                let compressed = natural[neighbor] - widths[neighbor];
+                let growth = target
+                    .min(limits[neighbor] - compressed)
+                    .min(widths[neighbor] - min_width)
+                    .max(px(0.0));
                 widths[neighbor] -= growth;
                 growth
             };
@@ -206,7 +213,7 @@ impl RenderOnce for ButtonGroup {
                 if progress == 0.0 {
                     continue;
                 }
-                let own = widths[index];
+                let own = natural[index];
                 let growth = if index == 0 {
                     shrink(&mut widths, 1, (own * ratio).min(limits[1]) * progress)
                 } else if index == count - 1 {
@@ -224,29 +231,31 @@ impl RenderOnce for ButtonGroup {
             widths
         });
 
-        // 項目の id をグループの中で解決するよう、グループに id を付ける
-        let mut group = div()
-            .id(self.id.clone())
-            .flex()
-            .flex_row()
-            .items_start()
-            .gap(dp(button_group_small::BETWEEN_SPACE));
+        // 先に描く項目の子が離す操作の伝播を止めても、押している状態を戻せるよう、グループで離す操作を受ける
+        let mut group = PressScope::new(
+            self.id.clone(),
+            states.iter().map(|(pressed, _, _)| pressed.clone()),
+        )
+        .flex()
+        .flex_row()
+        .items_start()
+        .gap(dp(button_group_small::BETWEEN_SPACE));
         group.style().refine(&self.style);
-        let cells: Vec<Rc<Cell<f32>>> = presses
+        let cells: Vec<Rc<Cell<f32>>> = states
             .iter()
-            .map(|(_, progress)| progress.clone())
+            .map(|(_, _, progress)| progress.clone())
             .collect();
         let items = self
             .items
             .into_iter()
-            .zip(presses)
+            .zip(states)
             .zip(targets)
             .enumerate()
-            .map(|(index, ((item, (press, cell)), target))| {
+            .map(|(index, ((item, (pressed, _, cell)), target))| {
                 // 押下の動きの進みを記録するバネ。項目の幅は、記録した進みで次の描画で決める。
-                // 項目の id を持つ要素の中に置くため、この id は項目どうしで重ならない
+                // 子が付ける文字列の id と重ならないよう、ソースの位置を id にする
                 let progress_spring = div().absolute().with_spring(
-                    "press",
+                    ElementId::CodeLocation(*std::panic::Location::caller()),
                     SpringAnimation::new(spring).to(target),
                     move |element, progress| {
                         cell.set(progress.0);
@@ -255,13 +264,13 @@ impl RenderOnce for ButtonGroup {
                 );
                 // 何も押していない間だけ、項目の幅を測り直す
                 let natural_widths = natural_widths.clone();
+                let id = item.id.clone();
                 let measure = canvas(
                     move |bounds, _, cx| {
                         let width = bounds.size.width;
-                        if idle && natural_widths.read(cx).get(index) != Some(&width) {
+                        if idle && natural_widths.read(cx).get(&id) != Some(&width) {
                             natural_widths.update(cx, |widths, _| {
-                                widths.resize(count, px(0.0));
-                                widths[index] = width;
+                                widths.insert(id, width);
                             });
                         }
                     },
@@ -270,15 +279,8 @@ impl RenderOnce for ButtonGroup {
                 .absolute()
                 .size_full();
                 // 子を縦の flex の中に置き、交差軸の伸長で、幅を指定しない子を項目の幅いっぱいに描く
-                PressArea::new(item.id.clone())
+                PressArea::new(item.id.clone(), &pressed)
                     .disabled(item.disabled)
-                    .on_press_change(move |pressed, _, cx| {
-                        press.update(cx, |state, cx| {
-                            state.held = pressed;
-                            state.latched |= pressed;
-                            cx.notify();
-                        });
-                    })
                     .relative()
                     .flex()
                     .flex_col()
@@ -540,5 +542,48 @@ mod tests {
         });
         press(cx, 100.0);
         assert_eq!(items(cx), vec![(0.0, 200.0), (212.0, 100.0)]);
+    }
+
+    #[gpui::test]
+    fn 押している間に並べ替えても項目の幅を取り違えない(
+        cx: &mut TestAppContext,
+    ) {
+        let reordered = Rc::new(Cell::new(false));
+        let state = reordered.clone();
+        let cx = open(cx, move || {
+            let item = |id: &'static str, width: f32, color: Hsla| {
+                let content = div().w(px(width)).flex_shrink(1.0).min_w_0();
+                ButtonGroupItem::new(id, div().flex().h(px(40.0)).bg(color).child(content))
+            };
+            // 2 つ目は幅を指定した子で、縮めず広げない
+            let fixed =
+                ButtonGroupItem::new("fixed", div().w(px(200.0)).h(px(40.0)).bg(gpui::green()))
+                    .compression_limit(px(0.0))
+                    .disabled(true);
+            let group = ButtonGroup::new("group");
+            let group = if state.get() {
+                group.item(fixed).item(item("a", 100.0, gpui::red()))
+            } else {
+                group.item(item("a", 100.0, gpui::red())).item(fixed)
+            };
+            group
+                .item(item("c", 100.0, gpui::blue()))
+                .into_any_element()
+        });
+        press(cx, 374.0);
+        assert_eq!(
+            items(cx),
+            vec![(0.0, 100.0), (112.0, 200.0), (324.0, 100.0)],
+            "縮められない隣からは広がらないこと"
+        );
+        reordered.set(true);
+        next_frames(cx);
+        cx.update(|window, _| window.refresh());
+        next_frames(cx);
+        assert_eq!(
+            items(cx),
+            vec![(212.0, 85.0), (0.0, 200.0), (309.0, 115.0)],
+            "並べ替えた後も各項目の幅で広げること"
+        );
     }
 }

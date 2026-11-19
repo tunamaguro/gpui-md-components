@@ -1,96 +1,77 @@
 //! ポインターで押している間を追う領域
 
-use std::rc::Rc;
-
 use gpui::{
     AnyElement, App, Bounds, DispatchPhase, Div, Element, ElementId, Entity, GlobalElementId,
-    InspectorElementId, InteractiveElement, IntoElement, LayoutId, MouseButton, MouseMoveEvent,
-    MouseUpEvent, ParentElement, Pixels, RenderOnce, Stateful, StyleRefinement, Styled, Window,
-    div,
+    InspectorElementId, InteractiveElement, Interactivity, IntoElement, LayoutId, MouseButton,
+    MouseMoveEvent, MouseUpEvent, ParentElement, Pixels, RenderOnce, Stateful, StyleRefinement,
+    Styled, Window, div,
 };
-
-/// 押している状態が変わったときに呼ぶハンドラ
-type PressHandler = Rc<dyn Fn(bool, &mut Window, &mut App)>;
 
 /// ポインターの主ボタンで押している間を追う領域
 ///
-/// 領域の中で主ボタンを押すと押している状態になり、ウィンドウのどこで離しても押していない状態に戻る。
-/// 子孫がイベントの伝播を止めても状態を追う。キーボードの操作は押している状態にしない。
+/// 領域の中で主ボタンを押すと `state` を `true` にし、ウィンドウのどこで離しても `false` に戻す。
+/// 変えるたびに `state` を通知する。子孫がイベントの伝播を止めても状態を追う。キーボードの操作は押している状態にしない。
 /// 支援技術のクリックのうち、gpui がマウスの押下と離しとして配送するものは、ほかのポインターの操作と同じく追う。
 /// 支援技術には役割を公開しない
+///
+/// 領域より先に描いた要素が離す操作の伝播を Capture で止めると、ポインターを動かすまで `false` に戻らない。
+/// 並べた領域では、先に描く兄弟が止めることがあるため、[`PressScope`] で包む
 ///
 /// 見た目は [`Styled`] で呼び出し側が付ける
 #[derive(IntoElement)]
 pub struct PressArea {
-    id: ElementId,
     inner: Stateful<Div>,
+    state: Entity<bool>,
     disabled: bool,
-    on_press_change: Option<PressHandler>,
 }
 
 impl PressArea {
-    /// 押していない状態の領域を作る
+    /// 押している状態を `state` に書く領域を作る
     ///
-    /// `id` は同じ親の中で一意にし、描画のたびに同じ値を渡すこと。`id` が変わるか 1 フレームでも描画されないと、
-    /// 押している状態を失う
-    pub fn new(id: impl Into<ElementId>) -> Self {
-        let id = id.into();
+    /// `id` は同じ親の中で一意にする
+    pub fn new(id: impl Into<ElementId>, state: &Entity<bool>) -> Self {
         Self {
-            id: id.clone(),
             inner: div().id(id),
+            state: state.clone(),
             disabled: false,
-            on_press_change: None,
         }
     }
 
     /// `true` なら押しても押している状態にしない
     ///
-    /// 押している間に `true` にすると、押していない状態に戻し、[`PressArea::on_press_change`] のハンドラを呼ぶ
+    /// 押している間に `true` にすると、`state` を `false` に戻す
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
-        self
-    }
-
-    /// 押している状態が変わったときに、変わった後の状態でハンドラを呼ぶ
-    pub fn on_press_change(
-        mut self,
-        handler: impl Fn(bool, &mut Window, &mut App) + 'static,
-    ) -> Self {
-        self.on_press_change = Some(Rc::new(handler));
         self
     }
 }
 
 impl RenderOnce for PressArea {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let pressed = window.use_keyed_state(self.id.clone(), cx, |_, _| false);
-        let handler = self.on_press_change;
-        if self.disabled && *pressed.read(cx) {
-            pressed.update(cx, |pressed, _| *pressed = false);
-            if let Some(handler) = &handler {
-                handler(false, window, cx);
-            }
+    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let state = self.state;
+        if self.disabled && *state.read(cx) {
+            state.update(cx, |pressed, cx| {
+                *pressed = false;
+                cx.notify();
+            });
         }
         let inner = if self.disabled {
             self.inner
         } else {
-            let pressed = pressed.clone();
-            let handler = handler.clone();
+            let state = state.clone();
             // 子孫が Bubble で伝播を止めても受けるよう、Capture で受ける
-            self.inner.capture_any_mouse_down(move |event, window, cx| {
-                if event.button != MouseButton::Left || *pressed.read(cx) {
-                    return;
-                }
-                pressed.update(cx, |pressed, _| *pressed = true);
-                if let Some(handler) = &handler {
-                    handler(true, window, cx);
+            self.inner.capture_any_mouse_down(move |event, _, cx| {
+                if event.button == MouseButton::Left && !*state.read(cx) {
+                    state.update(cx, |pressed, cx| {
+                        *pressed = true;
+                        cx.notify();
+                    });
                 }
             })
         };
         ReleaseLayer {
             inner,
-            pressed,
-            handler,
+            states: vec![state],
         }
     }
 }
@@ -107,11 +88,61 @@ impl ParentElement for PressArea {
     }
 }
 
+/// 並べた [`PressArea`] の押している状態を、子孫のどの要素よりも先に、離す操作で戻す要素
+///
+/// 子孫の領域の `state` を渡す。子孫がどの順で描かれても、離す操作の伝播を止めても、渡した状態を `false` に戻す。
+/// 支援技術には役割を公開しない
+///
+/// 見た目は [`Styled`] で呼び出し側が付ける
+#[derive(IntoElement)]
+pub struct PressScope {
+    inner: Stateful<Div>,
+    states: Vec<Entity<bool>>,
+}
+
+impl PressScope {
+    /// `states` を、離す操作で `false` に戻す要素を作る
+    ///
+    /// `id` は同じ親の中で一意にする。子孫の要素の id はこの `id` の中で解決する
+    pub fn new(id: impl Into<ElementId>, states: impl IntoIterator<Item = Entity<bool>>) -> Self {
+        Self {
+            inner: div().id(id),
+            states: states.into_iter().collect(),
+        }
+    }
+}
+
+impl RenderOnce for PressScope {
+    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+        ReleaseLayer {
+            inner: self.inner,
+            states: self.states,
+        }
+    }
+}
+
+impl Styled for PressScope {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.inner.style()
+    }
+}
+
+impl ParentElement for PressScope {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.inner.extend(elements);
+    }
+}
+
+impl InteractiveElement for PressScope {
+    fn interactivity(&mut self) -> &mut Interactivity {
+        self.inner.interactivity()
+    }
+}
+
 /// 押している間、ボタンを離す操作を領域の外でも受ける要素
 struct ReleaseLayer<E> {
     inner: E,
-    pressed: Entity<bool>,
-    handler: Option<PressHandler>,
+    states: Vec<Entity<bool>>,
 }
 
 impl<E: Element> IntoElement for ReleaseLayer<E> {
@@ -170,33 +201,28 @@ impl<E: Element> Element for ReleaseLayer<E> {
         // gpui の要素のマウスのリスナーは、ポインタが要素の上にある間しか受けないため、ウィンドウ全体で受ける。
         // 子孫が伝播を止めても受けるよう Capture で受け、子孫の Capture のリスナーより先に受けるよう子孫より先に登録する
         let release = {
-            let pressed = self.pressed.clone();
-            let handler = self.handler.clone();
-            move |window: &mut Window, cx: &mut App| {
-                pressed.update(cx, |pressed, _| *pressed = false);
-                if let Some(handler) = &handler {
-                    handler(false, window, cx);
+            let states = self.states.clone();
+            move |cx: &mut App| {
+                for state in &states {
+                    if *state.read(cx) {
+                        state.update(cx, |pressed, cx| {
+                            *pressed = false;
+                            cx.notify();
+                        });
+                    }
                 }
             }
         };
-        let pressed = self.pressed.clone();
         let release_on_move = release.clone();
-        window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
+        window.on_mouse_event(move |event: &MouseMoveEvent, phase, _, cx| {
             // ウィンドウの外でボタンを離した場合は離す操作が届かないため、移動のときにも確かめる
-            if phase == DispatchPhase::Capture
-                && *pressed.read(cx)
-                && event.pressed_button != Some(MouseButton::Left)
-            {
-                release_on_move(window, cx);
+            if phase == DispatchPhase::Capture && event.pressed_button != Some(MouseButton::Left) {
+                release_on_move(cx);
             }
         });
-        let pressed = self.pressed.clone();
-        window.on_mouse_event(move |event: &MouseUpEvent, phase, window, cx| {
-            if phase == DispatchPhase::Capture
-                && event.button == MouseButton::Left
-                && *pressed.read(cx)
-            {
-                release(window, cx);
+        window.on_mouse_event(move |event: &MouseUpEvent, phase, _, cx| {
+            if phase == DispatchPhase::Capture && event.button == MouseButton::Left {
+                release(cx);
             }
         });
         self.inner.paint(
@@ -213,52 +239,69 @@ impl<E: Element> Element for ReleaseLayer<E> {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
-
-    use gpui::{Context, Modifiers, Render, TestAppContext, VisualTestContext, point, px};
+    use gpui::{
+        AppContext as _, Context, Modifiers, Render, TestAppContext, VisualTestContext, point, px,
+    };
 
     use super::*;
     use crate::test_window::add_test_window;
 
+    /// 離す操作の伝播を Bubble と Capture の両方で止める子
+    fn blocker(id: &'static str) -> impl IntoElement {
+        div()
+            .id(id)
+            .size_full()
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .on_mouse_up(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .capture_any_mouse_up(|_, _, cx| cx.stop_propagation())
+    }
+
+    /// 左上 (10, 10) から幅 100 の領域。`scoped` なら 2 つ目の領域を右に並べて [`PressScope`] で包む
     struct View {
         disabled: bool,
-        changes: Rc<RefCell<Vec<bool>>>,
+        scoped: bool,
+        states: [Entity<bool>; 2],
     }
 
     impl Render for View {
         fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-            let changes = self.changes.clone();
-            div().size_full().child(
-                PressArea::new("area")
+            let area = |index: usize, id: &'static str| {
+                PressArea::new(id, &self.states[index])
                     .disabled(self.disabled)
-                    .on_press_change(move |pressed, _, _| changes.borrow_mut().push(pressed))
                     .w(px(100.0))
                     .h(px(40.0))
+                    .child(blocker(if index == 0 { "first" } else { "second" }))
+            };
+            if self.scoped {
+                PressScope::new("scope", self.states.clone())
+                    .flex()
                     .mt(px(10.0))
                     .ml(px(10.0))
-                    // 子孫が伝播を止めても押している状態を追う
-                    .child(
-                        div()
-                            .id("child")
-                            .size_full()
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                            .on_mouse_up(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                            .capture_any_mouse_up(|_, _, cx| cx.stop_propagation()),
-                    ),
-            )
+                    .child(area(0, "a"))
+                    .child(area(1, "b"))
+                    .into_any_element()
+            } else {
+                div()
+                    .mt(px(10.0))
+                    .ml(px(10.0))
+                    .child(area(0, "a"))
+                    .into_any_element()
+            }
         }
     }
 
-    fn open(
-        cx: &mut TestAppContext,
-    ) -> (Entity<View>, &mut VisualTestContext, Rc<RefCell<Vec<bool>>>) {
-        let changes = Rc::new(RefCell::new(Vec::new()));
-        let state = changes.clone();
-        let (view, cx) = add_test_window(cx, move |_, _| View {
+    fn open(cx: &mut TestAppContext, scoped: bool) -> (Entity<View>, &mut VisualTestContext) {
+        add_test_window(cx, move |_, cx| View {
             disabled: false,
-            changes: state,
-        });
-        (view, cx, changes)
+            scoped,
+            states: [cx.new(|_| false), cx.new(|_| false)],
+        })
+    }
+
+    fn pressed(view: &Entity<View>, cx: &mut VisualTestContext) -> [bool; 2] {
+        view.update(cx, |view, cx| {
+            view.states.clone().map(|state| *state.read(cx))
+        })
     }
 
     fn mouse_down(cx: &mut VisualTestContext, x: f32) {
@@ -275,42 +318,54 @@ mod tests {
     fn 中で押すと押している状態になり_中で離すと戻る(
         cx: &mut TestAppContext,
     ) {
-        let (_, cx, changes) = open(cx);
+        let (view, cx) = open(cx, false);
         mouse_down(cx, 50.0);
+        assert_eq!(pressed(&view, cx), [true, false]);
         mouse_up(cx, 50.0);
-        assert_eq!(*changes.borrow(), vec![true, false]);
+        assert_eq!(pressed(&view, cx), [false, false]);
     }
 
     #[gpui::test]
     fn 外で離しても戻る(cx: &mut TestAppContext) {
-        let (_, cx, changes) = open(cx);
+        let (view, cx) = open(cx, false);
         mouse_down(cx, 50.0);
         mouse_up(cx, 300.0);
-        assert_eq!(*changes.borrow(), vec![true, false]);
+        assert_eq!(pressed(&view, cx), [false, false]);
     }
 
     #[gpui::test]
     fn 外で押しても押している状態にならない(cx: &mut TestAppContext) {
-        let (_, cx, changes) = open(cx);
+        let (view, cx) = open(cx, false);
         mouse_down(cx, 300.0);
-        mouse_up(cx, 50.0);
-        assert!(changes.borrow().is_empty());
+        assert_eq!(pressed(&view, cx), [false, false]);
     }
 
     #[gpui::test]
     fn 押している間に無効にすると戻り_無効な間は押しても変わらない(
         cx: &mut TestAppContext,
     ) {
-        let (view, cx, changes) = open(cx);
+        let (view, cx) = open(cx, false);
         mouse_down(cx, 50.0);
         view.update(cx, |view, cx| {
             view.disabled = true;
             cx.notify();
         });
         cx.run_until_parked();
+        assert_eq!(pressed(&view, cx), [false, false]);
         mouse_up(cx, 50.0);
         mouse_down(cx, 50.0);
+        assert_eq!(pressed(&view, cx), [false, false]);
+    }
+
+    #[gpui::test]
+    fn 範囲で包むと_先に描いた兄弟が離す操作を止めても戻る(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = open(cx, true);
+        mouse_down(cx, 150.0);
+        assert_eq!(pressed(&view, cx), [false, true]);
+        // 先に描いた 1 つ目の領域の子が、離す操作の伝播を Capture で止める
         mouse_up(cx, 50.0);
-        assert_eq!(*changes.borrow(), vec![true, false]);
+        assert_eq!(pressed(&view, cx), [false, false]);
     }
 }
