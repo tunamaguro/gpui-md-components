@@ -16,21 +16,36 @@ use crate::{
 
 type ChangeHandler<T> = Box<dyn Fn(&T, &mut Window, &mut App)>;
 
+/// [`TabList`] のタブの並びの向き
+///
+/// 前後のタブへ移る矢印キーと、支援技術に公開する向きを決める。見た目の配置は変えない
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum TabListOrientation {
+    /// 横向き。左右の矢印キーで前後のタブへ移る
+    #[default]
+    Horizontal,
+    /// 縦向き。上下の矢印キーで前後のタブへ移る
+    Vertical,
+}
+
 /// 見た目を持たないタブの並び
 ///
 /// 状態 (選ばれているタブの値) は呼び出し側が持ち、[`TabList::new`] に毎回渡す。並び自身は状態を変えない。
 /// タブは [`TabList::item`] で、タブでない要素は `child` で加え、加えた順に並ぶ。
-/// タブは横に並べる。選ばれたタブの内容は、呼び出し側が [`TabPanel`] に入れて表示する
+/// 既定では横向きとして扱う。[`TabList::orientation`] の向きは矢印キーと支援技術に公開する向きを決め、
+/// 見た目の並びは呼び出し側がスタイルで付ける。
+/// 選ばれたタブの内容は、呼び出し側が [`TabPanel`] に入れて表示する
 ///
 /// - Tab で到達できるタブは 1 つだけで、選ばれているタブ、最初のフォーカスできるタブの順に選ぶ。
 ///   タブにフォーカスがある間は、そのタブだけが Tab で到達できる。フォーカスできるタブが無ければ Tab で入らない
-/// - 修飾キーなしの左右の矢印キーで前後のタブへフォーカスを移し、移った先のタブを選ぶよう求める。端では反対の端に戻る。
+/// - 修飾キーなしの矢印キー (横向きなら左右、縦向きなら上下) で前後のタブへフォーカスを移し、移った先のタブを選ぶよう求める。
+///   端では反対の端に戻る。
 ///   Home と End では最初と最後のタブへ移り、移った先を選ぶよう求める。
 ///   [`Availability::Disabled`] のタブは飛ばし、[`Availability::DisabledFocusable`] のタブにはフォーカスだけを移す。
 ///   移れるタブがほかに無い場合は、キー入力を祖先に渡す
 /// - フォーカス中の Enter と Space・マウスのクリック・支援技術からのクリック操作で、タブを選ぶよう求める
 ///
-/// 支援技術には role `tablist` と横向きとして公開され、タブは role `tab` と選ばれているかどうかの状態として公開される。
+/// 支援技術には role `tablist` と並べる向きとして公開され、タブは role `tab` と選ばれているかどうかの状態として公開される。
 /// 並びの名前は `aria_label` で与えること。
 /// 見た目は [`Styled`] と [`InteractiveElement`] で呼び出し側が付ける
 #[derive(IntoElement)]
@@ -39,6 +54,7 @@ pub struct TabList<T: PartialEq + 'static> {
     inner: Stateful<Div>,
     selected: Option<T>,
     on_change: Option<ChangeHandler<T>>,
+    orientation: TabListOrientation,
     children: Vec<GroupChild<Tab<T>>>,
 }
 
@@ -53,6 +69,7 @@ impl<T: PartialEq + 'static> TabList<T> {
             inner: div().id(id),
             selected,
             on_change: None,
+            orientation: TabListOrientation::default(),
             children: Vec::new(),
         }
     }
@@ -64,6 +81,15 @@ impl<T: PartialEq + 'static> TabList<T> {
     /// 設定しない場合、タブは操作されても何も呼ばず、支援技術にクリック操作を公開しない
     pub fn on_change(mut self, handler: impl Fn(&T, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(Box::new(handler));
+        self
+    }
+
+    /// タブを並べる向きを変える
+    ///
+    /// 前後のタブへ移る矢印キーと、支援技術に公開する向きが変わる。タブの配置は変えないため、
+    /// 見た目の並びは呼び出し側がスタイルで合わせること
+    pub fn orientation(mut self, orientation: TabListOrientation) -> Self {
+        self.orientation = orientation;
         self
     }
 
@@ -142,9 +168,13 @@ impl<T: PartialEq + 'static> RenderOnce for TabList<T> {
             })
             .collect();
 
+        let (orientation, next_key, previous_key) = match self.orientation {
+            TabListOrientation::Horizontal => (accesskit::Orientation::Horizontal, "right", "left"),
+            TabListOrientation::Vertical => (accesskit::Orientation::Vertical, "down", "up"),
+        };
         self.inner
             .role(accesskit::Role::TabList)
-            .aria_orientation(accesskit::Orientation::Horizontal)
+            .aria_orientation(orientation)
             .on_key_down(move |event, window, cx| {
                 if event.keystroke.modifiers.modified() {
                     return;
@@ -152,9 +182,10 @@ impl<T: PartialEq + 'static> RenderOnce for TabList<T> {
                 let current = items
                     .iter()
                     .position(|item| item.focus_handle.is_focused(window));
-                let target = match event.keystroke.key.as_str() {
-                    "right" => roving::neighbor(&items, true, window),
-                    "left" => roving::neighbor(&items, false, window),
+                let key = event.keystroke.key.as_str();
+                let target = match key {
+                    _ if key == next_key => roving::neighbor(&items, true, window),
+                    _ if key == previous_key => roving::neighbor(&items, false, window),
                     // どのタブにもフォーカスが無い場合は、矢印キーと同じく扱わない
                     "home" => current.and_then(|_| {
                         items
@@ -416,6 +447,7 @@ mod tests {
         handler: bool,
         /// 最初のタブの後に、タブでない要素を置く
         divider: bool,
+        orientation: TabListOrientation,
         handles: [FocusHandle; 3],
         /// 並びの後に置くパネルのフォーカス。パネルはフォーカスできる子を持たないため、Tab で到達できるようにする
         panel: FocusHandle,
@@ -446,6 +478,7 @@ mod tests {
                     }))
                 })
                 .aria_label("Fruit")
+                .orientation(self.orientation)
                 .flex()
                 .items(tabs.next())
                 .when(self.divider, |this| this.child(div().w(px(50.))))
@@ -484,6 +517,7 @@ mod tests {
             accept: true,
             handler: true,
             divider: false,
+            orientation: TabListOrientation::Horizontal,
             handles: [cx.focus_handle(), cx.focus_handle(), cx.focus_handle()],
             panel: cx.focus_handle().tab_stop(true),
             changes: Rc::default(),
@@ -704,6 +738,31 @@ mod tests {
         cx.simulate_keystrokes("right");
         assert_eq!(focused(&view, cx), Some("apple"));
         assert_eq!(changes(&view, cx), vec!["plum", "apple"]);
+    }
+
+    #[gpui::test]
+    fn 縦向きの並びは上下の矢印キーで移り_左右では移らない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some("apple"), ALL_ENABLED);
+        update(&view, cx, |view| {
+            view.orientation = TabListOrientation::Vertical
+        });
+        let node = view
+            .read_with(cx, |view, _| view.list_node.clone())
+            .expect("描画済みであること");
+        assert_eq!(node.orientation(), Some(accesskit::Orientation::Vertical));
+        cx.simulate_keystrokes("tab right left");
+        assert_eq!(focused(&view, cx), Some("apple"));
+        assert!(
+            changes(&view, cx).is_empty(),
+            "左右の矢印キーでは選ぶよう求めないこと"
+        );
+        cx.simulate_keystrokes("down");
+        assert_eq!(focused(&view, cx), Some("pear"));
+        cx.simulate_keystrokes("up up");
+        assert_eq!(focused(&view, cx), Some("plum"), "端では反対の端に戻ること");
+        assert_eq!(changes(&view, cx), vec!["pear", "apple", "plum"]);
     }
 
     #[gpui::test]
