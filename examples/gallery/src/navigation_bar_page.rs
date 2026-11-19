@@ -11,8 +11,9 @@ use md3_components::{
 };
 use md3_icons::StyledIcon;
 use md3_theme::md3_color::ColorRole;
+use md3_theme::md3_tokens::focus_ring;
 use md3_theme::md3_tokens::typography::TypeScale;
-use md3_theme::{Theme, ThemeExt as _};
+use md3_theme::{Theme, ThemeExt as _, dp};
 
 /// 行き先のラベルとアイコン
 const DESTINATIONS: [(&str, md3_icons::Icon); 4] = [
@@ -59,13 +60,19 @@ impl Render for NavigationBarPage {
         };
         // 選ばれた行き先の内容。バーは内容を公開しないため、行き先の名前を付けたパネルとして同じ描画で差し替える。
         // Tab でバーの次にパネルへ移れるよう、バーの後に置く
+        let ring_color = theme.color(focus_ring::COLOR);
         let panel = |id: &'static str, index: usize, focus_handle: &FocusHandle| {
             let name = DESTINATIONS[index].0;
             TabPanel::new(id)
                 .aria_label(name)
                 .track_focus(focus_handle)
                 .w(px(412.))
+                .max_w_full()
                 .p_4()
+                // Tab でパネルへ移ったときに位置が分かるよう、キーボードのフォーカスでリングを描く
+                .border(dp(focus_ring::WIDTH))
+                .border_color(gpui::transparent_black())
+                .focus_visible(|style| style.border_color(ring_color))
                 .child(label(&theme, id, format!("{name} content")))
         };
 
@@ -89,7 +96,8 @@ impl Render for NavigationBarPage {
                         cx.notify();
                     }))
                     .items(items("compact", NavigationItemIconPosition::Top))
-                    .w(px(412.)),
+                    .w(px(412.))
+                    .max_w_full(),
             )
             .child(panel("compact-panel", self.compact, &self.compact_panel))
             .child(label(&theme, "centered", "Centered, icon at start"))
@@ -102,7 +110,8 @@ impl Render for NavigationBarPage {
                         cx.notify();
                     }))
                     .items(items("wide", NavigationItemIconPosition::Start))
-                    .w(px(840.)),
+                    .w(px(840.))
+                    .max_w_full(),
             )
             .child(panel("wide-panel", self.wide, &self.wide_panel))
     }
