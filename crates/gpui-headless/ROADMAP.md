@@ -637,6 +637,9 @@ MD3 (md3-components) で決めたこと:
   - 進み具合が分かるときは、割合を WAI-ARIA の既定の範囲 0〜100 の値として公開する。分からないときは値を公開しない
   - AccessKit は progressbar の名前を子の内容から求めないため、名前は `aria_label` で与える
   - 実機 (AT-SPI) で MD3 の Progress indicator を確かめた。role は progress bar、値は 0〜100 で渡り、値を公開しないものは indeterminate の状態になる
+  - MD3 の Loading indicator も同じ `ProgressBar` で公開する。実機 (AT-SPI) で、進み具合が分かるものは値を持つ progress bar、分からないものは indeterminate の progress bar になることを確かめた
+  - MD3 の Loading indicator の形の変化は Compose と androidx graphics-shapes から、使う形と処理だけを md3-components の非公開モジュールに移した。
+    利用者が形の列を渡す API (Compose の `polygons`) は持たない。形の変化は時刻から決まる値として描き、650ms の間隔とバネが止まる時刻 (297ms) で次の形へ移る
 - [x] 静的なテキスト (対応する APG のパターンは無い)
   - `text::StaticText` は子の内容の代わりに渡した文字列を role `label` として公開する。件数の数字だけのバッジのように、表示が意味を伝えきれない内容に使う
   - AccessKit は Label の名前を値から求めるため、文字列は値に書く。子孫から名前を求める祖先 (`aria_label` の無いボタンなど) の名前にも含まれる

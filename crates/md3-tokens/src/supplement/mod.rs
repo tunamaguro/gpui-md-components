@@ -10,6 +10,7 @@ pub mod checkbox;
 pub mod chip;
 pub mod dialog;
 pub mod fab;
+pub mod loading_indicator;
 pub mod menu;
 pub mod progress_indicator;
 pub mod radio_button;

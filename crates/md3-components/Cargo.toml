@@ -30,6 +30,7 @@ default = [
   "divider",
   "fab",
   "list",
+  "loading-indicator",
   "menu",
   "progress-indicator",
   "radio-button",
@@ -52,6 +53,7 @@ dialog = []
 divider = []
 fab = []
 list = []
+loading-indicator = []
 # メニューを開くボタンと、組の中の区切り線を使う
 menu = ["button", "divider"]
 progress-indicator = []

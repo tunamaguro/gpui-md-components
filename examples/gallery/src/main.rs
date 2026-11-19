@@ -192,7 +192,7 @@ impl Render for Gallery {
                         .child(tab(Page::RadioButton, "Radio button", cx))
                         .child(tab(Page::Switch, "Switch", cx))
                         .child(tab(Page::Divider, "Divider", cx))
-                        .child(tab(Page::ProgressIndicator, "Progress indicator", cx))
+                        .child(tab(Page::ProgressIndicator, "Progress & loading", cx))
                         .child(tab(Page::Badge, "Badge", cx))
                         .child(tab(Page::Card, "Card", cx))
                         .child(tab(Page::Fab, "FAB", cx))

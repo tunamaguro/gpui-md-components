@@ -8,7 +8,7 @@ use gpui::{
 };
 use md3_color::{Argb, ColorRole, CustomColorGroup, DynamicScheme, Hct, SchemeError, contrast};
 use md3_tokens::elevation::Elevation;
-use md3_tokens::motion::{CubicBezier, MotionSchemeKey};
+use md3_tokens::motion::{CubicBezier, MotionSchemeKey, Spring};
 use md3_tokens::shadow;
 use md3_tokens::shape::{CornerShape, CornerSize, ShapeKey};
 use md3_tokens::typography::TypeScale;
@@ -32,6 +32,16 @@ pub(crate) fn to_hsla(argb: Argb) -> Hsla {
 /// 1dp は 1 論理ピクセルで、ウィンドウのスケールは gpui が掛ける。密度は掛けない
 pub fn dp(value: Dp) -> Pixels {
     px(value.0)
+}
+
+/// `spring` のバネを gpui のバネにする
+pub fn spring(spring: Spring) -> SpringConfig {
+    // Compose の spring は質量 1 で、減衰比 ζ と剛性 k から減衰係数 c = 2ζ√k になる
+    SpringConfig::new(
+        spring.stiffness,
+        2.0 * spring.damping_ratio * spring.stiffness.sqrt(),
+        1.0,
+    )
 }
 
 /// `curve` のイージングを、経過の割合から進み具合を返す関数にする
@@ -384,13 +394,7 @@ impl Theme {
 
     /// 設定のモーションの方式で `key` に当たるバネ
     pub fn spring(&self, key: MotionSchemeKey) -> SpringConfig {
-        let spring = self.settings.motion.spring(key);
-        // Compose の spring は質量 1 で、減衰比 ζ と剛性 k から減衰係数 c = 2ζ√k になる
-        SpringConfig::new(
-            spring.stiffness,
-            2.0 * spring.damping_ratio * spring.stiffness.sqrt(),
-            1.0,
-        )
+        spring(self.settings.motion.spring(key))
     }
 }
 
