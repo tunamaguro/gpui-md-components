@@ -21,6 +21,7 @@ use crate::util;
 use crate::{ToggleButton, ToggleButtonVariant};
 use md3_icons::StyledIcon;
 use md3_theme::md3_tokens::component::connected_button_group_small as tokens;
+use md3_theme::md3_tokens::focus_ring;
 use md3_theme::md3_tokens::shape::{CornerShape, ShapeKey};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
@@ -249,7 +250,9 @@ impl<T: PartialEq + 'static> RenderOnce for SingleChoiceConnectedButtonGroup<T> 
             .items_center()
             .gap(dp(tokens::BETWEEN_SPACE));
         group.style().refine(&self.style);
-        group.items(items).child(paint_ring(ring, theme))
+        group
+            .items(items)
+            .child(paint_ring(ring, theme.color(focus_ring::COLOR)))
     }
 }
 
@@ -410,7 +413,9 @@ impl RenderOnce for MultiChoiceConnectedButtonGroup {
             .items_center()
             .gap(dp(tokens::BETWEEN_SPACE));
         group.style().refine(&self.style);
-        group.items(items).child(paint_ring(ring, theme))
+        group
+            .items(items)
+            .child(paint_ring(ring, theme.color(focus_ring::COLOR)))
     }
 }
 

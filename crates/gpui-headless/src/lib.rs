@@ -19,6 +19,7 @@ mod root;
 mod roving;
 pub mod select;
 pub mod slider;
+pub mod snackbar;
 pub mod tabs;
 #[cfg(test)]
 mod test_window;

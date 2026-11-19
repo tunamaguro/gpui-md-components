@@ -25,7 +25,7 @@ use md3_theme::md3_tokens::component::{
 };
 use md3_theme::md3_tokens::motion::MotionSchemeKey;
 use md3_theme::md3_tokens::shape::{CornerShape, CornerSize};
-use md3_theme::md3_tokens::{Dp, state, supplement};
+use md3_theme::md3_tokens::{Dp, focus_ring, state, supplement};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
 use crate::button::{Morph, RingSlot, paint_ring};
@@ -434,7 +434,7 @@ impl RenderOnce for SplitButton {
                             .size_full(),
                         ),
                 )
-                .child(paint_ring(ring, theme.clone())),
+                .child(paint_ring(ring, theme.color(focus_ring::COLOR))),
         )
     }
 }
