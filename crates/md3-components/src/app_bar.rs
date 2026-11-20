@@ -10,13 +10,14 @@
 //! MD3 のトップアプリバー
 
 use gpui::{
-    AnyElement, App, Div, ElementId, Hsla, InteractiveElement, IntoElement, ParentElement, Pixels,
-    Refineable, RenderOnce, SharedString, StyleRefinement, Styled, Window, div,
-    prelude::FluentBuilder, px,
+    AnimationExt, AnyElement, App, Div, ElementId, Hsla, InteractiveElement, IntoElement,
+    ParentElement, Pixels, Refineable, RenderOnce, SharedString, SpringAnimation, StyleRefinement,
+    Styled, Window, div, prelude::FluentBuilder, px,
 };
 use md3_theme::md3_tokens::component::{
     app_bar, app_bar_large_flexible, app_bar_medium_flexible, app_bar_small,
 };
+use md3_theme::md3_tokens::motion::MotionSchemeKey;
 use md3_theme::md3_tokens::supplement::app_bar as supplement;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{SharedTheme, Theme, ThemeExt, dp};
@@ -63,6 +64,7 @@ pub struct TopAppBar {
     alignment: TopAppBarTitleAlignment,
     navigation_icon: Option<IconButton>,
     actions: Vec<AnyElement>,
+    scrolled: bool,
     style: StyleRefinement,
     theme: Option<SharedTheme>,
 }
@@ -80,6 +82,7 @@ impl TopAppBar {
             alignment: TopAppBarTitleAlignment::default(),
             navigation_icon: None,
             actions: Vec::new(),
+            scrolled: false,
             style: StyleRefinement::default(),
             theme: None,
         }
@@ -90,6 +93,17 @@ impl TopAppBar {
     /// Medium と Large では、補足の文の分だけバーが高くなる
     pub fn subtitle(mut self, subtitle: impl Into<SharedString>) -> Self {
         self.subtitle = Some(subtitle.into());
+        self
+    }
+
+    /// バーの下に内容がスクロールして入り込んでいるかを設定する
+    ///
+    /// `true` のあいだ、容器をスクロール中の色で塗る。既定は `false`。値が変わると色をバネで変え、
+    /// モーションを減らす設定 ([`App::reduce_motion`]) ではすぐに変える。
+    /// [`Styled`] で背景を指定した場合は、どちらの状態でもその背景で塗る。
+    /// バーの高さはスクロールで変わらない
+    pub fn scrolled(mut self, scrolled: bool) -> Self {
+        self.scrolled = scrolled;
         self
     }
 
@@ -260,12 +274,9 @@ impl RenderOnce for TopAppBar {
         };
 
         let collapsed_height = dp(app_bar_small::CONTAINER_HEIGHT);
-        let bar = div()
-            .id(self.id)
-            .w_full()
-            .flex()
-            .flex_col()
-            .bg(theme.color(app_bar::CONTAINER_COLOR));
+        // バネの要素がバーの id を持つため、中の要素には固定の id を付ける。
+        // 利用者が Styled でスクロールを指定したときの状態は、この id の下に保たれる
+        let bar = div().id("container").w_full().flex().flex_col();
         let bar = match self.variant {
             TopAppBarVariant::Small => bar.child(
                 row(
@@ -321,9 +332,23 @@ impl RenderOnce for TopAppBar {
                 )
             }
         };
-        let mut bar = bar;
-        bar.style().refine(&self.style);
-        bar
+        // 目標の色とバネは Compose の `SingleRowTopAppBar` に合わせ、内容が入り込むと目標を切り替えて
+        // DefaultEffects のバネで変える。高さを変えないため、Medium と Large にも同じ切り替えを使う。
+        // 途中の色は Compose の Oklab ではなく、sRGB で重ねて求める
+        let container = theme.color(app_bar::CONTAINER_COLOR);
+        let scrolled_container = theme.color(app_bar::ON_SCROLL_CONTAINER_COLOR);
+        let style = self.style;
+        // バネの状態は id ごとに保たれるため、バーの id をそのまま使い、子の id もその下に置く
+        bar.with_spring(
+            self.id,
+            SpringAnimation::new(theme.spring(MotionSchemeKey::DefaultEffects)).to(self.scrolled),
+            move |mut this, phase| {
+                this =
+                    this.bg(container.blend(scrolled_container.opacity(phase.0.clamp(0.0, 1.0))));
+                this.style().refine(&style);
+                this
+            },
+        )
     }
 }
 
@@ -341,7 +366,7 @@ impl ParentElement for TopAppBar {
 
 #[cfg(test)]
 mod tests {
-    use gpui::{Context, Render, TestAppContext, VisualTestContext};
+    use gpui::{Context, Entity, Render, TestAppContext, VisualTestContext};
     use md3_theme::md3_color::ColorRole;
 
     use super::*;
@@ -597,6 +622,88 @@ mod tests {
         assert_eq!(
             filled(cx, ColorRole::Surface),
             vec![(0.0, 0.0, 600.0, 64.0)]
+        );
+    }
+
+    /// `scrolled` を切り替えられるバーと、その下に置いた切り替えないバー
+    struct ScrolledView {
+        scrolled: bool,
+    }
+
+    impl Render for ScrolledView {
+        fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+            div()
+                .w(px(600.0))
+                .child(TopAppBar::new("bar", "Title").scrolled(self.scrolled))
+                .child(TopAppBar::new("other", "Other"))
+        }
+    }
+
+    fn open_scrolled(cx: &mut TestAppContext) -> (Entity<ScrolledView>, &mut VisualTestContext) {
+        cx.update(crate::init);
+        let (view, cx) = cx.add_window_view(|window, cx| {
+            cx.init_md3_theme(window);
+            ScrolledView { scrolled: false }
+        });
+        cx.run_until_parked();
+        (view, cx)
+    }
+
+    // gpui のバネは実時間 (`Instant::now`) で進み、テストの時計では進められないため、
+    // 途中の色は確かめず、十分な時間の後に着くことだけを確かめる
+    #[gpui::test]
+    fn 内容が入り込むとスクロール中の色まで変わり_戻ると元の色に戻る(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = open_scrolled(cx);
+        let bar = (0.0, 0.0, 600.0, 64.0);
+        let other = (0.0, 64.0, 600.0, 64.0);
+        assert_eq!(filled(cx, ColorRole::Surface), vec![bar, other]);
+        // 切り替えないバーは元の色のまま
+        for (scrolled, scrolled_rects, surface_rects) in [
+            (true, vec![bar], vec![other]),
+            (false, vec![], vec![bar, other]),
+        ] {
+            view.update(cx, |view, cx| {
+                view.scrolled = scrolled;
+                cx.notify();
+            });
+            cx.run_until_parked();
+            // DefaultEffects のバネは 1 秒以内に収まる
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            view.update(cx, |_, cx| cx.notify());
+            cx.run_until_parked();
+            assert_eq!(
+                filled(cx, ColorRole::SurfaceContainer),
+                scrolled_rects,
+                "scrolled={scrolled}"
+            );
+            assert_eq!(
+                filled(cx, ColorRole::Surface),
+                surface_rects,
+                "scrolled={scrolled}"
+            );
+        }
+    }
+
+    #[gpui::test]
+    fn モーションを減らす設定ではスクロール中の色をすぐに描く(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = open_scrolled(cx);
+        cx.update(|_, cx| cx.set_reduce_motion(true));
+        view.update(cx, |view, cx| {
+            view.scrolled = true;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        assert_eq!(
+            filled(cx, ColorRole::SurfaceContainer),
+            vec![(0.0, 0.0, 600.0, 64.0)]
+        );
+        assert_eq!(
+            filled(cx, ColorRole::Surface),
+            vec![(0.0, 64.0, 600.0, 64.0)]
         );
     }
 }
