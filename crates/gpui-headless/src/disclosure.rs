@@ -15,7 +15,8 @@ use gpui::{
 /// - 閉じたとき、フォーカスが箱の中の要素にあれば、[`DisclosurePanel::new`] の `trigger` へフォーカスを移す。
 ///   中の要素が消えてもフォーカスを失わない。閉じた描画の後にフォーカスが別の要素へ移されていれば戻さない
 ///
-/// 見た目は [`Styled`] と [`InteractiveElement`] で呼び出し側が付ける
+/// 見た目は [`Styled`] と [`InteractiveElement`] で呼び出し側が付ける。付けたスタイルとハンドラは開いている間だけ働き、
+/// 閉じている間は大きさを持たない箱としてレイアウトされる
 #[derive(IntoElement)]
 pub struct DisclosurePanel {
     id: ElementId,

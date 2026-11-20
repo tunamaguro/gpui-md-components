@@ -17,9 +17,9 @@ use gpui::{
 use gpui_headless::button::Button as HeadlessButton;
 use gpui_headless::disclosure::DisclosurePanel;
 use md3_icons::StyledIcon;
-use md3_theme::md3_tokens::Dp;
 use md3_theme::md3_tokens::component::fab_menu_baseline as tokens;
 use md3_theme::md3_tokens::typography::TypeScale;
+use md3_theme::md3_tokens::{Dp, focus_ring};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
 use crate::fab::{self, Fab, FabColor};
@@ -145,12 +145,16 @@ impl RenderOnce for FabMenu {
 
         let mut label_font = theme.text_style(TypeScale::TitleMedium);
         label_font.color = Some(theme.color(FabColor::PrimaryContainer.roles().1));
+        // 項目のフォーカスリングは項目の外に張り出すため、スクロール領域で切れないよう項目の列の内側に余白を空ける
+        let ring_outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
         let items = expanded.then(|| {
             div()
                 .flex()
                 .flex_col()
                 .flex_none()
                 .items_end()
+                .pt(ring_outset)
+                .px(ring_outset)
                 .gap(dp(tokens::LIST_ITEM_BETWEEN_SPACE))
                 // 開閉ボタンとの間隔。閉じている間は空になる箱なので、flex の gap ではなく項目の列に付ける
                 .pb(dp(tokens::CLOSE_BUTTON_BETWEEN_SPACE))
@@ -205,6 +209,8 @@ impl RenderOnce for FabMenu {
             .items_end()
             .min_h_0()
             .overflow_y_scroll()
+            // 項目の列の左右の余白の分だけ広げ、項目の右端を開閉ボタンの右端に揃える
+            .mx(-ring_outset)
             .children(items);
         // 開閉ボタンを先に置き、Tab の順を開閉ボタン、上の項目の順にする。見た目は逆順に並べて開閉ボタンを下にする
         let mut menu = div()
