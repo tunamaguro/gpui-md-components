@@ -26,6 +26,7 @@ pub enum TabListSemantics {
     Tabs,
     /// 確定すると行き先を開く、行き先の一覧。対応するパネルが無い場合 (モーダルの中など) に使う。
     /// 矢印キーと Home・End ではフォーカスだけを移し、Enter・Space・クリックで、選ばれている項目でも選ぶよう求める。
+    /// フォーカスできるすべての項目に Tab で到達できる。
     /// 支援技術には、並びは role `navigation`、項目は role `link` として公開され、選ばれている項目は現在のページ
     /// (`aria-current="page"`) として公開される
     Navigation,
@@ -52,6 +53,7 @@ pub enum TabListOrientation {
 /// 選ばれたタブの内容は、呼び出し側が [`TabPanel`] に入れて表示する
 ///
 /// - Tab で到達できるタブは 1 つだけで、選ばれているタブ、最初のフォーカスできるタブの順に選ぶ。
+///   [`TabListSemantics::Navigation`] では、フォーカスできるすべての項目に Tab で到達できる。
 ///   タブにフォーカスがある間は、そのタブだけが Tab で到達できる。フォーカスできるタブが無ければ Tab で入らない
 /// - 修飾キーなしの矢印キー (横向きなら左右、縦向きなら上下) で前後のタブへフォーカスを移す。
 ///   既定 ([`TabListSemantics::Tabs`]) では、移った先のタブを選ぶよう求める。端では反対の端に戻る。
@@ -182,7 +184,8 @@ impl<T: PartialEq + 'static> RenderOnce for TabList<T> {
                     let element = tab_element(
                         inner,
                         &items[ix],
-                        tab_stop == Some(ix),
+                        // 行き先の一覧はランドマークの中のリンクとして、どの項目にも Tab で到達できるようにする
+                        manual || tab_stop == Some(ix),
                         selected_ix == Some(ix),
                         self.semantics,
                         select,
@@ -259,6 +262,7 @@ where
     S: Fn(&mut Window, &mut App) + 'static,
 {
     let focus_handle = item.focus_handle.clone();
+    let action_focus = focus_handle.clone();
     // フォーカス中に無効になった場合は、フォーカスが外れるまでフォーカスを保つ
     let focusable = item.availability.is_focusable() || focus_handle.is_focused(window);
     let disabled = item.availability.is_disabled();
@@ -285,9 +289,11 @@ where
         .when_some(on_select, |this, on_select| {
             let on_action = on_select.clone();
             // 支援技術のクリック操作は、受けなければノードの中央へのマウス操作になり、
-            // スクロールで隠れたタブには届かないため、直接受ける
+            // スクロールで隠れたタブには届かないため、直接受ける。
+            // マウスの押下と同じく、選ぶよう求める前にフォーカスを移す
             this.on_click(move |_, window, cx| on_select(window, cx))
                 .on_a11y_action(accesskit::Action::Click, move |_, window, cx| {
+                    window.focus(&action_focus, cx);
                     on_action(window, cx)
                 })
         })
@@ -997,6 +1003,13 @@ mod tests {
         );
         press_key(cx, "enter");
         assert_eq!(changes(&view, cx), vec!["plum"]);
+        cx.simulate_keystrokes("shift-tab");
+        assert_eq!(
+            focused(&view, cx),
+            Some("pear"),
+            "どの項目にも Tab で到達できること"
+        );
+        cx.simulate_keystrokes("tab");
         press_key(cx, "space");
         click_column(cx, 2);
         assert_eq!(

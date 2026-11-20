@@ -384,8 +384,8 @@ impl<T: PartialEq + 'static> Styled for NavigationDrawer<T> {
 /// 開いている間はモーダルのダイアログとして振る舞う
 ///
 /// - 開いたとき、ドロワーの中で Tab で到達できる最初の要素にフォーカスを移す。ヘッダーに Tab で到達できる要素があればその要素、
-///   無ければ選ばれている項目、どれも選ばれていなければ最初の項目になる。どれも無ければドロワー自身にフォーカスを移す
-/// - 項目の間は矢印キーでフォーカスだけを移し、Enter・Space・クリックで確定する
+///   無ければ最初の項目になる。どれも無ければドロワー自身にフォーカスを移す
+/// - 項目の間は矢印キーでフォーカスだけを移し、Enter・Space・クリックで確定する。どの項目にも Tab で到達できる
 /// - Tab と Shift+Tab はドロワーの中だけを巡る
 /// - 修飾キーなしの Escape と、幕のクリックで閉じるよう求める
 /// - 閉じたとき、フォーカスがドロワーの中にあれば、開く前にフォーカスのあった要素へ戻す
@@ -714,8 +714,8 @@ mod tests {
         dismissed: usize,
         /// 確定された項目の値。確定すると閉じる
         chosen: Vec<usize>,
-        /// 選ばれている 2 つ目の項目のフォーカス
-        selected_item: FocusHandle,
+        /// 最初の項目のフォーカス
+        first_item: FocusHandle,
         /// ドロワーの外のボタンのフォーカス
         outside: FocusHandle,
     }
@@ -735,11 +735,11 @@ mod tests {
                         self.open,
                         "Navigation menu",
                         NavigationDrawer::new("drawer", Some(1))
-                            .item(NavigationDrawerItem::new("inbox", 0, "Inbox"))
                             .item(
-                                NavigationDrawerItem::new("sent", 1, "Sent")
-                                    .track_focus(&self.selected_item),
+                                NavigationDrawerItem::new("inbox", 0, "Inbox")
+                                    .track_focus(&self.first_item),
                             )
+                            .item(NavigationDrawerItem::new("sent", 1, "Sent"))
                             .item(NavigationDrawerItem::new("home", 2, "Home"))
                             .on_change(cx.listener(|this, value: &usize, _, cx| {
                                 this.chosen.push(*value);
@@ -764,7 +764,7 @@ mod tests {
                 open: false,
                 dismissed: 0,
                 chosen: Vec::new(),
-                selected_item: cx.focus_handle(),
+                first_item: cx.focus_handle(),
                 outside: cx.focus_handle(),
             }
         });
@@ -806,12 +806,12 @@ mod tests {
     }
 
     #[gpui::test]
-    fn 開くと選ばれた項目にフォーカスし_escape_で閉じてフォーカスを戻す(
+    fn 開くと最初の項目にフォーカスし_escape_で閉じてフォーカスを戻す(
         cx: &mut TestAppContext,
     ) {
         let (view, cx) = open_modal(cx);
-        let (selected_item, outside) = view.read_with(cx, |view, _| {
-            (view.selected_item.clone(), view.outside.clone())
+        let (first_item, outside) = view.read_with(cx, |view, _| {
+            (view.first_item.clone(), view.outside.clone())
         });
         cx.update(|window, cx| window.focus(&outside, cx));
         view.update(cx, |view, cx| {
@@ -820,8 +820,8 @@ mod tests {
         });
         cx.run_until_parked();
         assert!(
-            cx.update(|window, _| selected_item.is_focused(window)),
-            "開いたら Tab で到達できる選ばれた項目にフォーカスを移すこと"
+            cx.update(|window, _| first_item.is_focused(window)),
+            "開いたら Tab で到達できる最初の項目にフォーカスを移すこと"
         );
         cx.simulate_keystrokes("tab");
         assert!(
@@ -866,7 +866,7 @@ mod tests {
         });
         cx.simulate_event(KeyUpEvent { keystroke });
         cx.run_until_parked();
-        assert_eq!(view.read_with(cx, |view, _| view.chosen.clone()), vec![2]);
+        assert_eq!(view.read_with(cx, |view, _| view.chosen.clone()), vec![1]);
     }
 
     #[gpui::test]
