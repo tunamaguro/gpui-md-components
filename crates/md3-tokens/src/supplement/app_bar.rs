@@ -1,6 +1,7 @@
 // Ported from Jetpack Compose Material 3 (https://android.googlesource.com/platform/frameworks/support)
 // Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/AppBar.kt
-//         (ファイル末尾の private な値) @ 2a941dd11aabd9bb7d2016ed159764b220117c20
+//         (ファイル末尾の private な値) と InteractiveComponentSize.kt (`minimumInteractiveComponentSize`)
+//         @ 2a941dd11aabd9bb7d2016ed159764b220117c20
 // Copyright 2021 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 
 //! トップアプリバーの値のうち、Compose の実装が固定値として持つもの
@@ -15,6 +16,6 @@ pub const TITLE_INSET: Dp = Dp(12.0);
 pub const MEDIUM_TITLE_BOTTOM_PADDING: Dp = Dp(24.0);
 /// Large のトップアプリバーの、下の行の下端からタイトルの最後の基準線までの距離。`LargeTitleBottomPadding`
 pub const LARGE_TITLE_BOTTOM_PADDING: Dp = Dp(28.0);
-/// アイコンボタンを置く枠の大きさ。Compose の `IconButton` は容器の周りに、
-/// `minimumInteractiveComponentSize` (InteractiveComponentSize.kt) の 48dp まで押せる範囲を広げる
+/// アイコンボタンを置く配置枠の大きさ。Compose の `IconButton` は `minimumInteractiveComponentSize` で、
+/// 容器の周りに 48dp まで配置の大きさを取る
 pub const ICON_TARGET_SIZE: Dp = Dp(48.0);

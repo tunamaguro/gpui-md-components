@@ -114,33 +114,35 @@ impl TopAppBar {
     }
 
     /// アプリ全体のテーマ ([`ThemeExt::md3_theme`]) の代わりに `theme` で描く
+    ///
+    /// ナビゲーションのアイコンは、[`IconButton::theme`] でテーマを指定していなければこのテーマで描く。
+    /// 操作として置いた子の要素には渡らないため、子の要素ごとに指定すること
     pub fn theme(mut self, theme: SharedTheme) -> Self {
         self.theme = Some(theme);
         self
     }
 }
 
-/// `scale` の書体で描いた 1 行の、行の上端から基準線までの距離と行の高さ
+/// `scale` の書体で `text` を描いたときの、最後の行の基準線から行の下端までの距離
 ///
 /// gpui は行の高さの中で文字の上下の余白を等しくして基準線を置く
-fn baseline(
+fn descent_below_baseline(
     theme: &Theme,
     scale: TypeScale,
     text: &SharedString,
     window: &Window,
-) -> (Pixels, Pixels) {
+) -> Pixels {
     let mut style = window.text_style();
     style.refine(&theme.text_style(scale));
     let font_size = style.font_size.to_pixels(window.rem_size());
     let line_height = style.line_height_in_pixels(window.rem_size());
+    // shape_line は改行を含む文字列を受け付けないため、最後の行だけを測る
+    let last: SharedString = text.lines().last().unwrap_or_default().to_owned().into();
     let line =
         window
             .text_system()
-            .shape_line(text.clone(), font_size, &[style.to_run(text.len())], None);
-    (
-        (line_height - line.ascent - line.descent) / 2.0 + line.ascent,
-        line_height,
-    )
+            .shape_line(last.clone(), font_size, &[style.to_run(last.len())], None);
+    line_height - ((line_height - line.ascent - line.descent) / 2.0 + line.ascent)
 }
 
 impl RenderOnce for TopAppBar {
@@ -191,7 +193,8 @@ impl RenderOnce for TopAppBar {
                 ))
             });
 
-        // Compose のアイコンボタンと同じ間隔で並べるため、アイコンボタンを押せる範囲の大きさの枠の中央に置く
+        // Compose のアイコンボタンと同じ間隔で並べるため、アイコンボタンを 48dp 四方の配置枠の中央に置く。
+        // 押せる範囲はアイコンボタン自身の大きさのまま
         let target = |element: AnyElement| {
             div()
                 .flex()
@@ -212,7 +215,7 @@ impl RenderOnce for TopAppBar {
                 .when_some(navigation, |this, icon| {
                     this.pl(edge).child(target(
                         icon.default_content(app_bar::LEADING_ICON_COLOR)
-                            .theme(theme.clone())
+                            .default_theme(theme.clone())
                             .into_any_element(),
                     ))
                 })
@@ -285,34 +288,28 @@ impl RenderOnce for TopAppBar {
                     ),
                 };
                 // 下の行は、タイトルの最後の行 (補足の文があればその行) の基準線を下端から決まった距離に置く。
-                // 行の高さに収まらなければ、収まるまで距離を縮める。高さはタイトルと補足の文を 1 行ずつとして見積もる
-                let (title_baseline, title_line_height) =
-                    baseline(&theme, title_font, &self.title, window);
-                let (last_baseline, last_line_height, block_height) = match &self.subtitle {
-                    Some(subtitle) => {
-                        let (subtitle_baseline, subtitle_line_height) =
-                            baseline(&theme, subtitle_font, subtitle, window);
-                        (
-                            subtitle_baseline,
-                            subtitle_line_height,
-                            title_line_height + subtitle_line_height,
-                        )
-                    }
-                    None => (title_baseline, title_line_height, title_line_height),
+                // 行はタイトルが収まる高さまで伸びる。タイトルの下の余白は行の高さに収まらなければ縮める
+                let (last_font, last_text) = match &self.subtitle {
+                    Some(subtitle) => (subtitle_font, subtitle),
+                    None => (title_font, &self.title),
                 };
-                let row_height = dp(expanded_height) - collapsed_height;
-                let title_bottom = (dp(bottom_padding) - (last_line_height - last_baseline))
-                    .min(row_height - block_height)
-                    .max(px(0.0));
+                let gap = (dp(bottom_padding)
+                    - descent_below_baseline(&theme, last_font, last_text, window))
+                .max(px(0.0));
                 bar.child(
                     row(leading(self.navigation_icon), None, trailing(self.actions))
                         .h(collapsed_height),
                 )
                 .child(
-                    row(leading(None), Some(title), trailing(Vec::new()))
-                        .items_end()
-                        .min_h(row_height)
-                        .pb(title_bottom),
+                    // 余白は高さ 0 から伸びるため、行の高さはタイトルの高さと `row_height` の大きいほうになる。
+                    // 余った高さは余白が `gap` まで受け取り、残りはタイトルの上に空ける
+                    div()
+                        .flex()
+                        .flex_col()
+                        .justify_end()
+                        .min_h(dp(expanded_height) - collapsed_height)
+                        .child(row(leading(None), Some(title), trailing(Vec::new())))
+                        .child(div().flex_grow_1().flex_basis(px(0.0)).max_h(gap)),
                 )
             }
         };
@@ -513,56 +510,73 @@ mod tests {
         }
     }
 
-    /// 期待値は Compose の `placeTopAppBar`。最後の行の基準線から下端までを `distance` にし、
-    /// 下の行の高さに収まらなければ収まるまで縮める
+    /// 期待値は Compose の `placeTopAppBar`。下の行はタイトルが収まる高さまで伸び、最後の行の基準線を
+    /// 下端から 24dp (Medium) か 28dp (Large) に置く。余白が行に収まらなければ収まるまで縮める。
+    /// 既定の高さでは、どの書体でも余白は縮む
     // gpui は debug_assertions のあるビルドでだけ debug_selector の位置を記録する
     #[cfg(debug_assertions)]
     #[gpui::test]
-    fn medium_と_large_は最後の行の基準線を下端から決まった距離に置き_収まらなければ縮める(
+    fn medium_と_large_の下の行はタイトルの下に収まるだけの余白を取る(
         app: &mut TestAppContext,
     ) {
-        type Case = (fn() -> TopAppBar, f32, TypeScale, Option<TypeScale>, f32);
-        let cases: [Case; 2] = [
+        // (バー, バーの幅, バーの高さ, タイトルの下端)
+        let cases: [(fn() -> TopAppBar, f32, f32, f32); 4] = [
+            // 下の行 48dp に HeadlineMedium の 1 行 36dp を置き、残りの 12dp を余白にする
             (
                 || TopAppBar::new("bar", "Title").variant(TopAppBarVariant::Medium),
+                600.0,
                 112.0,
-                app_bar_medium_flexible::TITLE_FONT,
-                None,
-                24.0,
+                100.0,
             ),
+            // 下の行 56dp に DisplaySmall の 1 行 44dp を置き、残りの 12dp を余白にする
+            (
+                || TopAppBar::new("bar", "Title").variant(TopAppBarVariant::Large),
+                600.0,
+                120.0,
+                108.0,
+            ),
+            // 折り返して 2 行 72dp になると、行は 72dp に伸び、余白は無くなる
             (
                 || {
-                    TopAppBar::new("bar", "Title")
-                        .variant(TopAppBarVariant::Large)
-                        .subtitle("Subtitle")
+                    TopAppBar::new("bar", "A medium title that wraps")
+                        .variant(TopAppBarVariant::Medium)
                 },
-                152.0,
-                app_bar_large_flexible::TITLE_FONT,
-                Some(app_bar_large_flexible::SUBTITLE_FONT),
-                28.0,
+                300.0,
+                136.0,
+                136.0,
+            ),
+            // 改行を含む文も同じく 2 行になる
+            (
+                || TopAppBar::new("bar", "First\nSecond").variant(TopAppBarVariant::Medium),
+                600.0,
+                136.0,
+                136.0,
             ),
         ];
-        for (bar, height, title_font, subtitle_font, distance) in cases {
-            let cx = open(app, 600.0, bar);
+        for (bar, width, height, bottom) in cases {
+            let cx = open(app, width, bar);
+            assert_eq!(
+                filled(cx, ColorRole::Surface),
+                vec![(0.0, 0.0, width, height)]
+            );
             let title = cx
                 .debug_bounds("md3-app-bar-title")
                 .expect("タイトルを描くこと");
-            let expected_gap = cx.update(|window, cx| {
-                let theme = cx.md3_theme().clone();
-                let (title_baseline, title_line_height) =
-                    super::baseline(&theme, title_font, &"Title".into(), window);
-                let (last_baseline, last_line_height, block) = match subtitle_font {
-                    Some(font) => {
-                        let (baseline, line_height) =
-                            super::baseline(&theme, font, &"Subtitle".into(), window);
-                        (baseline, line_height, title_line_height + line_height)
-                    }
-                    None => (title_baseline, title_line_height, title_line_height),
-                };
-                let gap = f32::from(px(distance) - (last_line_height - last_baseline));
-                gap.min(height - 64.0 - f32::from(block)).max(0.0)
-            });
-            assert_eq!(height - f32::from(title.bottom()), expected_gap);
+            assert_eq!(f32::from(title.bottom()), bottom);
         }
+    }
+
+    #[gpui::test]
+    fn 補足の文に改行があっても描ける(app: &mut TestAppContext) {
+        let cx = open(app, 600.0, || {
+            TopAppBar::new("bar", "Title")
+                .variant(TopAppBarVariant::Large)
+                .subtitle("First\nSecond")
+        });
+        // 下の行 88dp に DisplaySmall の 44dp と TitleMedium の 2 行 48dp を置くと収まらず、行が 92dp に伸びる
+        assert_eq!(
+            filled(cx, ColorRole::Surface),
+            vec![(0.0, 0.0, 600.0, 64.0 + 92.0)]
+        );
     }
 }
