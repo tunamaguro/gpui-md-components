@@ -38,6 +38,7 @@ default = [
   "loading-indicator",
   "menu",
   "navigation-bar",
+  "navigation-drawer",
   "navigation-rail",
   "progress-indicator",
   "radio-button",
@@ -74,6 +75,7 @@ loading-indicator = []
 # メニューを開くボタンと、組の中の区切り線を使う
 menu = ["button", "divider"]
 navigation-bar = []
+navigation-drawer = []
 navigation-rail = []
 progress-indicator = []
 radio-button = []
