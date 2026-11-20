@@ -22,6 +22,7 @@ mod navigation_drawer_page;
 mod navigation_rail_page;
 mod progress_indicator_page;
 mod radio_button_page;
+mod search_bar_page;
 mod segmented_button_page;
 mod select_page;
 mod slider_page;
@@ -61,6 +62,7 @@ use crate::navigation_drawer_page::NavigationDrawerPage;
 use crate::navigation_rail_page::NavigationRailPage;
 use crate::progress_indicator_page::ProgressIndicatorPage;
 use crate::radio_button_page::RadioButtonPage;
+use crate::search_bar_page::SearchBarPage;
 use crate::segmented_button_page::SegmentedButtonPage;
 use crate::select_page::SelectPage;
 use crate::slider_page::SliderPage;
@@ -101,6 +103,7 @@ enum Page {
     NavigationDrawer,
     NavigationRail,
     BottomSheet,
+    SearchBar,
     Menu,
     Dialog,
     Select,
@@ -135,6 +138,7 @@ struct Gallery {
     navigation_bar_page: Entity<NavigationBarPage>,
     navigation_drawer_page: Entity<NavigationDrawerPage>,
     bottom_sheet_page: Entity<BottomSheetPage>,
+    search_bar_page: Entity<SearchBarPage>,
     navigation_rail_page: Entity<NavigationRailPage>,
     menu_page: Entity<MenuPage>,
     dialog_page: Entity<DialogPage>,
@@ -171,6 +175,7 @@ impl Gallery {
             navigation_bar_page: cx.new(NavigationBarPage::new),
             navigation_drawer_page: cx.new(NavigationDrawerPage::new),
             bottom_sheet_page: cx.new(BottomSheetPage::new),
+            search_bar_page: cx.new(SearchBarPage::new),
             navigation_rail_page: cx.new(NavigationRailPage::new),
             menu_page: cx.new(|_| MenuPage::default()),
             dialog_page: cx.new(DialogPage::new),
@@ -221,6 +226,7 @@ impl Render for Gallery {
             Page::NavigationBar => self.navigation_bar_page.clone().into(),
             Page::NavigationDrawer => self.navigation_drawer_page.clone().into(),
             Page::BottomSheet => self.bottom_sheet_page.clone().into(),
+            Page::SearchBar => self.search_bar_page.clone().into(),
             Page::NavigationRail => self.navigation_rail_page.clone().into(),
             Page::Menu => self.menu_page.clone().into(),
             Page::Dialog => self.dialog_page.clone().into(),
@@ -268,7 +274,8 @@ impl Render for Gallery {
                         .child(tab(Page::NavigationBar, "Navigation bar", cx))
                         .child(tab(Page::NavigationRail, "Navigation rail", cx))
                         .child(tab(Page::NavigationDrawer, "Navigation drawer", cx))
-                        .child(tab(Page::BottomSheet, "Bottom sheet", cx)),
+                        .child(tab(Page::BottomSheet, "Bottom sheet", cx))
+                        .child(tab(Page::SearchBar, "Search bar", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )

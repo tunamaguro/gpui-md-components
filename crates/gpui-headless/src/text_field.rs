@@ -66,6 +66,8 @@ actions!(
         Cut,
         /// クリップボードの文字列を、選択している範囲に置き換えて入れる
         Paste,
+        /// 入力した文字列を確定する
+        Submit,
     ]
 );
 
@@ -73,6 +75,7 @@ actions!(
 pub(crate) fn init(cx: &mut App) {
     let context = Some(KEY_CONTEXT);
     cx.bind_keys([
+        KeyBinding::new("enter", Submit, context),
         KeyBinding::new("backspace", DeleteBackward, context),
         KeyBinding::new("shift-backspace", DeleteBackward, context),
         KeyBinding::new("delete", DeleteForward, context),
@@ -140,6 +143,8 @@ type ChangeHandler = Rc<dyn Fn(&SharedString, &mut Window, &mut App)>;
 ///   Shift と合わせると選択を広げ、2 回続けて押すと語を、3 回続けて押すとすべてを選択する
 /// - 支援技術からの選択の設定 (SetTextSelection)
 ///
+/// [`TextField::on_submit`] を設定すると、IME で変換中でない間の修飾キーなしの Enter で、そのハンドラに文字列を渡す
+///
 /// 文字列が部品の幅に収まらない場合は、カーソルが見える位置まで横にずらして描く。
 /// 文字の移動と消去は Unicode のスカラー値の単位で行い、書記素クラスタを考慮しない
 ///
@@ -153,6 +158,7 @@ pub struct TextField {
     inner: Stateful<Div>,
     value: SharedString,
     on_change: Option<ChangeHandler>,
+    on_submit: Option<ChangeHandler>,
     placeholder: Option<SharedString>,
     read_only: bool,
     availability: Availability,
@@ -175,6 +181,7 @@ impl TextField {
             inner: div().id(id),
             value: value.into(),
             on_change: None,
+            on_submit: None,
             placeholder: None,
             read_only: false,
             availability: Availability::Enabled,
@@ -195,6 +202,19 @@ impl TextField {
         handler: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_change = Some(Rc::new(handler));
+        self
+    }
+
+    /// フォーカス中に修飾キーなしの Enter を押されたときに `handler` を呼ぶ。複数回呼んだ場合は最後に渡した `handler` だけを呼ぶ
+    ///
+    /// `handler` には最後に編集した後の文字列 ([`TextField::on_change`] に渡したものと同じ) を渡す。
+    /// IME で変換中の間と、無効な間は呼ばない。
+    /// 読み取り専用の間と、[`TextField::on_change`] を設定していない間も呼ぶ
+    pub fn on_submit(
+        mut self,
+        handler: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_submit = Some(Rc::new(handler));
         self
     }
 
@@ -350,6 +370,14 @@ impl RenderOnce for TextField {
                 }
             });
 
+        if !disabled && let Some(on_submit) = self.on_submit {
+            inner = inner.on_action(listener(&state, move |state, _: &Submit, window, cx| {
+                // 変換中の Enter は IME が確定に使う
+                if state.model.marked.is_none() {
+                    on_submit(&state.model.text.clone().into(), window, cx);
+                }
+            }));
+        }
         if !disabled {
             inner = inner
                 .cursor(CursorStyle::IBeam)
@@ -1393,6 +1421,8 @@ mod tests {
         value: SharedString,
         /// `on_change` に渡された値
         changes: Rc<RefCell<Vec<SharedString>>>,
+        /// `on_submit` に渡された値
+        submits: Rc<RefCell<Vec<SharedString>>>,
         /// `on_change` を設定するか
         editable: bool,
         /// `on_change` に渡された値を受け入れるか
@@ -1409,7 +1439,9 @@ mod tests {
     impl Render for FieldView {
         fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
             let changes = self.changes.clone();
+            let submits = self.submits.clone();
             let field = TextField::new("field", self.value.clone())
+                .on_submit(move |value, _, _| submits.borrow_mut().push(value.clone()))
                 .when(self.editable, |this| {
                     this.on_change(cx.listener(move |this, value: &SharedString, _, cx| {
                         changes.borrow_mut().push(value.clone());
@@ -1461,6 +1493,7 @@ mod tests {
         add_test_window(cx, |_, cx| FieldView {
             value: value.into(),
             changes: Rc::default(),
+            submits: Rc::default(),
             editable: true,
             accept: true,
             read_only: false,
@@ -1645,12 +1678,27 @@ mod tests {
     }
 
     #[gpui::test]
-    fn enter_では改行を入れない(cx: &mut TestAppContext) {
+    fn enter_では改行を入れず_文字列を確定する(cx: &mut TestAppContext) {
         let (view, cx) = setup(cx, "ab");
         focus(cx);
+        cx.simulate_keystrokes("end");
+        cx.simulate_input("c");
         cx.simulate_keystrokes("enter");
-        assert_eq!(changes(&view, cx), Vec::<SharedString>::new());
-        assert_eq!(value(&view, cx), "ab");
+        assert_eq!(changes(&view, cx), ["abc"]);
+        assert_eq!(value(&view, cx), "abc");
+        assert_eq!(
+            *view.read_with(cx, |view, _| view.submits.clone()).borrow(),
+            ["abc"]
+        );
+    }
+
+    #[gpui::test]
+    fn 無効な間は_enter_で確定しない(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, "ab");
+        focus(cx);
+        update(&view, cx, |view| view.availability = Availability::Disabled);
+        cx.simulate_keystrokes("enter");
+        assert!(view.read_with(cx, |view, _| view.submits.borrow().is_empty()));
     }
 
     #[gpui::test]
