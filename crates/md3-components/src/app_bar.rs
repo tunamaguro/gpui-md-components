@@ -519,8 +519,9 @@ mod tests {
     fn medium_と_large_の下の行はタイトルの下に収まるだけの余白を取る(
         app: &mut TestAppContext,
     ) {
-        // (バー, バーの幅, バーの高さ, タイトルの下端)
-        let cases: [(fn() -> TopAppBar, f32, f32, f32); 4] = [
+        /// バー、バーの幅、バーの高さ、タイトルの下端
+        type Case = (fn() -> TopAppBar, f32, f32, f32);
+        let cases: [Case; 4] = [
             // 下の行 48dp に HeadlineMedium の 1 行 36dp を置き、残りの 12dp を余白にする
             (
                 || TopAppBar::new("bar", "Title").variant(TopAppBarVariant::Medium),
