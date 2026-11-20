@@ -506,14 +506,14 @@ impl IconButton {
     ///
     /// Standard と Outlined で [`IconButton::colors`] でアイコンの色を指定しなかったときに、バリアントの色の代わりに使う。
     /// Filled と FilledTonal は容器に合わせた色で描く (Compose の `LocalContentColor` を受け取るバリアントと同じ)
-    #[cfg(feature = "app-bar")]
+    #[cfg(any(feature = "app-bar", feature = "bottom-app-bar"))]
     pub(crate) fn default_content(mut self, role: ColorRole) -> Self {
         self.default_content = Some(role);
         self
     }
 
     /// [`IconButton::theme`] でテーマを指定していなければ `theme` で描く
-    #[cfg(feature = "app-bar")]
+    #[cfg(any(feature = "app-bar", feature = "bottom-app-bar"))]
     pub(crate) fn default_theme(mut self, theme: SharedTheme) -> Self {
         self.theme.get_or_insert(theme);
         self
