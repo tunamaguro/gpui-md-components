@@ -17,7 +17,7 @@ use gpui::{
     StyleRefinement, Styled, Window, canvas, div, prelude::FluentBuilder, svg,
 };
 use gpui_headless::dialog::{Dialog as HeadlessDialog, DismissReason};
-use gpui_headless::tabs::{Tab as HeadlessTab, TabActivation, TabList, TabListOrientation};
+use gpui_headless::tabs::{Tab as HeadlessTab, TabList, TabListOrientation, TabListSemantics};
 use md3_icons::StyledIcon;
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::Dp;
@@ -294,8 +294,10 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationDrawer<T> {
         // シートの上端に接していても先頭の項目のリングが切れないよう、上の余白は打ち消さない。左右はシートの余白の中に収まる
         let list = TabList::new(self.id.clone(), self.selected)
             .orientation(TabListOrientation::Vertical)
-            // モーダルでは項目を確定すると閉じることが多く、矢印キーで探す間は閉じないよう、確定の操作だけで選ぶ
-            .when(self.modal, |this| this.activation(TabActivation::Manual))
+            // モーダルの中には選んだ内容を表示するパネルが無く、確定すると閉じることが多いため、行き先の一覧として扱う
+            .when(self.modal, |this| {
+                this.semantics(TabListSemantics::Navigation)
+            })
             .when_some(self.aria_label, |this, label| this.aria_label(label))
             .when_some(self.on_change, |this, on_change| this.on_change(on_change))
             .flex()
@@ -389,8 +391,10 @@ impl<T: PartialEq + 'static> Styled for NavigationDrawer<T> {
 /// - 閉じたとき、フォーカスがドロワーの中にあれば、開く前にフォーカスのあった要素へ戻す
 ///
 /// 支援技術には modal の `dialog` として、[`ModalNavigationDrawer::new`] の `label` を名前として公開される。
-/// 中の項目の並びは [`NavigationDrawer`] と同じく公開される。
+/// 中の項目の並びは、パネルを持つタブではなく、[`NavigationDrawer::aria_label`] を名前とする role `navigation` として公開される。
+/// 項目は role `link` として公開され、選ばれている項目は現在のページ (`aria-current="page"`) になる。
 /// ウィンドウのルートを [`crate::root`] で包むと、開いている間はドロワー以外を支援技術から隠す。
+/// ただし、一覧のように子を遅れてレイアウトする要素や、キャッシュされたビューの中に置くと、隠すかどうかの判定に含まれない。
 /// ほかの部品がウィンドウの手前に描く要素 (開いているメニューなど) は隠れないため、開く前に閉じること。
 /// アプリ全体のキー割り当てと、置いた場所の祖先のキーのハンドラは開いている間も働くため、ウィンドウのルートの近くに置くこと
 #[derive(IntoElement)]
@@ -467,7 +471,7 @@ impl<T: PartialEq + 'static> RenderOnce for ModalNavigationDrawer<T> {
 
 /// ナビゲーションドロワーの項目
 ///
-/// 支援技術には role `tab` として公開され、ラベルとバッジをこの順に並べた文字列がアクセシブルな名前になる
+/// 支援技術には role `tab` ([`ModalNavigationDrawer`] の中では role `link`) として公開され、ラベルとバッジをこの順に並べた文字列がアクセシブルな名前になる
 pub struct NavigationDrawerItem<T> {
     id: ElementId,
     value: T,
