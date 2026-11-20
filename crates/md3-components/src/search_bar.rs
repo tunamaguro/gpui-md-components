@@ -46,8 +46,9 @@ type ChangeHandler = Box<dyn Fn(&SharedString, &mut Window, &mut App)>;
 /// 角の丸い容器に、検索のアイコン、1 行の入力欄、子の要素を左から並べる。
 /// 子の要素 (アイコンボタンやアバターなど) は末尾の高さと幅 48dp 以上の枠の中央に並び、文字の色は OnSurfaceVariant になる。
 /// 検索バーは高さ 56dp、既定の幅 360dp で、親の幅を超えない。[`Styled`] で指定した大きさに従う。
-/// 幅が先頭のアイコンと末尾の子の枠と余白の和に満たない場合、入力欄は幅 0 になり、末尾の子は容器からはみ出す。
-/// プレースホルダーは 1 行に収め、収まらない部分を省略記号にする。
+/// 入力欄を使うには、先頭のアイコンと末尾の子の枠と余白の和を超える幅が要る。和以下の幅では入力欄は幅 0 になり、
+/// 和に満たない幅では末尾の子が容器からはみ出す。
+/// プレースホルダーは改行を空白にして 1 行に収め、収まらない部分を省略記号にする。
 /// 文字列は呼び出し側が持ち、[`SearchBar::new`] に毎回渡す。検索バー自身は文字列を変えず、
 /// 編集した後の文字列を [`SearchBar::on_change`] で、確定した文字列を [`SearchBar::on_search`] で求める
 ///
@@ -178,6 +179,7 @@ impl RenderOnce for SearchBar {
             .unwrap_or_else(|| util::keyed_focus_handle(&self.id, window, cx));
         let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
 
+        let editable = self.on_change.is_some();
         let mut input = HeadlessTextField::new("input", self.value.clone())
             .track_focus(&focus_handle.clone().tab_index(0))
             .caret_color(theme.color(ColorRole::Primary))
@@ -208,7 +210,8 @@ impl RenderOnce for SearchBar {
                     .right_0()
                     .truncate()
                     .text_color(theme.color(tokens::SUPPORTING_TEXT_COLOR))
-                    .child(placeholder)
+                    // 改行ごとに行を作らないよう、1 行にする
+                    .child(SharedString::from(placeholder.replace(['\r', '\n'], " ")))
             });
 
         let has_children = !self.children.is_empty();
@@ -249,6 +252,10 @@ impl RenderOnce for SearchBar {
                 move |_, window, cx| {
                     if !window.default_prevented() {
                         window.focus(&focus_handle, cx);
+                        // 入力欄に既にフォーカスがあると、フォーカスの変化ではソフトウェアキーボードが再び開かないため要求する
+                        if editable {
+                            window.request_virtual_keyboard();
+                        }
                         // フォーカスを受ける祖先が、移したフォーカスを上書きしないようにする
                         window.prevent_default();
                     }

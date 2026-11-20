@@ -1434,6 +1434,8 @@ mod tests {
         node: Option<accesskit::Node>,
         /// 親が受けたマウスの左ボタンの押下の回数
         parent_presses: Rc<RefCell<usize>>,
+        /// 部品の編集の状態。IME の変換を直接起こすために持つ
+        edit_state: Option<Entity<EditState>>,
     }
 
     impl Render for FieldView {
@@ -1471,6 +1473,12 @@ mod tests {
             let mut node = accesskit::Node::new(field.a11y_role().expect("role を持つこと"));
             field.write_a11y_info(&mut node);
             self.node = Some(node);
+            // 部品は描画の中で同じ id の keyed state を作るため、ここで同じ状態を得られる
+            self.edit_state = Some(
+                window.use_keyed_state(ElementId::from("field"), cx, |_, _| {
+                    unreachable!("部品が先に状態を作ること")
+                }),
+            );
             let parent_presses = self.parent_presses.clone();
             div()
                 .size(px(500.))
@@ -1502,6 +1510,7 @@ mod tests {
             before_focus: cx.focus_handle(),
             node: None,
             parent_presses: Rc::default(),
+            edit_state: None,
         })
     }
 
@@ -1705,6 +1714,30 @@ mod tests {
         assert_eq!(
             *view.read_with(cx, |view, _| view.submits.clone()).borrow(),
             ["ab"]
+        );
+    }
+
+    #[gpui::test]
+    fn ime_で変換中の_enter_では確定せず_確定後の_enter_で確定する(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "");
+        focus(cx);
+        let state = view
+            .read_with(cx, |view, _| view.edit_state.clone())
+            .expect("描画済みであること");
+        state.update_in(cx, |state, window, cx| {
+            state.replace_and_mark_text_in_range(None, "か", None, window, cx);
+        });
+        cx.run_until_parked();
+        cx.simulate_keystrokes("enter");
+        assert!(view.read_with(cx, |view, _| view.submits.borrow().is_empty()));
+        state.update_in(cx, |state, window, cx| state.unmark_text(window, cx));
+        cx.run_until_parked();
+        cx.simulate_keystrokes("enter");
+        assert_eq!(
+            *view.read_with(cx, |view, _| view.submits.clone()).borrow(),
+            ["か"]
         );
     }
 
