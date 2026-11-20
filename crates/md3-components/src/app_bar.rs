@@ -53,7 +53,7 @@ pub enum TopAppBarTitleAlignment {
 /// Medium と Large では折り返す。
 ///
 /// タイトルと補足の文は支援技術にテキストとして公開される。
-/// ナビゲーションのアイコンと操作は Tab でこの順に到達できる
+/// Tab で到達できるナビゲーションのアイコンと操作は、この順に並ぶ
 #[derive(IntoElement)]
 pub struct TopAppBar {
     id: ElementId,
@@ -107,8 +107,9 @@ impl TopAppBar {
 
     /// 左端に `icon` をナビゲーションのアイコンとして置く
     ///
-    /// [`IconButton::colors`] でアイコンの色を指定すれば、どのバリアントでもその色で描く。
-    /// 指定しなければ、Standard と Outlined はナビゲーションのアイコンの色で、Filled と FilledTonal はバリアントの色で描く
+    /// 有効な `icon` は、[`IconButton::colors`] でアイコンの色を指定すれば、どのバリアントでもその色で描く。
+    /// 指定しなければ、Standard と Outlined はナビゲーションのアイコンの色で、Filled と FilledTonal はバリアントの色で描く。
+    /// 無効な `icon` は [`IconButton`] の無効時の色で描く
     pub fn navigation_icon(mut self, icon: IconButton) -> Self {
         self.navigation_icon = Some(icon);
         self
