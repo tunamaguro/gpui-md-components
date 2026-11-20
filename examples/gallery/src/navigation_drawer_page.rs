@@ -3,7 +3,7 @@
 use gpui::{
     Context, FocusHandle, InteractiveElement as _, IntoElement, ParentElement as _,
     Refineable as _, Render, SharedString, StatefulInteractiveElement as _, Styled as _, Window,
-    div, px,
+    div, px, relative,
 };
 use md3_components::{NavigationDrawer, NavigationDrawerItem, TabPanel};
 use md3_theme::md3_color::ColorRole;
@@ -49,7 +49,9 @@ impl Render for NavigationDrawerPage {
             .text_style()
             .refine(&theme.text_style(TypeScale::TitleSmall));
         let header = header.child(gpui::text!(id = "drawer-header", "Mail"));
+        // 幅が狭くてもパネルの本文が見えるよう、ドロワーは行の幅の 6 割までにする
         let drawer = NavigationDrawer::new("drawer", Some(self.selected))
+            .max_w(relative(0.6))
             .aria_label("Mail navigation")
             .header(header)
             .on_change(cx.listener(|this, index: &usize, _, cx| {
@@ -75,6 +77,7 @@ impl Render for NavigationDrawerPage {
             .aria_label(name)
             .track_focus(&self.panel)
             .flex_1()
+            .min_w_0()
             .p_4()
             // Tab でパネルへ移ったときに位置が分かるよう、キーボードのフォーカスでリングを描く
             .border(dp(focus_ring::WIDTH))
