@@ -4,7 +4,10 @@ use gpui::{
     Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
     SharedString, StatefulInteractiveElement as _, Styled as _, Window, div,
 };
-use md3_components::{Button, ButtonVariant, ExtendedFab, ExtendedFabSize, Fab, FabColor, FabSize};
+use md3_components::{
+    Button, ButtonVariant, ExtendedFab, ExtendedFabSize, Fab, FabColor, FabMenu, FabMenuItem,
+    FabSize,
+};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{Theme, ThemeExt as _};
@@ -31,11 +34,19 @@ const EXTENDED_SIZES: [(ExtendedFabSize, &str); 3] = [
     (ExtendedFabSize::Large, "Large"),
 ];
 
-/// FAB を並べるページ。押した回数と最後に押した FAB、Extended FAB を展開しているかを持つ
+/// FAB メニューの項目の id とラベルとアイコン
+const MENU_ITEMS: [(&str, &str, md3_icons::Icon); 3] = [
+    ("menu-mail", "Mail", md3_icons::MAIL),
+    ("menu-chat", "Chat", md3_icons::CHAT),
+    ("menu-call", "Call", md3_icons::CALL),
+];
+
+/// FAB を並べるページ。押した回数と最後に押した FAB、Extended FAB を展開しているか、FAB メニューを開いているかを持つ
 pub struct FabPage {
     clicks: usize,
     last_clicked: Option<SharedString>,
     expanded: bool,
+    menu_expanded: bool,
 }
 
 impl Default for FabPage {
@@ -44,6 +55,7 @@ impl Default for FabPage {
             clicks: 0,
             last_clicked: None,
             expanded: true,
+            menu_expanded: false,
         }
     }
 }
@@ -58,6 +70,21 @@ impl Render for FabPage {
                 .gap_6()
                 .child(label(&theme, id, name).w_32())
         };
+
+        let mut menu = FabMenu::new("fab-menu", self.menu_expanded, md3_icons::ADD, "Create")
+            .on_toggle(cx.listener(|this, expanded: &bool, _, cx| {
+                this.menu_expanded = *expanded;
+                cx.notify();
+            }));
+        for (id, name, icon) in MENU_ITEMS {
+            let record = record_click(id.into(), cx);
+            menu = menu.item(FabMenuItem::new(id, icon, name).on_click(cx.listener(
+                move |this, event, window, cx| {
+                    this.menu_expanded = false;
+                    record(event, window, cx);
+                },
+            )));
+        }
 
         div()
             .id("fab-page")
@@ -142,6 +169,12 @@ impl Render for FabPage {
                                 .on_click(record_click(id, cx))
                         })),
                 ),
+            )
+            // FAB メニューは開くと項目が上に伸びるため、右下に置いて下端を揃える
+            .child(
+                row("fab-menu-row", "FAB menu")
+                    .w_full()
+                    .child(div().flex_1().flex().justify_end().child(menu)),
             )
     }
 }

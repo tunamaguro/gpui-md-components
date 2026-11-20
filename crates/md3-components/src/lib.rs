@@ -28,6 +28,8 @@ mod divider;
 mod docked_toolbar;
 #[cfg(feature = "fab")]
 mod fab;
+#[cfg(feature = "fab-menu")]
+mod fab_menu;
 #[cfg(feature = "floating-toolbar")]
 mod floating_toolbar;
 #[cfg(feature = "icon-button")]
@@ -151,6 +153,8 @@ pub use divider::{Divider, DividerOrientation};
 pub use docked_toolbar::{DockedToolbar, DockedToolbarArrangement};
 #[cfg(feature = "fab")]
 pub use fab::{ExtendedFab, ExtendedFabSize, Fab, FabColor, FabSize};
+#[cfg(feature = "fab-menu")]
+pub use fab_menu::{FabMenu, FabMenuItem};
 #[cfg(feature = "floating-toolbar")]
 pub use floating_toolbar::{FloatingToolbar, FloatingToolbarColor, FloatingToolbarOrientation};
 pub use gpui;

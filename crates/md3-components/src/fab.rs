@@ -32,7 +32,7 @@ use md3_theme::md3_tokens::{Dp, focus_ring, state, supplement};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
 /// 容器の層が FAB の hover を知るための group 名
-const GROUP: &str = "md3-fab";
+pub(crate) const GROUP: &str = "md3-fab";
 
 /// FAB の大きさ。容器・アイコン・形が大きさに合わせて決まる
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -82,7 +82,7 @@ impl FabColor {
     /// 容器と内容の色
     // PrimaryContainer と SecondaryContainer は FabPrimaryContainerTokens・FabSecondaryContainerTokens に従う。
     // ほかはトークンが無いため、Compose の `contentColorFor` が容器の色に組み合わせる内容の色を使う
-    fn roles(self) -> (ColorRole, ColorRole) {
+    pub(crate) fn roles(self) -> (ColorRole, ColorRole) {
         match self {
             Self::PrimaryContainer => (
                 fab_primary_container::CONTAINER_COLOR,
@@ -105,7 +105,9 @@ impl FabColor {
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
 /// 容器の層。色・影・状態レイヤーを形 `shape` で描き、親いっぱいに広がる。`elevated` が `false` なら影を描かない
-fn container_layer(
+///
+/// 状態レイヤーは、group [`GROUP`] の要素にマウスが乗っている間に重ねる
+pub(crate) fn container_layer(
     theme: &SharedTheme,
     color: FabColor,
     shape: ShapeKey,
@@ -151,7 +153,7 @@ fn container_layer(
 }
 
 /// 形 `shape` の容器の外側に描くフォーカスリング
-fn focus_ring(theme: &SharedTheme, shape: ShapeKey) -> Shaped {
+pub(crate) fn focus_ring(theme: &SharedTheme, shape: ShapeKey) -> Shaped {
     let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
     let ring = div()
         .absolute()
@@ -186,6 +188,8 @@ pub struct Fab {
     focus_handle: Option<FocusHandle>,
     /// 影を描くか
     elevated: bool,
+    /// FAB メニューを開閉するボタンとして描く場合の、メニューが開いているか
+    menu_expanded: Option<bool>,
     theme: Option<SharedTheme>,
 }
 
@@ -212,8 +216,18 @@ impl Fab {
             on_click: None,
             focus_handle: None,
             elevated: true,
+            menu_expanded: None,
             theme: None,
         }
+    }
+
+    /// FAB メニューを開閉するボタンとして描く。`expanded` はメニューが開いているか
+    ///
+    /// 支援技術にはメニューが開いているかを公開する。開いている間は丸い形と小さいアイコンで描く
+    #[cfg(feature = "fab-menu")]
+    pub(crate) fn menu_toggle(mut self, expanded: bool) -> Self {
+        self.menu_expanded = Some(expanded);
+        self
     }
 
     /// 影を描かずに、置いた面と同じ高さに描く
@@ -292,6 +306,16 @@ impl RenderOnce for Fab {
                 fab_large::CONTAINER_SHAPE,
             ),
         };
+        // 開いた FAB メニューの開閉ボタンは丸い形になり、閉じるアイコンを小さく描く (Compose の `ToggleFloatingActionButton`)
+        #[cfg(feature = "fab-menu")]
+        let (icon_size, shape) = if self.menu_expanded == Some(true) {
+            (
+                md3_theme::md3_tokens::component::fab_menu_baseline::CLOSE_BUTTON_ICON_SIZE,
+                md3_theme::md3_tokens::component::fab_menu_baseline::CLOSE_BUTTON_CONTAINER_SHAPE,
+            )
+        } else {
+            (icon_size, shape)
+        };
         let focus_handle = self
             .focus_handle
             .unwrap_or_else(|| util::keyed_focus_handle(&self.id, window, cx));
@@ -325,6 +349,9 @@ impl RenderOnce for Fab {
             )
             .when(focus_visible, |this| this.child(focus_ring(&theme, shape)))
             .aria_label(self.label)
+            .when_some(self.menu_expanded, |this, expanded| {
+                this.aria_expanded(expanded)
+            })
             .when_some(self.on_click, |this, on_click| this.on_click(on_click));
 
         self.outer.child(button)

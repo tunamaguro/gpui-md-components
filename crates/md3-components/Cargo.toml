@@ -34,6 +34,7 @@ default = [
   "divider",
   "docked-toolbar",
   "fab",
+  "fab-menu",
   "floating-toolbar",
   "list",
   "loading-indicator",
@@ -73,6 +74,8 @@ chip = []
 dialog = []
 divider = []
 fab = []
+# 開閉ボタンに FAB を使う
+fab-menu = ["fab"]
 list = []
 loading-indicator = []
 # メニューを開くボタンと、組の中の区切り線を使う
