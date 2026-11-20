@@ -36,7 +36,7 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 /// 開閉ボタン (FAB) の上に、開いている間だけ項目を右端に揃えて縦に並べる。
 /// 開閉ボタンは、閉じている間は PrimaryContainer の角丸の FAB にアイコンを描き、
 /// 開いている間は Primary の丸い FAB に閉じるアイコンを描く。項目は PrimaryContainer の丸い容器にアイコンとラベルを並べる。
-/// メニューは左右と下に 16dp の余白を持ち、置いた場所の右下に置くことを想定する。項目の出入りと開閉ボタンの変形は動かさずに切り替える。
+/// メニューは左右と下に 16 dp の余白を持ち、置いた場所の右下に置くことを想定する。項目の出入りと開閉ボタンの変形は動かさずに切り替える。
 /// メニューの高さは親の高さまでで、項目が収まらない場合は項目の列が縦にスクロールし、開閉ボタンは常に表示する。
 /// フォーカスが表示範囲の外の項目に移っても、項目の列はスクロールしない。
 /// 開いているかどうかは呼び出し側が持ち、[`FabMenu::new`] に毎回渡す。
@@ -154,8 +154,11 @@ impl RenderOnce for FabMenu {
                 // 開閉ボタンとの間隔。閉じている間は空になる箱なので、flex の gap ではなく項目の列に付ける
                 .pb(dp(tokens::CLOSE_BUTTON_BETWEEN_SPACE))
                 .children(self.items.into_iter().map(|item| {
+                    // 描画する要素と同じく、項目のフォーカスも項目の列 (`items`) の下に置き、開閉ボタンと分ける
                     let focus_handle = window.with_element_namespace(self.id.clone(), |window| {
-                        util::keyed_focus_handle(&item.id, window, cx)
+                        window.with_element_namespace("items", |window| {
+                            util::keyed_focus_handle(&item.id, window, cx)
+                        })
                     });
                     let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
                     let mut label = div();
@@ -408,7 +411,8 @@ mod tests {
             let menu =
                 |menu: &'static str, clicked: Rc<RefCell<Vec<(&'static str, &'static str)>>>| {
                     FabMenu::new(menu, true, md3_icons::ADD, menu).item(
-                        FabMenuItem::new("edit", md3_icons::EDIT, "Edit")
+                        // 開閉ボタンの内部の id と同じ "toggle" を使っても衝突しないこと
+                        FabMenuItem::new("toggle", md3_icons::EDIT, "Edit")
                             .on_click(move |_, _, _| clicked.borrow_mut().push((menu, "edit"))),
                     )
                 };

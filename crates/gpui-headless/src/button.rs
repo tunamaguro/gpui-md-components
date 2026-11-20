@@ -134,7 +134,21 @@ impl RenderOnce for Button {
             .when(focusable, |this| {
                 this.track_focus(&focus_handle.clone().tab_stop(self.tab_stop))
             })
-            .when_some(on_click, |this, on_click| this.on_click(on_click))
+            .when_some(on_click, |this, on_click| {
+                let on_click = std::rc::Rc::new(on_click);
+                let on_action = on_click.clone();
+                let action_focus = focus_handle.clone();
+                // 支援技術のクリック操作は、受けなければノードの中央へのマウス操作になり、
+                // スクロールで隠れたボタンや別の要素に覆われたボタンには届かないため、直接受ける。
+                // マウスの押下と同じく、ハンドラを呼ぶ前にフォーカスを移す
+                this.on_click(move |event, window, cx| on_click(event, window, cx))
+                    .on_a11y_action(accesskit::Action::Click, move |_, window, cx| {
+                        if focusable {
+                            window.focus(&action_focus, cx);
+                        }
+                        on_action(&ClickEvent::default(), window, cx)
+                    })
+            })
             .when_some(self.menu, |this, menu| {
                 // 同じ親に並ぶ別のボタンのメニューと状態を分けるため、ボタンの id の下に置く
                 window.with_element_namespace(id, |window| {
