@@ -10,15 +10,11 @@
 
 use gpui::{
     AnyElement, App, ElementId, IntoElement, ParentElement, Refineable, RenderOnce, SharedString,
-    StatefulInteractiveElement, StyleRefinement, Styled, Window, div, prelude::FluentBuilder,
+    StatefulInteractiveElement, StyleRefinement, Styled, Window, prelude::FluentBuilder,
 };
-use gpui_headless::{
-    Availability,
-    toolbar::{Toolbar, ToolbarItem, ToolbarOrientation},
-};
+use gpui_headless::toolbar::{Toolbar, ToolbarOrientation};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::floating_toolbar;
-use md3_theme::md3_tokens::supplement::app_bar as supplement;
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
 use crate::IconButton;
@@ -162,34 +158,8 @@ impl RenderOnce for FloatingToolbar {
         for child in self.children {
             match child {
                 Child::Icon(icon) => {
-                    // ツールバーの外にある同じ id の要素と状態を分けるため、ツールバーの id の下で求める
-                    let focus_handle = window.with_element_namespace(self.id.clone(), |window| {
-                        icon.resolve_focus_handle(window, cx)
-                    });
-                    let availability = if icon.is_disabled() {
-                        Availability::Disabled
-                    } else {
-                        Availability::Enabled
-                    };
-                    let icon = icon
-                        .track_focus(&focus_handle)
-                        .default_content(content)
-                        .default_theme(theme.clone());
-                    toolbar = toolbar.item(ToolbarItem::new(
-                        focus_handle,
-                        availability,
-                        move |tab_stop| {
-                            div()
-                                .flex()
-                                .flex_none()
-                                .items_center()
-                                .justify_center()
-                                .min_w(dp(supplement::ICON_TARGET_SIZE))
-                                .min_h(dp(supplement::ICON_TARGET_SIZE))
-                                .child(icon.tab_stop(tab_stop))
-                                .into_any_element()
-                        },
-                    ));
+                    toolbar =
+                        toolbar.item(icon.into_toolbar_item(&self.id, content, &theme, window, cx))
                 }
                 Child::Element(element) => toolbar = toolbar.child(element),
             }
@@ -223,6 +193,8 @@ enum Child {
 #[cfg(test)]
 mod tests {
     use gpui::{Context, FocusHandle, Render, TestAppContext, VisualTestContext};
+
+    use gpui::div;
 
     use super::*;
     use crate::ButtonColors;

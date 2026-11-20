@@ -1,17 +1,18 @@
-//! フローティングツールバーを並べるページ
+//! フローティングツールバーとドッキングツールバーを並べるページ
 
 use gpui::{
     Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
-    StatefulInteractiveElement as _, Styled as _, Window, div,
+    StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
 use md3_components::{
-    FloatingToolbar, FloatingToolbarColor, FloatingToolbarOrientation, IconButton,
+    DockedToolbar, DockedToolbarArrangement, FloatingToolbar, FloatingToolbarColor,
+    FloatingToolbarOrientation, IconButton,
 };
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{Theme, ThemeExt as _};
 
-/// フローティングツールバーを並べるページ
+/// フローティングツールバーとドッキングツールバーを並べるページ
 pub struct FloatingToolbarPage;
 
 /// 編集の操作を並べたツールバー。`id` で各操作の id を分ける
@@ -47,6 +48,32 @@ impl Render for FloatingToolbarPage {
             .child(
                 FloatingToolbar::new("vertical", "Format")
                     .orientation(FloatingToolbarOrientation::Vertical)
+                    .action(IconButton::new("bold", md3_icons::FORMAT_BOLD, "Bold"))
+                    .action(IconButton::new(
+                        "italic",
+                        md3_icons::FORMAT_ITALIC,
+                        "Italic",
+                    ))
+                    .action(IconButton::new(
+                        "underline",
+                        md3_icons::FORMAT_UNDERLINED,
+                        "Underline",
+                    )),
+            )
+            .child(label(&theme, "Docked"))
+            .child(
+                DockedToolbar::new("docked", "Navigation")
+                    .w(px(412.))
+                    .action(IconButton::new("back", md3_icons::ARROW_BACK, "Back"))
+                    .action(IconButton::new("undo", md3_icons::UNDO, "Undo"))
+                    .action(IconButton::new("redo", md3_icons::REDO, "Redo"))
+                    .action(IconButton::new("edit", md3_icons::EDIT, "Edit")),
+            )
+            .child(label(&theme, "Docked (centered)"))
+            .child(
+                DockedToolbar::new("docked-centered", "Format")
+                    .arrangement(DockedToolbarArrangement::Centered)
+                    .w(px(412.))
                     .action(IconButton::new("bold", md3_icons::FORMAT_BOLD, "Bold"))
                     .action(IconButton::new(
                         "italic",
