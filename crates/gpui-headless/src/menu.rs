@@ -308,17 +308,9 @@ impl Menu {
             .when_some(request.filter(|_| !trigger_disabled), |this, request| {
                 let click_request = request.clone();
                 let click_state = state.clone();
-                let action_request = request.clone();
-                let action_state = state.clone();
                 this.on_click(move |_, window, cx| {
                     click_state.update(cx, |state, _| state.open_focus = OpenFocus::Default);
                     click_request(&!expanded, window, cx);
-                })
-                // ボタンが支援技術のクリック操作を直接受けるとマウス操作に変換されず on_click に届かないため、
-                // 開閉の要求も直接受ける。ボタンのハンドラの後に呼ばれる
-                .on_a11y_action(accesskit::Action::Click, move |_, window, cx| {
-                    action_state.update(cx, |state, _| state.open_focus = OpenFocus::Default);
-                    action_request(&!expanded, window, cx);
                 })
                 .on_key_down(move |event, window, cx| {
                     let last_edge = match event.keystroke.key.as_str() {
