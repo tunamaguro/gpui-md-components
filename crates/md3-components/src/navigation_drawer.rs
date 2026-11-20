@@ -393,6 +393,7 @@ impl<T: PartialEq + 'static> Styled for NavigationDrawer<T> {
 /// 支援技術には modal の `dialog` として、[`ModalNavigationDrawer::new`] の `label` を名前として公開される。
 /// 中の項目の並びは、パネルを持つタブではなく、[`NavigationDrawer::aria_label`] を名前とする role `navigation` として公開される。
 /// 項目は role `link` として公開され、選ばれている項目は現在のページ (`aria-current="page"`) になる。
+/// ただし Linux の AT-SPI には現在のページであることが伝わらない。
 /// ウィンドウのルートを [`crate::root`] で包むと、開いている間はドロワー以外を支援技術から隠す。
 /// ただし、一覧のように子を遅れてレイアウトする要素や、キャッシュされたビューの中に置くと、隠すかどうかの判定に含まれない。
 /// ほかの部品がウィンドウの手前に描く要素 (開いているメニューなど) は隠れないため、開く前に閉じること。
