@@ -107,7 +107,8 @@ impl TopAppBar {
 
     /// 左端に `icon` をナビゲーションのアイコンとして置く
     ///
-    /// [`IconButton::colors`] でアイコンの色を指定しなければ、ナビゲーションのアイコンの色で描く
+    /// Standard と Outlined の `icon` は、[`IconButton::colors`] でアイコンの色を指定しなければ、
+    /// ナビゲーションのアイコンの色で描く。Filled と FilledTonal はバリアントの色で描く
     pub fn navigation_icon(mut self, icon: IconButton) -> Self {
         self.navigation_icon = Some(icon);
         self
@@ -161,13 +162,18 @@ impl RenderOnce for TopAppBar {
                 app_bar_large_flexible::SUBTITLE_FONT,
             ),
         };
+        let small = self.variant == TopAppBarVariant::Small;
         let text = |font: TypeScale, color: Hsla, id: &'static str, content: SharedString| {
             let mut element = div().text_color(color);
             element.text_style().refine(&theme.text_style(font));
+            // Small は 1 行に収める。truncate は幅による折り返しだけを止めるため、改行も空白にする
+            let content = if small && content.contains('\n') {
+                content.replace('\n', " ").into()
+            } else {
+                content
+            };
             element
-                .when(self.variant == TopAppBarVariant::Small, |this| {
-                    this.truncate()
-                })
+                .when(small, |this| this.truncate())
                 .when(centered, |this| this.text_center())
                 .child(gpui::text!(id = id, content))
         };
@@ -301,7 +307,7 @@ impl RenderOnce for TopAppBar {
                         .h(collapsed_height),
                 )
                 .child(
-                    // 余白は高さ 0 から伸びるため、行の高さはタイトルの高さと `row_height` の大きいほうになる。
+                    // 余白は高さ 0 から伸びるため、行の高さはタイトルの高さと行の最小の高さの大きいほうになる。
                     // 余った高さは余白が `gap` まで受け取り、残りはタイトルの上に空ける
                     div()
                         .flex()
@@ -413,7 +419,7 @@ mod tests {
         let actions = filled(cx, ColorRole::Tertiary);
         assert_eq!(navigation.len(), 1);
         assert_eq!(actions.len(), 2);
-        // アイコンボタンの容器は 48dp の押せる範囲の中央にある
+        // アイコンボタンの容器は 48dp の配置枠の中央にある
         let inset = (48.0 - navigation[0].2) / 2.0;
         assert_eq!(navigation[0].0, 4.0 + inset);
         assert_eq!(navigation[0].1, (64.0 - navigation[0].3) / 2.0);
@@ -578,6 +584,17 @@ mod tests {
         assert_eq!(
             filled(cx, ColorRole::Surface),
             vec![(0.0, 0.0, 600.0, 64.0 + 92.0)]
+        );
+    }
+
+    #[gpui::test]
+    fn small_は改行を含む文も_1_行に収める(app: &mut TestAppContext) {
+        let cx = open(app, 600.0, || {
+            TopAppBar::new("bar", "First\nSecond").subtitle("Sub\ntitle")
+        });
+        assert_eq!(
+            filled(cx, ColorRole::Surface),
+            vec![(0.0, 0.0, 600.0, 64.0)]
         );
     }
 }
