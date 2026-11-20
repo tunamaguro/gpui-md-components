@@ -24,6 +24,9 @@ use crate::{Fab, IconButton};
 ///
 /// 画面の下端に、操作を左から並べ、右端に FAB を置く。バーは置いた場所の幅に広がり、高さは 80dp。
 /// 子の要素は操作として左から並べる。[`BottomAppBar::action`] で置いたアイコンボタンは、少なくとも 48dp 四方の枠の中央に置く。
+/// 操作は縮めずに並べ、FAB の手前に収まらない部分は描かず、押せない。操作の数と大きさは幅に収まるように選ぶこと。
+///
+/// バーは縦にも横にも縮まない。横の flex で残りの幅に収めるには、[`Styled`] で `.flex_1().min_w_0()` を指定する。
 ///
 /// バー自身は支援技術に公開されない。
 /// Tab で到達できる操作と FAB は、この順に並ぶ
@@ -55,7 +58,10 @@ impl BottomAppBar {
     /// 有効な `icon` は、[`IconButton::colors`] でアイコンの色を指定すれば、どのバリアントでもその色で描く。
     /// 指定しなければ、Standard と Outlined は容器の上の内容の色 (OnSurface) で、Filled と FilledTonal はバリアントの色で描く。
     /// 無効な `icon` は [`IconButton`] の無効時の色で描く。
-    /// [`IconButton::theme`] でテーマを指定しなければ、バーのテーマで描く
+    /// [`IconButton::theme`] でテーマを指定しなければ、バーのテーマで描く。
+    /// 既定の高さのバーに収まる大きさは [`ButtonSize::ExtraSmall`](crate::ButtonSize::ExtraSmall)、
+    /// [`ButtonSize::Small`](crate::ButtonSize::Small)、[`ButtonSize::Medium`](crate::ButtonSize::Medium) で、
+    /// それより大きいボタンはバーからはみ出す
     pub fn action(mut self, icon: IconButton) -> Self {
         self.actions.push(Action::Icon(Box::new(icon)));
         self
@@ -95,27 +101,34 @@ impl RenderOnce for BottomAppBar {
             .pr(dp(supplement::BOTTOM_HORIZONTAL_PADDING))
             .pt(dp(supplement::BOTTOM_VERTICAL_PADDING))
             .bg(theme.color(bottom_app_bar::CONTAINER_COLOR))
-            .child(div().flex_1().min_w_0().flex().items_center().children(
-                self.actions.into_iter().map(|action| {
-                    match action {
-                        // Compose のアイコンボタンと同じ間隔で並べるため、48dp 四方の配置枠の中央に置く。
-                        // 押せる範囲はアイコンボタン自身の大きさのまま
-                        Action::Icon(icon) => div()
-                            .flex()
-                            .flex_none()
-                            .items_center()
-                            .justify_center()
-                            .min_w(dp(supplement::ICON_TARGET_SIZE))
-                            .min_h(dp(supplement::ICON_TARGET_SIZE))
-                            .child(
-                                icon.default_content(ColorRole::OnSurface)
-                                    .default_theme(theme.clone()),
-                            )
-                            .into_any_element(),
-                        Action::Element(element) => element,
-                    }
-                }),
-            ))
+            // 収まらない操作が FAB の下に入り込んで同じクリックを受けないよう、並びの外は描かない
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .overflow_hidden()
+                    .flex()
+                    .items_center()
+                    .children(self.actions.into_iter().map(|action| {
+                        match action {
+                            // Compose のアイコンボタンと同じ間隔で並べるため、48dp 四方の配置枠の中央に置く。
+                            // 押せる範囲はアイコンボタン自身の大きさのまま
+                            Action::Icon(icon) => div()
+                                .flex()
+                                .flex_none()
+                                .items_center()
+                                .justify_center()
+                                .min_w(dp(supplement::ICON_TARGET_SIZE))
+                                .min_h(dp(supplement::ICON_TARGET_SIZE))
+                                .child(
+                                    icon.default_content(ColorRole::OnSurface)
+                                        .default_theme(theme.clone()),
+                                )
+                                .into_any_element(),
+                            Action::Element(element) => element,
+                        }
+                    })),
+            )
             .when_some(self.fab, |this, fab| {
                 // FAB は内容の上端に寄せて置く (`Alignment.TopStart`)
                 this.child(
@@ -158,7 +171,7 @@ mod tests {
     use gpui::{Context, Render, TestAppContext, VisualTestContext, px};
 
     use super::*;
-    use crate::{ButtonColors, ButtonSize, FabColor};
+    use crate::{ButtonColors, ButtonSize, FabColor, IconButtonWidth};
 
     /// 幅 600 の中に `bar` が作るバーを置く
     struct BarView {
@@ -307,5 +320,55 @@ mod tests {
         let rects = filled(cx, ColorRole::SurfaceContainer);
         assert_eq!(rects.len(), 1);
         assert_eq!(rects[0].3, 80.0);
+    }
+
+    /// 操作が幅に収まらなくても、FAB と重なる位置のクリックは FAB だけが受ける
+    #[gpui::test]
+    fn 収まらない操作は_fab_の下で押せない(cx: &mut TestAppContext) {
+        struct NarrowView {
+            clicked: Vec<&'static str>,
+        }
+        impl Render for NarrowView {
+            fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+                let record = |name: &'static str| {
+                    cx.listener(move |this: &mut Self, _: &gpui::ClickEvent, _, _| {
+                        this.clicked.push(name)
+                    })
+                };
+                div().w(px(320.0)).child(
+                    (0..4)
+                        .fold(BottomAppBar::new("bar"), |bar, i| {
+                            bar.action(
+                                IconButton::new(
+                                    ("action", i as usize),
+                                    md3_icons::MORE_VERT,
+                                    "More",
+                                )
+                                .size(ButtonSize::Medium)
+                                .width(IconButtonWidth::Wide)
+                                .on_click(record("action")),
+                            )
+                        })
+                        .floating_action_button(
+                            Fab::new("fab", md3_icons::ADD, "Add").on_click(record("fab")),
+                        ),
+                )
+            }
+        }
+        cx.update(crate::init);
+        let (view, cx) = cx.add_window_view(|window, cx| {
+            cx.init_md3_theme(window);
+            NarrowView {
+                clicked: Vec::new(),
+            }
+        });
+        cx.run_until_parked();
+        // FAB は x 248〜304、y 12〜68。幅 72dp の操作は 4 個目が x 220〜292 に並び、FAB と重なる
+        cx.simulate_click(gpui::point(px(260.0), px(40.0)), gpui::Modifiers::none());
+        cx.run_until_parked();
+        assert_eq!(
+            view.read_with(cx, |view, _| view.clicked.clone()),
+            vec!["fab"]
+        );
     }
 }
