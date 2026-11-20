@@ -441,6 +441,8 @@ pub struct IconButton {
     on_click: Option<ClickHandler>,
     disabled: bool,
     focus_handle: Option<FocusHandle>,
+    /// Tab で到達できるか
+    tab_stop: bool,
     tooltip: Option<Tooltip>,
     #[cfg(feature = "menu")]
     menu: Option<Menu>,
@@ -476,6 +478,7 @@ impl IconButton {
             on_click: None,
             disabled: false,
             focus_handle: None,
+            tab_stop: true,
             tooltip: None,
             #[cfg(feature = "menu")]
             menu: None,
@@ -506,14 +509,45 @@ impl IconButton {
     ///
     /// Standard と Outlined で [`IconButton::colors`] でアイコンの色を指定しなかったときに、バリアントの色の代わりに使う。
     /// Filled と FilledTonal は容器に合わせた色で描く (Compose の `LocalContentColor` を受け取るバリアントと同じ)
-    #[cfg(any(feature = "app-bar", feature = "bottom-app-bar"))]
+    #[cfg(any(
+        feature = "app-bar",
+        feature = "bottom-app-bar",
+        feature = "floating-toolbar"
+    ))]
     pub(crate) fn default_content(mut self, role: ColorRole) -> Self {
         self.default_content = Some(role);
         self
     }
 
     /// [`IconButton::theme`] でテーマを指定していなければ `theme` で描く
-    #[cfg(any(feature = "app-bar", feature = "bottom-app-bar"))]
+    /// `false` なら Tab で到達しないようにする。クリックや [`FocusHandle`] ではフォーカスを受ける
+    #[cfg(feature = "floating-toolbar")]
+    pub(crate) fn tab_stop(mut self, tab_stop: bool) -> Self {
+        self.tab_stop = tab_stop;
+        self
+    }
+
+    /// [`IconButton::disabled`] で無効にしたか
+    #[cfg(feature = "floating-toolbar")]
+    pub(crate) fn is_disabled(&self) -> bool {
+        self.disabled
+    }
+
+    /// 描画のときにフォーカスとして使う [`FocusHandle`]
+    ///
+    /// [`IconButton::track_focus`] で渡したものか、無ければ id と今の要素の名前空間から決まるもの
+    #[cfg(feature = "floating-toolbar")]
+    pub(crate) fn resolve_focus_handle(&self, window: &mut Window, cx: &mut App) -> FocusHandle {
+        self.focus_handle
+            .clone()
+            .unwrap_or_else(|| util::keyed_focus_handle(&self.id, window, cx))
+    }
+
+    #[cfg(any(
+        feature = "app-bar",
+        feature = "bottom-app-bar",
+        feature = "floating-toolbar"
+    ))]
     pub(crate) fn default_theme(mut self, theme: SharedTheme) -> Self {
         self.theme.get_or_insert(theme);
         self
@@ -641,6 +675,7 @@ impl RenderOnce for IconButton {
         });
         let button = HeadlessButton::new(self.id.clone())
             .track_focus(&focus_handle)
+            .tab_stop(self.tab_stop)
             .disabled(disabled)
             .aria_label(self.label.clone())
             .when_some(self.on_click, |this, on_click| this.on_click(on_click));

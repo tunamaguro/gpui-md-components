@@ -33,6 +33,7 @@ default = [
   "dialog",
   "divider",
   "fab",
+  "floating-toolbar",
   "list",
   "loading-indicator",
   "menu",
@@ -58,6 +59,8 @@ icon-button = ["button"]
 app-bar = ["icon-button"]
 # 操作に置くアイコンボタンと、右端に置く FAB に使う
 bottom-app-bar = ["icon-button", "fab"]
+# 操作に置くアイコンボタンに使う
+floating-toolbar = ["icon-button"]
 button-group = []
 connected-button-group = ["button"]
 card = []

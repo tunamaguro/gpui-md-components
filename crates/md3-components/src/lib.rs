@@ -26,6 +26,8 @@ mod dialog;
 mod divider;
 #[cfg(feature = "fab")]
 mod fab;
+#[cfg(feature = "floating-toolbar")]
+mod floating_toolbar;
 #[cfg(feature = "icon-button")]
 mod icon_button;
 // 使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
@@ -141,6 +143,8 @@ pub use dialog::{Dialog, DialogKind, DismissReason};
 pub use divider::{Divider, DividerOrientation};
 #[cfg(feature = "fab")]
 pub use fab::{ExtendedFab, ExtendedFabSize, Fab, FabColor, FabSize};
+#[cfg(feature = "floating-toolbar")]
+pub use floating_toolbar::{FloatingToolbar, FloatingToolbarColor, FloatingToolbarOrientation};
 pub use gpui;
 #[cfg(feature = "platform")]
 pub use gpui_platform;
