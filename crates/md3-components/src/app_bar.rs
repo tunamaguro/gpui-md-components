@@ -107,8 +107,8 @@ impl TopAppBar {
 
     /// 左端に `icon` をナビゲーションのアイコンとして置く
     ///
-    /// Standard と Outlined の `icon` は、[`IconButton::colors`] でアイコンの色を指定しなければ、
-    /// ナビゲーションのアイコンの色で描く。Filled と FilledTonal はバリアントの色で描く
+    /// [`IconButton::colors`] でアイコンの色を指定すれば、どのバリアントでもその色で描く。
+    /// 指定しなければ、Standard と Outlined はナビゲーションのアイコンの色で、Filled と FilledTonal はバリアントの色で描く
     pub fn navigation_icon(mut self, icon: IconButton) -> Self {
         self.navigation_icon = Some(icon);
         self
@@ -163,19 +163,21 @@ impl RenderOnce for TopAppBar {
             ),
         };
         let small = self.variant == TopAppBarVariant::Small;
-        let text = |font: TypeScale, color: Hsla, id: &'static str, content: SharedString| {
-            let mut element = div().text_color(color);
-            element.text_style().refine(&theme.text_style(font));
-            // Small は 1 行に収める。truncate は幅による折り返しだけを止めるため、改行も空白にする
-            let content = if small && content.contains('\n') {
+        // Small は 1 行に収める。truncate は幅による折り返しだけを止めるため、改行も空白にする
+        let one_line = |content: SharedString| -> SharedString {
+            if small && content.contains('\n') {
                 content.replace('\n', " ").into()
             } else {
                 content
-            };
+            }
+        };
+        let text = |font: TypeScale, color: Hsla, content: gpui::Text| {
+            let mut element = div().text_color(color);
+            element.text_style().refine(&theme.text_style(font));
             element
                 .when(small, |this| this.truncate())
                 .when(centered, |this| this.text_center())
-                .child(gpui::text!(id = id, content))
+                .child(content)
         };
         let title = div()
             .debug_selector(|| "md3-app-bar-title".into())
@@ -184,18 +186,17 @@ impl RenderOnce for TopAppBar {
             .min_w_0()
             .px(edge)
             .when(centered, |this| this.items_center())
+            // 文字列の ID は呼び出し位置から作られ、利用者が子の要素に付ける ID とぶつからない
             .child(text(
                 title_font,
                 theme.color(app_bar::TITLE_COLOR),
-                "title",
-                self.title.clone(),
+                gpui::text!(one_line(self.title.clone())),
             ))
             .when_some(self.subtitle.clone(), |this, subtitle| {
                 this.child(text(
                     subtitle_font,
                     theme.color(app_bar::SUBTITLE_COLOR),
-                    "subtitle",
-                    subtitle,
+                    gpui::text!(one_line(subtitle)),
                 ))
             });
 
