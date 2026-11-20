@@ -46,6 +46,8 @@ type ChangeHandler = Box<dyn Fn(&SharedString, &mut Window, &mut App)>;
 /// 角の丸い容器に、検索のアイコン、1 行の入力欄、子の要素を左から並べる。
 /// 子の要素 (アイコンボタンやアバターなど) は末尾の高さと幅 48dp 以上の枠の中央に並び、文字の色は OnSurfaceVariant になる。
 /// 検索バーは高さ 56dp、既定の幅 360dp で、親の幅を超えない。[`Styled`] で指定した大きさに従う。
+/// 幅が先頭のアイコンと末尾の子の枠と余白の和に満たない場合、入力欄は幅 0 になり、末尾の子は容器からはみ出す。
+/// プレースホルダーは 1 行に収め、収まらない部分を省略記号にする。
 /// 文字列は呼び出し側が持ち、[`SearchBar::new`] に毎回渡す。検索バー自身は文字列を変えず、
 /// 編集した後の文字列を [`SearchBar::on_change`] で、確定した文字列を [`SearchBar::on_search`] で求める
 ///
@@ -130,7 +132,8 @@ impl SearchBar {
 
     /// 入力欄で Enter を押して検索を求められたときに `handler` を呼ぶ。複数回呼んだ場合は最後に渡した `handler` だけを呼ぶ
     ///
-    /// `handler` には最後に編集した後の文字列 ([`SearchBar::on_change`] に渡したものと同じ) を渡す
+    /// `handler` には Enter を押した時点で入力欄が持つ文字列を渡す。直前の編集を呼び出し側が受け入れていない場合も、
+    /// 次の描画までは編集した後の文字列になる
     pub fn on_search(
         mut self,
         handler: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
@@ -203,7 +206,7 @@ impl RenderOnce for SearchBar {
                     .top_0()
                     .left_0()
                     .right_0()
-                    .overflow_hidden()
+                    .truncate()
                     .text_color(theme.color(tokens::SUPPORTING_TEXT_COLOR))
                     .child(placeholder)
             });
@@ -246,6 +249,8 @@ impl RenderOnce for SearchBar {
                 move |_, window, cx| {
                     if !window.default_prevented() {
                         window.focus(&focus_handle, cx);
+                        // フォーカスを受ける祖先が、移したフォーカスを上書きしないようにする
+                        window.prevent_default();
                     }
                 }
             })
@@ -270,7 +275,9 @@ impl RenderOnce for SearchBar {
             )
             .when(has_children, |this| {
                 this.child(
+                    // 呼び出し側の子の id を、内蔵の入力欄の id と分ける
                     div()
+                        .id("trailing")
                         .debug_selector(|| "md3-search-bar-trailing".into())
                         .relative()
                         .flex()
@@ -330,6 +337,8 @@ mod tests {
         /// 同じ子の id を持つ 2 本目の検索バーを置くか
         second: bool,
         focus: FocusHandle,
+        /// 検索バーを包む、フォーカスを受ける親のフォーカス
+        parent_focus: FocusHandle,
     }
 
     impl Render for BarView {
@@ -347,7 +356,8 @@ mod tests {
                     .when(this.trailing, |this| {
                         this.child(
                             // アイコンボタンと同じ大きさ 40 の、フォーカスを受けるボタン
-                            Button::new("clear")
+                            // 内蔵の入力欄と同じ id を使っても衝突しないこと
+                            Button::new("input")
                                 .size(px(40.))
                                 .on_click(move |_, _, _| clicks.borrow_mut().push(id)),
                         )
@@ -358,6 +368,7 @@ mod tests {
                 .left(px(100.))
                 .top(px(100.))
                 .w(px(self.parent_width))
+                .track_focus(&self.parent_focus)
                 .flex()
                 .flex_col()
                 .child(bar("first", self, cx).track_focus(&self.focus))
@@ -380,6 +391,7 @@ mod tests {
                 parent_width: 800.,
                 second: false,
                 focus: cx.focus_handle(),
+                parent_focus: cx.focus_handle(),
             };
             f(&mut view);
             view
@@ -497,6 +509,11 @@ mod tests {
         let (view, cx) = setup(cx, |_| {});
         // 先頭のアイコンの上を押す
         cx.simulate_click(point(px(120.), px(128.)), Modifiers::none());
+        let focus = view.read_with(cx, |view, _| view.focus.clone());
+        assert!(
+            cx.update(|window, _| focus.is_focused(window)),
+            "フォーカスを受ける親にフォーカスを奪われないこと"
+        );
         cx.simulate_input("rust");
         cx.simulate_keystrokes("enter");
         let (value, searches) = view.read_with(cx, |view, _| {
