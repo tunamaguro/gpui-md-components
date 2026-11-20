@@ -4,7 +4,9 @@ use gpui::{
     Context, InteractiveElement as _, IntoElement, ParentElement as _, Render,
     StatefulInteractiveElement as _, Styled as _, Window, div,
 };
-use md3_components::{IconButton, TopAppBar, TopAppBarTitleAlignment, TopAppBarVariant};
+use md3_components::{
+    BottomAppBar, Fab, FabColor, IconButton, TopAppBar, TopAppBarTitleAlignment, TopAppBarVariant,
+};
 use md3_theme::ThemeExt as _;
 use md3_theme::md3_color::ColorRole;
 
@@ -60,6 +62,25 @@ impl Render for AppBarPage {
                     .variant(TopAppBarVariant::Large)
                     .title_alignment(TopAppBarTitleAlignment::Center)
                     .subtitle("With a subtitle"),
+            )
+            .child(
+                BottomAppBar::new("bottom")
+                    .action(IconButton::new("check", md3_icons::CHECK, "Check"))
+                    .action(IconButton::new("edit", md3_icons::EDIT, "Edit"))
+                    .action(IconButton::new(
+                        "attach",
+                        md3_icons::ATTACH_FILE,
+                        "Attach file",
+                    ))
+                    .action(IconButton::new("image", md3_icons::IMAGE, "Add image")),
+            )
+            .child(
+                BottomAppBar::new("bottom-fab")
+                    .action(IconButton::new("check", md3_icons::CHECK, "Check"))
+                    .action(IconButton::new("edit", md3_icons::EDIT, "Edit"))
+                    .floating_action_button(
+                        Fab::new("add", md3_icons::ADD, "Add").color(FabColor::SecondaryContainer),
+                    ),
             )
     }
 }

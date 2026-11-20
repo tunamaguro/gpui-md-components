@@ -24,6 +24,7 @@ default = [
   "button",
   "icon-button",
   "app-bar",
+  "bottom-app-bar",
   "button-group",
   "connected-button-group",
   "card",
@@ -55,6 +56,8 @@ button = []
 icon-button = ["button"]
 # ナビゲーションのアイコンに使う
 app-bar = ["icon-button"]
+# 操作に置くアイコンボタンと、右端に置く FAB に使う
+bottom-app-bar = ["icon-button", "fab"]
 button-group = []
 connected-button-group = ["button"]
 card = []

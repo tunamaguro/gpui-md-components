@@ -6,6 +6,8 @@
 mod app_bar;
 #[cfg(feature = "badge")]
 mod badge;
+#[cfg(feature = "bottom-app-bar")]
+mod bottom_app_bar;
 #[cfg(feature = "button")]
 mod button;
 #[cfg(feature = "button-group")]
@@ -113,6 +115,8 @@ mod util;
 pub use app_bar::{TopAppBar, TopAppBarTitleAlignment, TopAppBarVariant};
 #[cfg(feature = "badge")]
 pub use badge::{Badge, BadgeColors, BadgedBox};
+#[cfg(feature = "bottom-app-bar")]
+pub use bottom_app_bar::BottomAppBar;
 #[cfg(feature = "button")]
 pub use button::{
     Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant, ToggleButton, ToggleButtonColors,

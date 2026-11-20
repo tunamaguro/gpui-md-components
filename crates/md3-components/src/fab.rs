@@ -104,19 +104,27 @@ impl FabColor {
 
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
-/// 容器の層。色・影・状態レイヤーを形 `shape` で描き、親いっぱいに広がる
+/// 容器の層。色・影・状態レイヤーを形 `shape` で描き、親いっぱいに広がる。`elevated` が `false` なら影を描かない
 fn container_layer(
     theme: &SharedTheme,
     color: FabColor,
     shape: ShapeKey,
     focus_visible: bool,
+    elevated: bool,
 ) -> Shaped {
     let (container, content) = color.roles();
     let container = theme.color(container);
     let content = theme.color(content);
     // 状態レイヤーは内容の色を重ねる (Compose の `ripple()` は LocalContentColor を使う)
     let state_layer = |opacity: f32| container.blend(content.opacity(opacity));
-    let hovered_shadow = theme.shadow(fab_primary_container::HOVERED_CONTAINER_ELEVATION);
+    let shadow = |elevation| {
+        if elevated {
+            theme.shadow(elevation)
+        } else {
+            Vec::new()
+        }
+    };
+    let hovered_shadow = shadow(fab_primary_container::HOVERED_CONTAINER_ELEVATION);
     // 影は `FloatingActionButtonDefaults.elevation()` と同じく、色によらず FabPrimaryContainerTokens の段階を使う
     let layer = div()
         .absolute()
@@ -127,10 +135,10 @@ fn container_layer(
         .map(|this| {
             if focus_visible {
                 this.bg(state_layer(state::FOCUS_STATE_LAYER_OPACITY))
-                    .shadow(theme.shadow(fab_primary_container::FOCUSED_CONTAINER_ELEVATION))
+                    .shadow(shadow(fab_primary_container::FOCUSED_CONTAINER_ELEVATION))
             } else {
                 this.bg(container)
-                    .shadow(theme.shadow(fab_primary_container::CONTAINER_ELEVATION))
+                    .shadow(shadow(fab_primary_container::CONTAINER_ELEVATION))
             }
         })
         // gpui は group_hover を自身のスタイルの後に重ねるため、hover がフォーカスより優先される
@@ -176,6 +184,8 @@ pub struct Fab {
     color: FabColor,
     on_click: Option<ClickHandler>,
     focus_handle: Option<FocusHandle>,
+    /// 影を描くか
+    elevated: bool,
     theme: Option<SharedTheme>,
 }
 
@@ -201,8 +211,23 @@ impl Fab {
             color: FabColor::default(),
             on_click: None,
             focus_handle: None,
+            elevated: true,
             theme: None,
         }
+    }
+
+    /// 影を描かずに、置いた面と同じ高さに描く
+    #[cfg(feature = "bottom-app-bar")]
+    pub(crate) fn flat(mut self) -> Self {
+        self.elevated = false;
+        self
+    }
+
+    /// [`Fab::theme`] でテーマを指定していなければ `theme` で描く
+    #[cfg(feature = "bottom-app-bar")]
+    pub(crate) fn default_theme(mut self, theme: SharedTheme) -> Self {
+        self.theme.get_or_insert(theme);
+        self
     }
 
     /// FAB の大きさを設定する
@@ -284,7 +309,13 @@ impl RenderOnce for Fab {
             .justify_center()
             .min_w(dp(container))
             .min_h(dp(container))
-            .child(container_layer(&theme, self.color, shape, focus_visible))
+            .child(container_layer(
+                &theme,
+                self.color,
+                shape,
+                focus_visible,
+                self.elevated,
+            ))
             .child(
                 svg()
                     .data(self.icon.svg().as_bytes())
@@ -527,6 +558,7 @@ impl RenderOnce for ExtendedFab {
                 self.color,
                 size.shape,
                 focus_visible,
+                true,
             ))
             .child(row)
             .when(focus_visible, |this| {
