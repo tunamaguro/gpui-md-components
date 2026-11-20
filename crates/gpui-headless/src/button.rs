@@ -46,7 +46,8 @@ impl Button {
 
     /// 押されたときに `handler` を呼ぶ。複数回呼んだ場合は最後に渡した `handler` だけを呼ぶ
     ///
-    /// 設定しない場合、ボタンは押されても何も呼ばず、支援技術にクリック操作を公開しない
+    /// 設定しない場合、ボタンは押されても何も呼ばず、支援技術にクリック操作を公開しない。
+    /// 支援技術からのクリック操作では、Enter のキーボードのクリックとして `handler` を呼び、イベントの境界は空になる
     pub fn on_click(
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
