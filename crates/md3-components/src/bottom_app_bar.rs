@@ -23,7 +23,7 @@ use crate::{Fab, IconButton};
 /// MD3 のボトムアプリバー
 ///
 /// 画面の下端に、操作を左から並べ、右端に FAB を置く。バーは置いた場所の幅に広がり、高さは 80dp。
-/// 子の要素は操作として左から並べる。[`BottomAppBar::action`] で置いたアイコンボタンは 48dp 四方の枠の中央に置く。
+/// 子の要素は操作として左から並べる。[`BottomAppBar::action`] で置いたアイコンボタンは、少なくとも 48dp 四方の枠の中央に置く。
 ///
 /// バー自身は支援技術に公開されない。
 /// Tab で到達できる操作と FAB は、この順に並ぶ
@@ -64,7 +64,9 @@ impl BottomAppBar {
     /// 右端に `fab` を置く
     ///
     /// `fab` は影を描かずに、バーと同じ高さに描く。
-    /// 色は [`FabColor::SecondaryContainer`](crate::FabColor::SecondaryContainer) を勧める
+    /// 色は [`FabColor::SecondaryContainer`](crate::FabColor::SecondaryContainer) を勧める。
+    /// 大きさは [`FabSize::Small`](crate::FabSize::Small) か [`FabSize::Baseline`](crate::FabSize::Baseline) にすること。
+    /// それより大きい FAB は縮めずに置くため、容器の下端からはみ出す
     pub fn floating_action_button(mut self, fab: Fab) -> Self {
         self.fab = Some(fab);
         self
@@ -87,6 +89,7 @@ impl RenderOnce for BottomAppBar {
             .w_full()
             .flex()
             .items_center()
+            .flex_shrink_0()
             .h(dp(bottom_app_bar::CONTAINER_HEIGHT))
             .pl(dp(supplement::BOTTOM_HORIZONTAL_PADDING))
             .pr(dp(supplement::BOTTOM_HORIZONTAL_PADDING))
@@ -102,7 +105,8 @@ impl RenderOnce for BottomAppBar {
                             .flex_none()
                             .items_center()
                             .justify_center()
-                            .size(dp(supplement::ICON_TARGET_SIZE))
+                            .min_w(dp(supplement::ICON_TARGET_SIZE))
+                            .min_h(dp(supplement::ICON_TARGET_SIZE))
                             .child(
                                 icon.default_content(ColorRole::OnSurface)
                                     .default_theme(theme.clone()),
@@ -154,7 +158,7 @@ mod tests {
     use gpui::{Context, Render, TestAppContext, VisualTestContext, px};
 
     use super::*;
-    use crate::{ButtonColors, FabColor};
+    use crate::{ButtonColors, ButtonSize, FabColor};
 
     /// 幅 600 の中に `bar` が作るバーを置く
     struct BarView {
@@ -261,5 +265,47 @@ mod tests {
             filled(cx, ColorRole::Primary),
             vec![(8.0, 22.0, 40.0, 40.0), (76.0, 22.0, 40.0, 40.0)]
         );
+    }
+
+    /// 配置枠は 48dp を下限にアイコンボタンの大きさまで広がり、大きなボタンどうしも重ならない
+    #[gpui::test]
+    fn _48dp_より大きいアイコンボタンは重ならずに並ぶ(cx: &mut TestAppContext) {
+        let cx = open(cx, || {
+            BottomAppBar::new("bar")
+                .action(button("a", ColorRole::Primary).size(ButtonSize::Medium))
+                .action(button("b", ColorRole::Primary).size(ButtonSize::Medium))
+        });
+        let rects = filled(cx, ColorRole::Primary);
+        assert_eq!(rects.len(), 2);
+        assert!(
+            rects[0].0 + rects[0].2 <= rects[1].0,
+            "隣のボタンと重ならないこと: {rects:?}"
+        );
+    }
+
+    /// バーは縦の flex の中で、内容が親の高さを超えても縮まない
+    #[gpui::test]
+    fn 縦の_flex_の中でも高さを保つ(cx: &mut TestAppContext) {
+        struct ColumnView;
+        impl Render for ColumnView {
+            fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+                div()
+                    .w(px(600.0))
+                    .h(px(200.0))
+                    .flex()
+                    .flex_col()
+                    .child(div().h(px(400.0)))
+                    .child(BottomAppBar::new("bar"))
+            }
+        }
+        cx.update(crate::init);
+        let (_, cx) = cx.add_window_view(|window, cx| {
+            cx.init_md3_theme(window);
+            ColumnView
+        });
+        cx.run_until_parked();
+        let rects = filled(cx, ColorRole::SurfaceContainer);
+        assert_eq!(rects.len(), 1);
+        assert_eq!(rects[0].3, 80.0);
     }
 }
