@@ -26,6 +26,7 @@ mod test_window;
 pub mod text;
 pub mod text_field;
 pub mod toggle;
+pub mod toolbar;
 pub mod tooltip;
 
 pub use focus_visible::is_focus_visible;

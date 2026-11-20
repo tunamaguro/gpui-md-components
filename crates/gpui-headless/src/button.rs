@@ -22,6 +22,7 @@ pub struct Button {
     on_click: Option<ClickHandler>,
     provided_focus_handle: Option<FocusHandle>,
     availability: Availability,
+    tab_stop: bool,
     pub(crate) menu: Option<Menu>,
 }
 
@@ -38,6 +39,7 @@ impl Button {
             on_click: None,
             provided_focus_handle: None,
             availability: Availability::Enabled,
+            tab_stop: true,
             menu: None,
         }
     }
@@ -76,9 +78,19 @@ impl Button {
         })
     }
 
+    /// `false` なら Tab で到達しないようにする。既定では `true`
+    ///
+    /// フォーカスできるボタンは、`false` でもクリックや [`FocusHandle`] でフォーカスを受ける。
+    /// [`Toolbar`](crate::toolbar::Toolbar) のように、矢印キーで項目の間を移るグループの中に置くときに使う
+    pub fn tab_stop(mut self, tab_stop: bool) -> Self {
+        self.tab_stop = tab_stop;
+        self
+    }
+
     /// `focus_handle` をこのボタンのフォーカスとして使う
     ///
-    /// 呼び出し側から `focus_handle` でフォーカスの移動や判定ができる。`focus_handle` は Tab で到達できるように設定される。
+    /// 呼び出し側から `focus_handle` でフォーカスの移動や判定ができる。
+    /// `focus_handle` は [`Button::tab_stop`] に従って Tab で到達できるかが設定される。
     /// 指定しない場合はボタンが内部でフォーカスを持つ
     pub fn track_focus(mut self, focus_handle: &FocusHandle) -> Self {
         self.provided_focus_handle = Some(focus_handle.clone());
@@ -120,7 +132,7 @@ impl RenderOnce for Button {
                 })
             })
             .when(focusable, |this| {
-                this.track_focus(&focus_handle.clone().tab_stop(true))
+                this.track_focus(&focus_handle.clone().tab_stop(self.tab_stop))
             })
             .when_some(on_click, |this, on_click| this.on_click(on_click))
             .when_some(self.menu, |this, menu| {
