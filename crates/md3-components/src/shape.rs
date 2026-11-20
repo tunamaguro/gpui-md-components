@@ -55,6 +55,7 @@ impl Shaped {
         feature = "list",
         feature = "menu",
         feature = "navigation-bar",
+        feature = "navigation-drawer",
         feature = "navigation-rail",
         feature = "slider"
     ))]

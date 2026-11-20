@@ -463,7 +463,7 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                 (
                     window.use_keyed_state("scroll", cx, |_, _| ScrollHandle::new()),
                     window.use_keyed_state("last-focused", cx, |_, _| {
-                        (None::<usize>, px(0.0), None::<(Pixels, Pixels)>)
+                        util::FocusedPlacement::default()
                     }),
                 )
             });
@@ -547,33 +547,14 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationRail<T> {
                 if *painted_width.read(cx) != Some(bounds.size.width) {
                     painted_width.update(cx, |width, _| *width = Some(bounds.size.width));
                 }
-                let viewport = scroll.bounds();
-                let item = focused_child.and_then(|child| scroll.bounds_for_item(child));
-                // 子の範囲はスクロールする前の位置なので、表示領域からの位置はスクロールで変わらず、配置が変わると変わる
-                let placement =
-                    item.map(|item| (item.top() - viewport.top(), item.bottom() - viewport.top()));
-                let key = (focused, viewport.size.height, placement);
-                if key == *last_focused.read(cx) {
-                    return;
-                }
-                last_focused.update(cx, |last, _| *last = key);
-                let Some(item) = item else {
-                    return;
-                };
-                // 今のオフセットを足して画面上の位置にする
-                let mut offset = scroll.offset();
-                let top = item.top() + offset.y - ring_outset;
-                let bottom = item.bottom() + offset.y + ring_outset;
-                if top < viewport.top() {
-                    offset.y += viewport.top() - top;
-                } else if bottom > viewport.bottom() {
-                    offset.y -= bottom - viewport.bottom();
-                }
-                if offset != scroll.offset() {
-                    scroll.set_offset(offset);
-                    // 変えたオフセットで描き直す
-                    window.request_animation_frame();
-                }
+                util::scroll_focused_into_view(
+                    &scroll,
+                    &last_focused,
+                    focused_child,
+                    ring_outset,
+                    window,
+                    cx,
+                );
             },
             |_, _, _, _| {},
         )

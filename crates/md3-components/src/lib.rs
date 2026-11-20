@@ -46,6 +46,8 @@ mod loading_indicator;
 mod menu;
 #[cfg(feature = "navigation-bar")]
 mod navigation_bar;
+#[cfg(feature = "navigation-drawer")]
+mod navigation_drawer;
 #[cfg(feature = "navigation-rail")]
 mod navigation_rail;
 // 進み具合を表す部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
@@ -72,6 +74,7 @@ mod select;
     feature = "loading-indicator",
     feature = "menu",
     feature = "navigation-bar",
+    feature = "navigation-drawer",
     feature = "navigation-rail",
     feature = "segmented-button",
     feature = "select",
@@ -104,6 +107,7 @@ mod tooltip;
     feature = "list",
     feature = "menu",
     feature = "navigation-bar",
+    feature = "navigation-drawer",
     feature = "navigation-rail",
     feature = "radio-button",
     feature = "segmented-button",
@@ -168,6 +172,8 @@ pub use menu::{Menu, MenuGroup, MenuItem, MenuItemKind, MenuVariant};
 pub use navigation_bar::{
     NavigationBar, NavigationBarArrangement, NavigationBarItem, NavigationItemIconPosition,
 };
+#[cfg(feature = "navigation-drawer")]
+pub use navigation_drawer::{NavigationDrawer, NavigationDrawerItem};
 #[cfg(feature = "navigation-rail")]
 pub use navigation_rail::{NavigationRail, NavigationRailArrangement, NavigationRailItem};
 #[cfg(any(feature = "loading-indicator", feature = "progress-indicator"))]
