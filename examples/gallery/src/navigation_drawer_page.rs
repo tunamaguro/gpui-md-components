@@ -82,10 +82,11 @@ impl Render for NavigationDrawerPage {
             .focus_visible(|style| style.border_color(theme.color(focus_ring::COLOR)))
             .child(label(&theme, "drawer-content", format!("{name} content")));
 
+        // ドロワーの項目の並びがスクロールしてフォーカスのある項目を表示できるよう、ページはスクロールさせず、
+        // ドロワーをページの残りの高さに収める
         div()
             .id("navigation-drawer-page")
             .size_full()
-            .overflow_y_scroll()
             .bg(theme.color(ColorRole::Surface))
             .text_color(theme.color(ColorRole::OnSurface))
             .p_6()
@@ -98,7 +99,8 @@ impl Render for NavigationDrawerPage {
                 div()
                     .flex()
                     .w_full()
-                    .h(px(480.))
+                    .flex_1()
+                    .min_h_0()
                     .bg(theme.color(ColorRole::SurfaceContainerLowest))
                     .child(drawer)
                     .child(panel),

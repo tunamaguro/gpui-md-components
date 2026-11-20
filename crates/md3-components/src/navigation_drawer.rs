@@ -92,7 +92,7 @@ impl<T: PartialEq + 'static> NavigationDrawer<T> {
 
     /// 項目の上に `header` を置く。アプリの名前やドロワーの見出しを置くときに使う
     ///
-    /// ヘッダーはシートの幅で、項目と同じくスクロールせず、シートの上端に置く
+    /// ヘッダーはシートの幅でシートの上端に置き、項目の並びがスクロールしても動かない
     pub fn header(mut self, header: impl IntoElement) -> Self {
         self.header = Some(header.into_any_element());
         self
