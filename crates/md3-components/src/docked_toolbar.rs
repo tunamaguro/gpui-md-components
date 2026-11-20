@@ -10,7 +10,7 @@
 
 use gpui::{
     AnyElement, App, ElementId, IntoElement, ParentElement, Refineable, RenderOnce, SharedString,
-    StatefulInteractiveElement, StyleRefinement, Styled, Window, prelude::FluentBuilder,
+    StatefulInteractiveElement, StyleRefinement, Styled, Window, div, prelude::FluentBuilder,
 };
 use gpui_headless::toolbar::Toolbar;
 use md3_theme::md3_color::ColorRole;
@@ -25,7 +25,7 @@ pub enum DockedToolbarArrangement {
     /// 先頭の操作を左端、末尾の操作を右端に置き、残りの幅を操作の間に等しく分ける
     #[default]
     SpaceBetween,
-    /// 操作を 32dp の間隔で中央に寄せる
+    /// 操作を 32dp の間隔で中央に寄せる。幅が足りなければ左端から並べる
     Centered,
 }
 
@@ -34,10 +34,13 @@ pub enum DockedToolbarArrangement {
 /// 画面の端に付けて置く、操作を横に並べるバー。バーは置いた場所の幅に広がり、高さは 64dp で、縦にも横にも縮まない。
 /// 左右に 16dp の余白を取り、操作は [`DockedToolbar::arrangement`] に従って並べる。
 /// [`DockedToolbar::action`] で置いたアイコンボタンは、少なくとも 48dp 四方の枠の中央に置く。押せる範囲はアイコンボタン自身の大きさのまま。
-/// 子の要素は操作の間に、置いた順に並ぶ。子の要素には区切り線のようなフォーカスを持たない要素を渡すこと
+/// 子の要素は操作の間に、置いた順に並ぶ。子の要素には区切り線のようなフォーカスを持たない要素を渡すこと。
+/// 幅に収まらない操作はバーの右端を越えて描かれる。隠れた操作にも矢印キーで移れるため、操作の数と大きさは幅に収まるように選ぶこと。
+/// 背景を [`Styled`] で変えても [`DockedToolbar::action`] のアイコンの色は変わらないため、
+/// 背景に合わない場合はアイコンボタンごとに [`IconButton::colors`] で指定すること
 ///
 /// 支援技術には role `toolbar` と横の向き、[`DockedToolbar::new`] の `label` を名前として公開される。
-/// [`DockedToolbar::action`] の操作のうち Tab で到達できるのは 1 つだけで、
+/// フォーカスできる操作があれば、そのうち Tab で到達できるのは 1 つだけで、
 /// 修飾キーなしの左右の矢印キーで前後の操作へフォーカスを移す。端では反対の端に戻り、無効な操作は飛ばす。
 /// メニューを持つ操作でも、移れる操作がほかにあれば左右の矢印キーは移動に使う
 #[derive(IntoElement)]
@@ -106,15 +109,25 @@ impl RenderOnce for DockedToolbar {
             .h(dp(docked_toolbar::CONTAINER_HEIGHT))
             .pl(dp(docked_toolbar::CONTAINER_LEADING_SPACE))
             .pr(dp(docked_toolbar::CONTAINER_TRAILING_SPACE))
-            .map(|this| match self.arrangement {
-                DockedToolbarArrangement::SpaceBetween => this.justify_between(),
-                // Compose の `FlexibleFixedHorizontalArrangement`
-                DockedToolbarArrangement::Centered => this
-                    .justify_center()
-                    .gap(dp(docked_toolbar::CONTAINER_MAX_SPACING)),
-            })
+            // 幅が足りない場合、space-between は左端に寄せる
+            .when(
+                self.arrangement == DockedToolbarArrangement::SpaceBetween,
+                |this| this.justify_between(),
+            )
+            .when(
+                self.arrangement == DockedToolbarArrangement::Centered,
+                |this| this.gap(dp(docked_toolbar::CONTAINER_MAX_SPACING)),
+            )
             // CONTAINER_SHAPE は CornerNone なので角を丸めない
             .bg(theme.color(docked_toolbar::CONTAINER_COLOR));
+        // Compose の `FlexibleFixedHorizontalArrangement`。justify_center は幅が足りないと左右にはみ出すため、
+        // 余った幅を両端の空きで分け合い、足りなければ空きを 0 にして左端から並べる。
+        // 空きと操作の間にも gap が入るため、その分を負の余白で打ち消す
+        let centered = self.arrangement == DockedToolbarArrangement::Centered;
+        let spacing = dp(docked_toolbar::CONTAINER_MAX_SPACING);
+        if centered {
+            toolbar = toolbar.child(div().flex_1().min_w_0().mr(-spacing));
+        }
         for child in self.children {
             toolbar = match child {
                 Child::Icon(icon) => toolbar.item(icon.into_toolbar_item(
@@ -127,6 +140,9 @@ impl RenderOnce for DockedToolbar {
                 )),
                 Child::Element(element) => toolbar.child(element),
             };
+        }
+        if centered {
+            toolbar = toolbar.child(div().flex_1().min_w_0().ml(-spacing));
         }
         toolbar.style().refine(&self.style);
         toolbar
@@ -156,7 +172,7 @@ enum Child {
 
 #[cfg(test)]
 mod tests {
-    use gpui::{Context, Render, TestAppContext, VisualTestContext, div, px};
+    use gpui::{Context, Render, TestAppContext, VisualTestContext, px};
 
     use super::*;
     use crate::ButtonColors;
@@ -259,6 +275,28 @@ mod tests {
             filled(cx, ColorRole::Primary),
             vec![(240.0, 48.0, 40.0, 40.0), (320.0, 48.0, 40.0, 40.0)]
         );
+    }
+
+    /// 期待値は 6 つの 48dp の枠と 5 つの 32dp の間隔 (448) が、余白を除いた幅 (288) に収まらないため左端から並ぶ。
+    /// 先頭の操作は左の余白の内側に置かれ、左にはみ出さない
+    #[gpui::test]
+    fn centered_は幅が足りなければ左端から並べる(cx: &mut TestAppContext) {
+        let cx = open(cx, || {
+            DockedToolbar::new("toolbar", "Edit")
+                .w(px(320.0))
+                .arrangement(DockedToolbarArrangement::Centered)
+                .action(button("a", ColorRole::Primary))
+                .action(button("b", ColorRole::Primary))
+                .action(button("c", ColorRole::Primary))
+                .action(button("d", ColorRole::Primary))
+                .action(button("e", ColorRole::Primary))
+                .action(button("f", ColorRole::Primary))
+        });
+        let xs: Vec<f32> = filled(cx, ColorRole::Primary)
+            .into_iter()
+            .map(|rect| rect.0)
+            .collect();
+        assert_eq!(xs, vec![20.0, 100.0, 180.0, 260.0, 340.0, 420.0]);
     }
 
     /// 操作の間を左右の矢印キーで移る
