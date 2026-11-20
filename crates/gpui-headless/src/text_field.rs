@@ -207,8 +207,8 @@ impl TextField {
 
     /// フォーカス中に修飾キーなしの Enter を押されたときに `handler` を呼ぶ。複数回呼んだ場合は最後に渡した `handler` だけを呼ぶ
     ///
-    /// `handler` には最後に編集した後の文字列 ([`TextField::on_change`] に渡したものと同じ) を渡す。
-    /// IME で変換中の間と、無効な間は呼ばない。
+    /// `handler` には Enter を押した時点で部品が持つ文字列を渡す。直前の編集を呼び出し側が受け入れていない場合も、
+    /// 次の描画までは編集した後の文字列になる。IME で変換中の間と、無効な間は呼ばない。
     /// 読み取り専用の間と、[`TextField::on_change`] を設定していない間も呼ぶ
     pub fn on_submit(
         mut self,
@@ -1689,6 +1689,22 @@ mod tests {
         assert_eq!(
             *view.read_with(cx, |view, _| view.submits.clone()).borrow(),
             ["abc"]
+        );
+    }
+
+    #[gpui::test]
+    fn 修飾キー付きの_enter_では確定せず_読み取り専用でも確定する(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "ab");
+        focus(cx);
+        cx.simulate_keystrokes("shift-enter ctrl-enter");
+        assert!(view.read_with(cx, |view, _| view.submits.borrow().is_empty()));
+        update(&view, cx, |view| view.read_only = true);
+        cx.simulate_keystrokes("enter");
+        assert_eq!(
+            *view.read_with(cx, |view, _| view.submits.clone()).borrow(),
+            ["ab"]
         );
     }
 

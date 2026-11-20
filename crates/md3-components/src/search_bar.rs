@@ -10,31 +10,31 @@
 //! MD3 の検索バー
 
 use gpui::{
-    AnyElement, App, CursorStyle, ElementId, InteractiveElement, IntoElement, MouseButton,
-    ParentElement, Refineable, RenderOnce, SharedString, StatefulInteractiveElement,
+    AnyElement, App, CursorStyle, ElementId, FocusHandle, InteractiveElement, IntoElement,
+    MouseButton, ParentElement, Refineable, RenderOnce, SharedString, StatefulInteractiveElement,
     StyleRefinement, Styled, Window, div, prelude::FluentBuilder, svg,
 };
 use gpui_headless::text_field::TextField as HeadlessTextField;
 use md3_icons::StyledIcon;
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::search_bar as tokens;
-use md3_theme::md3_tokens::{Dp, supplement::text_field as supplement};
+use md3_theme::md3_tokens::{Dp, focus_ring, supplement::text_field as supplement};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
 use crate::shape::Shaped;
 use crate::util;
 
-/// 検索バーの最小の幅 (Compose の `SearchBarMinWidth`)
-const MIN_WIDTH: Dp = Dp(360.0);
-/// 検索バーの最大の幅 (Compose の `SearchBarMaxWidth`)
-const MAX_WIDTH: Dp = Dp(720.0);
+/// 検索バーの既定の幅 (Compose の `SearchBarMinWidth`)
+const DEFAULT_WIDTH: Dp = Dp(360.0);
+/// 末尾の要素を置く枠の最小の大きさ (Compose の `TextFieldImplKt.MinIconSize` の 48dp)
+const TRAILING_MIN_SIZE: Dp = Dp(48.0);
 /// 先頭のアイコンの大きさ (Compose の `Icon` の既定)
 const ICON_SIZE: Dp = Dp(24.0);
 /// 先頭のアイコンの前の余白。Compose の 48dp のアイコンの枠の余白 12dp と、枠をずらす 4dp の和
 const LEADING_SPACE: Dp = Dp(16.0);
 /// 先頭のアイコンと文の間の余白。Compose のアイコンの枠の余白 12dp と、文の前の余白 4dp の和から、枠をずらす 4dp を引いた値
 const ICON_TEXT_SPACE: Dp = Dp(12.0);
-/// 末尾の要素の後ろの余白と、文と末尾の要素の間の余白 (Compose の文の後ろの余白と、末尾の枠をずらす 4dp)
+/// 末尾の要素の枠の後ろの余白と、文と枠の間の余白 (Compose の文の後ろの余白と、末尾の枠をずらす 4dp)
 const TRAILING_SPACE: Dp = Dp(4.0);
 /// 末尾の要素が無いときの文の後ろの余白 (Compose の `TextFieldDefaults.contentPaddingWithoutLabel` の 16dp)
 const TEXT_END_SPACE: Dp = Dp(16.0);
@@ -44,14 +44,16 @@ type ChangeHandler = Box<dyn Fn(&SharedString, &mut Window, &mut App)>;
 /// MD3 の検索バー (Compose の `SearchBar` と `SearchBarDefaults.InputField`)
 ///
 /// 角の丸い容器に、検索のアイコン、1 行の入力欄、子の要素を左から並べる。
-/// 子の要素 (アイコンボタンやアバターなど) は末尾に並び、文字の色は OnSurfaceVariant になる。
-/// 検索バーは高さ 56dp、幅 360dp から 720dp で、[`Styled`] で指定した大きさに従う。
+/// 子の要素 (アイコンボタンやアバターなど) は末尾の高さと幅 48dp 以上の枠の中央に並び、文字の色は OnSurfaceVariant になる。
+/// 検索バーは高さ 56dp、既定の幅 360dp で、親の幅を超えない。[`Styled`] で指定した大きさに従う。
 /// 文字列は呼び出し側が持ち、[`SearchBar::new`] に毎回渡す。検索バー自身は文字列を変えず、
 /// 編集した後の文字列を [`SearchBar::on_change`] で、確定した文字列を [`SearchBar::on_search`] で求める
 ///
-/// - 入力欄の操作は [`crate::TextField`] と同じ
+/// - 文字の入力と IME による入力、カーソルの移動と選択、クリップボードの操作。改行は入れない
 /// - 入力欄にフォーカスがある間、IME で変換中でなければ、修飾キーなしの Enter で検索を求める
-/// - 容器の入力欄と子の要素の外を押すと、入力欄にフォーカスを移す
+/// - 容器の、入力欄とフォーカスを受ける子の要素の外を押すと、入力欄にフォーカスを移す
+///
+/// 入力欄にキーボードでフォーカスを移した間は、容器の内側に Secondary のフォーカスリングを描く。
 ///
 /// [`SearchBar::placeholder`] のプレースホルダーは、文字列が空の間だけ入力欄に表示する。
 /// 検索の候補を表示する画面 (Compose の `ExpandedFullScreenSearchBar` や `ExpandedDockedSearchBar`) は持たない
@@ -68,6 +70,7 @@ pub struct SearchBar {
     children: Vec<AnyElement>,
     on_change: Option<ChangeHandler>,
     on_search: Option<ChangeHandler>,
+    focus_handle: Option<FocusHandle>,
     style: StyleRefinement,
     theme: Option<SharedTheme>,
 }
@@ -92,6 +95,7 @@ impl SearchBar {
             children: Vec::new(),
             on_change: None,
             on_search: None,
+            focus_handle: None,
             style: StyleRefinement::default(),
             theme: None,
         }
@@ -135,6 +139,15 @@ impl SearchBar {
         self
     }
 
+    /// `focus_handle` を入力欄のフォーカスとして使う
+    ///
+    /// 呼び出し側から `focus_handle` で入力欄へのフォーカスの移動や判定ができる。`focus_handle` は Tab で到達できるように設定される。
+    /// 指定しない場合は検索バーが内部でフォーカスを持つ
+    pub fn track_focus(mut self, focus_handle: &FocusHandle) -> Self {
+        self.focus_handle = Some(focus_handle.clone());
+        self
+    }
+
     /// アプリ全体のテーマ ([`ThemeExt::md3_theme`]) の代わりに `theme` で描く
     pub fn theme(mut self, theme: SharedTheme) -> Self {
         self.theme = Some(theme);
@@ -157,9 +170,12 @@ impl Styled for SearchBar {
 impl RenderOnce for SearchBar {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
-        let focus_handle = util::keyed_focus_handle(&self.id, window, cx);
+        let focus_handle = self
+            .focus_handle
+            .unwrap_or_else(|| util::keyed_focus_handle(&self.id, window, cx));
+        let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
 
-        let mut input = HeadlessTextField::new(self.id.clone(), self.value.clone())
+        let mut input = HeadlessTextField::new("input", self.value.clone())
             .track_focus(&focus_handle.clone().tab_index(0))
             .caret_color(theme.color(ColorRole::Primary))
             .selection_color(
@@ -207,13 +223,15 @@ impl RenderOnce for SearchBar {
         );
         let mut text_style = theme.text_style(tokens::INPUT_TEXT_FONT);
         text_style.color = Some(theme.color(tokens::INPUT_TEXT_COLOR));
+        // 子の要素の id を検索バーごとに分けるため、外側の箱にも id を付ける
         let mut bar = div()
+            .id(self.id.clone())
             .relative()
             .flex()
             .items_center()
             .h(dp(tokens::CONTAINER_HEIGHT))
-            .min_w(dp(MIN_WIDTH))
-            .max_w(dp(MAX_WIDTH))
+            .w(dp(DEFAULT_WIDTH))
+            .max_w_full()
             .pl(dp(LEADING_SPACE))
             .pr(dp(if has_children {
                 TRAILING_SPACE
@@ -221,9 +239,15 @@ impl RenderOnce for SearchBar {
                 TEXT_END_SPACE
             }))
             .cursor(CursorStyle::IBeam)
-            // 文の外を押してもフォーカスを移す。文と子の要素の上の押下はそれぞれが受ける
-            .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-                window.focus(&focus_handle, cx);
+            // 文の外を押してもフォーカスを移す。文の上の押下はテキストフィールドが受けてここに届かず、
+            // フォーカスを受ける子の要素の上の押下は、子がフォーカスを移して既定の処理を止める
+            .on_mouse_down(MouseButton::Left, {
+                let focus_handle = focus_handle.clone();
+                move |_, window, cx| {
+                    if !window.default_prevented() {
+                        window.focus(&focus_handle, cx);
+                    }
+                }
             })
             .child(container)
             .child(
@@ -252,11 +276,29 @@ impl RenderOnce for SearchBar {
                         .flex()
                         .flex_none()
                         .items_center()
+                        .justify_center()
+                        .min_w(dp(TRAILING_MIN_SIZE))
+                        .min_h(dp(TRAILING_MIN_SIZE))
                         .ml(dp(TRAILING_SPACE))
                         .text_color(theme.color(tokens::TRAILING_ICON_COLOR))
                         .cursor(CursorStyle::Arrow)
                         .children(self.children),
                 )
+            })
+            .when(focus_visible, |this| {
+                // Compose はキーボードのフォーカスで容器の内側にリングを描く (`RippleThemeConfiguration.Focus.InsetRing`)
+                this.child(Shaped::new(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .right_0()
+                        .bottom_0()
+                        .border(dp(focus_ring::WIDTH))
+                        .border_color(theme.color(tokens::FOCUS_INDICATOR_COLOR)),
+                    theme.clone(),
+                    tokens::CONTAINER_SHAPE,
+                ))
             });
         bar.text_style().refine(&text_style);
         bar.style().refine(&self.style);
@@ -269,53 +311,128 @@ mod tests {
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    use gpui::{Context, Modifiers, Render, TestAppContext, VisualTestContext, point, px};
+    use gpui::{
+        Context, KeyDownEvent, KeyUpEvent, Keystroke, Modifiers, Render, TestAppContext,
+        VisualTestContext, point, px,
+    };
 
     use super::*;
+    use gpui_headless::button::Button;
 
-    /// (100, 100) に幅 400 の検索バーを置き、文字列と検索を求められた文字列を持つビュー
+    /// (100, 100) に検索バーを置き、文字列と、検索を求められた文字列と、押された末尾のボタンを持つビュー
     struct BarView {
         value: SharedString,
         searches: Rc<RefCell<Vec<SharedString>>>,
+        clicks: Rc<RefCell<Vec<&'static str>>>,
         trailing: bool,
+        /// 検索バーを置く親の幅
+        parent_width: f32,
+        /// 同じ子の id を持つ 2 本目の検索バーを置くか
+        second: bool,
+        focus: FocusHandle,
     }
 
     impl Render for BarView {
         fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-            let searches = self.searches.clone();
-            div().size_full().child(
-                SearchBar::new("search", self.value.clone(), "Search")
+            let bar = |id: &'static str, this: &Self, cx: &mut Context<Self>| {
+                let searches = this.searches.clone();
+                let clicks = this.clicks.clone();
+                SearchBar::new(id, this.value.clone(), "Search")
                     .placeholder("Search mail")
                     .on_change(cx.listener(|this, value: &SharedString, _, cx| {
                         this.value = value.clone();
                         cx.notify();
                     }))
                     .on_search(move |value, _, _| searches.borrow_mut().push(value.clone()))
-                    .when(self.trailing, |this| this.child(div().size(px(48.))))
-                    .absolute()
-                    .left(px(100.))
-                    .top(px(100.))
-                    .w(px(400.)),
-            )
+                    .when(this.trailing, |this| {
+                        this.child(
+                            // アイコンボタンと同じ大きさ 40 の、フォーカスを受けるボタン
+                            Button::new("clear")
+                                .size(px(40.))
+                                .on_click(move |_, _, _| clicks.borrow_mut().push(id)),
+                        )
+                    })
+            };
+            div()
+                .absolute()
+                .left(px(100.))
+                .top(px(100.))
+                .w(px(self.parent_width))
+                .flex()
+                .flex_col()
+                .child(bar("first", self, cx).track_focus(&self.focus))
+                .when(self.second, |this| this.child(bar("second", self, cx)))
         }
     }
 
     fn setup(
         cx: &mut TestAppContext,
-        trailing: bool,
+        f: impl FnOnce(&mut BarView),
     ) -> (gpui::Entity<BarView>, &mut VisualTestContext) {
         cx.update(crate::init);
         let (view, cx) = cx.add_window_view(|window, cx| {
             cx.init_md3_theme(window);
-            BarView {
+            let mut view = BarView {
                 value: SharedString::default(),
                 searches: Rc::default(),
-                trailing,
-            }
+                clicks: Rc::default(),
+                trailing: true,
+                parent_width: 800.,
+                second: false,
+                focus: cx.focus_handle(),
+            };
+            f(&mut view);
+            view
         });
         cx.update(|window, _| window.activate_window());
         cx.run_until_parked();
         (view, cx)
+    }
+
+    /// 色 `role` で塗った矩形 (x, y, 幅, 高さ)
+    fn quads(cx: &mut VisualTestContext, role: ColorRole) -> Vec<(f32, f32, f32, f32)> {
+        cx.update(|window, cx| {
+            let scale = window.scale_factor();
+            let color: gpui::Background = cx.md3_theme().color(role).into();
+            window
+                .painted_quads()
+                .into_iter()
+                .filter(|quad| quad.background == color)
+                .map(|quad| {
+                    let b = quad.bounds;
+                    (
+                        b.origin.x.0 / scale,
+                        b.origin.y.0 / scale,
+                        b.size.width.0 / scale,
+                        b.size.height.0 / scale,
+                    )
+                })
+                .collect()
+        })
+    }
+
+    /// ボタンはキーを離したときに押されるため、押して離す
+    fn press(cx: &mut VisualTestContext, key: &'static str) {
+        let keystroke = Keystroke::parse(key).expect("テストのキー表記が有効であること");
+        cx.simulate_event(KeyDownEvent {
+            keystroke: keystroke.clone(),
+            is_held: false,
+            prefer_character_input: false,
+        });
+        cx.simulate_event(KeyUpEvent { keystroke });
+        cx.run_until_parked();
+    }
+
+    /// 枠線を色 `role` で描いた矩形の数
+    fn borders(cx: &mut VisualTestContext, role: ColorRole) -> usize {
+        cx.update(|window, cx| {
+            let color = cx.md3_theme().color(role);
+            window
+                .painted_quads()
+                .into_iter()
+                .filter(|quad| quad.border_color == color && quad.border_widths.top.0 > 0.)
+                .count()
+        })
     }
 
     #[cfg(debug_assertions)]
@@ -337,52 +454,47 @@ mod tests {
     fn アイコン_入力欄_末尾の要素を_compose_と同じ余白で並べる(
         cx: &mut TestAppContext,
     ) {
-        let (_, cx) = setup(cx, true);
-        let container = cx.update(|window, cx| {
-            let scale = window.scale_factor();
-            let color: gpui::Background = cx.md3_theme().color(tokens::CONTAINER_COLOR).into();
-            window
-                .painted_quads()
-                .into_iter()
-                .filter(|quad| quad.background == color)
-                .map(|quad| {
-                    let b = quad.bounds;
-                    (
-                        b.origin.x.0 / scale,
-                        b.origin.y.0 / scale,
-                        b.size.width.0 / scale,
-                        b.size.height.0 / scale,
-                    )
-                })
-                .collect::<Vec<_>>()
-        });
-        assert_eq!(container, [(100., 100., 400., 56.)]);
+        let (_, cx) = setup(cx, |_| {});
+        assert_eq!(
+            quads(cx, tokens::CONTAINER_COLOR),
+            [(100., 100., 360., 56.)],
+            "既定の幅は 360"
+        );
         // 先頭の余白 16、アイコン 24、アイコンと文の間 12
-        let (x, _, _, _) = bounds(cx, "md3-search-bar-input");
+        let (x, _, w, _) = bounds(cx, "md3-search-bar-input");
         assert_eq!(x, 152.);
-        // 末尾の要素の後ろの余白 4、文と末尾の要素の間 4
-        let (x, y, w, h) = bounds(cx, "md3-search-bar-trailing");
-        assert_eq!((x, y, w, h), (448., 104., 48., 48.));
-        let (input_x, _, input_w, _) = bounds(cx, "md3-search-bar-input");
-        assert_eq!(input_x + input_w, 444.);
+        // 末尾の枠は 48 以上で、後ろの余白 4、文との間 4
+        assert_eq!(
+            bounds(cx, "md3-search-bar-trailing"),
+            (408., 104., 48., 48.)
+        );
+        assert_eq!(x + w, 404.);
     }
 
-    // gpui は debug_assertions のあるビルドでだけ debug_selector の位置を記録する
     #[cfg(debug_assertions)]
     #[gpui::test]
     fn 末尾の要素が無ければ文の後ろに_16_の余白を空ける(
         cx: &mut TestAppContext,
     ) {
-        let (_, cx) = setup(cx, false);
+        let (_, cx) = setup(cx, |view| view.trailing = false);
         let (x, _, w, _) = bounds(cx, "md3-search-bar-input");
-        assert_eq!(x + w, 484.);
+        assert_eq!(x + w, 444.);
+    }
+
+    #[gpui::test]
+    fn 親の幅が既定の幅より狭ければ親の幅に縮む(cx: &mut TestAppContext) {
+        let (_, cx) = setup(cx, |view| view.parent_width = 300.);
+        assert_eq!(
+            quads(cx, tokens::CONTAINER_COLOR),
+            [(100., 100., 300., 56.)]
+        );
     }
 
     #[gpui::test]
     fn 容器を押すと入力欄にフォーカスを移し_enter_で検索を求める(
         cx: &mut TestAppContext,
     ) {
-        let (view, cx) = setup(cx, false);
+        let (view, cx) = setup(cx, |_| {});
         // 先頭のアイコンの上を押す
         cx.simulate_click(point(px(120.), px(128.)), Modifiers::none());
         cx.simulate_input("rust");
@@ -392,5 +504,46 @@ mod tests {
         });
         assert_eq!(value, "rust");
         assert_eq!(searches, ["rust"]);
+    }
+
+    #[gpui::test]
+    fn 末尾のボタンを押すとボタンにフォーカスが残る(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, |_| {});
+        cx.simulate_click(point(px(432.), px(128.)), Modifiers::none());
+        let focus = view.read_with(cx, |view, _| view.focus.clone());
+        assert_eq!(
+            *view.read_with(cx, |view, _| view.clicks.clone()).borrow(),
+            ["first"]
+        );
+        assert!(
+            cx.update(|window, cx| window.focused(cx).is_some() && !focus.is_focused(window)),
+            "押したボタンからフォーカスを奪わないこと"
+        );
+    }
+
+    #[gpui::test]
+    fn 同じ子の_id_を持つ_2_本の検索バーの子は別に操作される(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, |view| view.second = true);
+        // Tab の順は 1 本目の入力欄、1 本目のボタン、2 本目の入力欄、2 本目のボタン
+        for key in ["tab", "tab", "space", "tab", "tab", "space"] {
+            press(cx, key);
+        }
+        assert_eq!(
+            *view.read_with(cx, |view, _| view.clicks.clone()).borrow(),
+            ["first", "second"]
+        );
+    }
+
+    #[gpui::test]
+    fn キーボードでフォーカスした間だけフォーカスリングを描く(
+        cx: &mut TestAppContext,
+    ) {
+        let (_, cx) = setup(cx, |_| {});
+        cx.simulate_click(point(px(120.), px(128.)), Modifiers::none());
+        assert_eq!(borders(cx, tokens::FOCUS_INDICATOR_COLOR), 0);
+        cx.simulate_keystrokes("tab shift-tab");
+        assert!(borders(cx, tokens::FOCUS_INDICATOR_COLOR) > 0);
     }
 }
