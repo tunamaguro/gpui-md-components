@@ -519,7 +519,6 @@ impl IconButton {
         self
     }
 
-    /// [`IconButton::theme`] でテーマを指定していなければ `theme` で描く
     /// `false` なら Tab で到達しないようにする。クリックや [`FocusHandle`] ではフォーカスを受ける
     #[cfg(feature = "floating-toolbar")]
     pub(crate) fn tab_stop(mut self, tab_stop: bool) -> Self {
@@ -543,6 +542,7 @@ impl IconButton {
             .unwrap_or_else(|| util::keyed_focus_handle(&self.id, window, cx))
     }
 
+    /// [`IconButton::theme`] でテーマを指定していなければ `theme` で描く
     #[cfg(any(
         feature = "app-bar",
         feature = "bottom-app-bar",

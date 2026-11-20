@@ -57,12 +57,14 @@ impl ToolbarItem {
 /// 操作を並べる、見た目を持たないツールバー
 ///
 /// 項目は [`Toolbar::item`] で、項目でない要素は `child` で加え、加えた順に並ぶ。
+/// `child` には区切り線のようなフォーカスを持たない要素を渡すこと。フォーカスを持つ要素は矢印キーで移れず、Tab でも別に止まる。
 /// 項目の並ぶ向きは [`Toolbar::orientation`] と同じにすること
 ///
 /// - Tab で到達できる項目は 1 つだけで、最初のフォーカスできる項目にする。
 ///   項目にフォーカスがある間は、その項目だけが Tab で到達できる。フォーカスできる項目が無ければ Tab で入らない
 /// - 修飾キーなしの矢印キー (横なら左右、縦なら上下) で前後の項目へフォーカスを移す。端では反対の端に戻る。
-///   [`Availability::Disabled`] の項目は飛ばす。移れる項目がほかに無い場合は、キー入力を祖先に渡す
+///   [`Availability::Disabled`] の項目は飛ばす。移れる項目がほかに無い場合は、キー入力を祖先に渡す。
+///   この矢印キーは項目より先に受け取るため、項目が同じキーを使っていても (上下キーで開くメニューなど) 項目の間の移動になる
 ///
 /// 支援技術には role `toolbar` と向きとして公開される。ツールバーの名前は `aria_label` で与えること。
 /// 見た目は [`Styled`] と [`InteractiveElement`] で呼び出し側が付ける
@@ -134,7 +136,9 @@ impl RenderOnce for Toolbar {
         self.inner
             .role(accesskit::Role::Toolbar)
             .aria_orientation(orientation)
-            .on_key_down(move |event, window, cx| {
+            // メニューのボタンのように同じ矢印キーを使う項目より先に受け取るため、capture で受ける。
+            // 項目にフォーカスが無ければ neighbor が None を返し、子の要素のキー入力には触れない
+            .capture_key_down(move |event, window, cx| {
                 if event.keystroke.modifiers.modified() {
                     return;
                 }
@@ -218,6 +222,15 @@ mod tests {
                                     .availability(availability)
                                     .aria_label(*name)
                                     .size(px(20.))
+                                    // 上下キーで開くメニューのボタンのように、項目自身も矢印キーを受けて伝播を止める
+                                    .on_key_down(|event, _, cx| {
+                                        if matches!(
+                                            event.keystroke.key.as_str(),
+                                            "up" | "down" | "left" | "right"
+                                        ) {
+                                            cx.stop_propagation();
+                                        }
+                                    })
                                     .into_any_element()
                             },
                         ))
