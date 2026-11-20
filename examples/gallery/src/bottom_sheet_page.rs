@@ -36,7 +36,7 @@ impl BottomSheetPage {
 impl Render for BottomSheetPage {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.md3_theme().clone();
-        // シートがウィンドウの幅を覆うと幕を押せないため、シートの上端に閉じるボタンを置く
+        // シートがウィンドウを覆うと幕を押せないため、シートの上端に閉じるボタンを置く
         let header = div().flex().justify_end().px(px(12.)).pt(px(12.)).child(
             IconButton::new("close-sheet", md3_icons::CLOSE, "Close").on_click(cx.listener(
                 |this, _, _, cx| {

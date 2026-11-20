@@ -9,14 +9,14 @@
 //! MD3 のモーダルのボトムシート
 
 use gpui::{
-    AnyElement, App, ElementId, InteractiveElement, IntoElement, ParentElement, Refineable,
-    RenderOnce, SharedString, StatefulInteractiveElement, StyleRefinement, Styled, Window, div,
-    relative,
+    AnyElement, App, ElementId, FocusHandle, InteractiveElement, IntoElement, ParentElement,
+    Refineable, RenderOnce, SharedString, StatefulInteractiveElement, StyleRefinement, Styled,
+    Window, div, relative,
 };
 use gpui_headless::dialog::{Dialog as HeadlessDialog, DismissReason};
 use md3_theme::md3_color::ColorRole;
-use md3_theme::md3_tokens::component::sheet_bottom as tokens;
-use md3_theme::md3_tokens::{Dp, supplement};
+use md3_theme::md3_tokens::Dp;
+use md3_theme::md3_tokens::component::{scrim, sheet_bottom as tokens};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
 use crate::shape::Shaped;
@@ -31,13 +31,17 @@ type DismissHandler = Box<dyn Fn(&DismissReason, &mut Window, &mut App)>;
 /// 開いている間、ウィンドウ全体を幕で覆い、その下端の中央に子の要素を入れたシートを描く。置いた場所のレイアウトには影響しない。
 /// シートは幅 640dp までウィンドウの幅に広がり、高さは子の内容に合わせてウィンドウの高さまで伸びる。
 /// 上側の角を丸め、SurfaceContainerLow で塗る。子の内容がウィンドウの高さに収まらない場合は、シートの中が縦にスクロールする。
-/// 余白は付けないため、子の要素で付けること。ドラッグで高さを変える操作と、途中まで開いた状態は持たない。
+/// 余白は付けないため、子の要素で付けること。子はシートの角丸で切り抜かないため、
+/// 上端の子に背景を付ける場合は、角丸の内側に収まるよう余白を空けること。
+/// ドラッグで高さを変える操作と、途中まで開いた状態は持たない。
 /// 開いているかどうかは呼び出し側が持ち、[`ModalBottomSheet::new`] に毎回渡す。閉じることは [`ModalBottomSheet::on_dismiss`] で求める。
 /// シートがウィンドウを覆うと幕をクリックできないため、Escape を使えない利用者のために、子に閉じるボタンを置くこと
 ///
 /// 開いている間はモーダルのダイアログとして振る舞う
 ///
-/// - 開いたとき、シートの中で Tab で到達できる最初の要素にフォーカスを移す。無ければシートにフォーカスを移す
+/// - 開いたとき、[`ModalBottomSheet::initial_focus`] の要素か、シートの中で Tab で到達できる最初の要素にフォーカスを移す。
+///   どちらも無ければシートにフォーカスを移す
+/// - フォーカスが表示範囲の外の要素に移っても、シートの中はスクロールしない
 /// - Tab と Shift+Tab はシートの中だけを巡る
 /// - 修飾キーなしの Escape と、幕のクリックで閉じるよう求める
 /// - 閉じたとき、フォーカスがシートの中にあれば、開く前にフォーカスのあった要素へ戻す
@@ -55,6 +59,7 @@ pub struct ModalBottomSheet {
     label: SharedString,
     children: Vec<AnyElement>,
     on_dismiss: Option<DismissHandler>,
+    initial_focus: Option<FocusHandle>,
     style: StyleRefinement,
     theme: Option<SharedTheme>,
 }
@@ -71,6 +76,7 @@ impl ModalBottomSheet {
             label: label.into(),
             children: Vec::new(),
             on_dismiss: None,
+            initial_focus: None,
             style: StyleRefinement::default(),
             theme: None,
         }
@@ -86,6 +92,15 @@ impl ModalBottomSheet {
         handler: impl Fn(&DismissReason, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_dismiss = Some(Box::new(handler));
+        self
+    }
+
+    /// 開いたときに、Tab で到達できる最初の要素の代わりに `focus_handle` の要素へフォーカスを移す
+    ///
+    /// `focus_handle` はシートの中の要素のフォーカスにすること。
+    /// 取り消せない操作を含むシートで、閉じるボタンにフォーカスしたいときなどに使う
+    pub fn initial_focus(mut self, focus_handle: &FocusHandle) -> Self {
+        self.initial_focus = Some(focus_handle.clone());
         self
     }
 
@@ -114,19 +129,22 @@ impl RenderOnce for ModalBottomSheet {
         if let Some(handler) = self.on_dismiss {
             dialog = dialog.on_dismiss(handler);
         }
+        if let Some(focus_handle) = &self.initial_focus {
+            dialog = dialog.initial_focus(focus_handle);
+        }
         if !self.open {
             return dialog;
         }
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
-        // 幕の色は Compose の `BottomSheetDefaults.ScrimColor` (Scrim の 32%)
+        // 幕の色は Compose の `BottomSheetDefaults.ScrimColor`
         let scrim = div()
             .flex()
             .flex_col()
             .justify_end()
             .items_center()
             .bg(theme
-                .color(ColorRole::Scrim)
-                .opacity(supplement::dialog::SCRIM_OPACITY));
+                .color(scrim::CONTAINER_COLOR)
+                .opacity(scrim::CONTAINER_OPACITY));
         // 角丸は描画時の大きさで決まるため、背景と影は Shaped で包んだ層に描く
         let container = Shaped::new(
             div()
@@ -147,7 +165,8 @@ impl RenderOnce for ModalBottomSheet {
             .flex_col()
             .min_h_0()
             .overflow_y_scroll()
-            .children(self.children);
+            // スクロール領域の直下の子は縮むため、内容の高さを保つ箱に入れる
+            .child(div().flex().flex_col().flex_none().children(self.children));
         let mut dialog = dialog
             .scrim(scrim)
             .aria_label(self.label)
@@ -276,6 +295,47 @@ mod tests {
                 100.0
             )]
         );
+    }
+
+    #[gpui::test]
+    fn ウィンドウより高い内容は縮めずにシートの中でスクロールする(
+        cx: &mut TestAppContext,
+    ) {
+        cx.update(crate::init);
+        let (_, cx) = cx.add_window_view(|window, cx| {
+            cx.init_md3_theme(window);
+            TallView
+        });
+        cx.run_until_parked();
+        let height = cx.update(|window, _| f32::from(window.viewport_size().height));
+        let (sheet, content) = cx.update(|window, cx| {
+            let scale = window.scale_factor();
+            let sheet: gpui::Background =
+                cx.md3_theme().color(tokens::DOCKED_CONTAINER_COLOR).into();
+            let content: gpui::Background = cx.md3_theme().color(ColorRole::Primary).into();
+            let heights = |color| {
+                window
+                    .painted_quads()
+                    .into_iter()
+                    .filter(|quad| quad.background == color)
+                    .map(|quad| quad.bounds.size.height.0 / scale)
+                    .collect::<Vec<_>>()
+            };
+            (heights(sheet), heights(content))
+        });
+        assert_eq!(sheet, vec![height], "シートはウィンドウの高さで止まること");
+        assert_eq!(content, vec![height * 2.0], "内容は縮めないこと");
+    }
+
+    /// ウィンドウの 2 倍の高さの内容を入れた、開いたシートを描くビュー
+    struct TallView;
+
+    impl Render for TallView {
+        fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            let height = window.viewport_size().height * 2.0;
+            let color = cx.md3_theme().color(ColorRole::Primary);
+            ModalBottomSheet::new("sheet", true, "Options").child(div().h(height).bg(color))
+        }
     }
 
     #[gpui::test]
