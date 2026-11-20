@@ -8,6 +8,8 @@ mod app_bar;
 mod badge;
 #[cfg(feature = "bottom-app-bar")]
 mod bottom_app_bar;
+#[cfg(feature = "bottom-sheet")]
+mod bottom_sheet;
 #[cfg(feature = "button")]
 mod button;
 #[cfg(feature = "button-group")]
@@ -64,6 +66,7 @@ mod select;
 // 形状を使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(any(
     feature = "badge",
+    feature = "bottom-sheet",
     feature = "button",
     feature = "card",
     feature = "chip",
@@ -125,6 +128,8 @@ pub use app_bar::{TopAppBar, TopAppBarTitleAlignment, TopAppBarVariant};
 pub use badge::{Badge, BadgeColors, BadgedBox};
 #[cfg(feature = "bottom-app-bar")]
 pub use bottom_app_bar::BottomAppBar;
+#[cfg(feature = "bottom-sheet")]
+pub use bottom_sheet::ModalBottomSheet;
 #[cfg(feature = "button")]
 pub use button::{
     Button, ButtonColors, ButtonShape, ButtonSize, ButtonVariant, ToggleButton, ToggleButtonColors,
@@ -175,7 +180,10 @@ pub use navigation_bar::{
 #[cfg(feature = "navigation-drawer")]
 pub use navigation_drawer::{ModalNavigationDrawer, NavigationDrawer, NavigationDrawerItem};
 // dialog feature が有効なら dialog から公開している
-#[cfg(all(feature = "navigation-drawer", not(feature = "dialog")))]
+#[cfg(all(
+    any(feature = "bottom-sheet", feature = "navigation-drawer"),
+    not(feature = "dialog")
+))]
 pub use gpui_headless::dialog::DismissReason;
 #[cfg(feature = "navigation-rail")]
 pub use navigation_rail::{NavigationRail, NavigationRailArrangement, NavigationRailItem};
