@@ -6,7 +6,8 @@ use gpui::{
     div, px, relative,
 };
 use md3_components::{
-    Button, ButtonVariant, ModalNavigationDrawer, NavigationDrawer, NavigationDrawerItem, TabPanel,
+    Button, ButtonVariant, IconButton, ModalNavigationDrawer, NavigationDrawer,
+    NavigationDrawerItem, TabPanel,
 };
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::focus_ring;
@@ -64,13 +65,26 @@ impl Render for NavigationDrawerPage {
                 cx.notify();
             }))
             .items(items("drawer"));
-        // モーダルのドロワーは同じ行き先を並べ、項目を選ぶと閉じる
+        // モーダルのドロワーは同じ行き先を並べ、項目を確定すると閉じる。
+        // シートが幅を覆うと幕を押せないため、ヘッダーに閉じるボタンを置く
+        let modal_header = div().flex().justify_end().px(px(12.)).pt(px(12.)).child(
+            IconButton::new(
+                "close-modal-drawer",
+                md3_icons::CLOSE,
+                "Close navigation menu",
+            )
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.modal_open = false;
+                cx.notify();
+            })),
+        );
         let modal = ModalNavigationDrawer::new(
             "modal-drawer",
             self.modal_open,
             "Navigation menu",
             NavigationDrawer::new("modal-drawer-items", Some(self.selected))
                 .aria_label("Mail navigation")
+                .header(modal_header)
                 .on_change(cx.listener(|this, index: &usize, _, cx| {
                     this.selected = *index;
                     this.modal_open = false;

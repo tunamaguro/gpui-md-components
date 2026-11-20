@@ -16,6 +16,17 @@ use crate::{
 
 type ChangeHandler<T> = Box<dyn Fn(&T, &mut Window, &mut App)>;
 
+/// [`TabList`] で、どの操作をタブを選ぶ操作として扱うか
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum TabActivation {
+    /// 矢印キーと Home・End でタブへフォーカスを移すと、移った先のタブを選ぶよう求める
+    #[default]
+    Automatic,
+    /// 矢印キーと Home・End ではフォーカスだけを移す。タブを選ぶよう求めるのは Enter・Space・クリックだけで、
+    /// 選ばれているタブでも求める
+    Manual,
+}
+
 /// [`TabList`] のタブの並びの向き
 ///
 /// 前後のタブへ移る矢印キーと、支援技術に公開する向きを決める。見た目の配置は変えない
@@ -38,12 +49,13 @@ pub enum TabListOrientation {
 ///
 /// - Tab で到達できるタブは 1 つだけで、選ばれているタブ、最初のフォーカスできるタブの順に選ぶ。
 ///   タブにフォーカスがある間は、そのタブだけが Tab で到達できる。フォーカスできるタブが無ければ Tab で入らない
-/// - 修飾キーなしの矢印キー (横向きなら左右、縦向きなら上下) で前後のタブへフォーカスを移し、移った先のタブを選ぶよう求める。
-///   端では反対の端に戻る。
-///   Home と End では最初と最後のタブへ移り、移った先を選ぶよう求める。
+/// - 修飾キーなしの矢印キー (横向きなら左右、縦向きなら上下) で前後のタブへフォーカスを移す。
+///   既定 ([`TabActivation::Automatic`]) では、移った先のタブを選ぶよう求める。端では反対の端に戻る。
+///   Home と End では最初と最後のタブへ移る。
 ///   [`Availability::Disabled`] のタブは飛ばし、[`Availability::DisabledFocusable`] のタブにはフォーカスだけを移す。
 ///   移れるタブがほかに無い場合は、キー入力を祖先に渡す
-/// - フォーカス中の Enter と Space・マウスのクリック・支援技術からのクリック操作で、タブを選ぶよう求める
+/// - フォーカス中の Enter と Space・マウスのクリック・支援技術からのクリック操作で、タブを選ぶよう求める。
+///   [`TabList::activation`] で、どの操作で求めるかを変えられる
 ///
 /// 支援技術には role `tablist` と並べる向きとして公開され、タブは role `tab` と選ばれているかどうかの状態として公開される。
 /// 並びの名前は `aria_label` で与えること。
@@ -55,6 +67,7 @@ pub struct TabList<T: PartialEq + 'static> {
     selected: Option<T>,
     on_change: Option<ChangeHandler<T>>,
     orientation: TabListOrientation,
+    activation: TabActivation,
     children: Vec<GroupChild<Tab<T>>>,
 }
 
@@ -70,13 +83,15 @@ impl<T: PartialEq + 'static> TabList<T> {
             selected,
             on_change: None,
             orientation: TabListOrientation::default(),
+            activation: TabActivation::default(),
             children: Vec::new(),
         }
     }
 
     /// タブを選ぶよう求められたときに `handler` を呼ぶ。複数回呼んだ場合は最後に渡した `handler` だけを呼ぶ
     ///
-    /// `handler` には選ぶよう求められたタブの値を渡す。選ばれているタブと無効なタブでは呼ばない。
+    /// `handler` には選ぶよう求められたタブの値を渡す。無効なタブでは呼ばない。
+    /// 選ばれているタブでは、[`TabActivation::Manual`] のときだけ呼ぶ。
     /// 表示を変えるには、`handler` で呼び出し側の状態を更新し、次の描画で [`TabList::new`] に渡すこと。
     /// 設定しない場合、タブは操作されても何も呼ばず、支援技術にクリック操作を公開しない
     pub fn on_change(mut self, handler: impl Fn(&T, &mut Window, &mut App) + 'static) -> Self {
@@ -90,6 +105,12 @@ impl<T: PartialEq + 'static> TabList<T> {
     /// 見た目の並びは呼び出し側がスタイルで合わせること
     pub fn orientation(mut self, orientation: TabListOrientation) -> Self {
         self.orientation = orientation;
+        self
+    }
+
+    /// どの操作をタブを選ぶ操作として扱うかを変える。既定は [`TabActivation::Automatic`]
+    pub fn activation(mut self, activation: TabActivation) -> Self {
+        self.activation = activation;
         self
     }
 
@@ -136,10 +157,11 @@ impl<T: PartialEq + 'static> RenderOnce for TabList<T> {
             .position(|value| Some(value) == self.selected.as_ref());
         let tab_stop = roving::tab_stop(&items, selected_ix, window);
 
+        let manual = self.activation == TabActivation::Manual;
         let select = self.on_change.map(|on_change| {
             let items = items.clone();
             Rc::new(move |ix: usize, window: &mut Window, cx: &mut App| {
-                if !items[ix].availability.is_disabled() && Some(ix) != selected_ix {
+                if !items[ix].availability.is_disabled() && (manual || Some(ix) != selected_ix) {
                     on_change(&values[ix], window, cx);
                 }
             })
@@ -203,7 +225,7 @@ impl<T: PartialEq + 'static> RenderOnce for TabList<T> {
                     return;
                 };
                 window.focus(&items[ix].focus_handle, cx);
-                if let Some(select) = &select {
+                if !manual && let Some(select) = &select {
                     select(ix, window, cx);
                 }
                 cx.stop_propagation();
@@ -448,6 +470,7 @@ mod tests {
         /// 最初のタブの後に、タブでない要素を置く
         divider: bool,
         orientation: TabListOrientation,
+        activation: TabActivation,
         handles: [FocusHandle; 3],
         /// 並びの後に置くパネルのフォーカス。パネルはフォーカスできる子を持たないため、Tab で到達できるようにする
         panel: FocusHandle,
@@ -479,6 +502,7 @@ mod tests {
                 })
                 .aria_label("Fruit")
                 .orientation(self.orientation)
+                .activation(self.activation)
                 .flex()
                 .items(tabs.next())
                 .when(self.divider, |this| this.child(div().w(px(50.))))
@@ -518,6 +542,7 @@ mod tests {
             handler: true,
             divider: false,
             orientation: TabListOrientation::Horizontal,
+            activation: TabActivation::Automatic,
             handles: [cx.focus_handle(), cx.focus_handle(), cx.focus_handle()],
             panel: cx.focus_handle().tab_stop(true),
             changes: Rc::default(),
@@ -883,6 +908,31 @@ mod tests {
             changes(&view, cx),
             vec!["apple", "apple"],
             "選ばれているタブでは求めないこと"
+        );
+    }
+
+    #[gpui::test]
+    fn 手動で選ぶ並びは矢印キーでフォーカスだけを移し_選ばれているタブでも確定を求める(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some("apple"), ALL_ENABLED);
+        update(&view, cx, |view| view.activation = TabActivation::Manual);
+        cx.simulate_keystrokes("tab");
+        cx.simulate_keystrokes("right");
+        cx.simulate_keystrokes("end");
+        assert_eq!(focused(&view, cx), Some("plum"));
+        assert!(
+            changes(&view, cx).is_empty(),
+            "矢印キーと End では選ぶよう求めないこと"
+        );
+        press_key(cx, "enter");
+        assert_eq!(changes(&view, cx), vec!["plum"]);
+        press_key(cx, "space");
+        click_column(cx, 2);
+        assert_eq!(
+            changes(&view, cx),
+            vec!["plum", "plum", "plum"],
+            "選ばれているタブでも Space とクリックで求めること"
         );
     }
 

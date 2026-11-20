@@ -17,7 +17,7 @@ use gpui::{
     StyleRefinement, Styled, Window, canvas, div, prelude::FluentBuilder, svg,
 };
 use gpui_headless::dialog::{Dialog as HeadlessDialog, DismissReason};
-use gpui_headless::tabs::{Tab as HeadlessTab, TabList, TabListOrientation};
+use gpui_headless::tabs::{Tab as HeadlessTab, TabActivation, TabList, TabListOrientation};
 use md3_icons::StyledIcon;
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::Dp;
@@ -114,6 +114,8 @@ impl<T: PartialEq + 'static> NavigationDrawer<T> {
     /// 項目を選ぶよう求められたときに `handler` を呼ぶ。複数回呼んだ場合は最後に渡した `handler` だけを呼ぶ
     ///
     /// `handler` には選ぶよう求められた項目の値を渡す。選ばれている項目では呼ばない。
+    /// ただし [`ModalNavigationDrawer`] に渡した場合は、項目を確定する操作 (Enter・Space・クリック) だけで呼び、
+    /// 選ばれている項目でも呼ぶ。矢印キーではフォーカスだけを移す。
     /// 表示を変えるには、`handler` で呼び出し側の状態を更新し、次の描画で [`NavigationDrawer::new`] に渡すこと。
     /// 設定しない場合、項目は操作されても何も呼ばない
     pub fn on_change(mut self, handler: impl Fn(&T, &mut Window, &mut App) + 'static) -> Self {
@@ -292,6 +294,8 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationDrawer<T> {
         // シートの上端に接していても先頭の項目のリングが切れないよう、上の余白は打ち消さない。左右はシートの余白の中に収まる
         let list = TabList::new(self.id.clone(), self.selected)
             .orientation(TabListOrientation::Vertical)
+            // モーダルでは項目を確定すると閉じることが多く、矢印キーで探す間は閉じないよう、確定の操作だけで選ぶ
+            .when(self.modal, |this| this.activation(TabActivation::Manual))
             .when_some(self.aria_label, |this, label| this.aria_label(label))
             .when_some(self.on_change, |this, on_change| this.on_change(on_change))
             .flex()
@@ -368,19 +372,27 @@ impl<T: PartialEq + 'static> Styled for NavigationDrawer<T> {
 ///
 /// 開いている間、ウィンドウ全体を幕で覆い、その左端に `drawer` のシートを親 (ウィンドウ) の高さいっぱいに描く。
 /// シートは右側の角を丸め、モーダル用の色 (SurfaceContainerLow) で塗る。置いた場所のレイアウトには影響しない。
+/// シートの背景はこの色で塗るため、`drawer` に `Styled` で付けた背景はシートの色を変えない。
 /// 開いているかどうかは呼び出し側が持ち、[`ModalNavigationDrawer::new`] に毎回渡す。閉じることは
-/// [`ModalNavigationDrawer::on_dismiss`] で求める。項目を選んだときに閉じるかは、[`NavigationDrawer::on_change`] で呼び出し側が決める
+/// [`ModalNavigationDrawer::on_dismiss`] で求める。
+/// 項目を確定したときに閉じるかは、[`NavigationDrawer::on_change`] で呼び出し側が決める。
+/// シートがウィンドウの幅を覆うと幕をクリックできないため、Escape を使えない利用者のために、
+/// [`NavigationDrawer::header`] に閉じるボタンを置くこと
 ///
 /// 開いている間はモーダルのダイアログとして振る舞う
 ///
-/// - 開いたとき、ドロワーの中で Tab で到達できる要素 (選ばれている項目か最初の項目) にフォーカスを移す
+/// - 開いたとき、ドロワーの中で Tab で到達できる最初の要素にフォーカスを移す。ヘッダーに Tab で到達できる要素があればその要素、
+///   無ければ選ばれている項目、どれも選ばれていなければ最初の項目になる。どれも無ければドロワー自身にフォーカスを移す
+/// - 項目の間は矢印キーでフォーカスだけを移し、Enter・Space・クリックで確定する
 /// - Tab と Shift+Tab はドロワーの中だけを巡る
 /// - 修飾キーなしの Escape と、幕のクリックで閉じるよう求める
 /// - 閉じたとき、フォーカスがドロワーの中にあれば、開く前にフォーカスのあった要素へ戻す
 ///
 /// 支援技術には modal の `dialog` として、[`ModalNavigationDrawer::new`] の `label` を名前として公開される。
-/// 中の項目の並びは [`NavigationDrawer`] と同じく公開される。ほかの要素を支援技術から隠す条件は
-/// [`gpui_headless::dialog::Dialog`] と同じで、ウィンドウのルートの近くに置くこと
+/// 中の項目の並びは [`NavigationDrawer`] と同じく公開される。
+/// ウィンドウのルートを [`crate::root`] で包むと、開いている間はドロワー以外を支援技術から隠す。
+/// ほかの部品がウィンドウの手前に描く要素 (開いているメニューなど) は隠れないため、開く前に閉じること。
+/// アプリ全体のキー割り当てと、置いた場所の祖先のキーのハンドラは開いている間も働くため、ウィンドウのルートの近くに置くこと
 #[derive(IntoElement)]
 pub struct ModalNavigationDrawer<T: PartialEq + 'static> {
     id: ElementId,
@@ -511,7 +523,8 @@ mod tests {
     use std::rc::Rc;
 
     use gpui::{
-        AnyElement, Context, Modifiers, Render, TestAppContext, VisualTestContext, point, px,
+        AnyElement, Context, KeyDownEvent, KeyUpEvent, Keystroke, Modifiers, Render,
+        TestAppContext, VisualTestContext, point, px,
     };
     use md3_icons::{HOME, INBOX, SEND};
     use md3_theme::md3_color::ColorRole;
@@ -695,6 +708,8 @@ mod tests {
     struct ModalView {
         open: bool,
         dismissed: usize,
+        /// 確定された項目の値。確定すると閉じる
+        chosen: Vec<usize>,
         /// 選ばれている 2 つ目の項目のフォーカス
         selected_item: FocusHandle,
         /// ドロワーの外のボタンのフォーカス
@@ -721,7 +736,12 @@ mod tests {
                                 NavigationDrawerItem::new("sent", 1, "Sent")
                                     .track_focus(&self.selected_item),
                             )
-                            .item(NavigationDrawerItem::new("home", 2, "Home")),
+                            .item(NavigationDrawerItem::new("home", 2, "Home"))
+                            .on_change(cx.listener(|this, value: &usize, _, cx| {
+                                this.chosen.push(*value);
+                                this.open = false;
+                                cx.notify();
+                            })),
                     )
                     .on_dismiss(cx.listener(|this, _, _, cx| {
                         this.dismissed += 1;
@@ -739,6 +759,7 @@ mod tests {
             ModalView {
                 open: false,
                 dismissed: 0,
+                chosen: Vec::new(),
                 selected_item: cx.focus_handle(),
                 outside: cx.focus_handle(),
             }
@@ -809,6 +830,60 @@ mod tests {
         assert!(
             cx.update(|window, _| outside.is_focused(window)),
             "閉じたら開く前のフォーカスに戻すこと"
+        );
+    }
+
+    fn set_open(view: &gpui::Entity<ModalView>, cx: &mut VisualTestContext) {
+        view.update(cx, |view, cx| {
+            view.open = true;
+            cx.notify();
+        });
+        cx.run_until_parked();
+    }
+
+    #[gpui::test]
+    fn モーダルでは矢印キーで閉じず_enter_で確定する(cx: &mut TestAppContext) {
+        let (view, cx) = open_modal(cx);
+        set_open(&view, cx);
+        cx.simulate_keystrokes("down");
+        cx.simulate_keystrokes("up");
+        cx.run_until_parked();
+        assert!(
+            view.read_with(cx, |view, _| view.open && view.chosen.is_empty()),
+            "矢印キーでは確定せず、開いたままにすること"
+        );
+        cx.simulate_keystrokes("down");
+        // 項目は Enter を離したときに確定する
+        let keystroke = Keystroke::parse("enter").expect("テストのキー表記が有効であること");
+        cx.simulate_event(KeyDownEvent {
+            keystroke: keystroke.clone(),
+            is_held: false,
+            prefer_character_input: false,
+        });
+        cx.simulate_event(KeyUpEvent { keystroke });
+        cx.run_until_parked();
+        assert_eq!(view.read_with(cx, |view, _| view.chosen.clone()), vec![2]);
+    }
+
+    #[gpui::test]
+    fn モーダルでは選ばれている項目のクリックでも確定し_幕のクリックでは閉じるよう求める(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = open_modal(cx);
+        set_open(&view, cx);
+        // 選ばれている 2 つ目の項目は y = 5 + 56 から高さ 56
+        cx.simulate_click(point(px(180.0), px(89.0)), Modifiers::none());
+        cx.run_until_parked();
+        assert_eq!(view.read_with(cx, |view, _| view.chosen.clone()), vec![1]);
+        assert_eq!(view.read_with(cx, |view, _| view.dismissed), 0);
+
+        set_open(&view, cx);
+        cx.simulate_click(point(px(600.0), px(300.0)), Modifiers::none());
+        cx.run_until_parked();
+        assert_eq!(
+            view.read_with(cx, |view, _| (view.chosen.len(), view.dismissed)),
+            (1, 1),
+            "幕のクリックは確定せず、閉じるよう求めること"
         );
     }
 }
