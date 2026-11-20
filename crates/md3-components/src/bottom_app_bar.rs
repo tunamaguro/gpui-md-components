@@ -26,7 +26,7 @@ use crate::{Fab, IconButton};
 /// 子の要素は操作として左から並べる。[`BottomAppBar::action`] で置いたアイコンボタンは、少なくとも 48dp 四方の枠の中央に置く。
 /// [`BottomAppBar::action`] の操作は縮めずに並べ、子の要素の幅はそれぞれの flex の指定に従う。
 /// 幅に収まらない操作は、FAB があれば FAB の下に重なり、重なった位置のクリックは FAB だけが受ける。
-/// FAB が無ければバーの右端を越えて描かれ、そのまま押せる。
+/// FAB が無ければ、既定ではバーの右端を越えて描かれ、切り取られていない部分は押せる。
 /// どちらの場合も隠れた操作に Tab で到達できるため、FAB の有無にかかわらず、操作の数と大きさは幅に収まるように選ぶこと。
 ///
 /// バーは縦にも横にも縮まない。横の flex で残りの幅に収めるには、[`Styled`] で `.flex_1().min_w_0()` を指定する。
@@ -405,5 +405,63 @@ mod tests {
         cx.simulate_click(gpui::point(px(550.0), px(75.0)), gpui::Modifiers::none());
         cx.run_until_parked();
         assert_eq!(view.read_with(cx, |view, _| view.clicked), 1);
+    }
+
+    /// 操作と FAB に同じ id を渡しても、フォーカスとキーの入力はそれぞれが受ける
+    #[gpui::test]
+    fn 操作と_fab_が同じ_id_でもフォーカスを分ける(cx: &mut TestAppContext) {
+        struct SameIdView {
+            clicked: Vec<&'static str>,
+        }
+        impl Render for SameIdView {
+            fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+                let record = |name: &'static str| {
+                    cx.listener(move |this: &mut Self, _: &gpui::ClickEvent, _, _| {
+                        this.clicked.push(name)
+                    })
+                };
+                div().w(px(600.0)).child(
+                    BottomAppBar::new("bar")
+                        .action(
+                            IconButton::new("add", md3_icons::ADD, "Add item")
+                                .on_click(record("action")),
+                        )
+                        .floating_action_button(
+                            Fab::new("add", md3_icons::ADD, "Add").on_click(record("fab")),
+                        ),
+                )
+            }
+        }
+        cx.update(crate::init);
+        let (view, cx) = cx.add_window_view(|window, cx| {
+            cx.init_md3_theme(window);
+            SameIdView {
+                clicked: Vec::new(),
+            }
+        });
+        cx.update(|window, _| window.activate_window());
+        cx.run_until_parked();
+        // ボタンはキーを離したときに押される
+        let press_enter = |cx: &mut VisualTestContext| {
+            let enter = gpui::Keystroke::parse("enter").expect("キーを読めること");
+            cx.simulate_event(gpui::KeyDownEvent {
+                keystroke: enter.clone(),
+                is_held: false,
+                prefer_character_input: false,
+            });
+            cx.simulate_event(gpui::KeyUpEvent { keystroke: enter });
+            cx.run_until_parked();
+        };
+        cx.simulate_keystrokes("tab");
+        press_enter(cx);
+        cx.simulate_keystrokes("tab");
+        // フォーカスを移した後の描画でも、FAB がフォーカスを保つこと
+        view.update(cx, |_, cx| cx.notify());
+        cx.run_until_parked();
+        press_enter(cx);
+        assert_eq!(
+            view.read_with(cx, |view, _| view.clicked.clone()),
+            vec!["action", "fab"]
+        );
     }
 }
