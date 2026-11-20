@@ -1,8 +1,9 @@
 //! トップアプリバーを並べるページ
 
 use gpui::{
-    Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
-    ScrollHandle, StatefulInteractiveElement as _, Styled as _, Window, div, px,
+    Context, FocusHandle, InteractiveElement as _, IntoElement, KeyDownEvent, ParentElement as _,
+    Refineable as _, Render, ScrollHandle, StatefulInteractiveElement as _, Styled as _, Window,
+    div, px,
 };
 use md3_components::{IconButton, TopAppBar, TopAppBarTitleAlignment, TopAppBarVariant};
 use md3_theme::ThemeExt as _;
@@ -10,10 +11,20 @@ use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::typography::TypeScale;
 
 /// トップアプリバーを並べるページ
-#[derive(Default)]
 pub struct AppBarPage {
     /// バーの下でスクロールする内容の位置
     content_scroll: ScrollHandle,
+    /// バーの下でスクロールする内容のフォーカス。上下の矢印キーで内容を動かす
+    content_focus: FocusHandle,
+}
+
+impl AppBarPage {
+    pub fn new(cx: &mut Context<Self>) -> Self {
+        Self {
+            content_scroll: ScrollHandle::new(),
+            content_focus: cx.focus_handle(),
+        }
+    }
 }
 
 impl Render for AppBarPage {
@@ -42,6 +53,26 @@ impl Render for AppBarPage {
             .track_scroll(&self.content_scroll)
             // gpui は重なったスクロール領域をすべて動かすため、ページまで動かないように止める
             .on_scroll(|_, _, cx| cx.stop_propagation())
+            .track_focus(&self.content_focus)
+            .tab_index(0)
+            .focus_visible(|style| {
+                style
+                    .border_2()
+                    .border_color(theme.color(ColorRole::Secondary))
+            })
+            .on_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
+                let step = match event.keystroke.key.as_str() {
+                    "down" => px(-48.0),
+                    "up" => px(48.0),
+                    _ => return,
+                };
+                let scroll = &this.content_scroll;
+                let mut offset = scroll.offset();
+                offset.y = (offset.y + step).clamp(-scroll.max_offset().y, px(0.0));
+                scroll.set_offset(offset);
+                cx.stop_propagation();
+                cx.notify();
+            }))
             .bg(theme.color(ColorRole::Surface))
             .text_color(theme.color(ColorRole::OnSurface));
         content

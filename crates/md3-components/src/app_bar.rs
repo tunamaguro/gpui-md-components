@@ -98,8 +98,9 @@ impl TopAppBar {
 
     /// バーの下に内容がスクロールして入り込んでいるかを設定する
     ///
-    /// `true` のあいだ、容器をスクロール中の色で塗る。値が変わると色をバネで変え、
+    /// `true` のあいだ、容器をスクロール中の色で塗る。既定は `false`。値が変わると色をバネで変え、
     /// モーションを減らす設定 ([`App::reduce_motion`]) ではすぐに変える。
+    /// [`Styled`] で背景を指定した場合は、どちらの状態でもその背景で塗る。
     /// バーの高さはスクロールで変わらない
     pub fn scrolled(mut self, scrolled: bool) -> Self {
         self.scrolled = scrolled;
@@ -273,7 +274,9 @@ impl RenderOnce for TopAppBar {
         };
 
         let collapsed_height = dp(app_bar_small::CONTAINER_HEIGHT);
-        let bar = div().w_full().flex().flex_col();
+        // バネの要素がバーの id を持つため、中の要素には固定の id を付ける。
+        // 利用者が Styled でスクロールを指定したときの状態は、この id の下に保たれる
+        let bar = div().id("container").w_full().flex().flex_col();
         let bar = match self.variant {
             TopAppBarVariant::Small => bar.child(
                 row(
@@ -329,7 +332,9 @@ impl RenderOnce for TopAppBar {
                 )
             }
         };
-        // Compose は内容が入り込むと色の目標を切り替え、DefaultEffects のバネで変える
+        // 目標の色とバネは Compose の `SingleRowTopAppBar` に合わせ、内容が入り込むと目標を切り替えて
+        // DefaultEffects のバネで変える。高さを変えないため、Medium と Large にも同じ切り替えを使う。
+        // 途中の色は Compose の Oklab ではなく、sRGB で重ねて求める
         let container = theme.color(app_bar::CONTAINER_COLOR);
         let scrolled_container = theme.color(app_bar::ON_SCROLL_CONTAINER_COLOR);
         let style = self.style;

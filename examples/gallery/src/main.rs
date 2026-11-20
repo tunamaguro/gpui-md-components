@@ -153,7 +153,7 @@ impl Gallery {
             chip_page: cx.new(ChipPage::new),
             tooltip_page: cx.new(|_| TooltipPage::default()),
             snackbar_page: cx.new(SnackbarPage::new),
-            app_bar_page: cx.new(|_| AppBarPage::default()),
+            app_bar_page: cx.new(AppBarPage::new),
             list_page: cx.new(|_| ListPage::default()),
             navigation_bar_page: cx.new(NavigationBarPage::new),
             navigation_rail_page: cx.new(NavigationRailPage::new),
