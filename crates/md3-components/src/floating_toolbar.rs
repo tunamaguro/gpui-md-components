@@ -54,7 +54,7 @@ pub enum FloatingToolbarOrientation {
 /// 支援技術には role `toolbar` と向き、[`FloatingToolbar::new`] の `label` を名前として公開される。
 /// [`FloatingToolbar::action`] の操作のうち Tab で到達できるのは 1 つだけで、
 /// 修飾キーなしの矢印キー (横なら左右、縦なら上下) で前後の操作へフォーカスを移す。端では反対の端に戻り、無効な操作は飛ばす。
-/// メニューを持つ操作でも、この矢印キーは移動に使い、メニューは Enter か Space で開く。
+/// メニューを持つ操作でも、移れる操作がほかにあればこの矢印キーは移動に使い、メニューは Enter か Space で開く。
 /// 子の要素はこの移動の対象にならない
 #[derive(IntoElement)]
 pub struct FloatingToolbar {

@@ -26,7 +26,10 @@ pub enum ToolbarOrientation {
 /// [`Toolbar`] の項目
 ///
 /// 項目の要素は呼び出し側が作る。要素は渡した [`FocusHandle`] でフォーカスを受け、
-/// Tab で到達できるかはツールバーが決めた値に従うこと
+/// Tab で到達できるかはツールバーが決めた値に従うこと。
+/// 移れる項目がほかにある間は、項目の間を移る向きの矢印キーの [`KeyDownEvent`](gpui::KeyDownEvent) は項目に届かない。
+/// その矢印キーを欠かせない操作に使う要素 (テキストの入力など) は項目にしないこと。
+/// キーバインドの action はこの扱いを受けず、ツールバーより先に処理される
 pub struct ToolbarItem {
     focus_handle: FocusHandle,
     availability: Availability,
