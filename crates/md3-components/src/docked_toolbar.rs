@@ -25,7 +25,7 @@ pub enum DockedToolbarArrangement {
     /// 先頭の操作を左端、末尾の操作を右端に置き、残りの幅を操作の間に等しく分ける
     #[default]
     SpaceBetween,
-    /// 操作を 32dp の間隔で中央に寄せる。幅が足りなければ左端から並べる
+    /// 操作を 32dp の間隔で中央に寄せる。幅が足りなければ間隔を 0 まで詰め、それでも足りなければ左端から並べる
     Centered,
 }
 
@@ -114,21 +114,24 @@ impl RenderOnce for DockedToolbar {
                 self.arrangement == DockedToolbarArrangement::SpaceBetween,
                 |this| this.justify_between(),
             )
-            .when(
-                self.arrangement == DockedToolbarArrangement::Centered,
-                |this| this.gap(dp(docked_toolbar::CONTAINER_MAX_SPACING)),
-            )
             // CONTAINER_SHAPE は CornerNone なので角を丸めない
             .bg(theme.color(docked_toolbar::CONTAINER_COLOR));
-        // Compose の `FlexibleFixedHorizontalArrangement`。justify_center は幅が足りないと左右にはみ出すため、
-        // 余った幅を両端の空きで分け合い、足りなければ空きを 0 にして左端から並べる。
-        // 空きと操作の間にも gap が入るため、その分を負の余白で打ち消す
+        // Compose の `FlexibleFixedHorizontalArrangement` (`spacedBy` の中央寄せ)。
+        // 操作の間には 32dp から縮む空きを、両端には余った幅を分け合う空きを置く。
+        // 幅が足りなければ操作の間の空きから縮め、両端の空きは 0 になって左端から並ぶ
         let centered = self.arrangement == DockedToolbarArrangement::Centered;
-        let spacing = dp(docked_toolbar::CONTAINER_MAX_SPACING);
         if centered {
-            toolbar = toolbar.child(div().flex_1().min_w_0().mr(-spacing));
+            toolbar = toolbar.child(div().flex_1().min_w_0());
         }
-        for child in self.children {
+        for (ix, child) in self.children.into_iter().enumerate() {
+            if centered && ix > 0 {
+                toolbar = toolbar.child(
+                    div()
+                        .flex_shrink(1.0)
+                        .flex_basis(dp(docked_toolbar::CONTAINER_MAX_SPACING))
+                        .min_w_0(),
+                );
+            }
             toolbar = match child {
                 Child::Icon(icon) => toolbar.item(icon.into_toolbar_item(
                     &self.id,
@@ -142,7 +145,7 @@ impl RenderOnce for DockedToolbar {
             };
         }
         if centered {
-            toolbar = toolbar.child(div().flex_1().min_w_0().ml(-spacing));
+            toolbar = toolbar.child(div().flex_1().min_w_0());
         }
         toolbar.style().refine(&self.style);
         toolbar
@@ -277,10 +280,9 @@ mod tests {
         );
     }
 
-    /// 期待値は 6 つの 48dp の枠と 5 つの 32dp の間隔 (448) が、余白を除いた幅 (288) に収まらないため左端から並ぶ。
-    /// 先頭の操作は左の余白の内側に置かれ、左にはみ出さない
+    /// 期待値は 6 つの 48dp の枠 (288) が余白を除いた幅 (288) にちょうど収まるため、間隔を 0 に詰めて並べる
     #[gpui::test]
-    fn centered_は幅が足りなければ左端から並べる(cx: &mut TestAppContext) {
+    fn centered_は幅が足りなければ間隔を詰める(cx: &mut TestAppContext) {
         let cx = open(cx, || {
             DockedToolbar::new("toolbar", "Edit")
                 .w(px(320.0))
@@ -296,7 +298,7 @@ mod tests {
             .into_iter()
             .map(|rect| rect.0)
             .collect();
-        assert_eq!(xs, vec![20.0, 100.0, 180.0, 260.0, 340.0, 420.0]);
+        assert_eq!(xs, vec![20.0, 68.0, 116.0, 164.0, 212.0, 260.0]);
     }
 
     /// 操作の間を左右の矢印キーで移る
