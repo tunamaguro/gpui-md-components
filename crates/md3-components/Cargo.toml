@@ -25,6 +25,7 @@ default = [
   "icon-button",
   "app-bar",
   "bottom-app-bar",
+  "bottom-sheet",
   "button-group",
   "connected-button-group",
   "card",
@@ -66,6 +67,7 @@ bottom-app-bar = ["icon-button", "fab"]
 floating-toolbar = ["icon-button"]
 # 操作に置くアイコンボタンに使う
 docked-toolbar = ["icon-button"]
+bottom-sheet = []
 button-group = []
 connected-button-group = ["button"]
 card = []
