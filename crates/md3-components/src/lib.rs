@@ -24,6 +24,8 @@ mod connected_button_group;
 mod dialog;
 #[cfg(feature = "divider")]
 mod divider;
+#[cfg(feature = "docked-toolbar")]
+mod docked_toolbar;
 #[cfg(feature = "fab")]
 mod fab;
 #[cfg(feature = "floating-toolbar")]
@@ -141,6 +143,8 @@ pub use connected_button_group::{
 pub use dialog::{Dialog, DialogKind, DismissReason};
 #[cfg(feature = "divider")]
 pub use divider::{Divider, DividerOrientation};
+#[cfg(feature = "docked-toolbar")]
+pub use docked_toolbar::{DockedToolbar, DockedToolbarArrangement};
 #[cfg(feature = "fab")]
 pub use fab::{ExtendedFab, ExtendedFabSize, Fab, FabColor, FabSize};
 #[cfg(feature = "floating-toolbar")]

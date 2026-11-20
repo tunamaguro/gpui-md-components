@@ -512,41 +512,67 @@ impl IconButton {
     #[cfg(any(
         feature = "app-bar",
         feature = "bottom-app-bar",
-        feature = "floating-toolbar"
+        feature = "floating-toolbar",
+        feature = "docked-toolbar"
     ))]
     pub(crate) fn default_content(mut self, role: ColorRole) -> Self {
         self.default_content = Some(role);
         self
     }
 
-    /// `false` なら Tab で到達しないようにする。クリックや [`FocusHandle`] ではフォーカスを受ける
-    #[cfg(feature = "floating-toolbar")]
-    pub(crate) fn tab_stop(mut self, tab_stop: bool) -> Self {
-        self.tab_stop = tab_stop;
-        self
-    }
-
-    /// [`IconButton::disabled`] で無効にしたか
-    #[cfg(feature = "floating-toolbar")]
-    pub(crate) fn is_disabled(&self) -> bool {
-        self.disabled
-    }
-
-    /// 描画のときにフォーカスとして使う [`FocusHandle`]
+    /// ツールバーの項目にする
     ///
-    /// [`IconButton::track_focus`] で渡したものか、無ければ id と今の要素の名前空間から決まるもの
-    #[cfg(feature = "floating-toolbar")]
-    pub(crate) fn resolve_focus_handle(&self, window: &mut Window, cx: &mut App) -> FocusHandle {
-        self.focus_handle
-            .clone()
-            .unwrap_or_else(|| util::keyed_focus_handle(&self.id, window, cx))
+    /// アイコンボタンは少なくとも 48dp 四方の枠の中央に置き、押せる範囲はアイコンボタン自身の大きさのまま。
+    /// 内容の色とテーマは [`IconButton::default_content`] と [`IconButton::default_theme`] と同じく扱う。
+    /// [`IconButton::track_focus`] を指定していなければ、フォーカスは id と `toolbar_id` で決まる
+    #[cfg(any(feature = "floating-toolbar", feature = "docked-toolbar"))]
+    pub(crate) fn into_toolbar_item(
+        self,
+        toolbar_id: &ElementId,
+        content: ColorRole,
+        theme: &SharedTheme,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> gpui_headless::toolbar::ToolbarItem {
+        // ツールバーの外にある同じ id の要素と状態を分けるため、ツールバーの id の下で求める
+        let focus_handle = self.focus_handle.clone().unwrap_or_else(|| {
+            window.with_element_namespace(toolbar_id.clone(), |window| {
+                util::keyed_focus_handle(&self.id, window, cx)
+            })
+        });
+        let availability = if self.disabled {
+            gpui_headless::Availability::Disabled
+        } else {
+            gpui_headless::Availability::Enabled
+        };
+        let mut icon = self
+            .track_focus(&focus_handle)
+            .default_content(content)
+            .default_theme(theme.clone());
+        gpui_headless::toolbar::ToolbarItem::new(focus_handle, availability, move |tab_stop| {
+            icon.tab_stop = tab_stop;
+            div()
+                .flex()
+                .flex_none()
+                .items_center()
+                .justify_center()
+                .min_w(dp(
+                    md3_theme::md3_tokens::supplement::app_bar::ICON_TARGET_SIZE,
+                ))
+                .min_h(dp(
+                    md3_theme::md3_tokens::supplement::app_bar::ICON_TARGET_SIZE,
+                ))
+                .child(icon)
+                .into_any_element()
+        })
     }
 
     /// [`IconButton::theme`] でテーマを指定していなければ `theme` で描く
     #[cfg(any(
         feature = "app-bar",
         feature = "bottom-app-bar",
-        feature = "floating-toolbar"
+        feature = "floating-toolbar",
+        feature = "docked-toolbar"
     ))]
     pub(crate) fn default_theme(mut self, theme: SharedTheme) -> Self {
         self.theme.get_or_insert(theme);

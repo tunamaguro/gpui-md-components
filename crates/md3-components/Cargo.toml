@@ -32,6 +32,7 @@ default = [
   "chip",
   "dialog",
   "divider",
+  "docked-toolbar",
   "fab",
   "floating-toolbar",
   "list",
@@ -61,6 +62,8 @@ app-bar = ["icon-button"]
 bottom-app-bar = ["icon-button", "fab"]
 # 操作に置くアイコンボタンに使う
 floating-toolbar = ["icon-button"]
+# 操作に置くアイコンボタンに使う
+docked-toolbar = ["icon-button"]
 button-group = []
 connected-button-group = ["button"]
 card = []
