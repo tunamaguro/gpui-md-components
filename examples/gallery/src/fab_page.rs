@@ -77,11 +77,12 @@ impl Render for FabPage {
                 cx.notify();
             }));
         for (id, name, icon) in MENU_ITEMS {
-            let record = record_click(id.into(), cx);
             menu = menu.item(FabMenuItem::new(id, icon, name).on_click(cx.listener(
-                move |this, event, window, cx| {
+                move |this, _, _, cx| {
                     this.menu_expanded = false;
-                    record(event, window, cx);
+                    this.clicks += 1;
+                    this.last_clicked = Some(id.into());
+                    cx.notify();
                 },
             )));
         }
@@ -170,11 +171,17 @@ impl Render for FabPage {
                         })),
                 ),
             )
-            // FAB メニューは開くと項目が上に伸びるため、右下に置いて下端を揃える
+            // FAB メニューは開くと項目が上に伸びるため、高さを決めた領域の右下に置き、開閉ボタンの位置を変えない
             .child(
-                row("fab-menu-row", "FAB menu")
-                    .w_full()
-                    .child(div().flex_1().flex().justify_end().child(menu)),
+                row("fab-menu-row", "FAB menu").w_full().child(
+                    div()
+                        .flex_1()
+                        .h(gpui::px(320.))
+                        .flex()
+                        .justify_end()
+                        .items_end()
+                        .child(menu),
+                ),
             )
     }
 }

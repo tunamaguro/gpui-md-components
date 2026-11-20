@@ -10,12 +10,14 @@
 //! MD3 Expressive の FAB メニュー
 
 use gpui::{
-    App, ClickEvent, Div, ElementId, InteractiveElement, IntoElement, ParentElement, Refineable,
+    App, ClickEvent, ElementId, InteractiveElement, IntoElement, ParentElement, Refineable,
     RenderOnce, SharedString, StatefulInteractiveElement, StyleRefinement, Styled, Window, div,
-    prelude::FluentBuilder, px, svg,
+    prelude::FluentBuilder, svg,
 };
 use gpui_headless::button::Button as HeadlessButton;
+use gpui_headless::disclosure::DisclosurePanel;
 use md3_icons::StyledIcon;
+use md3_theme::md3_tokens::Dp;
 use md3_theme::md3_tokens::component::fab_menu_baseline as tokens;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{SharedTheme, ThemeExt, dp};
@@ -24,7 +26,7 @@ use crate::fab::{self, Fab, FabColor};
 use crate::util;
 
 /// メニューの左右と、開閉ボタンの下の余白 (Compose の `FabMenuPaddingHorizontal` と `FabMenuButtonPaddingBottom`)
-const PADDING: f32 = 16.0;
+const PADDING: Dp = Dp(16.0);
 
 type ToggleHandler = Box<dyn Fn(&bool, &mut Window, &mut App)>;
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
@@ -35,12 +37,14 @@ type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 /// 開閉ボタンは、閉じている間は PrimaryContainer の角丸の FAB にアイコンを描き、
 /// 開いている間は Primary の丸い FAB に閉じるアイコンを描く。項目は PrimaryContainer の丸い容器にアイコンとラベルを並べる。
 /// メニューは左右と下に 16dp の余白を持ち、置いた場所の右下に置くことを想定する。項目の出入りと開閉ボタンの変形は動かさずに切り替える。
+/// メニューの高さは親の高さまでで、項目が収まらない場合は項目の列が縦にスクロールし、開閉ボタンは常に表示する。
+/// フォーカスが表示範囲の外の項目に移っても、項目の列はスクロールしない。
 /// 開いているかどうかは呼び出し側が持ち、[`FabMenu::new`] に毎回渡す。
 /// 開閉は [`FabMenu::on_toggle`] で求め、項目を押しても閉じないため、閉じるには項目のハンドラで状態を更新すること
 ///
 /// - 開閉ボタンのマウスのクリック・フォーカス中の Enter と Space で、開閉を求める
 /// - Tab の順は、開閉ボタン、上の項目から下の項目の順になる
-/// - 項目を押すと、項目のハンドラを呼ぶ前に開閉ボタンへフォーカスを移す。項目が消えてもフォーカスを失わない
+/// - 項目にフォーカスがあるまま閉じると、開閉ボタンへフォーカスを移す。項目が消えてもフォーカスを失わない
 ///
 /// 支援技術には、開閉ボタンが [`FabMenu::new`] の `label` を名前とする role `button` と、開いているかの状態 (expanded) として公開される。
 /// 項目は、ラベルを名前とする role `button` として公開される。
@@ -111,8 +115,11 @@ impl Styled for FabMenu {
 impl RenderOnce for FabMenu {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
-        let toggle_id = ElementId::from((self.id.clone(), "toggle"));
-        let toggle_focus = util::keyed_focus_handle(&toggle_id, window, cx);
+        let toggle_id = ElementId::from("toggle");
+        // 項目の id はメニューの中でだけ一意なので、フォーカスはメニューの id で分ける
+        let toggle_focus = window.with_element_namespace(self.id.clone(), |window| {
+            util::keyed_focus_handle(&toggle_id, window, cx)
+        });
         let expanded = self.expanded;
         let toggle = Fab::new(
             toggle_id,
@@ -141,12 +148,16 @@ impl RenderOnce for FabMenu {
             div()
                 .flex()
                 .flex_col()
+                .flex_none()
                 .items_end()
                 .gap(dp(tokens::LIST_ITEM_BETWEEN_SPACE))
+                // 開閉ボタンとの間隔。閉じている間は空になる箱なので、flex の gap ではなく項目の列に付ける
+                .pb(dp(tokens::CLOSE_BUTTON_BETWEEN_SPACE))
                 .children(self.items.into_iter().map(|item| {
-                    let focus_handle = util::keyed_focus_handle(&item.id, window, cx);
+                    let focus_handle = window.with_element_namespace(self.id.clone(), |window| {
+                        util::keyed_focus_handle(&item.id, window, cx)
+                    });
                     let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
-                    let toggle_focus = toggle_focus.clone();
                     let mut label = div();
                     label.text_style().refine(&label_font);
                     HeadlessButton::new(item.id)
@@ -180,26 +191,28 @@ impl RenderOnce for FabMenu {
                             this.child(fab::focus_ring(&theme, tokens::LIST_ITEM_CONTAINER_SHAPE))
                         })
                         .aria_label(item.label)
-                        .when_some(item.on_click, |this, on_click| {
-                            this.on_click(move |event, window, cx| {
-                                // 押した項目は閉じると消えるため、先に開閉ボタンへフォーカスを移す
-                                window.focus(&toggle_focus, cx);
-                                on_click(event, window, cx);
-                            })
-                        })
+                        .when_some(item.on_click, |this, on_click| this.on_click(on_click))
                 }))
         });
 
+        let panel = DisclosurePanel::new("items", expanded, &toggle_focus)
+            .flex()
+            .flex_col()
+            .items_end()
+            .min_h_0()
+            .overflow_y_scroll()
+            .children(items);
         // 開閉ボタンを先に置き、Tab の順を開閉ボタン、上の項目の順にする。見た目は逆順に並べて開閉ボタンを下にする
-        let mut menu: Div = div()
+        let mut menu = div()
+            .id(self.id)
             .flex()
             .flex_col_reverse()
             .items_end()
-            .gap(dp(tokens::CLOSE_BUTTON_BETWEEN_SPACE))
-            .px(px(PADDING))
-            .pb(px(PADDING))
-            .child(toggle)
-            .children(items);
+            .max_h_full()
+            .px(dp(PADDING))
+            .pb(dp(PADDING))
+            .child(div().flex_none().child(toggle))
+            .child(panel);
         menu.style().refine(&self.style);
         menu
     }
@@ -382,6 +395,54 @@ mod tests {
         assert!(
             view.read_with(cx, |view, _| view.expanded),
             "フォーカスが開閉ボタンに戻り、Enter で再び開くこと"
+        );
+    }
+
+    /// 同じ項目の id を使う 2 つのメニューを並べ、押された (メニュー, 項目) を持つビュー。項目を押しても閉じない
+    struct TwoMenusView {
+        clicked: Rc<RefCell<Vec<(&'static str, &'static str)>>>,
+    }
+
+    impl Render for TwoMenusView {
+        fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+            let menu =
+                |menu: &'static str, clicked: Rc<RefCell<Vec<(&'static str, &'static str)>>>| {
+                    FabMenu::new(menu, true, md3_icons::ADD, menu).item(
+                        FabMenuItem::new("edit", md3_icons::EDIT, "Edit")
+                            .on_click(move |_, _, _| clicked.borrow_mut().push((menu, "edit"))),
+                    )
+                };
+            div()
+                .flex()
+                .child(menu("left", self.clicked.clone()))
+                .child(menu("right", self.clicked.clone()))
+        }
+    }
+
+    #[gpui::test]
+    fn 同じ項目の_id_を使う_2_つのメニューの項目は別にフォーカスされ_開いたままなら項目にフォーカスが残る(
+        cx: &mut TestAppContext,
+    ) {
+        cx.update(crate::init);
+        let (view, cx) = cx.add_window_view(|window, cx| {
+            cx.init_md3_theme(window);
+            TwoMenusView {
+                clicked: Rc::default(),
+            }
+        });
+        cx.update(|window, _| window.activate_window());
+        cx.run_until_parked();
+        // Tab の順は左の開閉ボタン、左の項目、右の開閉ボタン、右の項目
+        press(cx, "tab");
+        press(cx, "tab");
+        press(cx, "enter");
+        press(cx, "enter");
+        press(cx, "tab");
+        press(cx, "tab");
+        press(cx, "enter");
+        assert_eq!(
+            *view.read_with(cx, |view, _| view.clicked.clone()).borrow(),
+            vec![("left", "edit"), ("left", "edit"), ("right", "edit")]
         );
     }
 }
