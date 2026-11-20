@@ -61,6 +61,8 @@ mod progress;
 mod progress_indicator;
 #[cfg(feature = "radio-button")]
 mod radio_button;
+#[cfg(feature = "search-bar")]
+mod search_bar;
 #[cfg(feature = "segmented-button")]
 mod segmented_button;
 #[cfg(feature = "select")]
@@ -81,6 +83,7 @@ mod select;
     feature = "navigation-bar",
     feature = "navigation-drawer",
     feature = "navigation-rail",
+    feature = "search-bar",
     feature = "segmented-button",
     feature = "select",
     feature = "slider",
@@ -115,6 +118,7 @@ mod tooltip;
     feature = "navigation-drawer",
     feature = "navigation-rail",
     feature = "radio-button",
+    feature = "search-bar",
     feature = "segmented-button",
     feature = "select",
     feature = "slider",
@@ -199,6 +203,8 @@ pub use progress_indicator::{
 };
 #[cfg(feature = "radio-button")]
 pub use radio_button::{RadioButton, RadioButtonIndicator, RadioGroup};
+#[cfg(feature = "search-bar")]
+pub use search_bar::SearchBar;
 #[cfg(feature = "segmented-button")]
 pub use segmented_button::{
     MultiChoiceSegmentedButtonRow, SegmentedButton, SegmentedToggleButton,

@@ -45,6 +45,7 @@ default = [
   "navigation-rail",
   "progress-indicator",
   "radio-button",
+  "search-bar",
   "segmented-button",
   "select",
   "slider",
@@ -87,6 +88,7 @@ navigation-drawer = []
 navigation-rail = []
 progress-indicator = []
 radio-button = []
+search-bar = []
 segmented-button = []
 select = []
 slider = []
