@@ -16,6 +16,23 @@ use crate::{
 
 type ChangeHandler<T> = Box<dyn Fn(&T, &mut Window, &mut App)>;
 
+/// [`TabList`] の並びが何として振る舞い、支援技術に公開されるか
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum TabListSemantics {
+    /// 選んだタブの内容を [`TabPanel`] に表示するタブ。
+    /// 矢印キーと Home・End でタブへフォーカスを移すと、移った先のタブを選ぶよう求める。
+    /// 支援技術には、並びは role `tablist`、タブは role `tab` と選ばれているかどうかの状態として公開される
+    #[default]
+    Tabs,
+    /// 確定すると行き先を開く、行き先の一覧。対応するパネルが無い場合 (モーダルの中など) に使う。
+    /// 矢印キーと Home・End ではフォーカスだけを移し、Enter・Space・クリックで、選ばれている項目でも選ぶよう求める。
+    /// フォーカスできるすべての項目に Tab で到達できる。
+    /// 支援技術には、並びは role `navigation`、項目は role `link` として公開され、選ばれている項目は現在のページ
+    /// (`aria-current="page"`) として公開される。
+    /// ただし Linux の AT-SPI には現在のページであることが伝わらない (AccessKit の AT-SPI アダプタが変換しない)
+    Navigation,
+}
+
 /// [`TabList`] のタブの並びの向き
 ///
 /// 前後のタブへ移る矢印キーと、支援技術に公開する向きを決める。見た目の配置は変えない
@@ -36,16 +53,19 @@ pub enum TabListOrientation {
 /// 見た目の並びは呼び出し側がスタイルで付ける。
 /// 選ばれたタブの内容は、呼び出し側が [`TabPanel`] に入れて表示する
 ///
-/// - Tab で到達できるタブは 1 つだけで、選ばれているタブ、最初のフォーカスできるタブの順に選ぶ。
-///   タブにフォーカスがある間は、そのタブだけが Tab で到達できる。フォーカスできるタブが無ければ Tab で入らない
-/// - 修飾キーなしの矢印キー (横向きなら左右、縦向きなら上下) で前後のタブへフォーカスを移し、移った先のタブを選ぶよう求める。
-///   端では反対の端に戻る。
-///   Home と End では最初と最後のタブへ移り、移った先を選ぶよう求める。
+/// - 既定 ([`TabListSemantics::Tabs`]) では、Tab で到達できるタブは 1 つだけで、選ばれているタブ、最初のフォーカスできるタブの順に選ぶ。
+///   タブにフォーカスがある間は、そのタブだけが Tab で到達できる。
+///   [`TabListSemantics::Navigation`] では、フォーカスできるすべての項目に Tab で到達できる。
+///   どちらでも、フォーカスできるタブが無ければ Tab で入らない
+/// - 修飾キーなしの矢印キー (横向きなら左右、縦向きなら上下) で前後のタブへフォーカスを移す。
+///   既定 ([`TabListSemantics::Tabs`]) では、移った先のタブを選ぶよう求める。端では反対の端に戻る。
+///   Home と End では最初と最後のタブへ移る。
 ///   [`Availability::Disabled`] のタブは飛ばし、[`Availability::DisabledFocusable`] のタブにはフォーカスだけを移す。
 ///   移れるタブがほかに無い場合は、キー入力を祖先に渡す
-/// - フォーカス中の Enter と Space・マウスのクリック・支援技術からのクリック操作で、タブを選ぶよう求める
+/// - フォーカス中の Enter と Space・マウスのクリック・支援技術からのクリック操作で、タブを選ぶよう求める。
+///   支援技術からのクリック操作は、タブがスクロールで隠れていても届く
 ///
-/// 支援技術には role `tablist` と並べる向きとして公開され、タブは role `tab` と選ばれているかどうかの状態として公開される。
+/// 支援技術には、[`TabList::semantics`] に応じた role と並べる向きとして公開される。
 /// 並びの名前は `aria_label` で与えること。
 /// 見た目は [`Styled`] と [`InteractiveElement`] で呼び出し側が付ける
 #[derive(IntoElement)]
@@ -55,6 +75,7 @@ pub struct TabList<T: PartialEq + 'static> {
     selected: Option<T>,
     on_change: Option<ChangeHandler<T>>,
     orientation: TabListOrientation,
+    semantics: TabListSemantics,
     children: Vec<GroupChild<Tab<T>>>,
 }
 
@@ -70,13 +91,15 @@ impl<T: PartialEq + 'static> TabList<T> {
             selected,
             on_change: None,
             orientation: TabListOrientation::default(),
+            semantics: TabListSemantics::default(),
             children: Vec::new(),
         }
     }
 
     /// タブを選ぶよう求められたときに `handler` を呼ぶ。複数回呼んだ場合は最後に渡した `handler` だけを呼ぶ
     ///
-    /// `handler` には選ぶよう求められたタブの値を渡す。選ばれているタブと無効なタブでは呼ばない。
+    /// `handler` には選ぶよう求められたタブの値を渡す。無効なタブでは呼ばない。
+    /// 選ばれているタブでは、[`TabListSemantics::Navigation`] のときだけ呼ぶ。
     /// 表示を変えるには、`handler` で呼び出し側の状態を更新し、次の描画で [`TabList::new`] に渡すこと。
     /// 設定しない場合、タブは操作されても何も呼ばず、支援技術にクリック操作を公開しない
     pub fn on_change(mut self, handler: impl Fn(&T, &mut Window, &mut App) + 'static) -> Self {
@@ -90,6 +113,12 @@ impl<T: PartialEq + 'static> TabList<T> {
     /// 見た目の並びは呼び出し側がスタイルで合わせること
     pub fn orientation(mut self, orientation: TabListOrientation) -> Self {
         self.orientation = orientation;
+        self
+    }
+
+    /// 並びが何として振る舞い、支援技術に公開されるかを変える。既定は [`TabListSemantics::Tabs`]
+    pub fn semantics(mut self, semantics: TabListSemantics) -> Self {
+        self.semantics = semantics;
         self
     }
 
@@ -136,10 +165,11 @@ impl<T: PartialEq + 'static> RenderOnce for TabList<T> {
             .position(|value| Some(value) == self.selected.as_ref());
         let tab_stop = roving::tab_stop(&items, selected_ix, window);
 
+        let manual = self.semantics == TabListSemantics::Navigation;
         let select = self.on_change.map(|on_change| {
             let items = items.clone();
             Rc::new(move |ix: usize, window: &mut Window, cx: &mut App| {
-                if !items[ix].availability.is_disabled() && Some(ix) != selected_ix {
+                if !items[ix].availability.is_disabled() && (manual || Some(ix) != selected_ix) {
                     on_change(&values[ix], window, cx);
                 }
             })
@@ -156,8 +186,10 @@ impl<T: PartialEq + 'static> RenderOnce for TabList<T> {
                     let element = tab_element(
                         inner,
                         &items[ix],
-                        tab_stop == Some(ix),
+                        // 行き先の一覧はランドマークの中のリンクとして、どの項目にも Tab で到達できるようにする
+                        manual || tab_stop == Some(ix),
                         selected_ix == Some(ix),
+                        self.semantics,
                         select,
                         window,
                     );
@@ -173,7 +205,10 @@ impl<T: PartialEq + 'static> RenderOnce for TabList<T> {
             TabListOrientation::Vertical => (accesskit::Orientation::Vertical, "down", "up"),
         };
         self.inner
-            .role(accesskit::Role::TabList)
+            .role(match self.semantics {
+                TabListSemantics::Tabs => accesskit::Role::TabList,
+                TabListSemantics::Navigation => accesskit::Role::Navigation,
+            })
             .aria_orientation(orientation)
             .on_key_down(move |event, window, cx| {
                 if event.keystroke.modifiers.modified() {
@@ -203,7 +238,7 @@ impl<T: PartialEq + 'static> RenderOnce for TabList<T> {
                     return;
                 };
                 window.focus(&items[ix].focus_handle, cx);
-                if let Some(select) = &select {
+                if !manual && let Some(select) = &select {
                     select(ix, window, cx);
                 }
                 cx.stop_propagation();
@@ -221,6 +256,7 @@ fn tab_element<S>(
     item: &RovingItem,
     tab_stop: bool,
     selected: bool,
+    semantics: TabListSemantics,
     on_select: Option<S>,
     window: &Window,
 ) -> impl IntoElement + use<S>
@@ -228,13 +264,16 @@ where
     S: Fn(&mut Window, &mut App) + 'static,
 {
     let focus_handle = item.focus_handle.clone();
+    let action_focus = focus_handle.clone();
     // フォーカス中に無効になった場合は、フォーカスが外れるまでフォーカスを保つ
     let focusable = item.availability.is_focusable() || focus_handle.is_focused(window);
     let disabled = item.availability.is_disabled();
-    let on_select = on_select.filter(|_| !disabled);
+    let on_select = on_select.filter(|_| !disabled).map(Rc::new);
     inner
-        .role(accesskit::Role::Tab)
-        .aria_selected(selected)
+        .map(|this| match semantics {
+            TabListSemantics::Tabs => this.role(accesskit::Role::Tab).aria_selected(selected),
+            TabListSemantics::Navigation => this.role(accesskit::Role::Link),
+        })
         .when(disabled, |this| {
             let focus_handle = focus_handle.clone();
             // 押下を親に伝えず、親の on_click を呼ばせない。
@@ -250,11 +289,22 @@ where
             this.track_focus(&focus_handle.tab_stop(tab_stop))
         })
         .when_some(on_select, |this, on_select| {
+            let on_action = on_select.clone();
+            // 支援技術のクリック操作は、受けなければノードの中央へのマウス操作になり、
+            // スクロールで隠れたタブには届かないため、直接受ける。
+            // マウスの押下と同じく、選ぶよう求める前にフォーカスを移す
             this.on_click(move |_, window, cx| on_select(window, cx))
+                .on_a11y_action(accesskit::Action::Click, move |_, window, cx| {
+                    window.focus(&action_focus, cx);
+                    on_action(window, cx)
+                })
         })
         .a11y_info(move |node: &mut accesskit::Node| {
             if disabled {
                 node.set_disabled();
+            }
+            if semantics == TabListSemantics::Navigation && selected {
+                node.set_aria_current(accesskit::AriaCurrent::Page);
             }
         })
 }
@@ -448,6 +498,7 @@ mod tests {
         /// 最初のタブの後に、タブでない要素を置く
         divider: bool,
         orientation: TabListOrientation,
+        semantics: TabListSemantics,
         handles: [FocusHandle; 3],
         /// 並びの後に置くパネルのフォーカス。パネルはフォーカスできる子を持たないため、Tab で到達できるようにする
         panel: FocusHandle,
@@ -479,6 +530,7 @@ mod tests {
                 })
                 .aria_label("Fruit")
                 .orientation(self.orientation)
+                .semantics(self.semantics)
                 .flex()
                 .items(tabs.next())
                 .when(self.divider, |this| this.child(div().w(px(50.))))
@@ -518,6 +570,7 @@ mod tests {
             handler: true,
             divider: false,
             orientation: TabListOrientation::Horizontal,
+            semantics: TabListSemantics::Tabs,
             handles: [cx.focus_handle(), cx.focus_handle(), cx.focus_handle()],
             panel: cx.focus_handle().tab_stop(true),
             changes: Rc::default(),
@@ -581,6 +634,23 @@ mod tests {
         selected: bool,
         has_handler: bool,
     ) -> accesskit::Node {
+        semantic_node(
+            cx,
+            TabListSemantics::Tabs,
+            availability,
+            selected,
+            has_handler,
+        )
+    }
+
+    /// `semantics` の並びのタブが書く a11y ノード
+    fn semantic_node(
+        cx: &mut VisualTestContext,
+        semantics: TabListSemantics,
+        availability: Availability,
+        selected: bool,
+        has_handler: bool,
+    ) -> accesskit::Node {
         cx.update(|window, cx| {
             let item = RovingItem {
                 focus_handle: cx.focus_handle(),
@@ -591,6 +661,7 @@ mod tests {
                 &item,
                 true,
                 selected,
+                semantics,
                 has_handler.then_some(|_: &mut Window, _: &mut App| {}),
                 window,
             )
@@ -625,6 +696,36 @@ mod tests {
             assert!(!node.is_disabled());
             assert!(node.supports_action(accesskit::Action::Click));
             assert!(node.supports_action(accesskit::Action::Focus));
+        }
+    }
+
+    #[gpui::test]
+    fn 行き先の一覧は_role_navigation_と_link_で公開され_選ばれた項目は現在のページになる(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, None, ALL_ENABLED);
+        update(&view, cx, |view| {
+            view.semantics = TabListSemantics::Navigation
+        });
+        let node = view
+            .read_with(cx, |view, _| view.list_node.clone())
+            .expect("描画済みであること");
+        assert_eq!(node.role(), accesskit::Role::Navigation);
+        for selected in [false, true] {
+            let node = semantic_node(
+                cx,
+                TabListSemantics::Navigation,
+                Availability::Enabled,
+                selected,
+                true,
+            );
+            assert_eq!(node.role(), accesskit::Role::Link);
+            assert_eq!(node.is_selected(), None, "選択の状態は公開しないこと");
+            assert_eq!(
+                node.aria_current(),
+                selected.then_some(accesskit::AriaCurrent::Page)
+            );
+            assert!(node.supports_action(accesskit::Action::Click));
         }
     }
 
@@ -883,6 +984,40 @@ mod tests {
             changes(&view, cx),
             vec!["apple", "apple"],
             "選ばれているタブでは求めないこと"
+        );
+    }
+
+    #[gpui::test]
+    fn 行き先の一覧は矢印キーでフォーカスだけを移し_選ばれている項目でも確定を求める(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some("apple"), ALL_ENABLED);
+        update(&view, cx, |view| {
+            view.semantics = TabListSemantics::Navigation
+        });
+        cx.simulate_keystrokes("tab");
+        cx.simulate_keystrokes("right");
+        cx.simulate_keystrokes("end");
+        assert_eq!(focused(&view, cx), Some("plum"));
+        assert!(
+            changes(&view, cx).is_empty(),
+            "矢印キーと End では選ぶよう求めないこと"
+        );
+        press_key(cx, "enter");
+        assert_eq!(changes(&view, cx), vec!["plum"]);
+        cx.simulate_keystrokes("shift-tab");
+        assert_eq!(
+            focused(&view, cx),
+            Some("pear"),
+            "どの項目にも Tab で到達できること"
+        );
+        cx.simulate_keystrokes("tab");
+        press_key(cx, "space");
+        click_column(cx, 2);
+        assert_eq!(
+            changes(&view, cx),
+            vec!["plum", "plum", "plum"],
+            "選ばれているタブでも Space とクリックで求めること"
         );
     }
 
