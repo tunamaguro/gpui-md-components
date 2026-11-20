@@ -24,7 +24,9 @@ use crate::{Fab, IconButton};
 ///
 /// 画面の下端に、操作を左から並べ、右端に FAB を置く。バーは置いた場所の幅に広がり、高さは 80dp。
 /// 子の要素は操作として左から並べる。[`BottomAppBar::action`] で置いたアイコンボタンは、少なくとも 48dp 四方の枠の中央に置く。
-/// 操作は縮めずに並べ、FAB の手前に収まらない部分は描かず、押せない。操作の数と大きさは幅に収まるように選ぶこと。
+/// [`BottomAppBar::action`] の操作は縮めずに並べ、子の要素の幅はそれぞれの flex の指定に従う。
+/// 幅に収まらない操作は FAB の下に重なり、重なった位置のクリックは FAB だけが受ける。
+/// 隠れた操作にも Tab で到達できるため、操作の数と大きさは幅に収まるように選ぶこと。
 ///
 /// バーは縦にも横にも縮まない。横の flex で残りの幅に収めるには、[`Styled`] で `.flex_1().min_w_0()` を指定する。
 ///
@@ -101,38 +103,34 @@ impl RenderOnce for BottomAppBar {
             .pr(dp(supplement::BOTTOM_HORIZONTAL_PADDING))
             .pt(dp(supplement::BOTTOM_VERTICAL_PADDING))
             .bg(theme.color(bottom_app_bar::CONTAINER_COLOR))
-            // 収まらない操作が FAB の下に入り込んで同じクリックを受けないよう、並びの外は描かない
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .overflow_hidden()
-                    .flex()
-                    .items_center()
-                    .children(self.actions.into_iter().map(|action| {
-                        match action {
-                            // Compose のアイコンボタンと同じ間隔で並べるため、48dp 四方の配置枠の中央に置く。
-                            // 押せる範囲はアイコンボタン自身の大きさのまま
-                            Action::Icon(icon) => div()
-                                .flex()
-                                .flex_none()
-                                .items_center()
-                                .justify_center()
-                                .min_w(dp(supplement::ICON_TARGET_SIZE))
-                                .min_h(dp(supplement::ICON_TARGET_SIZE))
-                                .child(
-                                    icon.default_content(ColorRole::OnSurface)
-                                        .default_theme(theme.clone()),
-                                )
-                                .into_any_element(),
-                            Action::Element(element) => element,
-                        }
-                    })),
-            )
+            .child(div().flex_1().min_w_0().flex().items_center().children(
+                self.actions.into_iter().map(|action| {
+                    match action {
+                        // Compose のアイコンボタンと同じ間隔で並べるため、48dp 四方の配置枠の中央に置く。
+                        // 押せる範囲はアイコンボタン自身の大きさのまま
+                        Action::Icon(icon) => div()
+                            .flex()
+                            .flex_none()
+                            .items_center()
+                            .justify_center()
+                            .min_w(dp(supplement::ICON_TARGET_SIZE))
+                            .min_h(dp(supplement::ICON_TARGET_SIZE))
+                            .child(
+                                icon.default_content(ColorRole::OnSurface)
+                                    .default_theme(theme.clone()),
+                            )
+                            .into_any_element(),
+                        Action::Element(element) => element,
+                    }
+                }),
+            ))
             .when_some(self.fab, |this, fab| {
-                // FAB は内容の上端に寄せて置く (`Alignment.TopStart`)
+                // FAB は内容の上端に寄せて置く (`Alignment.TopStart`)。
+                // 収まらない操作が FAB の下に重なっても同じクリックを受けないよう、背後へのマウスの入力を止める
                 this.child(
                     div()
+                        .id("fab-slot")
+                        .block_mouse_except_scroll()
                         .flex_none()
                         .self_stretch()
                         .pt(dp(supplement::BOTTOM_FAB_VERTICAL_PADDING))
@@ -324,7 +322,7 @@ mod tests {
 
     /// 操作が幅に収まらなくても、FAB と重なる位置のクリックは FAB だけが受ける
     #[gpui::test]
-    fn 収まらない操作は_fab_の下で押せない(cx: &mut TestAppContext) {
+    fn fab_に重なった操作は押せない(cx: &mut TestAppContext) {
         struct NarrowView {
             clicked: Vec<&'static str>,
         }
