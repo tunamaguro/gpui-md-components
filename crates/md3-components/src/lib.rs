@@ -173,7 +173,10 @@ pub use navigation_bar::{
     NavigationBar, NavigationBarArrangement, NavigationBarItem, NavigationItemIconPosition,
 };
 #[cfg(feature = "navigation-drawer")]
-pub use navigation_drawer::{NavigationDrawer, NavigationDrawerItem};
+pub use navigation_drawer::{ModalNavigationDrawer, NavigationDrawer, NavigationDrawerItem};
+// dialog feature が有効なら dialog から公開している
+#[cfg(all(feature = "navigation-drawer", not(feature = "dialog")))]
+pub use gpui_headless::dialog::DismissReason;
 #[cfg(feature = "navigation-rail")]
 pub use navigation_rail::{NavigationRail, NavigationRailArrangement, NavigationRailItem};
 #[cfg(any(feature = "loading-indicator", feature = "progress-indicator"))]

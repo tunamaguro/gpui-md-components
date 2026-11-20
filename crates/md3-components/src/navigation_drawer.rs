@@ -1,7 +1,8 @@
 // 寸法・色・項目の中の配置は Jetpack Compose Material 3 から移植している
 // (https://android.googlesource.com/platform/frameworks/support)
 // Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/NavigationDrawer.kt
-//         (`PermanentDrawerSheet`、`DrawerSheet`、`NavigationDrawerItem`、`NavigationDrawerItemDefaults`)
+//         (`PermanentDrawerSheet`、`ModalNavigationDrawer`、`ModalDrawerSheet`、`DrawerSheet`、`DrawerDefaults`、
+//         `NavigationDrawerItem`、`NavigationDrawerItemDefaults`)
 //         @ 2a941dd11aabd9bb7d2016ed159764b220117c20
 // Copyright 2021 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 // Compose の項目はフォーカスを状態レイヤーだけで示す。この実装はそれに、ほかの部品と同じ外向きのフォーカスリングを
@@ -15,11 +16,13 @@ use gpui::{
     Refineable, RenderOnce, ScrollHandle, SharedString, StatefulInteractiveElement,
     StyleRefinement, Styled, Window, canvas, div, prelude::FluentBuilder, svg,
 };
+use gpui_headless::dialog::{Dialog as HeadlessDialog, DismissReason};
 use gpui_headless::tabs::{Tab as HeadlessTab, TabList, TabListOrientation};
 use md3_icons::StyledIcon;
+use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::Dp;
 use md3_theme::md3_tokens::component::navigation_drawer as tokens;
-use md3_theme::md3_tokens::{focus_ring, state};
+use md3_theme::md3_tokens::{focus_ring, state, supplement};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
 use crate::shape::Shaped;
@@ -38,6 +41,7 @@ const ITEM_TRAILING_PADDING: Dp = Dp(24.0);
 const ITEM_CONTENT_SPACE: Dp = Dp(12.0);
 
 type ChangeHandler<T> = Box<dyn Fn(&T, &mut Window, &mut App)>;
+type DismissHandler = Box<dyn Fn(&DismissReason, &mut Window, &mut App)>;
 
 /// MD3 のナビゲーションドロワー (Compose の `PermanentDrawerSheet` に `NavigationDrawerItem` を並べたもの)
 ///
@@ -69,6 +73,8 @@ pub struct NavigationDrawer<T: PartialEq + 'static> {
     on_change: Option<ChangeHandler<T>>,
     header: Option<AnyElement>,
     aria_label: Option<SharedString>,
+    /// [`ModalNavigationDrawer`] のシートとして描くか
+    modal: bool,
     style: StyleRefinement,
     theme: Option<SharedTheme>,
 }
@@ -85,6 +91,7 @@ impl<T: PartialEq + 'static> NavigationDrawer<T> {
             on_change: None,
             header: None,
             aria_label: None,
+            modal: false,
             style: StyleRefinement::default(),
             theme: None,
         }
@@ -325,8 +332,24 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationDrawer<T> {
             .w(dp(tokens::CONTAINER_WIDTH))
             .max_w_full()
             .h_full()
-            // 角丸は付けない (`PermanentDrawerSheet` の `RectangleShape`)
-            .bg(theme.color(tokens::STANDARD_CONTAINER_COLOR))
+            // 常に表示するシートは角を丸めない (`PermanentDrawerSheet` の `RectangleShape`)。
+            // モーダルのシートの角丸は描画時の大きさで決まるため、背景は Shaped で包んだ層に描く
+            .when(!self.modal, |this| {
+                this.bg(theme.color(tokens::STANDARD_CONTAINER_COLOR))
+            })
+            .when(self.modal, |this| {
+                this.child(Shaped::new(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .right_0()
+                        .bottom_0()
+                        .bg(theme.color(tokens::MODAL_CONTAINER_COLOR)),
+                    theme.clone(),
+                    tokens::CONTAINER_SHAPE,
+                ))
+            })
             .children(header)
             .child(list)
             .child(measure);
@@ -338,6 +361,95 @@ impl<T: PartialEq + 'static> RenderOnce for NavigationDrawer<T> {
 impl<T: PartialEq + 'static> Styled for NavigationDrawer<T> {
     fn style(&mut self) -> &mut StyleRefinement {
         &mut self.style
+    }
+}
+
+/// MD3 のモーダルのナビゲーションドロワー (Compose の `ModalNavigationDrawer` と `ModalDrawerSheet`)
+///
+/// 開いている間、ウィンドウ全体を幕で覆い、その左端に `drawer` のシートを親 (ウィンドウ) の高さいっぱいに描く。
+/// シートは右側の角を丸め、モーダル用の色 (SurfaceContainerLow) で塗る。置いた場所のレイアウトには影響しない。
+/// 開いているかどうかは呼び出し側が持ち、[`ModalNavigationDrawer::new`] に毎回渡す。閉じることは
+/// [`ModalNavigationDrawer::on_dismiss`] で求める。項目を選んだときに閉じるかは、[`NavigationDrawer::on_change`] で呼び出し側が決める
+///
+/// 開いている間はモーダルのダイアログとして振る舞う
+///
+/// - 開いたとき、ドロワーの中で Tab で到達できる要素 (選ばれている項目か最初の項目) にフォーカスを移す
+/// - Tab と Shift+Tab はドロワーの中だけを巡る
+/// - 修飾キーなしの Escape と、幕のクリックで閉じるよう求める
+/// - 閉じたとき、フォーカスがドロワーの中にあれば、開く前にフォーカスのあった要素へ戻す
+///
+/// 支援技術には modal の `dialog` として、[`ModalNavigationDrawer::new`] の `label` を名前として公開される。
+/// 中の項目の並びは [`NavigationDrawer`] と同じく公開される。ほかの要素を支援技術から隠す条件は
+/// [`gpui_headless::dialog::Dialog`] と同じで、ウィンドウのルートの近くに置くこと
+#[derive(IntoElement)]
+pub struct ModalNavigationDrawer<T: PartialEq + 'static> {
+    id: ElementId,
+    open: bool,
+    label: SharedString,
+    drawer: NavigationDrawer<T>,
+    on_dismiss: Option<DismissHandler>,
+}
+
+impl<T: PartialEq + 'static> ModalNavigationDrawer<T> {
+    /// `open` なら `drawer` を開いた状態で表示するモーダルのドロワーを作る
+    ///
+    /// `label` はドロワーのアクセシブルな名前にする。画面には表示しない。
+    /// `id` は同じ親の中で一意にし、描画のたびに同じ値を渡すこと
+    pub fn new(
+        id: impl Into<ElementId>,
+        open: bool,
+        label: impl Into<SharedString>,
+        drawer: NavigationDrawer<T>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            open,
+            label: label.into(),
+            drawer,
+            on_dismiss: None,
+        }
+    }
+
+    /// Escape と幕のクリックで閉じるよう求められたときに `handler` を呼ぶ。複数回呼んだ場合は最後に渡した `handler` だけを呼ぶ
+    ///
+    /// `handler` には、閉じるよう求めた操作を渡す。閉じるには、`handler` で呼び出し側の状態を更新し、次の描画で [`ModalNavigationDrawer::new`] に `false` を渡すこと。
+    /// 設定しない場合、Escape と幕のクリックでは何も起きない
+    pub fn on_dismiss(
+        mut self,
+        handler: impl Fn(&DismissReason, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_dismiss = Some(Box::new(handler));
+        self
+    }
+}
+
+impl<T: PartialEq + 'static> RenderOnce for ModalNavigationDrawer<T> {
+    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let mut dialog = HeadlessDialog::new(self.id, self.open);
+        if let Some(handler) = self.on_dismiss {
+            dialog = dialog.on_dismiss(handler);
+        }
+        if !self.open {
+            return dialog;
+        }
+        let theme = self
+            .drawer
+            .theme
+            .clone()
+            .unwrap_or_else(|| cx.md3_theme().clone());
+        let mut drawer = self.drawer;
+        drawer.modal = true;
+        // 幕の色は Compose の `DrawerDefaults.scrimColor` (Scrim の 32%)
+        let scrim = div().flex().items_stretch().bg(theme
+            .color(ColorRole::Scrim)
+            .opacity(supplement::dialog::SCRIM_OPACITY));
+        dialog
+            .scrim(scrim)
+            .aria_label(self.label)
+            .flex()
+            .h_full()
+            .max_w_full()
+            .child(drawer)
     }
 }
 
@@ -576,6 +688,127 @@ mod tests {
         assert!(
             ring_fits(cx),
             "Home で移った最初の項目のリングが切れないこと"
+        );
+    }
+
+    /// 開いているかどうかと、閉じるよう求められた回数を持ち、モーダルのドロワーを描くビュー
+    struct ModalView {
+        open: bool,
+        dismissed: usize,
+        /// 選ばれている 2 つ目の項目のフォーカス
+        selected_item: FocusHandle,
+        /// ドロワーの外のボタンのフォーカス
+        outside: FocusHandle,
+    }
+
+    impl Render for ModalView {
+        fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            div()
+                .size_full()
+                .child(
+                    gpui_headless::button::Button::new("outside")
+                        .track_focus(&self.outside)
+                        .size(px(20.0)),
+                )
+                .child(
+                    ModalNavigationDrawer::new(
+                        "modal",
+                        self.open,
+                        "Navigation menu",
+                        NavigationDrawer::new("drawer", Some(1))
+                            .item(NavigationDrawerItem::new("inbox", 0, "Inbox"))
+                            .item(
+                                NavigationDrawerItem::new("sent", 1, "Sent")
+                                    .track_focus(&self.selected_item),
+                            )
+                            .item(NavigationDrawerItem::new("home", 2, "Home")),
+                    )
+                    .on_dismiss(cx.listener(|this, _, _, cx| {
+                        this.dismissed += 1;
+                        this.open = false;
+                        cx.notify();
+                    })),
+                )
+        }
+    }
+
+    fn open_modal(cx: &mut TestAppContext) -> (gpui::Entity<ModalView>, &mut VisualTestContext) {
+        cx.update(crate::init);
+        let (view, cx) = cx.add_window_view(|window, cx| {
+            cx.init_md3_theme(window);
+            ModalView {
+                open: false,
+                dismissed: 0,
+                selected_item: cx.focus_handle(),
+                outside: cx.focus_handle(),
+            }
+        });
+        cx.update(|window, _| window.activate_window());
+        cx.run_until_parked();
+        (view, cx)
+    }
+
+    #[gpui::test]
+    fn 閉じている間は何も描かず_開くと幕と左端のシートを描く(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = open_modal(cx);
+        assert!(quads_of(cx, tokens::MODAL_CONTAINER_COLOR).is_empty());
+        view.update(cx, |view, cx| {
+            view.open = true;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        let height = cx.update(|window, _| f32::from(window.viewport_size().height));
+        assert_eq!(
+            quads_of(cx, tokens::MODAL_CONTAINER_COLOR),
+            vec![(0.0, 0.0, 360.0, height)],
+            "シートはウィンドウの左端に、ウィンドウの高さで描くこと"
+        );
+        let scrim = cx.update(|window, cx| {
+            let color: gpui::Background = cx
+                .md3_theme()
+                .color(ColorRole::Scrim)
+                .opacity(supplement::dialog::SCRIM_OPACITY)
+                .into();
+            window
+                .painted_quads()
+                .into_iter()
+                .filter(|quad| quad.background == color)
+                .count()
+        });
+        assert_eq!(scrim, 1, "幕を 1 枚描くこと");
+    }
+
+    #[gpui::test]
+    fn 開くと選ばれた項目にフォーカスし_escape_で閉じてフォーカスを戻す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = open_modal(cx);
+        let (selected_item, outside) = view.read_with(cx, |view, _| {
+            (view.selected_item.clone(), view.outside.clone())
+        });
+        cx.update(|window, cx| window.focus(&outside, cx));
+        view.update(cx, |view, cx| {
+            view.open = true;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        assert!(
+            cx.update(|window, _| selected_item.is_focused(window)),
+            "開いたら Tab で到達できる選ばれた項目にフォーカスを移すこと"
+        );
+        cx.simulate_keystrokes("tab");
+        assert!(
+            !cx.update(|window, _| outside.is_focused(window)),
+            "Tab でドロワーの外へ出ないこと"
+        );
+        cx.simulate_keystrokes("escape");
+        cx.run_until_parked();
+        assert_eq!(view.read_with(cx, |view, _| view.dismissed), 1);
+        assert!(
+            cx.update(|window, _| outside.is_focused(window)),
+            "閉じたら開く前のフォーカスに戻すこと"
         );
     }
 }

@@ -5,7 +5,9 @@ use gpui::{
     Refineable as _, Render, SharedString, StatefulInteractiveElement as _, Styled as _, Window,
     div, px, relative,
 };
-use md3_components::{NavigationDrawer, NavigationDrawerItem, TabPanel};
+use md3_components::{
+    Button, ButtonVariant, ModalNavigationDrawer, NavigationDrawer, NavigationDrawerItem, TabPanel,
+};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::focus_ring;
 use md3_theme::md3_tokens::typography::TypeScale;
@@ -21,10 +23,12 @@ const DESTINATIONS: [(&str, md3_icons::Icon, Option<&str>); 6] = [
     ("Trash", md3_icons::DELETE, None),
 ];
 
-/// ナビゲーションドロワーを並べるページ。選ばれている行き先の位置と、パネルのフォーカスを持つ
+/// ナビゲーションドロワーを並べるページ。選ばれている行き先の位置と、パネルのフォーカスと、モーダルのドロワーを開いているかを持つ
 pub struct NavigationDrawerPage {
     selected: usize,
     panel: FocusHandle,
+    /// モーダルのドロワーを開いているか
+    modal_open: bool,
 }
 
 impl NavigationDrawerPage {
@@ -33,6 +37,7 @@ impl NavigationDrawerPage {
             selected: 0,
             // パネルの中に Tab で到達できる要素が無いため、パネル自身に Tab で到達できるようにする
             panel: cx.focus_handle().tab_stop(true),
+            modal_open: false,
         }
     }
 }
@@ -58,19 +63,32 @@ impl Render for NavigationDrawerPage {
                 this.selected = *index;
                 cx.notify();
             }))
-            .items(
-                DESTINATIONS
-                    .iter()
-                    .enumerate()
-                    .map(|(index, (label, icon, badge))| {
-                        let item =
-                            NavigationDrawerItem::new(("drawer", index), index, *label).icon(*icon);
-                        match badge {
-                            Some(badge) => item.badge(*badge),
-                            None => item,
-                        }
-                    }),
-            );
+            .items(items("drawer"));
+        // モーダルのドロワーは同じ行き先を並べ、項目を選ぶと閉じる
+        let modal = ModalNavigationDrawer::new(
+            "modal-drawer",
+            self.modal_open,
+            "Navigation menu",
+            NavigationDrawer::new("modal-drawer-items", Some(self.selected))
+                .aria_label("Mail navigation")
+                .on_change(cx.listener(|this, index: &usize, _, cx| {
+                    this.selected = *index;
+                    this.modal_open = false;
+                    cx.notify();
+                }))
+                .items(items("modal-drawer-item")),
+        )
+        .on_dismiss(cx.listener(|this, _, _, cx| {
+            this.modal_open = false;
+            cx.notify();
+        }));
+        let open_modal = Button::new("open-modal-drawer")
+            .variant(ButtonVariant::Outlined)
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.modal_open = true;
+                cx.notify();
+            }))
+            .child(gpui::text!("Open modal drawer"));
         // 選ばれた行き先の内容。ドロワーは内容を公開しないため、行き先の名前を付けたパネルとして同じ描画で差し替える。
         // Tab でドロワーの次にパネルへ移れるよう、ドロワーの後に置く
         let panel = TabPanel::new("drawer-panel")
@@ -97,6 +115,8 @@ impl Render for NavigationDrawerPage {
             .flex_col()
             .items_start()
             .gap_6()
+            .child(open_modal)
+            .child(modal)
             .child(label(&theme, "drawer-caption", "Standard drawer"))
             .child(
                 div()
@@ -109,6 +129,20 @@ impl Render for NavigationDrawerPage {
                     .child(panel),
             )
     }
+}
+
+/// 行き先の項目。`id` で項目の id を分ける
+fn items(id: &'static str) -> impl Iterator<Item = NavigationDrawerItem<usize>> {
+    DESTINATIONS
+        .iter()
+        .enumerate()
+        .map(move |(index, (label, icon, badge))| {
+            let item = NavigationDrawerItem::new((id, index), index, *label).icon(*icon);
+            match badge {
+                Some(badge) => item.badge(*badge),
+                None => item,
+            }
+        })
 }
 
 /// 支援技術に公開されるテキスト
