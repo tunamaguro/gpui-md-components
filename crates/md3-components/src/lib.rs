@@ -2,6 +2,8 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+#[cfg(feature = "app-bar")]
+mod app_bar;
 #[cfg(feature = "badge")]
 mod badge;
 #[cfg(feature = "button")]
@@ -107,6 +109,8 @@ mod tooltip;
 ))]
 mod util;
 
+#[cfg(feature = "app-bar")]
+pub use app_bar::{TopAppBar, TopAppBarTitleAlignment, TopAppBarVariant};
 #[cfg(feature = "badge")]
 pub use badge::{Badge, BadgeColors, BadgedBox};
 #[cfg(feature = "button")]

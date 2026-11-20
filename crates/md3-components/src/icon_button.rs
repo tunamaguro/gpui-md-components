@@ -433,6 +433,8 @@ pub struct IconButton {
     colors: ButtonColors,
     /// フォーカスリングの色。`None` はトークンの色
     focus_ring: Option<ColorRole>,
+    /// 容器を塗らないバリアントで、[`ButtonColors::content`] が `None` のときのアイコンの色。`None` はバリアントの色
+    default_content: Option<ColorRole>,
     size: ButtonSize,
     width: IconButtonWidth,
     shape: ButtonShape,
@@ -467,6 +469,7 @@ impl IconButton {
             variant: IconButtonVariant::default(),
             colors: ButtonColors::default(),
             focus_ring: None,
+            default_content: None,
             size: ButtonSize::default(),
             width: IconButtonWidth::default(),
             shape: ButtonShape::default(),
@@ -496,6 +499,23 @@ impl IconButton {
     #[cfg(feature = "snackbar")]
     pub(crate) fn focus_ring(mut self, role: ColorRole) -> Self {
         self.focus_ring = Some(role);
+        self
+    }
+
+    /// 置いた場所の内容の色を `role` として受け取る
+    ///
+    /// Standard と Outlined で [`IconButton::colors`] でアイコンの色を指定しなかったときに、バリアントの色の代わりに使う。
+    /// Filled と FilledTonal は容器に合わせた色で描く (Compose の `LocalContentColor` を受け取るバリアントと同じ)
+    #[cfg(feature = "app-bar")]
+    pub(crate) fn default_content(mut self, role: ColorRole) -> Self {
+        self.default_content = Some(role);
+        self
+    }
+
+    /// [`IconButton::theme`] でテーマを指定していなければ `theme` で描く
+    #[cfg(feature = "app-bar")]
+    pub(crate) fn default_theme(mut self, theme: SharedTheme) -> Self {
+        self.theme.get_or_insert(theme);
         self
     }
 
@@ -573,7 +593,16 @@ impl RenderOnce for IconButton {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
         let mut tokens = self.variant.tokens();
         tokens.container = self.colors.container.or(tokens.container);
-        tokens.content = self.colors.content.unwrap_or(tokens.content);
+        tokens.content = self
+            .colors
+            .content
+            .or(self.default_content.filter(|_| {
+                matches!(
+                    self.variant,
+                    IconButtonVariant::Standard | IconButtonVariant::Outlined
+                )
+            }))
+            .unwrap_or(tokens.content);
         tokens.disabled_container = self.colors.disabled_container.or(tokens.disabled_container);
         tokens.disabled_content = self
             .colors
