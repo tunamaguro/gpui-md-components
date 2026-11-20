@@ -6,6 +6,7 @@ mod accessibility;
 pub mod button;
 pub mod choice;
 pub mod dialog;
+pub mod disclosure;
 mod focus_visible;
 mod interaction;
 pub mod list;
