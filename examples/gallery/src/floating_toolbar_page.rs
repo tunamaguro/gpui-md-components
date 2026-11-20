@@ -63,7 +63,7 @@ impl Render for FloatingToolbarPage {
             .child(label(&theme, "Docked"))
             .child(
                 DockedToolbar::new("docked", "Navigation")
-                    .w(px(412.))
+                    .max_w(px(412.))
                     .action(IconButton::new("back", md3_icons::ARROW_BACK, "Back"))
                     .action(IconButton::new("undo", md3_icons::UNDO, "Undo"))
                     .action(IconButton::new("redo", md3_icons::REDO, "Redo"))
@@ -73,7 +73,7 @@ impl Render for FloatingToolbarPage {
             .child(
                 DockedToolbar::new("docked-centered", "Format")
                     .arrangement(DockedToolbarArrangement::Centered)
-                    .w(px(412.))
+                    .max_w(px(412.))
                     .action(IconButton::new("bold", md3_icons::FORMAT_BOLD, "Bold"))
                     .action(IconButton::new(
                         "italic",
