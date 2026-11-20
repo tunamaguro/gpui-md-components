@@ -3,7 +3,7 @@
 use gpui::{
     Context, FocusHandle, InteractiveElement as _, IntoElement, KeyDownEvent, ParentElement as _,
     Refineable as _, Render, ScrollHandle, StatefulInteractiveElement as _, Styled as _, Window,
-    div, px,
+    accesskit, div, px,
 };
 use md3_components::{IconButton, TopAppBar, TopAppBarTitleAlignment, TopAppBarVariant};
 use md3_theme::ThemeExt as _;
@@ -22,7 +22,7 @@ impl AppBarPage {
     pub fn new(cx: &mut Context<Self>) -> Self {
         Self {
             content_scroll: ScrollHandle::new(),
-            content_focus: cx.focus_handle(),
+            content_focus: cx.focus_handle().tab_stop(true),
         }
     }
 }
@@ -47,6 +47,8 @@ impl Render for AppBarPage {
 
         let mut content = div()
             .id("scrolled-content")
+            .role(accesskit::Role::ScrollView)
+            .aria_label("Scrollable items")
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
@@ -54,7 +56,6 @@ impl Render for AppBarPage {
             // gpui は重なったスクロール領域をすべて動かすため、ページまで動かないように止める
             .on_scroll(|_, _, cx| cx.stop_propagation())
             .track_focus(&self.content_focus)
-            .tab_index(0)
             .focus_visible(|style| {
                 style
                     .border_2()
