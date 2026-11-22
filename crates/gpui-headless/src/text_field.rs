@@ -160,6 +160,7 @@ pub struct TextField {
     on_change: Option<ChangeHandler>,
     on_submit: Option<ChangeHandler>,
     placeholder: Option<SharedString>,
+    error: Option<SharedString>,
     read_only: bool,
     availability: Availability,
     provided_focus_handle: Option<FocusHandle>,
@@ -183,6 +184,7 @@ impl TextField {
             on_change: None,
             on_submit: None,
             placeholder: None,
+            error: None,
             read_only: false,
             availability: Availability::Enabled,
             provided_focus_handle: None,
@@ -221,6 +223,15 @@ impl TextField {
     /// 支援技術に、入力する内容の例やヒントとして `placeholder` を公開する。部品は描かない
     pub fn placeholder(mut self, placeholder: impl Into<SharedString>) -> Self {
         self.placeholder = Some(placeholder.into());
+        self
+    }
+
+    /// 文字列にエラーがあることを示す。`None` を渡すとエラーのない状態に戻す。既定ではエラーなし
+    ///
+    /// `Some` の場合、支援技術には invalid として公開され、`message` が説明 (description) の先頭に加わる。
+    /// 部品は `message` を表示しないため、エラーの内容は呼び出し側がテキストとしても表示すること
+    pub fn error(mut self, message: Option<SharedString>) -> Self {
+        self.error = message;
         self
     }
 
@@ -559,6 +570,7 @@ impl RenderOnce for TextField {
             })
             .a11y_info({
                 let placeholder = self.placeholder.clone();
+                let error = self.error.clone();
                 move |node: &mut accesskit::Node| {
                     if disabled {
                         node.set_disabled();
@@ -567,6 +579,16 @@ impl RenderOnce for TextField {
                     }
                     if let Some(placeholder) = &placeholder {
                         node.set_placeholder(placeholder.to_string());
+                    }
+                    if let Some(error) = &error {
+                        node.set_invalid(accesskit::Invalid::True);
+                        // AccessKit のアダプタは invalid や error_message を OS に渡さないため、
+                        // メッセージを description に含めて読み上げさせる
+                        let description = match node.description() {
+                            Some(description) => format!("{error} {description}"),
+                            None => error.to_string(),
+                        };
+                        node.set_description(description);
                     }
                 }
             })
@@ -1443,8 +1465,9 @@ mod tests {
         parent_presses: Rc<RefCell<usize>>,
         /// 部品の編集の状態。IME の変換を直接起こすために持つ
         edit_state: Option<Entity<EditState>>,
-        /// 文字列を中央に揃えるか
-        centered: bool,
+        /// 文字列の横の揃え
+        align: TextAlign,
+        error: Option<SharedString>,
     }
 
     impl Render for FieldView {
@@ -1469,7 +1492,13 @@ mod tests {
                 .selection_color(SELECTION_COLOR())
                 .track_focus(&self.focus)
                 .aria_label("Name")
-                .when(self.centered, |this| this.text_center())
+                .error(self.error.clone())
+                .aria_description("Full name")
+                .map(|this| match self.align {
+                    TextAlign::Left => this,
+                    TextAlign::Center => this.text_center(),
+                    TextAlign::Right => this.text_right(),
+                })
                 .absolute()
                 .left(px(100.))
                 .top(px(100.))
@@ -1521,7 +1550,8 @@ mod tests {
             node: None,
             parent_presses: Rc::default(),
             edit_state: None,
-            centered: false,
+            align: TextAlign::Left,
+            error: None,
         })
     }
 
@@ -1947,7 +1977,7 @@ mod tests {
         cx: &mut TestAppContext,
     ) {
         let (view, cx) = setup(cx, "");
-        update(&view, cx, |view| view.centered = true);
+        update(&view, cx, |view| view.align = TextAlign::Center);
         focus(cx);
         let (x, ..) = filled(cx, CARET_COLOR())[0];
         assert_eq!(
@@ -1968,6 +1998,45 @@ mod tests {
         mouse_down(cx, (start + end) / 2. - 2., 1, Modifiers::none());
         cx.simulate_input("x");
         assert_eq!(value(&view, cx), "mxm");
+    }
+
+    #[gpui::test]
+    fn 右揃えなら収まる文字列を右に置き_はみ出す間はカーソルが見える位置までずらす(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "");
+        update(&view, cx, |view| view.align = TextAlign::Right);
+        focus(cx);
+        let (x, ..) = filled(cx, CARET_COLOR())[0];
+        assert_eq!(x, 298., "右端にカーソルの幅を空けて置くこと");
+        cx.simulate_input(&"m".repeat(100));
+        cx.simulate_keystrokes("home");
+        let (x, ..) = filled(cx, CARET_COLOR())[0];
+        assert_eq!(x, 100., "はみ出す間は左端から見せること");
+        // 短くすると右揃えに戻り、押した位置に対応する文字の境界へカーソルを移す
+        cx.simulate_keystrokes("ctrl-a");
+        cx.simulate_input("mm");
+        cx.simulate_keystrokes("home");
+        let (start, ..) = filled(cx, CARET_COLOR())[0];
+        cx.simulate_keystrokes("end");
+        let (end, ..) = filled(cx, CARET_COLOR())[0];
+        assert_eq!(end, 298.);
+        assert!(start > 250., "短い文字列は右に寄せること");
+        mouse_down(cx, (start + end) / 2. - 2., 1, Modifiers::none());
+        cx.simulate_input("x");
+        assert_eq!(value(&view, cx), "mxm");
+    }
+
+    #[gpui::test]
+    fn エラーがあれば_invalid_にしてメッセージを説明の先頭に加える(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "ab");
+        assert_eq!(node(&view, cx).invalid(), None);
+        update(&view, cx, |view| view.error = Some("Required".into()));
+        let node = node(&view, cx);
+        assert_eq!(node.invalid(), Some(accesskit::Invalid::True));
+        assert_eq!(node.description(), Some("Required Full name"));
     }
 
     #[gpui::test]

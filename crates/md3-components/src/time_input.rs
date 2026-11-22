@@ -11,10 +11,12 @@
 
 //! MD3 の時刻の入力
 
+use std::rc::Rc;
+
 use gpui::{
-    App, ElementId, InteractiveElement, IntoElement, ParentElement, Refineable, RenderOnce,
-    SharedString, StatefulInteractiveElement, StyleRefinement, Styled, Window, div,
-    prelude::FluentBuilder,
+    App, ElementId, FontWeight, InteractiveElement, IntoElement, MouseButton, ParentElement,
+    Refineable, RenderOnce, SharedString, StatefulInteractiveElement, StyleRefinement, Styled,
+    Window, div, prelude::FluentBuilder,
 };
 use gpui_headless::radio::{Radio, RadioGroup};
 use gpui_headless::text_field::TextField as HeadlessTextField;
@@ -38,6 +40,7 @@ const FOCUSED_OUTLINE_WIDTH: Dp = Dp(2.0);
 const OUTLINE_WIDTH: Dp = Dp(1.0);
 
 type ChangeHandler = Box<dyn Fn(&Time, &mut Window, &mut App)>;
+type ValidityHandler = Box<dyn Fn(bool, &mut Window, &mut App)>;
 
 /// 時刻
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -71,21 +74,25 @@ pub enum HourFormat {
 /// 入力欄は幅 96dp、高さ 72dp で、下に補足の文 (Hour・Minute) を表示する。
 /// 時刻は呼び出し側が持ち、[`TimeInput::new`] に毎回渡す。入力自身は時刻を変えず、変えた後の時刻を [`TimeInput::on_change`] で求める
 ///
-/// - 入力欄には 2 桁までの数字だけを入れる。範囲内の数になると時刻を変えるよう求め、範囲外か空なら求めない。
-///   範囲外か空の間は入力欄をエラーの色にし、補足の文を範囲を示す文に変える。
-///   入力欄の文字列は描画をまたいで保ち、渡された時刻が入力欄の数と違えば、時刻の数で置き換える
-/// - 時の入力欄に範囲内の 2 桁の数を入れると、分の入力欄へフォーカスを移す
-/// - 午前・午後の切り替えは矢印キー・Space・クリックで選び、時を 12 時間ずらすよう求める
-/// - フォーカスのある入力欄を選んだ色で表示する
+/// - 入力欄には 2 桁までの数字だけを入れる。数字以外を含む編集は取り消し、2 桁の入力欄に 1 桁を入れると入れた数字だけを残す。
+///   範囲内の数になると時刻を変えるよう求め、範囲外か空なら求めない。
+///   範囲外か空の間は入力欄をエラーの色にし、補足の文を範囲を示す文に変える
+/// - 入力欄の文字列は描画をまたいで保つ。渡された時刻か時の表し方が入力欄の受け付けた時刻と違えば、
+///   両方の入力欄を渡された時刻で置き換える。求めた時刻を次の描画で渡さなかった場合も置き換える
+/// - 時の入力欄に範囲内の 2 桁の数か、[`HourFormat::Hour12`] で 2 から 9 の 1 桁の数を入れると、分の入力欄へフォーカスを移す。
+///   支援技術の利用中は移さない
+/// - 午前・午後の切り替えは矢印キー・Space・クリックで選び、時を 12 時間ずらすよう求める。時の入力欄が範囲外か空の間は求めない
+/// - フォーカスのある入力欄を選んだ色で表示する。入力欄の文字の行の上下の余白を押しても、その入力欄にフォーカスを移す
 ///
 /// 支援技術には、入力欄が role `textbox` (名前は Hour と Minute)、午前・午後の切り替えが role `radiogroup` として公開される。
-/// 範囲外か空の入力欄は、範囲を示す文を説明として公開する。文言は英語に固定している
+/// 範囲外か空の入力欄は invalid として公開し、範囲を示す文を説明に加える。文言は英語に固定している
 #[derive(IntoElement)]
 pub struct TimeInput {
     id: ElementId,
     time: Time,
     format: HourFormat,
     on_change: Option<ChangeHandler>,
+    on_validity_change: Option<ValidityHandler>,
     style: StyleRefinement,
     theme: Option<SharedTheme>,
 }
@@ -101,6 +108,7 @@ impl TimeInput {
             time,
             format: HourFormat::default(),
             on_change: None,
+            on_validity_change: None,
             style: StyleRefinement::default(),
             theme: None,
         }
@@ -116,9 +124,23 @@ impl TimeInput {
     ///
     /// `handler` には変えた後の時刻を渡す。表示を変えるには、`handler` で呼び出し側の状態を更新し、
     /// 次の描画で [`TimeInput::new`] に渡すこと。
-    /// 設定しない場合、入力欄は文字列を編集させず、支援技術には read-only として公開される
+    /// 設定しない場合、入力欄は文字列を編集させず、支援技術には read-only として公開される。
+    /// 午前・午後の切り替えは操作できず、支援技術には無効として公開される
     pub fn on_change(mut self, handler: impl Fn(&Time, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(Box::new(handler));
+        self
+    }
+
+    /// 両方の入力欄が範囲内の数か (時刻を確定できるか) が編集で変わったときに `handler` を呼ぶ。
+    /// 複数回呼んだ場合は最後に渡した `handler` だけを呼ぶ
+    ///
+    /// `handler` には変わった後の状態を渡す。最初の描画では両方の入力欄が範囲内になる。
+    /// [`TimeInput::new`] に入力欄と違う時刻を渡して入力欄を置き換えた場合は、両方の入力欄が範囲内になるが `handler` を呼ばない
+    pub fn on_validity_change(
+        mut self,
+        handler: impl Fn(bool, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_validity_change = Some(Box::new(handler));
         self
     }
 
@@ -142,20 +164,75 @@ enum Field {
     Minute,
 }
 
-/// 入力欄の文字列と、その文字列が表す時刻の数 (時は 0 から 23)
+/// 2 つの入力欄の文字列と、受け付けた時刻
+struct Fields {
+    /// 入力欄の文字列を作ったときの時の表し方
+    format: HourFormat,
+    /// 範囲内の数を受け付けた時刻。範囲外か空の入力欄は、最後に受け付けた数を持つ
+    time: Time,
+    hour: FieldText,
+    minute: FieldText,
+}
+
+/// 入力欄の文字列と、その文字列が範囲内の数か
 struct FieldText {
     text: String,
-    value: u8,
+    valid: bool,
+}
+
+impl Fields {
+    fn new(time: Time, format: HourFormat) -> Self {
+        let hour = match format {
+            HourFormat::Hour12 => match time.hour % 12 {
+                0 => 12,
+                hour => hour,
+            },
+            HourFormat::Hour24 => time.hour,
+        };
+        Self {
+            format,
+            time,
+            hour: FieldText {
+                text: format!("{hour:02}"),
+                valid: true,
+            },
+            minute: FieldText {
+                text: format!("{:02}", time.minute),
+                valid: true,
+            },
+        }
+    }
+
+    fn field_mut(&mut self, kind: Field) -> &mut FieldText {
+        match kind {
+            Field::Hour => &mut self.hour,
+            Field::Minute => &mut self.minute,
+        }
+    }
+
+    fn valid(&self) -> bool {
+        self.hour.valid && self.minute.valid
+    }
 }
 
 impl RenderOnce for TimeInput {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
-        let on_change = self.on_change.map(std::rc::Rc::new);
+        let on_change = self.on_change.map(Rc::new);
+        let on_validity_change = self.on_validity_change.map(Rc::new);
         let time = self.time;
         let format = self.format;
         let minute_focus =
             util::keyed_focus_handle(&(self.id.clone(), "minute").into(), window, cx);
+        let fields = window.use_keyed_state((self.id.clone(), "fields"), cx, |_, _| {
+            Fields::new(time, format)
+        });
+        // 渡された時刻か時の表し方が入力欄と違えば、両方の入力欄を渡された時刻で置き換える
+        fields.update(cx, |fields, _| {
+            if fields.time != time || fields.format != format {
+                *fields = Fields::new(time, format);
+            }
+        });
 
         let field = |kind: Field, window: &mut Window, cx: &mut App| {
             let field_id = ElementId::from((
@@ -166,54 +243,23 @@ impl RenderOnce for TimeInput {
                 },
             ));
             let focus_handle = util::keyed_focus_handle(&field_id, window, cx);
-            let value = match kind {
-                Field::Hour => time.hour,
-                Field::Minute => time.minute,
+            let FieldText { text, valid } = match kind {
+                Field::Hour => &fields.read(cx).hour,
+                Field::Minute => &fields.read(cx).minute,
             };
-            let display = |value: u8| match (kind, format) {
-                (Field::Hour, HourFormat::Hour12) => match value % 12 {
-                    0 => 12,
-                    hour => hour,
-                },
-                _ => value,
-            };
-            let state = window.use_keyed_state((field_id.clone(), "text"), cx, |_, _| FieldText {
-                text: format!("{:02}", display(value)),
-                value,
-            });
-            // 渡された時刻が入力欄の数と違えば、時刻の数で置き換える
-            let text = state.update(cx, |state, _| {
-                if state.value != value {
-                    state.text = format!("{:02}", display(value));
-                    state.value = value;
-                }
-                state.text.clone()
-            });
-            // 入力欄の文字列を時刻の数にする。範囲外か空なら None
-            let parse = move |text: &str| -> Option<u8> {
-                let number: u8 = text.parse().ok()?;
-                match (kind, format) {
-                    (Field::Hour, HourFormat::Hour12) => (1..=12)
-                        .contains(&number)
-                        .then(|| number % 12 + if time.hour >= 12 { 12 } else { 0 }),
-                    (Field::Hour, HourFormat::Hour24) => (number <= 23).then_some(number),
-                    (Field::Minute, _) => (number <= 59).then_some(number),
-                }
-            };
-            let valid = parse(&text).is_some();
+            let (text, valid) = (text.clone(), *valid);
             let selected = focus_handle.is_focused(window);
-            let (container, content) = if !valid {
-                (ColorRole::ErrorContainer, ColorRole::Error)
-            } else if selected {
-                (
+            let (container, content) = match (valid, selected) {
+                (false, true) => (ColorRole::ErrorContainer, ColorRole::Error),
+                (false, false) => (ColorRole::ErrorContainer, ColorRole::OnErrorContainer),
+                (true, true) => (
                     time_picker::TIME_SELECTOR_SELECTED_CONTAINER_COLOR,
                     time_picker::TIME_SELECTOR_SELECTED_LABEL_TEXT_COLOR,
-                )
-            } else {
-                (
+                ),
+                (true, false) => (
                     time_picker::TIME_SELECTOR_UNSELECTED_CONTAINER_COLOR,
                     time_picker::TIME_SELECTOR_UNSELECTED_LABEL_TEXT_COLOR,
-                )
+                ),
             };
             // 選ばれていない有効な入力欄は Compose では枠線の無い `TimeSelector` で描く
             let outline = match (valid, selected) {
@@ -228,43 +274,90 @@ impl RenderOnce for TimeInput {
                 (Field::Minute, _) => ("Minute", "Minute must be 0–59"),
             };
 
-            let mut input = HeadlessTextField::new((field_id.clone(), "input"), text.clone())
+            let mut input = HeadlessTextField::new((field_id.clone(), "input"), text)
                 .track_focus(&focus_handle.clone().tab_index(0))
                 .caret_color(theme.color(ColorRole::Primary))
+                .error((!valid).then(|| error.into()))
                 .aria_label(label)
                 .text_center()
                 .w_full();
-            if !valid {
-                input = input.aria_description(error);
-            }
             if let Some(on_change) = on_change.clone() {
+                let on_validity_change = on_validity_change.clone();
                 let minute_focus = minute_focus.clone();
+                let fields = fields.clone();
                 input = input.on_change(move |new: &SharedString, window, cx| {
-                    let digits: String = new.chars().filter(char::is_ascii_digit).take(2).collect();
-                    // 数字でない文字だけを入れた編集は、描き直して取り消す
-                    if state.read(cx).text == digits {
+                    // 数字以外を含む編集は取り消す
+                    if !new.chars().all(|c| c.is_ascii_digit()) {
                         window.refresh();
                         return;
                     }
-                    let parsed = parse(&digits);
-                    let complete = digits.len() == 2;
-                    state.update(cx, |state, cx| {
-                        state.text = digits;
-                        if let Some(parsed) = parsed {
-                            state.value = parsed;
-                        }
-                        cx.notify();
-                    });
+                    let old = match kind {
+                        Field::Hour => fields.read(cx).hour.text.clone(),
+                        Field::Minute => fields.read(cx).minute.text.clone(),
+                    };
+                    let mut digits = new.to_string();
+                    // 2 桁の入力欄の前・間・後ろに 1 桁を入れた場合は、入れた数字だけを残す
+                    // (Compose の `TimeInputTransformation`)
+                    if old.len() == 2 && digits.len() == 3 {
+                        let at = old
+                            .bytes()
+                            .zip(digits.bytes())
+                            .take_while(|(old, new)| old == new)
+                            .count();
+                        digits = digits[at..=at].to_string();
+                    }
+                    if digits.len() > 2 {
+                        window.refresh();
+                        return;
+                    }
+                    let number = digits.parse::<u8>().ok();
+                    let (accepted, was_valid, now_valid, new_time) =
+                        fields.update(cx, |fields, cx| {
+                            let was_valid = fields.valid();
+                            let accepted = number.and_then(|number| match (kind, format) {
+                                (Field::Hour, HourFormat::Hour12) => {
+                                    (1..=12).contains(&number).then(|| {
+                                        number % 12 + if fields.time.hour >= 12 { 12 } else { 0 }
+                                    })
+                                }
+                                (Field::Hour, HourFormat::Hour24) => {
+                                    (number <= 23).then_some(number)
+                                }
+                                (Field::Minute, _) => (number <= 59).then_some(number),
+                            });
+                            match (kind, accepted) {
+                                (Field::Hour, Some(hour)) => fields.time.hour = hour,
+                                (Field::Minute, Some(minute)) => fields.time.minute = minute,
+                                _ => {}
+                            }
+                            let field = fields.field_mut(kind);
+                            field.text = digits.clone();
+                            field.valid = accepted.is_some();
+                            cx.notify();
+                            (accepted, was_valid, fields.valid(), fields.time)
+                        });
                     window.refresh();
-                    if let Some(parsed) = parsed {
-                        let new_time = match kind {
-                            Field::Hour => Time::new(parsed, time.minute),
-                            Field::Minute => Time::new(time.hour, parsed),
-                        };
+                    if accepted.is_some() {
                         on_change(&new_time, window, cx);
-                        if kind == Field::Hour && complete {
-                            window.focus(&minute_focus, cx);
+                    }
+                    if was_valid != now_valid
+                        && let Some(on_validity_change) = &on_validity_change
+                    {
+                        on_validity_change(now_valid, window, cx);
+                    }
+                    // Compose は支援技術の利用中には自動で進めない
+                    let deleted = digits.len() < old.len() && old.contains(digits.as_str());
+                    let advance = match (accepted, number) {
+                        (Some(_), Some(number)) => {
+                            digits.len() == 2
+                                || (format == HourFormat::Hour12
+                                    && !deleted
+                                    && (2..=9).contains(&number))
                         }
+                        _ => false,
+                    };
+                    if kind == Field::Hour && advance && !window.is_a11y_active() {
+                        window.focus(&minute_focus, cx);
                     }
                 });
             }
@@ -277,6 +370,11 @@ impl RenderOnce for TimeInput {
                 .items_center()
                 .w(dp(tokens::TIME_FIELD_CONTAINER_WIDTH))
                 .h(dp(tokens::TIME_FIELD_CONTAINER_HEIGHT))
+                // 文字の行の上下の余白を押しても編集を始める
+                .on_mouse_down(MouseButton::Left, {
+                    let focus_handle = focus_handle.clone();
+                    move |_, window, cx| window.focus(&focus_handle, cx)
+                })
                 .child(Shaped::new(
                     div()
                         .absolute()
@@ -326,6 +424,7 @@ impl RenderOnce for TimeInput {
             .child(":");
         separator.text_style().refine(&separator_font);
 
+        let read_only = on_change.is_none();
         let period = (format == HourFormat::Hour12).then(|| {
             let pm = time.hour >= 12;
             let item = |id: &'static str,
@@ -352,8 +451,12 @@ impl RenderOnce for TimeInput {
                 };
                 let mut font = theme.text_style(tokens::PERIOD_SELECTOR_LABEL_TEXT_FONT);
                 font.color = Some(theme.color(content));
+                if checked {
+                    font.font_weight = Some(FontWeight::BOLD);
+                }
                 let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
                 let mut radio = Radio::new(item_id, value)
+                    .disabled(read_only)
                     .track_focus(&focus_handle)
                     .relative()
                     .flex()
@@ -397,7 +500,14 @@ impl RenderOnce for TimeInput {
             let pm_item = item("pm", "PM", true, window, cx);
             RadioGroup::new((self.id.clone(), "period"), Some(pm))
                 .when_some(on_change.clone(), |this, on_change| {
+                    let fields = fields.clone();
                     this.on_change(move |pm: &bool, window, cx| {
+                        let fields = fields.read(cx);
+                        // Compose と同じく、時が範囲外か空の間は切り替えない
+                        if !fields.hour.valid {
+                            return;
+                        }
+                        let time = fields.time;
                         let hour = time.hour % 12 + if *pm { 12 } else { 0 };
                         on_change(&Time::new(hour, time.minute), window, cx);
                     })
@@ -443,14 +553,17 @@ mod tests {
         time: Time,
         format: HourFormat,
         changes: Rc<RefCell<Vec<Time>>>,
+        validities: Rc<RefCell<Vec<bool>>>,
     }
 
     impl Render for InputView {
         fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
             let changes = self.changes.clone();
+            let validities = self.validities.clone();
             div().size_full().child(
                 TimeInput::new("time", self.time)
                     .format(self.format)
+                    .on_validity_change(move |valid, _, _| validities.borrow_mut().push(valid))
                     .on_change(cx.listener(move |this, time: &Time, _, cx| {
                         changes.borrow_mut().push(*time);
                         this.time = *time;
@@ -475,6 +588,7 @@ mod tests {
                 time,
                 format,
                 changes: Rc::default(),
+                validities: Rc::default(),
             }
         });
         cx.update(|window, _| window.activate_window());
@@ -543,31 +657,66 @@ mod tests {
         );
     }
 
+    fn validities(view: &gpui::Entity<InputView>, cx: &mut VisualTestContext) -> Vec<bool> {
+        view.read_with(cx, |view, _| view.validities.borrow().clone())
+    }
+
     #[gpui::test]
     fn 範囲内の数で時刻を求め_範囲外ならエラーの色にして求めない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Time::new(14, 5), HourFormat::Hour24);
+        press(cx, "tab");
+        cx.simulate_keystrokes("ctrl-a");
+        cx.simulate_input("3");
+        assert_eq!(changes(&view, cx), [Time::new(3, 5)]);
+        cx.simulate_keystrokes("ctrl-a");
+        cx.simulate_input("x");
+        assert_eq!(changes(&view, cx).len(), 1, "数字以外を含む編集は取り消す");
+        cx.simulate_keystrokes("backspace");
+        assert_eq!(changes(&view, cx).len(), 1, "空では求めない");
+        assert_eq!(quads(cx, ColorRole::ErrorContainer).len(), 1);
+        cx.simulate_input("24");
+        assert_eq!(
+            changes(&view, cx),
+            [Time::new(3, 5), Time::new(2, 5)],
+            "範囲外の 24 は求めない"
+        );
+        assert_eq!(quads(cx, ColorRole::ErrorContainer).len(), 1);
+        assert_eq!(
+            validities(&view, cx),
+            [false, true, false],
+            "空・2・24 で確定できるかが変わる"
+        );
+    }
+
+    #[gpui::test]
+    fn _2_桁の入力欄に_1_桁を入れると入れた数字だけを残す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Time::new(9, 5), HourFormat::Hour24);
+        press(cx, "tab");
+        cx.simulate_keystrokes("end");
+        cx.simulate_input("8");
+        cx.simulate_keystrokes("home");
+        cx.simulate_input("1");
+        assert_eq!(changes(&view, cx), [Time::new(8, 5), Time::new(18, 5)]);
+    }
+
+    #[gpui::test]
+    fn _12_時間制では時に_2_から_9_を入れると分の入力欄へ移る(
         cx: &mut TestAppContext,
     ) {
         let (view, cx) = setup(cx, Time::new(14, 5), HourFormat::Hour12);
         press(cx, "tab");
         cx.simulate_keystrokes("ctrl-a");
         cx.simulate_input("3");
+        cx.simulate_input("7");
         assert_eq!(
             changes(&view, cx),
-            [Time::new(15, 5)],
-            "午後のまま 3 時にする"
+            [Time::new(15, 5), Time::new(15, 7)],
+            "午後のまま 3 時にし、分の入力欄で 7 を入れる"
         );
-        cx.simulate_input("x");
-        assert_eq!(changes(&view, cx).len(), 1, "数字でない文字は入れない");
-        cx.simulate_keystrokes("backspace");
-        assert_eq!(changes(&view, cx).len(), 1, "空では求めない");
-        assert_eq!(quads(cx, ColorRole::ErrorContainer).len(), 1);
-        cx.simulate_input("13");
-        assert_eq!(
-            changes(&view, cx),
-            [Time::new(15, 5), Time::new(13, 5)],
-            "1 は午後 1 時として求め、12 時間制で範囲外の 13 は求めない"
-        );
-        assert_eq!(quads(cx, ColorRole::ErrorContainer).len(), 1);
     }
 
     #[gpui::test]
@@ -594,6 +743,47 @@ mod tests {
     }
 
     #[gpui::test]
+    fn 文字の行の外を押しても入力欄にフォーカスを移す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Time::new(9, 5), HourFormat::Hour24);
+        // 入力欄 (100, 100, 96, 72) の上端の近く
+        cx.simulate_click(gpui::point(px(148.), px(103.)), gpui::Modifiers::none());
+        cx.simulate_keystrokes("ctrl-a");
+        cx.simulate_input("7");
+        assert_eq!(changes(&view, cx), [Time::new(7, 5)]);
+    }
+
+    #[gpui::test]
+    fn 時の表し方を変えると時の入力欄を置き換える(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, Time::new(14, 5), HourFormat::Hour12);
+        view.update(cx, |view, cx| {
+            view.format = HourFormat::Hour24;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        press(cx, "tab");
+        cx.simulate_keystrokes("end backspace");
+        assert_eq!(
+            changes(&view, cx),
+            [Time::new(1, 5)],
+            "24 時間制では 14 と表示し、末尾を消すと 1 時になる"
+        );
+        view.update(cx, |view, cx| {
+            view.time = Time::new(14, 5);
+            view.format = HourFormat::Hour12;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        cx.simulate_keystrokes("end backspace");
+        assert_eq!(
+            changes(&view, cx).len(),
+            1,
+            "12 時間制では 02 と表示し、末尾を消した 0 は範囲外になる"
+        );
+    }
+
+    #[gpui::test]
     fn 午前午後の切り替えで時を_12_時間ずらす(cx: &mut TestAppContext) {
         let (view, cx) = setup(cx, Time::new(14, 5), HourFormat::Hour12);
         // 時、分、午後 (選ばれている項目) の順
@@ -602,6 +792,17 @@ mod tests {
         press(cx, "tab");
         press(cx, "up");
         assert_eq!(changes(&view, cx), [Time::new(2, 5)]);
+    }
+
+    #[gpui::test]
+    fn 時が空の間は午前午後を切り替えない(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, Time::new(14, 5), HourFormat::Hour12);
+        press(cx, "tab");
+        cx.simulate_keystrokes("ctrl-a backspace");
+        press(cx, "tab");
+        press(cx, "tab");
+        press(cx, "up");
+        assert!(changes(&view, cx).is_empty());
     }
 
     #[gpui::test]
