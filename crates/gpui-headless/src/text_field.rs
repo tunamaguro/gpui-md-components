@@ -150,7 +150,7 @@ type ChangeHandler = Rc<dyn Fn(&SharedString, &mut Window, &mut App)>;
 ///
 /// 支援技術には role `textbox` と、文字列・選択として公開される。
 /// アクセシブルな名前は `aria_label` で与えること。
-/// 文字列とカーソル・選択は部品が描き、書体と文字の色は継承した text style に従う。
+/// 文字列とカーソル・選択は部品が描き、書体と文字の色と、文字列が部品の幅に収まる間の横の揃えは、継承した text style に従う。
 /// ほかの見た目は [`Styled`] と [`InteractiveElement`] で呼び出し側が付ける
 #[derive(IntoElement)]
 pub struct TextField {
@@ -1187,7 +1187,14 @@ impl Element for TextLine {
             .max(cursor_x + CARET_WIDTH - width)
             .min(max_scroll)
             .max(px(0.));
-        let origin = point(bounds.left() - scroll, bounds.top());
+        // 文字列が収まる間は、継承した text style の揃えに従って置く。収まらない間はカーソルに合わせてずらす
+        let free = (width - line.width() - CARET_WIDTH).max(px(0.));
+        let align_offset = match style.text_align {
+            TextAlign::Left => px(0.),
+            TextAlign::Center => free / 2.,
+            TextAlign::Right => free,
+        };
+        let origin = point(bounds.left() - scroll + align_offset, bounds.top());
 
         let selection = (!model.selection.is_empty()).then(|| {
             let color = self
@@ -1436,6 +1443,8 @@ mod tests {
         parent_presses: Rc<RefCell<usize>>,
         /// 部品の編集の状態。IME の変換を直接起こすために持つ
         edit_state: Option<Entity<EditState>>,
+        /// 文字列を中央に揃えるか
+        centered: bool,
     }
 
     impl Render for FieldView {
@@ -1460,6 +1469,7 @@ mod tests {
                 .selection_color(SELECTION_COLOR())
                 .track_focus(&self.focus)
                 .aria_label("Name")
+                .when(self.centered, |this| this.text_center())
                 .absolute()
                 .left(px(100.))
                 .top(px(100.))
@@ -1511,6 +1521,7 @@ mod tests {
             node: None,
             parent_presses: Rc::default(),
             edit_state: None,
+            centered: false,
         })
     }
 
@@ -1929,6 +1940,34 @@ mod tests {
         assert_eq!(node.placeholder(), Some("Your name"));
         assert!(!node.is_read_only());
         assert!(!node.is_disabled());
+    }
+
+    #[gpui::test]
+    fn 中央揃えなら収まる文字列を中央に置き_押した位置にカーソルを移す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "");
+        update(&view, cx, |view| view.centered = true);
+        focus(cx);
+        let (x, ..) = filled(cx, CARET_COLOR())[0];
+        assert_eq!(
+            x, 199.,
+            "幅 200 からカーソルの幅を除いた残りの中央に置くこと"
+        );
+        cx.simulate_input("mm");
+        cx.simulate_keystrokes("home");
+        let (start, ..) = filled(cx, CARET_COLOR())[0];
+        cx.simulate_keystrokes("end");
+        let (end, ..) = filled(cx, CARET_COLOR())[0];
+        assert!(
+            start > 100. && (start + end + 2. - 400.).abs() < 1.,
+            "文字列を中央に置くこと"
+        );
+        // 1 文字目と 2 文字目の境界の少し左を押すと、境界にカーソルを移す。
+        // gpui は最後の文字の始まりより右の位置を末尾として扱うため、境界ちょうどは押さない
+        mouse_down(cx, (start + end) / 2. - 2., 1, Modifiers::none());
+        cx.simulate_input("x");
+        assert_eq!(value(&view, cx), "mxm");
     }
 
     #[gpui::test]
