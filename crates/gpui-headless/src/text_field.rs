@@ -1497,7 +1497,8 @@ mod tests {
                 .map(|this| match self.align {
                     TextAlign::Left => this,
                     TextAlign::Center => this.text_center(),
-                    TextAlign::Right => this.text_right(),
+                    // 右揃えは親から継承させる
+                    TextAlign::Right => this,
                 })
                 .absolute()
                 .left(px(100.))
@@ -1521,6 +1522,7 @@ mod tests {
             let parent_presses = self.parent_presses.clone();
             div()
                 .size(px(500.))
+                .when(self.align == TextAlign::Right, |this| this.text_right())
                 .on_mouse_down(MouseButton::Left, move |_, _, _| {
                     *parent_presses.borrow_mut() += 1;
                 })
@@ -2001,7 +2003,7 @@ mod tests {
     }
 
     #[gpui::test]
-    fn 右揃えなら収まる文字列を右に置き_はみ出す間はカーソルが見える位置までずらす(
+    fn 親から継承した右揃えなら収まる文字列を右に置き_はみ出す間はカーソルが見える位置までずらす(
         cx: &mut TestAppContext,
     ) {
         let (view, cx) = setup(cx, "");

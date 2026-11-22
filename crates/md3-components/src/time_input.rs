@@ -81,7 +81,8 @@ pub enum HourFormat {
 ///   両方の入力欄を渡された時刻で置き換える。求めた時刻を次の描画で渡さなかった場合も置き換える
 /// - 時の入力欄に範囲内の 2 桁の数か、[`HourFormat::Hour12`] で 2 から 9 の 1 桁の数を入れると、分の入力欄へフォーカスを移す。
 ///   支援技術の利用中は移さない
-/// - 午前・午後の切り替えは矢印キー・Space・クリックで選び、時を 12 時間ずらすよう求める。時の入力欄が範囲外か空の間は求めない
+/// - 午前・午後の切り替えは矢印キー・Space・クリックで選び、時を 12 時間ずらすよう求める。
+///   時の入力欄が範囲外か空の間は無効にする
 /// - フォーカスのある入力欄を選んだ色で表示する。入力欄の文字の行の上下の余白を押しても、その入力欄にフォーカスを移す
 ///
 /// 支援技術には、入力欄が role `textbox` (名前は Hour と Minute)、午前・午後の切り替えが role `radiogroup` として公開される。
@@ -135,7 +136,7 @@ impl TimeInput {
     /// 複数回呼んだ場合は最後に渡した `handler` だけを呼ぶ
     ///
     /// `handler` には変わった後の状態を渡す。最初の描画では両方の入力欄が範囲内になる。
-    /// [`TimeInput::new`] に入力欄と違う時刻を渡して入力欄を置き換えた場合は、両方の入力欄が範囲内になるが `handler` を呼ばない
+    /// [`TimeInput::new`] に入力欄と違う時刻を渡して範囲外の入力欄を置き換えた場合は、その描画の後で `true` を渡して呼ぶ
     pub fn on_validity_change(
         mut self,
         handler: impl Fn(bool, &mut Window, &mut App) + 'static,
@@ -228,11 +229,18 @@ impl RenderOnce for TimeInput {
             Fields::new(time, format)
         });
         // 渡された時刻か時の表し方が入力欄と違えば、両方の入力欄を渡された時刻で置き換える
-        fields.update(cx, |fields, _| {
-            if fields.time != time || fields.format != format {
+        let became_valid = fields.update(cx, |fields, _| {
+            let replace = fields.time != time || fields.format != format;
+            let was_valid = fields.valid();
+            if replace {
                 *fields = Fields::new(time, format);
             }
+            replace && !was_valid
         });
+        // 置き換えで両方の入力欄が範囲内になったことを、描画の後で知らせる
+        if became_valid && let Some(on_validity_change) = on_validity_change.clone() {
+            window.defer(cx, move |window, cx| on_validity_change(true, window, cx));
+        }
 
         let field = |kind: Field, window: &mut Window, cx: &mut App| {
             let field_id = ElementId::from((
@@ -373,7 +381,19 @@ impl RenderOnce for TimeInput {
                 // 文字の行の上下の余白を押しても編集を始める
                 .on_mouse_down(MouseButton::Left, {
                     let focus_handle = focus_handle.clone();
-                    move |_, window, cx| window.focus(&focus_handle, cx)
+                    let editable = on_change.is_some();
+                    move |_, window, cx| {
+                        // 文字の行の上の押下はテキストフィールドが受けて既定の処理を止める
+                        if !window.default_prevented() {
+                            window.focus(&focus_handle, cx);
+                            // 入力欄に既にフォーカスがあると、フォーカスの変化ではソフトウェアキーボードが再び開かないため要求する
+                            if editable {
+                                window.request_virtual_keyboard();
+                            }
+                            // フォーカスを受ける祖先が、移したフォーカスを上書きしないようにする
+                            window.prevent_default();
+                        }
+                    }
                 })
                 .child(Shaped::new(
                     div()
@@ -424,7 +444,8 @@ impl RenderOnce for TimeInput {
             .child(":");
         separator.text_style().refine(&separator_font);
 
-        let read_only = on_change.is_none();
+        // 時が範囲外か空の間も切り替えられない
+        let read_only = on_change.is_none() || !fields.read(cx).hour.valid;
         let period = (format == HourFormat::Hour12).then(|| {
             let pm = time.hour >= 12;
             let item = |id: &'static str,
@@ -502,14 +523,19 @@ impl RenderOnce for TimeInput {
                 .when_some(on_change.clone(), |this, on_change| {
                     let fields = fields.clone();
                     this.on_change(move |pm: &bool, window, cx| {
-                        let fields = fields.read(cx);
-                        // Compose と同じく、時が範囲外か空の間は切り替えない
-                        if !fields.hour.valid {
-                            return;
+                        // 編集中の分の入力欄を置き換えないよう、受け付けた時刻を先に変える
+                        let new_time = fields.update(cx, |fields, cx| {
+                            // Compose と同じく、時が範囲外か空の間は切り替えない
+                            if !fields.hour.valid {
+                                return None;
+                            }
+                            fields.time.hour = fields.time.hour % 12 + if *pm { 12 } else { 0 };
+                            cx.notify();
+                            Some(fields.time)
+                        });
+                        if let Some(new_time) = new_time {
+                            on_change(&new_time, window, cx);
                         }
-                        let time = fields.time;
-                        let hour = time.hour % 12 + if *pm { 12 } else { 0 };
-                        on_change(&Time::new(hour, time.minute), window, cx);
                     })
                 })
                 .item(am)
@@ -770,16 +796,16 @@ mod tests {
             "24 時間制では 14 と表示し、末尾を消すと 1 時になる"
         );
         view.update(cx, |view, cx| {
-            view.time = Time::new(14, 5);
             view.format = HourFormat::Hour12;
             cx.notify();
         });
         cx.run_until_parked();
-        cx.simulate_keystrokes("end backspace");
+        cx.simulate_keystrokes("end");
+        cx.simulate_input("2");
         assert_eq!(
-            changes(&view, cx).len(),
-            1,
-            "12 時間制では 02 と表示し、末尾を消した 0 は範囲外になる"
+            changes(&view, cx),
+            [Time::new(1, 5), Time::new(2, 5)],
+            "12 時間制では 01 と表示し、2 桁に 1 桁を入れると 2 時になる"
         );
     }
 
@@ -803,6 +829,44 @@ mod tests {
         press(cx, "tab");
         press(cx, "up");
         assert!(changes(&view, cx).is_empty());
+        assert!(
+            quads(cx, ColorRole::PrimaryContainer).len() == 1,
+            "無効な切り替えにはフォーカスが移らず、選択も変わらない"
+        );
+    }
+
+    #[gpui::test]
+    fn 分を編集中に午前午後を切り替えても分の入力欄を保つ(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Time::new(14, 5), HourFormat::Hour12);
+        press(cx, "tab");
+        press(cx, "tab");
+        cx.simulate_keystrokes("ctrl-a backspace");
+        press(cx, "tab");
+        press(cx, "up");
+        assert_eq!(changes(&view, cx), [Time::new(2, 5)]);
+        assert_eq!(
+            quads(cx, ColorRole::ErrorContainer).len(),
+            1,
+            "空の分の入力欄を置き換えない"
+        );
+        assert_eq!(validities(&view, cx), [false]);
+    }
+
+    #[gpui::test]
+    fn 外から時刻を渡して入力欄が範囲内に戻ると知らせる(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Time::new(14, 5), HourFormat::Hour12);
+        press(cx, "tab");
+        cx.simulate_keystrokes("ctrl-a backspace");
+        view.update(cx, |view, cx| {
+            view.time = Time::new(8, 0);
+            cx.notify();
+        });
+        cx.run_until_parked();
+        assert_eq!(validities(&view, cx), [false, true]);
     }
 
     #[gpui::test]
