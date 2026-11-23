@@ -452,25 +452,28 @@ impl RenderOnce for TimePicker {
             move |pointer: &DialPointer, window: &mut Window, cx: &mut App| {
                 let base = last.get();
                 let hour_step = TAU / 12.;
+                let distance = f32::from(pointer.distance);
+                let (x, y) = (
+                    distance * pointer.angle.sin(),
+                    -distance * pointer.angle.cos(),
+                );
                 let value = match current {
                     Selection::Hour => {
                         let ix = (pointer.angle / hour_step).round() as u8 % 12;
+                        // 24 時間制で選んでいる時のセレクタの円の中心
+                        let handle_angle = angle_of(usize::from(base.hour % 12));
+                        let handle_radius_from_center = f32::from(dp(if base.hour >= 12 {
+                            INNER_RADIUS
+                        } else {
+                            OUTER_RADIUS
+                        }));
+                        let on_handle = (x - handle_radius_from_center * handle_angle.sin())
+                            .hypot(y + handle_radius_from_center * handle_angle.cos())
+                            < f32::from(handle_radius);
                         let hour = match format {
                             HourFormat::Hour12 => ix + if base.hour >= 12 { 12 } else { 0 },
-                            // 選んでいる時の円の内側なら、もう一方の円の数字と重なる位置でも選んでいる時の円にする
-                            HourFormat::Hour24
-                                if ix == base.hour % 12
-                                    && (pointer.distance
-                                        - dp(if base.hour >= 12 {
-                                            INNER_RADIUS
-                                        } else {
-                                            OUTER_RADIUS
-                                        }))
-                                    .abs()
-                                        < handle_radius =>
-                            {
-                                base.hour
-                            }
+                            // 描画しているセレクタの円の内側なら、ほかの数字と重なる位置でも選んでいる時にする
+                            HourFormat::Hour24 if on_handle => base.hour,
                             HourFormat::Hour24 if pointer.distance < inner_distance => ix + 12,
                             HourFormat::Hour24 => ix,
                         };
@@ -481,11 +484,6 @@ impl RenderOnce for TimePicker {
                         Time::new(base.hour, (pointer.angle / (TAU / 60.)).round() as u8 % 60)
                     }
                 };
-                let distance = f32::from(pointer.distance);
-                let (x, y) = (
-                    distance * pointer.angle.sin(),
-                    -distance * pointer.angle.cos(),
-                );
                 let inside = pointer.distance <= dial_size / 2.;
                 if pointer.phase == DialPointerPhase::Down {
                     press.update(cx, |press, _| {
@@ -946,6 +944,30 @@ mod tests {
         mouse(cx, DialPointerPhase::Down, x + 90., y);
         mouse(cx, DialPointerPhase::Up, x + 90., y);
         assert!(changes(&view, cx).is_empty(), "3 時にしないこと");
+    }
+
+    #[gpui::test]
+    fn _24_時間制ではセレクタの円の内側かどうかで判定する(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Time::new(15, 0), HourFormat::Hour24);
+        let (x, y) = dial_center(cx);
+        // セレクタ (中心 69dp) から 22dp 下で、円の内側。向きは 16 時に近い
+        mouse(cx, DialPointerPhase::Down, x + 69., y + 22.);
+        mouse(cx, DialPointerPhase::Up, x + 69., y + 22.);
+        assert!(changes(&view, cx).is_empty(), "16 時にしないこと");
+    }
+
+    #[gpui::test]
+    fn _24_時間制でセレクタの円の外なら境界で判定する(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Time::new(15, 0), HourFormat::Hour24);
+        let (x, y) = dial_center(cx);
+        // セレクタから約 30dp で円の外、中心から約 92.6dp で境界より外
+        mouse(cx, DialPointerPhase::Down, x + 90., y + 22.);
+        mouse(cx, DialPointerPhase::Up, x + 90., y + 22.);
+        assert_eq!(changes(&view, cx), [Time::new(3, 0)]);
     }
 
     #[gpui::test]

@@ -63,17 +63,25 @@ impl Scale {
                 value - delta
             });
         };
-        let position = (value - self.start) / step;
-        // 段階の値は浮動小数点の誤差で段階の番号からずれるため、近ければ段階の値にあるとみなす
-        let nearest = position.round();
-        let next = if (position - nearest).abs() < 1e-2 {
-            nearest + if forward { 1.0 } else { -1.0 }
-        } else if forward {
-            position.ceil()
+        let value = value.max(self.start).min(self.end);
+        // 段階の値と `value` は f32 の誤差でずれるため、この差より近い値は同じ値とみなす
+        let tolerance = (step * 1e-3).max(value.abs().max(self.start.abs()) * f32::EPSILON * 4.0);
+        // 段階の番号は誤差で 1 ずれうるため、前後の段階の値を実際に求めて比べる
+        let base = ((value - self.start) / step).floor();
+        if forward {
+            let next = (-1..=2)
+                .map(|offset| self.start + (base + offset as f32) * step)
+                .find(|candidate| *candidate > value + tolerance)
+                .unwrap_or(self.end);
+            next.min(self.end)
         } else {
-            position.floor()
-        };
-        self.snap(self.start + next * step)
+            let previous = (-1..=2)
+                .rev()
+                .map(|offset| self.start + (base + offset as f32) * step)
+                .find(|candidate| *candidate < value - tolerance)
+                .unwrap_or(self.start);
+            previous.max(self.start)
+        }
     }
 
     /// Page Up と Page Down で増減する量。範囲の段階の数の 1/10 を、2 から 10 段階に収めた量
@@ -683,6 +691,28 @@ mod tests {
             vec![8.5, 8.0],
             "8 を飛ばして 6 にしない"
         );
+    }
+
+    #[gpui::test]
+    fn 大きな値の小数の段階でも途中の値から_1_段階ずつ進める(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, 10000.02, 10000.0..=10005.0, Some(0.01));
+        focus(&view, cx);
+        cx.simulate_keystrokes("right");
+        let changes = changes(&view, cx);
+        assert_eq!(changes.len(), 1);
+        assert!((changes[0] - 10000.03).abs() < 2e-3, "{changes:?}");
+    }
+
+    #[gpui::test]
+    fn 段階のわずかに外にある終わりから減らすと手前の段階の値にする(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, 8.01, 0.0..=8.01, Some(2.0));
+        focus(&view, cx);
+        cx.simulate_keystrokes("left");
+        assert_eq!(changes(&view, cx), vec![8.0]);
     }
 
     #[gpui::test]
