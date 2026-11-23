@@ -366,14 +366,6 @@ impl RenderOnce for DatePicker {
                                 .opacity(disabled_alpha),
                         ),
                     };
-                    // 状態レイヤーは文字の色を重ねる (Compose の Surface の ripple は内容の色を使う)
-                    let state_layer = |opacity: f32| {
-                        let layer = content.opacity(opacity);
-                        match container {
-                            Some(container) => container.blend(layer),
-                            None => layer,
-                        }
-                    };
                     let group = format!("date-picker-day-{}", day.date.day());
                     let circle = div()
                         .absolute()
@@ -384,14 +376,6 @@ impl RenderOnce for DatePicker {
                                 .border_color(
                                     theme.color(tokens::DATE_TODAY_CONTAINER_OUTLINE_COLOR),
                                 )
-                        })
-                        .when(day.enabled, |this| {
-                            this.when(day.focus_visible, |this| {
-                                this.bg(state_layer(state::FOCUS_STATE_LAYER_OPACITY))
-                            })
-                            .group_hover(group.clone(), |style| {
-                                style.bg(state_layer(state::HOVER_STATE_LAYER_OPACITY))
-                            })
                         });
                     let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
                     let label = if day.today {
@@ -421,21 +405,28 @@ impl RenderOnce for DatePicker {
                                     theme.clone(),
                                     tokens::DATE_CONTAINER_SHAPE,
                                 ))
-                                // group_active は id を持つ要素にしか付けられないため、押下の色は別の層に描く。
-                                // 押している間は hover の層も残るので、重ねて押下の不透明度になる分だけを足す。
+                                // 状態レイヤーは容器の上に文字の色を重ねる (Compose の Surface の ripple は内容の色を使う)。
+                                // group_active は id を持つ要素にしか付けられないため、容器とは別の層にする。
+                                // gpui は group_active を group_hover の後に当てるので、押している間は押下の色だけになる。
                                 // 日付の容器の形 (CornerFull) は円なので rounded_full で同じ形になる
                                 .when(day.enabled, |this| {
                                     this.child(
                                         div()
-                                            .id("pressed")
+                                            .id("state-layer")
                                             .absolute()
                                             .inset_0()
                                             .rounded_full()
+                                            .when(day.focus_visible, |this| {
+                                                this.bg(content
+                                                    .opacity(state::FOCUS_STATE_LAYER_OPACITY))
+                                            })
+                                            .group_hover(group.clone(), |style| {
+                                                style.bg(content
+                                                    .opacity(state::HOVER_STATE_LAYER_OPACITY))
+                                            })
                                             .group_active(group.clone(), |style| {
-                                                style.bg(content.opacity(
-                                                    state::PRESSED_STATE_LAYER_OPACITY
-                                                        - state::HOVER_STATE_LAYER_OPACITY,
-                                                ))
+                                                style.bg(content
+                                                    .opacity(state::PRESSED_STATE_LAYER_OPACITY))
                                             }),
                                     )
                                 })
