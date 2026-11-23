@@ -447,6 +447,8 @@ mod tests {
         selected: Option<i32>,
         current: Option<i32>,
         visible: bool,
+        /// 格子の高さ
+        height: gpui::Pixels,
         /// 格子の上の余白
         top: gpui::Pixels,
         autofocus: bool,
@@ -479,7 +481,7 @@ mod tests {
                     }
                     cell.w(px(100.)).h(px(40.))
                 })
-                .h(px(120.))
+                .h(self.height)
                 .overflow_y_scroll();
             div()
                 .size_full()
@@ -500,6 +502,7 @@ mod tests {
             selected,
             current,
             visible: true,
+            height: px(120.),
             top: px(0.),
             autofocus: false,
             before: cx.focus_handle().tab_stop(true),
@@ -743,6 +746,22 @@ mod tests {
         // 描き直した位置で押せる。2022 年は 1 行目の 3 列目
         cx.simulate_click(gpui::point(px(250.), px(30.)), Modifiers::none());
         assert_eq!(changes(&view, cx), [2022]);
+    }
+
+    #[gpui::test]
+    fn 表示領域より高い行は上端を合わせる(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, Some(2020), None);
+        view.update(cx, |view, cx| {
+            view.height = px(20.);
+            cx.notify();
+        });
+        cx.simulate_keystrokes("tab tab down");
+        assert_eq!(focused(&view, cx), Some(2023));
+        let offset = view.read_with(cx, |view, _| view.scroll.offset().y);
+        assert_eq!(offset, px(-40.));
+        // 描き直した位置で、行の上半分を押せる
+        cx.simulate_click(gpui::point(px(50.), px(15.)), Modifiers::none());
+        assert_eq!(changes(&view, cx), [2023]);
     }
 
     #[gpui::test]

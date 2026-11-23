@@ -23,7 +23,6 @@ use gpui::{
     prelude::FluentBuilder, radians, svg,
 };
 use gpui_headless::calendar::{Calendar, Date};
-use gpui_headless::disclosure::DisclosurePanel;
 use gpui_headless::text::StaticText;
 use gpui_headless::year_grid::YearGrid;
 use md3_theme::md3_color::ColorRole;
@@ -709,14 +708,12 @@ impl RenderOnce for DatePicker {
             .child(header)
             .child(divider())
             .child(navigation)
-            // 年の一覧を閉じたときにフォーカスが一覧の中にあれば、年を選ぶボタンへ戻す
-            .child(
-                DisclosurePanel::new((self.id.clone(), "year-panel"), showing_years, &menu_focus)
-                    .flex()
-                    .flex_col()
-                    .child(years.px(dp(HORIZONTAL_PADDING)))
-                    .child(divider()),
-            )
+            // 年の一覧は、年を選ぶか表示している月のボタンを押したときだけ閉じ、
+            // どちらの場合もフォーカスは表示している月のボタンにある
+            .when(showing_years, |this| {
+                this.child(years.px(dp(HORIZONTAL_PADDING)))
+                    .child(divider())
+            })
             .when(!showing_years, |this| {
                 this.child(div().px(dp(HORIZONTAL_PADDING)).child(calendar))
             });
@@ -920,6 +917,37 @@ mod tests {
             point(px(12. + 56.), px(YEARS_TOP + 36. + 8.)),
             Modifiers::none(),
         );
+        cx.simulate_keystrokes("right");
+        press(cx);
+        // 2027 年 11 月 1 日は月曜日
+        cx.simulate_click(cell_center(0, 1), Modifiers::none());
+        assert_eq!(changes(&view, cx), [date(2027, 11, 1)]);
+    }
+
+    #[gpui::test]
+    fn 年の一覧の下の区切り線と行の間を右ボタンで押してもキー操作で年を選べる(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 11, 10)), DEFAULT_YEAR_RANGE);
+        let press = |cx: &mut VisualTestContext| {
+            let keystroke =
+                gpui::Keystroke::parse("enter").expect("テストのキー表記が有効であること");
+            cx.simulate_event(gpui::KeyDownEvent {
+                keystroke: keystroke.clone(),
+                is_held: false,
+                prefer_character_input: false,
+            });
+            cx.simulate_event(gpui::KeyUpEvent { keystroke });
+            cx.run_until_parked();
+        };
+        cx.simulate_keystrokes("tab");
+        press(cx);
+        // 一覧の下の区切り線
+        cx.simulate_click(point(px(100.), px(YEARS_TOP + 335.5)), Modifiers::none());
+        // 1 行目と 2 行目の間の余白を右ボタンで押す
+        let gap = point(px(12. + 56.), px(YEARS_TOP + 36. + 8.));
+        cx.simulate_mouse_down(gap, gpui::MouseButton::Right, Modifiers::none());
+        cx.simulate_mouse_up(gap, gpui::MouseButton::Right, Modifiers::none());
         cx.simulate_keystrokes("right");
         press(cx);
         // 2027 年 11 月 1 日は月曜日
