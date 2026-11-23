@@ -159,6 +159,10 @@ impl YearGrid {
 impl RenderOnce for YearGrid {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // 反復し終えた範囲は端点が残っていても空なので、空の範囲として扱う
+        #[expect(
+            clippy::reversed_empty_ranges,
+            reason = "years を空の範囲に置き換えるため"
+        )]
         let years = if self.years.is_empty() {
             1..=0
         } else {
