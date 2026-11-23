@@ -341,8 +341,6 @@ impl RenderOnce for DatePicker {
         let today = self.today.filter(in_range);
         let initial = selected.or(today).unwrap_or(first);
         let displayed = window.use_keyed_state((self.id.clone(), "month"), cx, |_, _| initial);
-        // year_range が変わって表示している月が範囲の外になった場合は、範囲の端の月を表示する。
-        // 後で範囲を広げたときに元の月へ戻らないよう、補正した月を持つ
         // Compose と同じく、表示を切り替えたときは選ばれている日付の月を表示する
         let last_mode =
             window.use_keyed_state((self.id.clone(), "last-mode"), cx, |_, _| self.display_mode);
@@ -352,6 +350,8 @@ impl RenderOnce for DatePicker {
                 displayed.update(cx, |displayed, _| *displayed = date);
             }
         }
+        // year_range が変わって表示している月が範囲の外になった場合は、範囲の端の月を表示する。
+        // 後で範囲を広げたときに元の月へ戻らないよう、補正した月を持つ
         let stored = *displayed.read(cx);
         let displayed_month = stored.clamp(first, last);
         if displayed_month != stored {
