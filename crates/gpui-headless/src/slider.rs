@@ -50,45 +50,6 @@ impl Scale {
         self.step.unwrap_or((self.end - self.start) / 100.0)
     }
 
-    /// `value` から矢印キーで 1 段階増やすか (`forward`)、減らした値
-    ///
-    /// 段階があれば、範囲の始まりから段階ごとの値と範囲の終わりの並びで隣の値にする。
-    /// 段階の途中にある範囲の終わりから減らす場合も、手前の段階の値を飛ばさない。
-    /// 結果は段階の値か範囲の端で、[`Scale::snap`] に通さずに使う
-    pub(crate) fn step_from(self, value: f32, forward: bool) -> f32 {
-        let Some(step) = self.step else {
-            let delta = self.key_delta();
-            return self.snap(if forward {
-                value + delta
-            } else {
-                value - delta
-            });
-        };
-        // 範囲の終わりは段階の途中にありうるため、段階の番号と別に扱う。
-        // 最後の段階の値と終わりの差が f32 の誤差の範囲なら、終わりを最後の段階の値とみなす
-        let mut last = ((self.end - self.start) / step).floor();
-        if self.end - (self.start + last * step)
-            <= self.end.abs().max(self.start.abs()) * f32::EPSILON * 4.0
-        {
-            last -= 1.0;
-        }
-        // 終わりの値は snap がそのまま返すため、等しいかどうかで判定できる
-        let next = if value >= self.end {
-            if forward {
-                return self.end;
-            }
-            last
-        } else {
-            // 段階の値から f32 の誤差でずれていても、最も近い段階の番号から隣の番号に進める
-            ((value.max(self.start) - self.start) / step).round() + if forward { 1.0 } else { -1.0 }
-        };
-        if next > last {
-            self.end
-        } else {
-            (self.start + next.max(0.0) * step).min(self.end)
-        }
-    }
-
     /// Page Up と Page Down で増減する量。範囲の段階の数の 1/10 を、2 から 10 段階に収めた量
     pub(crate) fn page_delta(self) -> f32 {
         let delta = self.key_delta();
@@ -332,16 +293,16 @@ impl RenderOnce for Slider {
                             return;
                         }
                         let next = match event.keystroke.key.as_str() {
-                            "right" | "up" => scale.step_from(value, true),
-                            "left" | "down" => scale.step_from(value, false),
-                            "pageup" => scale.snap(value + scale.page_delta()),
-                            "pagedown" => scale.snap(value - scale.page_delta()),
+                            "right" | "up" => value + scale.key_delta(),
+                            "left" | "down" => value - scale.key_delta(),
+                            "pageup" => value + scale.page_delta(),
+                            "pagedown" => value - scale.page_delta(),
                             "home" => scale.start,
                             "end" => scale.end,
                             _ => return,
                         };
                         cx.stop_propagation();
-                        request(next, window, cx);
+                        request(scale.snap(next), window, cx);
                     }
                 };
                 let increment = request.clone();
@@ -349,10 +310,10 @@ impl RenderOnce for Slider {
                 this.on_mouse_down(MouseButton::Left, on_mouse_down)
                     .on_key_down(on_key_down)
                     .on_a11y_action(accesskit::Action::Increment, move |_, window, cx| {
-                        increment(scale.step_from(value, true), window, cx);
+                        increment(scale.snap(value + scale.key_delta()), window, cx);
                     })
                     .on_a11y_action(accesskit::Action::Decrement, move |_, window, cx| {
-                        decrement(scale.step_from(value, false), window, cx);
+                        decrement(scale.snap(value - scale.key_delta()), window, cx);
                     })
                     .on_a11y_action(accesskit::Action::SetValue, move |data, window, cx| {
                         if let Some(accesskit::ActionData::NumericValue(next)) = data {
@@ -680,95 +641,6 @@ mod tests {
         cx.simulate_click(at(INSET + 190.0), Modifiers::none());
         cx.simulate_click(at(INSET + 170.0), Modifiers::none());
         assert_eq!(changes(&view, cx), vec![10.0, 8.0, 0.0, 10.0, 8.0]);
-    }
-
-    #[gpui::test]
-    fn 段階の途中にある終わりから減らすと手前の段階の値にする(
-        cx: &mut TestAppContext,
-    ) {
-        let (view, cx) = setup(cx, 8.0, 0.0..=8.5, Some(2.0));
-        focus(&view, cx);
-        cx.simulate_keystrokes("right");
-        update(&view, cx, |view| view.value = 8.5);
-        cx.simulate_keystrokes("left");
-        assert_eq!(
-            changes(&view, cx),
-            vec![8.5, 8.0],
-            "8 を飛ばして 6 にしない"
-        );
-    }
-
-    #[gpui::test]
-    fn 大きな値の小数の段階でも途中の値から_1_段階ずつ進める(
-        cx: &mut TestAppContext,
-    ) {
-        let (view, cx) = setup(cx, 10000.02, 10000.0..=10005.0, Some(0.01));
-        focus(&view, cx);
-        cx.simulate_keystrokes("right");
-        let changes = changes(&view, cx);
-        assert_eq!(changes.len(), 1);
-        assert!((changes[0] - 10000.03).abs() < 2e-3, "{changes:?}");
-    }
-
-    #[gpui::test]
-    fn f32_で表せる隣の段階に進む(cx: &mut TestAppContext) {
-        let (view, cx) = setup(cx, 10000.0, 10000.0..=10005.0, Some(0.001));
-        focus(&view, cx);
-        cx.simulate_keystrokes("right");
-        assert_eq!(changes(&view, cx), vec![10000.0 + 0.001]);
-    }
-
-    #[gpui::test]
-    fn 終わりのすぐ手前の段階へは矢印キーでも減らせる(
-        cx: &mut TestAppContext,
-    ) {
-        let (view, cx) = setup(cx, 8.0001, 0.0..=8.0001, Some(2.0));
-        focus(&view, cx);
-        cx.simulate_keystrokes("left");
-        assert_eq!(changes(&view, cx), vec![8.0]);
-    }
-
-    #[gpui::test]
-    fn 値に比べて小さな段階でも隣の段階に進む(cx: &mut TestAppContext) {
-        let (view, cx) = setup(cx, 10000.0, 10000.0..=10005.0, Some(0.002));
-        focus(&view, cx);
-        cx.simulate_keystrokes("right");
-        let changes = changes(&view, cx);
-        assert_eq!(changes.len(), 1);
-        assert!((changes[0] - 10000.002).abs() < 1e-3, "{changes:?}");
-    }
-
-    #[gpui::test]
-    fn 段階のごくわずかに外にある終わりから減らすと手前の段階の値にする(
-        cx: &mut TestAppContext,
-    ) {
-        let (view, cx) = setup(cx, 8.001, 0.0..=8.001, Some(2.0));
-        focus(&view, cx);
-        cx.simulate_keystrokes("left");
-        assert_eq!(changes(&view, cx), vec![8.0]);
-    }
-
-    #[gpui::test]
-    fn 段階のわずかに外にある終わりから減らすと手前の段階の値にする(
-        cx: &mut TestAppContext,
-    ) {
-        let (view, cx) = setup(cx, 8.01, 0.0..=8.01, Some(2.0));
-        focus(&view, cx);
-        cx.simulate_keystrokes("left");
-        assert_eq!(changes(&view, cx), vec![8.0]);
-    }
-
-    #[gpui::test]
-    fn 小数の段階でも途中の値から_1_段階ずつ進める(cx: &mut TestAppContext) {
-        let (view, cx) = setup(cx, 100.02, 100.0..=105.0, Some(0.01));
-        focus(&view, cx);
-        cx.simulate_keystrokes("right");
-        update(&view, cx, |view| view.value = 100.02);
-        cx.simulate_keystrokes("left");
-        let changes = changes(&view, cx);
-        assert_eq!(changes.len(), 2);
-        assert!((changes[0] - 100.03).abs() < 1e-3, "{changes:?}");
-        assert!((changes[1] - 100.01).abs() < 1e-3, "{changes:?}");
     }
 
     /// f32 では 0.7 / 9 * 9 が 0.7 に届かない

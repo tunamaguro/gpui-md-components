@@ -953,6 +953,39 @@ mod tests {
     }
 
     #[gpui::test]
+    fn _24_時間制では描画を挟まずに続くドラッグも描いているセレクタの円で判定する(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Time::new(15, 0), HourFormat::Hour24);
+        let (x, y) = dial_center(cx);
+        let at = |dx: f32| gpui::point(px(x + dx), px(y));
+        cx.update(|window, cx| {
+            window.dispatch_event(
+                gpui::PlatformInput::MouseDown(MouseDownEvent {
+                    position: at(69.),
+                    button: MouseButton::Left,
+                    modifiers: Modifiers::none(),
+                    click_count: 1,
+                    first_mouse: false,
+                }),
+                cx,
+            );
+            // 外側の 3 時へ動かし、描いている 15 時の円の内側へ戻す
+            for dx in [101., 90.] {
+                window.dispatch_event(
+                    gpui::PlatformInput::MouseMove(MouseMoveEvent {
+                        position: at(dx),
+                        pressed_button: Some(MouseButton::Left),
+                        modifiers: Modifiers::none(),
+                    }),
+                    cx,
+                );
+            }
+        });
+        assert_eq!(changes(&view, cx), [Time::new(3, 0), Time::new(15, 0)]);
+    }
+
+    #[gpui::test]
     fn _24_時間制でセレクタの円の外なら境界で判定する(
         cx: &mut TestAppContext,
     ) {

@@ -533,8 +533,8 @@ impl RenderOnce for DialSlider {
                         }
                         let value = last.get();
                         let next = match event.keystroke.key.as_str() {
-                            "right" | "up" => scale.step_from(value, true),
-                            "left" | "down" => scale.step_from(value, false),
+                            "right" | "up" => scale.snap(value + scale.key_delta()),
+                            "left" | "down" => scale.snap(value - scale.key_delta()),
                             "pageup" => scale.snap(value + scale.page_delta()),
                             "pagedown" => scale.snap(value - scale.page_delta()),
                             "home" => scale.start,
@@ -550,10 +550,18 @@ impl RenderOnce for DialSlider {
                 let (increment_base, decrement_base) = (last.clone(), last);
                 this.on_key_down(on_key_down)
                     .on_a11y_action(accesskit::Action::Increment, move |_, window, cx| {
-                        increment(scale.step_from(increment_base.get(), true), window, cx);
+                        increment(
+                            scale.snap(increment_base.get() + scale.key_delta()),
+                            window,
+                            cx,
+                        );
                     })
                     .on_a11y_action(accesskit::Action::Decrement, move |_, window, cx| {
-                        decrement(scale.step_from(decrement_base.get(), false), window, cx);
+                        decrement(
+                            scale.snap(decrement_base.get() - scale.key_delta()),
+                            window,
+                            cx,
+                        );
                     })
                     .on_a11y_action(accesskit::Action::SetValue, move |data, window, cx| {
                         if let Some(accesskit::ActionData::NumericValue(next)) = data {
