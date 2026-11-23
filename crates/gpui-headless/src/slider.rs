@@ -53,7 +53,8 @@ impl Scale {
     /// `value` から矢印キーで 1 段階増やすか (`forward`)、減らした値
     ///
     /// 段階があれば、範囲の始まりから段階ごとの値と範囲の終わりの並びで隣の値にする。
-    /// 段階の途中にある範囲の終わりから減らす場合も、手前の段階の値を飛ばさない
+    /// 段階の途中にある範囲の終わりから減らす場合も、手前の段階の値を飛ばさない。
+    /// 結果は段階の値か範囲の端で、[`Scale::snap`] に通さずに使う
     pub(crate) fn step_from(self, value: f32, forward: bool) -> f32 {
         let Some(step) = self.step else {
             let delta = self.key_delta();
@@ -63,25 +64,28 @@ impl Scale {
                 value - delta
             });
         };
-        let value = value.max(self.start).min(self.end);
-        // 段階の値と `value` は f32 の誤差でずれるため、この差より近い値は同じ値とみなす。
-        // 隣の段階を同じ値とみなさないよう、段階の半分より広げない
-        let tolerance = (value.abs().max(self.start.abs()) * f32::EPSILON * 4.0).min(step * 0.5);
-        // 段階の番号は誤差で 1 ずれうるため、前後の段階の値を実際に求めて比べる
-        let base = ((value - self.start) / step).floor();
-        if forward {
-            let next = (-1..=2)
-                .map(|offset| self.start + (base + offset as f32) * step)
-                .find(|candidate| *candidate > value + tolerance)
-                .unwrap_or(self.end);
-            next.min(self.end)
+        // 範囲の終わりは段階の途中にありうるため、段階の番号と別に扱う。
+        // 最後の段階の値と終わりの差が f32 の誤差の範囲なら、終わりを最後の段階の値とみなす
+        let mut last = ((self.end - self.start) / step).floor();
+        if self.end - (self.start + last * step)
+            <= self.end.abs().max(self.start.abs()) * f32::EPSILON * 4.0
+        {
+            last -= 1.0;
+        }
+        // 終わりの値は snap がそのまま返すため、等しいかどうかで判定できる
+        let next = if value >= self.end {
+            if forward {
+                return self.end;
+            }
+            last
         } else {
-            let previous = (-1..=2)
-                .rev()
-                .map(|offset| self.start + (base + offset as f32) * step)
-                .find(|candidate| *candidate < value - tolerance)
-                .unwrap_or(self.start);
-            previous.max(self.start)
+            // 段階の値から f32 の誤差でずれていても、最も近い段階の番号から隣の番号に進める
+            ((value.max(self.start) - self.start) / step).round() + if forward { 1.0 } else { -1.0 }
+        };
+        if next > last {
+            self.end
+        } else {
+            (self.start + next.max(0.0) * step).min(self.end)
         }
     }
 
@@ -330,14 +334,14 @@ impl RenderOnce for Slider {
                         let next = match event.keystroke.key.as_str() {
                             "right" | "up" => scale.step_from(value, true),
                             "left" | "down" => scale.step_from(value, false),
-                            "pageup" => value + scale.page_delta(),
-                            "pagedown" => value - scale.page_delta(),
+                            "pageup" => scale.snap(value + scale.page_delta()),
+                            "pagedown" => scale.snap(value - scale.page_delta()),
                             "home" => scale.start,
                             "end" => scale.end,
                             _ => return,
                         };
                         cx.stop_propagation();
-                        request(scale.snap(next), window, cx);
+                        request(next, window, cx);
                     }
                 };
                 let increment = request.clone();
@@ -704,6 +708,24 @@ mod tests {
         let changes = changes(&view, cx);
         assert_eq!(changes.len(), 1);
         assert!((changes[0] - 10000.03).abs() < 2e-3, "{changes:?}");
+    }
+
+    #[gpui::test]
+    fn f32_で表せる隣の段階に進む(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, 10000.0, 10000.0..=10005.0, Some(0.001));
+        focus(&view, cx);
+        cx.simulate_keystrokes("right");
+        assert_eq!(changes(&view, cx), vec![10000.0 + 0.001]);
+    }
+
+    #[gpui::test]
+    fn 終わりのすぐ手前の段階へは矢印キーでも減らせる(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, 8.0001, 0.0..=8.0001, Some(2.0));
+        focus(&view, cx);
+        cx.simulate_keystrokes("left");
+        assert_eq!(changes(&view, cx), vec![8.0]);
     }
 
     #[gpui::test]

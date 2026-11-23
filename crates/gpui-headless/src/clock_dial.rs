@@ -507,7 +507,6 @@ impl RenderOnce for DialSlider {
         let request = self.on_change.map(|on_change| {
             let last = last.clone();
             Rc::new(move |next: f32, window: &mut Window, cx: &mut App| {
-                let next = scale.snap(next);
                 if next != last.get() {
                     last.set(next);
                     on_change(&next, window, cx);
@@ -536,8 +535,8 @@ impl RenderOnce for DialSlider {
                         let next = match event.keystroke.key.as_str() {
                             "right" | "up" => scale.step_from(value, true),
                             "left" | "down" => scale.step_from(value, false),
-                            "pageup" => value + scale.page_delta(),
-                            "pagedown" => value - scale.page_delta(),
+                            "pageup" => scale.snap(value + scale.page_delta()),
+                            "pagedown" => scale.snap(value - scale.page_delta()),
                             "home" => scale.start,
                             "end" => scale.end,
                             _ => return,
@@ -558,7 +557,7 @@ impl RenderOnce for DialSlider {
                     })
                     .on_a11y_action(accesskit::Action::SetValue, move |data, window, cx| {
                         if let Some(accesskit::ActionData::NumericValue(next)) = data {
-                            request(*next as f32, window, cx);
+                            request(scale.snap(*next as f32), window, cx);
                         }
                     })
             });
