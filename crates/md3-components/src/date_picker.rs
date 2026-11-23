@@ -3,9 +3,10 @@
 // Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/DatePicker.kt
 //         (`DatePicker`、`DateEntryContainer`、`DatePickerHeader`、`DatePickerDefaults.DatePickerTitle`、
 //         `DatePickerDefaults.DatePickerHeadline`、`DatePickerContent`、`MonthsNavigation`、`WeekDays`、`Month`、
-//         `Day`、`dayContentDescription`、`DatePickerColors`、`defaultDatePickerColors`、`YearRange`、
-//         `RecommendedSizeForAccessibility`、`MonthYearHeight`、`DatePickerHorizontalPadding`、
-//         `DatePickerTitlePadding`、`DatePickerHeadlinePadding`、`MaxCalendarRows`)
+//         `Day`、`dayContentDescription`、`YearPicker`、`Year`、`YearPickerMenuButton`、`DatePickerColors`、
+//         `defaultDatePickerColors`、`YearRange`、`RecommendedSizeForAccessibility`、`MonthYearHeight`、
+//         `DatePickerHorizontalPadding`、`DatePickerTitlePadding`、`DatePickerHeadlinePadding`、
+//         `YearsVerticalPadding`、`MaxCalendarRows`、`YearsInRow`)
 //         compose/material3/material3/src/androidMain/res/values/strings.xml (`m3c_date_picker_*`)
 //         @ 2a941dd11aabd9bb7d2016ed159764b220117c20
 // Copyright 2023 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
@@ -18,20 +19,24 @@ use std::rc::Rc;
 
 use gpui::{
     App, ElementId, InteractiveElement, IntoElement, ParentElement, Refineable, RenderOnce,
-    StatefulInteractiveElement, StyleRefinement, Styled, Window, div, prelude::FluentBuilder,
+    ScrollHandle, StatefulInteractiveElement, StyleRefinement, Styled, Transformation, Window, div,
+    prelude::FluentBuilder, radians, svg,
 };
 use gpui_headless::calendar::{Calendar, Date};
+use gpui_headless::disclosure::DisclosurePanel;
 use gpui_headless::text::StaticText;
+use gpui_headless::year_grid::YearGrid;
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::date_picker_modal as tokens;
 use md3_theme::md3_tokens::component::divider;
 use md3_theme::md3_tokens::shape::ShapeKey;
-use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::md3_tokens::{Dp, focus_ring, state, supplement};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
+use md3_icons::StyledIcon;
+
 use crate::shape::Shaped;
-use crate::{IconButton, IconButtonVariant};
+use crate::{Button, ButtonColors, ButtonVariant, IconButton, IconButtonVariant};
 
 /// 日付と曜日のセルの大きさ (Compose の `RecommendedSizeForAccessibility`)
 const CELL_SIZE: Dp = Dp(48.0);
@@ -47,6 +52,17 @@ const TITLE_TOP_PADDING: Dp = Dp(16.0);
 const HEADLINE_BOTTOM_PADDING: Dp = Dp(12.0);
 /// 既定の年の範囲 (Compose の `DatePickerDefaults.YearRange`)
 const DEFAULT_YEAR_RANGE: RangeInclusive<i32> = 1900..=2100;
+/// 年の一覧の 1 行の年の数 (Compose の `YearsInRow`)
+const YEARS_IN_ROW: usize = 3;
+/// 年の一覧の行の間隔 (Compose の `YearsVerticalPadding`)
+const YEARS_VERTICAL_PADDING: Dp = Dp(16.0);
+/// 年の一覧の高さ。曜日と 6 週の格子の高さから、下の区切り線の太さを引く
+/// (Compose の `RecommendedSizeForAccessibility * (MaxCalendarRows + 1) - DividerDefaults.Thickness`)
+const YEAR_PICKER_HEIGHT: Dp = Dp(48.0 * 7.0 - 1.0);
+/// 年を選ぶボタンのアイコンとラベルの間隔 (Compose の `ButtonDefaults.IconSpacing`)
+const MENU_ICON_SPACING: Dp = Dp(8.0);
+/// 年を選ぶボタンのアイコンの大きさ (Compose の `ButtonDefaults.IconSize`)
+const MENU_ICON_SIZE: Dp = Dp(18.0);
 
 const MONTH_NAMES: [&str; 12] = [
     "January",
@@ -88,14 +104,18 @@ fn long_date(date: Date) -> String {
 
 /// MD3 のデイトピッカー (Compose の `DatePicker` のカレンダーの表示)
 ///
-/// 上にタイトル Select date と、選ばれている日付の見出しを置き、区切り線の下に表示している月と前後の月へ移るボタン、
-/// 曜日の見出しと 1 か月の日付を、日曜日から始まる 6 週の格子に並べる。
+/// 上にタイトル Select date と、選ばれている日付の見出しを置き、区切り線の下に表示している月の年を選ぶボタンと
+/// 前後の月へ移るボタン、曜日の見出しと 1 か月の日付を、日曜日から始まる 6 週の格子に並べる。
 /// 選ばれている日付は呼び出し側が持ち、[`DatePicker::new`] に毎回渡す。ピッカー自身は日付を変えず、
 /// 選ぶ操作をされた日付を [`DatePicker::on_change`] で求める。
 /// 表示している月はピッカーが持つ。最初は選ばれている日付の月、無ければ [`DatePicker::today`] の月、
 /// どちらも無ければ [`DatePicker::year_range`] の最初の年の 1 月にする
 ///
 /// - 前後の月へ移るボタンで、表示する月を変える。[`DatePicker::year_range`] の端の月ではボタンを無効にする
+/// - 表示している月のボタンで、日付の代わりに [`DatePicker::year_range`] の年を 3 年ずつ並べた一覧を開閉する。
+///   開くと表示している年にフォーカスを移す。年を選ぶと、その年の表示していた月を表示して一覧を閉じ、
+///   フォーカスを表示している月のボタンへ戻す。年の一覧の操作は [`YearGrid`] と同じ。一覧を開いている間は
+///   前後の月へ移るボタンを置かない
 /// - 日付の操作は [`Calendar`] と同じ。キー操作で月の外の日付へ移ると、表示する月も変える。
 ///   [`DatePicker::year_range`] の外の日付へは移らない
 ///
@@ -104,6 +124,9 @@ fn long_date(date: Date) -> String {
 /// 名前は Today, Tuesday, November 24, 2026 のように、今日であることと曜日・月・日・年を書く。
 /// 選ばれている日付の見出し (Current selection: に続けて日付、選ばれていなければ None) と表示している月は
 /// role `label` で、変わったときに読み上げ中の内容を遮らずに知らせる。
+/// 表示している月のボタンは role `button` で、一覧を開いているかどうかを持ち、名前は表示している月に続けて、
+/// 閉じているときは Activate to change the year、開いているときは Activate to change month and date と書く。
+/// 年の一覧は role `grid` で名前は Year picker visible、年は role `gridcell` で名前は Navigate to year 2026 のように書く。
 /// 前後の月へ移るボタンの名前は Change to previous month と Change to next month。
 /// 文言は英語に固定している
 #[derive(IntoElement)]
@@ -254,20 +277,91 @@ impl RenderOnce for DatePicker {
             .min_h(dp(tokens::HEADER_CONTAINER_HEIGHT))
             .child(title)
             .child(headline);
-        let divider = div()
-            .flex_none()
-            .h(dp(divider::THICKNESS))
-            .bg(theme.color(divider::COLOR));
+        let divider = || {
+            div()
+                .flex_none()
+                .h(dp(divider::THICKNESS))
+                .bg(theme.color(divider::COLOR))
+        };
 
-        // 表示している月と、前後の月へ移るボタン
-        let mut month_font = theme.text_style(TypeScale::LabelLarge);
-        month_font.color = Some(theme.color(ColorRole::OnSurfaceVariant));
+        // 表示している月の、年を選ぶ一覧との切り替えボタンと、前後の月へ移るボタン
+        let year_mode = window.use_keyed_state((self.id.clone(), "year-mode"), cx, |_, _| false);
+        let showing_years = *year_mode.read(cx);
+        let menu_focus = window
+            .use_keyed_state((self.id.clone(), "menu-focus"), cx, |_, cx| {
+                cx.focus_handle()
+            })
+            .read(cx)
+            .clone();
+        let year_scroll = window
+            .use_keyed_state((self.id.clone(), "year-scroll"), cx, |_, _| {
+                ScrollHandle::new()
+            })
+            .read(cx)
+            .clone();
         let month_text = format!("{} {}", MONTH_NAMES[usize::from(month) - 1], year);
-        let mut month_label = StaticText::new((self.id.clone(), "month-label"), month_text.clone())
-            .live(true)
-            .px(dp(Dp(12.0)))
-            .child(month_text.clone());
-        month_label.text_style().refine(&month_font);
+        let content_color = theme.color(ColorRole::OnSurfaceVariant);
+        let menu_button = Button::new((self.id.clone(), "year-menu"))
+            .variant(ButtonVariant::Text)
+            .colors(ButtonColors {
+                content: Some(ColorRole::OnSurfaceVariant),
+                ..ButtonColors::default()
+            })
+            .track_focus(&menu_focus)
+            .expanded(showing_years)
+            .aria_label(format!(
+                "{month_text}, {}",
+                if showing_years {
+                    "Activate to change month and date"
+                } else {
+                    "Activate to change the year"
+                }
+            ))
+            .on_click({
+                let year_mode = year_mode.clone();
+                let year_scroll = year_scroll.clone();
+                move |_, _, cx| {
+                    let opening = !*year_mode.read(cx);
+                    if opening {
+                        // 表示している年の 1 行上から見せる (Compose の `initialFirstVisibleItemIndex`)。
+                        // 行の位置はこの描画で決まるため、行の高さと間隔から求める
+                        let row = (year - first_year) as usize / YEARS_IN_ROW;
+                        let pitch = dp(tokens::SELECTION_YEAR_CONTAINER_HEIGHT)
+                            + dp(YEARS_VERTICAL_PADDING);
+                        year_scroll.set_offset(gpui::point(
+                            gpui::px(0.),
+                            -pitch * row.saturating_sub(1) as f32,
+                        ));
+                    }
+                    year_mode.update(cx, |year_mode, cx| {
+                        *year_mode = opening;
+                        cx.notify();
+                    });
+                }
+            })
+            .child(
+                StaticText::new((self.id.clone(), "month-label"), month_text.clone())
+                    .live(true)
+                    .child(month_text.clone()),
+            )
+            .child(
+                svg()
+                    .data(
+                        StyledIcon::from(md3_icons::ARROW_DROP_DOWN)
+                            .svg()
+                            .as_bytes(),
+                    )
+                    .flex_none()
+                    .size(dp(MENU_ICON_SIZE))
+                    .ml(dp(MENU_ICON_SPACING))
+                    .text_color(content_color)
+                    .when(showing_years, |this| {
+                        this.with_transformation(Transformation::rotate(radians(
+                            std::f32::consts::PI,
+                        )))
+                    }),
+            )
+            .theme(theme.clone());
         let neighbor = |delta: i64| {
             displayed_month
                 .add_months(delta)
@@ -286,33 +380,166 @@ impl RenderOnce for DatePicker {
             .justify_between()
             .h(dp(MONTH_YEAR_HEIGHT))
             .px(dp(HORIZONTAL_PADDING))
-            .child(month_label)
-            .child(
-                div()
-                    .flex()
-                    .child(
-                        IconButton::new(
-                            (self.id.clone(), "previous"),
-                            md3_icons::KEYBOARD_ARROW_LEFT,
-                            "Change to previous month",
+            .child(menu_button)
+            .when(!showing_years, |this| {
+                this.child(
+                    div()
+                        .flex()
+                        .child(
+                            IconButton::new(
+                                (self.id.clone(), "previous"),
+                                md3_icons::KEYBOARD_ARROW_LEFT,
+                                "Change to previous month",
+                            )
+                            .variant(IconButtonVariant::Standard)
+                            .disabled(previous.is_none())
+                            .when_some(previous, |this, target| this.on_click(move_month(target)))
+                            .theme(theme.clone()),
                         )
-                        .variant(IconButtonVariant::Standard)
-                        .disabled(previous.is_none())
-                        .when_some(previous, |this, target| this.on_click(move_month(target)))
-                        .theme(theme.clone()),
-                    )
-                    .child(
-                        IconButton::new(
-                            (self.id.clone(), "next"),
-                            md3_icons::KEYBOARD_ARROW_RIGHT,
-                            "Change to next month",
-                        )
-                        .variant(IconButtonVariant::Standard)
-                        .disabled(next.is_none())
-                        .when_some(next, |this, target| this.on_click(move_month(target)))
-                        .theme(theme.clone()),
+                        .child(
+                            IconButton::new(
+                                (self.id.clone(), "next"),
+                                md3_icons::KEYBOARD_ARROW_RIGHT,
+                                "Change to next month",
+                            )
+                            .variant(IconButtonVariant::Standard)
+                            .disabled(next.is_none())
+                            .when_some(next, |this, target| this.on_click(move_month(target)))
+                            .theme(theme.clone()),
+                        ),
+                )
+            });
+
+        // 年の一覧。選んだ年の、表示している月と同じ月を表示して、日付の表示に戻す
+        let mut year_font = theme.text_style(tokens::SELECTION_YEAR_LABEL_TEXT_FONT);
+        year_font.color = None;
+        let years = YearGrid::new(
+            (self.id.clone(), "years"),
+            first_year..=last_year,
+            YEARS_IN_ROW,
+        )
+        .selected(Some(year))
+        .current(today.map(|today| today.year()))
+        .scroll(&year_scroll)
+        .autofocus(true)
+        .on_change({
+            let set_month = set_month.clone();
+            let year_mode = year_mode.clone();
+            move |&selected_year: &i32, _, cx| {
+                if let Some(date) = Date::new(selected_year, month, 1) {
+                    set_month(date.clamp(first, last), cx);
+                }
+                year_mode.update(cx, |year_mode, cx| {
+                    *year_mode = false;
+                    cx.notify();
+                });
+            }
+        })
+        .row(|row| row.flex_none().justify_around())
+        .year({
+            let theme = theme.clone();
+            move |cell, element, _, _| {
+                let disabled_alpha = supplement::color_scheme::DISABLED_ALPHA;
+                let (container, content) = match (cell.selected, cell.enabled, cell.current) {
+                    (true, true, _) => (
+                        Some(theme.color(tokens::SELECTION_YEAR_SELECTED_CONTAINER_COLOR)),
+                        theme.color(tokens::SELECTION_YEAR_SELECTED_LABEL_TEXT_COLOR),
                     ),
-            );
+                    (true, false, _) => (
+                        Some(
+                            theme
+                                .color(tokens::SELECTION_YEAR_SELECTED_CONTAINER_COLOR)
+                                .opacity(disabled_alpha),
+                        ),
+                        theme
+                            .color(tokens::SELECTION_YEAR_SELECTED_LABEL_TEXT_COLOR)
+                            .opacity(disabled_alpha),
+                    ),
+                    (false, true, true) => (None, theme.color(tokens::DATE_TODAY_LABEL_TEXT_COLOR)),
+                    (false, true, false) => (
+                        None,
+                        theme.color(tokens::SELECTION_YEAR_UNSELECTED_LABEL_TEXT_COLOR),
+                    ),
+                    (false, false, _) => (
+                        None,
+                        theme
+                            .color(tokens::SELECTION_YEAR_UNSELECTED_LABEL_TEXT_COLOR)
+                            .opacity(disabled_alpha),
+                    ),
+                };
+                let group = format!("date-picker-year-{}", cell.year);
+                // 今年は日付の今日と同じ縁取りで示す (Compose の `Year`)
+                let container = div()
+                    .absolute()
+                    .inset_0()
+                    .when_some(container, |this, container| this.bg(container))
+                    .when(cell.current && !cell.selected, |this| {
+                        this.border(dp(tokens::DATE_TODAY_CONTAINER_OUTLINE_WIDTH))
+                            .border_color(theme.color(tokens::DATE_TODAY_CONTAINER_OUTLINE_COLOR))
+                    });
+                let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
+                let mut element = element
+                    .group(group.clone())
+                    .relative()
+                    .flex()
+                    .flex_none()
+                    .items_center()
+                    .justify_center()
+                    .w(dp(tokens::SELECTION_YEAR_CONTAINER_WIDTH))
+                    .h(dp(tokens::SELECTION_YEAR_CONTAINER_HEIGHT))
+                    .text_color(content)
+                    .aria_label(format!("Navigate to year {}", cell.year))
+                    .child(Shaped::new(
+                        container,
+                        theme.clone(),
+                        tokens::SELECTION_YEAR_STATE_LAYER_SHAPE,
+                    ))
+                    // 日付と同じく、状態レイヤーは容器の上に文字の色を重ねる別の層にする。
+                    // 年の容器の形 (CornerFull) は短辺の両端を半円にした形なので rounded_full で同じ形になる
+                    .when(cell.enabled, |this| {
+                        this.child(
+                            div()
+                                .id("state-layer")
+                                .absolute()
+                                .inset_0()
+                                .rounded_full()
+                                .when(cell.focus_visible, |this| {
+                                    this.bg(content.opacity(state::FOCUS_STATE_LAYER_OPACITY))
+                                })
+                                .group_hover(group.clone(), |style| {
+                                    style.bg(content.opacity(state::HOVER_STATE_LAYER_OPACITY))
+                                })
+                                .group_active(group.clone(), |style| {
+                                    style.bg(content.opacity(state::PRESSED_STATE_LAYER_OPACITY))
+                                }),
+                        )
+                    })
+                    .child(div().relative().child(cell.year.to_string()))
+                    .when(cell.focus_visible, |this| {
+                        this.child(
+                            Shaped::new(
+                                div()
+                                    .absolute()
+                                    .top(-outset)
+                                    .left(-outset)
+                                    .right(-outset)
+                                    .bottom(-outset)
+                                    .border(dp(focus_ring::WIDTH))
+                                    .border_color(theme.color(focus_ring::COLOR)),
+                                theme.clone(),
+                                ShapeKey::CornerFull,
+                            )
+                            .outset(outset),
+                        )
+                    });
+                element.text_style().refine(&year_font);
+                element
+            }
+        })
+        .aria_label("Year picker visible")
+        .h(dp(YEAR_PICKER_HEIGHT))
+        .gap(dp(YEARS_VERTICAL_PADDING))
+        .overflow_y_scroll();
 
         // 曜日と日付
         let mut weekday_font = theme.text_style(tokens::WEEKDAYS_LABEL_TEXT_FONT);
@@ -464,15 +691,25 @@ impl RenderOnce for DatePicker {
         }
 
         let mut root = div()
-            .id(self.id)
+            .id(self.id.clone())
             .flex()
             .flex_col()
             .w(dp(tokens::CONTAINER_WIDTH))
             .bg(theme.color(tokens::CONTAINER_COLOR))
             .child(header)
-            .child(divider)
+            .child(divider())
             .child(navigation)
-            .child(div().px(dp(HORIZONTAL_PADDING)).child(calendar));
+            // 年の一覧を閉じたときにフォーカスが一覧の中にあれば、年を選ぶボタンへ戻す
+            .child(
+                DisclosurePanel::new((self.id.clone(), "year-panel"), showing_years, &menu_focus)
+                    .flex()
+                    .flex_col()
+                    .child(years.px(dp(HORIZONTAL_PADDING)))
+                    .child(divider()),
+            )
+            .when(!showing_years, |this| {
+                this.child(div().px(dp(HORIZONTAL_PADDING)).child(calendar))
+            });
         root.style().refine(&self.style);
         root
     }
@@ -612,11 +849,66 @@ mod tests {
         assert_eq!(changes(&view, cx), [date(2026, 12, 1)]);
     }
 
+    /// 年の一覧の上端。見出し 120dp、区切り線 1dp、月の行 56dp の下
+    const YEARS_TOP: f32 = 120. + 1. + 56.;
+
+    #[gpui::test]
+    fn 年を選ぶボタンで年の一覧を開き_選んだ年の同じ月を表示する(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 11, 10)), DEFAULT_YEAR_RANGE);
+        cx.simulate_click(point(px(60.), px(121. + 28.)), Modifiers::none());
+        cx.run_until_parked();
+        // 1900 年から 3 年ずつ並ぶので、2026 年は 43 行目の 1 列目。その 1 行上から見せる。
+        // 列は 336dp を 3 等分した 112dp の中央に置く
+        assert_eq!(
+            quads(cx, tokens::SELECTION_YEAR_SELECTED_CONTAINER_COLOR),
+            [(12. + 56. - 36., YEARS_TOP + 36. + 16., 72., 36.)]
+        );
+        cx.simulate_click(
+            point(px(12. + 112. + 56.), px(YEARS_TOP + 52. + 18.)),
+            Modifiers::none(),
+        );
+        cx.run_until_parked();
+        // 2027 年 11 月 1 日は月曜日
+        cx.simulate_click(cell_center(0, 1), Modifiers::none());
+        assert_eq!(changes(&view, cx), [date(2027, 11, 1)]);
+    }
+
+    #[gpui::test]
+    fn キーボードで年を選ぶと年を選ぶボタンにフォーカスを戻す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 11, 10)), DEFAULT_YEAR_RANGE);
+        let press = |cx: &mut VisualTestContext| {
+            let keystroke =
+                gpui::Keystroke::parse("enter").expect("テストのキー表記が有効であること");
+            cx.simulate_event(gpui::KeyDownEvent {
+                keystroke: keystroke.clone(),
+                is_held: false,
+                prefer_character_input: false,
+            });
+            cx.simulate_event(gpui::KeyUpEvent { keystroke });
+            cx.run_until_parked();
+        };
+        // 開くと表示している年にフォーカスが移る
+        cx.simulate_keystrokes("tab");
+        press(cx);
+        cx.simulate_keystrokes("right");
+        press(cx);
+        // 年を選ぶボタンの次は前の月のボタン
+        cx.simulate_keystrokes("tab");
+        press(cx);
+        // 2027 年 10 月 1 日は金曜日
+        cx.simulate_click(cell_center(0, 5), Modifiers::none());
+        assert_eq!(changes(&view, cx), [date(2027, 10, 1)]);
+    }
+
     #[gpui::test]
     fn キー操作で月の外へ移ると表示する月を変える(cx: &mut TestAppContext) {
         let (view, cx) = setup(cx, Some(date(2026, 11, 30)), DEFAULT_YEAR_RANGE);
-        // 前後の月のボタンの次が日付
-        cx.simulate_keystrokes("tab tab tab right");
+        // 年を選ぶボタンと前後の月のボタンの次が日付
+        cx.simulate_keystrokes("tab tab tab tab right");
         let keystroke = gpui::Keystroke::parse("enter").expect("テストのキー表記が有効であること");
         cx.simulate_event(gpui::KeyDownEvent {
             keystroke: keystroke.clone(),

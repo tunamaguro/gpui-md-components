@@ -326,6 +326,8 @@ pub struct Button {
     icon: Option<StyledIcon>,
     on_click: Option<ClickHandler>,
     aria_label: Option<SharedString>,
+    #[cfg(feature = "date-picker")]
+    expanded: Option<bool>,
     disabled: bool,
     focus_handle: Option<FocusHandle>,
     #[cfg(feature = "menu")]
@@ -352,12 +354,21 @@ impl Button {
             icon: None,
             on_click: None,
             aria_label: None,
+            #[cfg(feature = "date-picker")]
+            expanded: None,
             disabled: false,
             focus_handle: None,
             #[cfg(feature = "menu")]
             menu: None,
             theme: None,
         }
+    }
+
+    /// ボタンが開閉する内容が開いているかどうかを、支援技術に `expanded` として伝える
+    #[cfg(feature = "date-picker")]
+    pub(crate) fn expanded(mut self, expanded: bool) -> Self {
+        self.expanded = Some(expanded);
+        self
     }
 
     /// ボタンの種類を設定する
@@ -532,6 +543,10 @@ impl RenderOnce for Button {
                 this.aria_label(label)
             })
             .when_some(self.on_click, |this, on_click| this.on_click(on_click));
+        #[cfg(feature = "date-picker")]
+        if let Some(expanded) = self.expanded {
+            button = button.aria_expanded(expanded);
+        }
         button = look.apply(button);
         #[cfg(feature = "menu")]
         if let Some(menu) = self.menu {

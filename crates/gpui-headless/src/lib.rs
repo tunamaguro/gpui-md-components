@@ -32,6 +32,7 @@ pub mod text_field;
 pub mod toggle;
 pub mod toolbar;
 pub mod tooltip;
+pub mod year_grid;
 
 pub use focus_visible::is_focus_visible;
 pub use interaction::InteractionSource;
