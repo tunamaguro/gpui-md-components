@@ -10,6 +10,7 @@ mod button_page;
 mod card_page;
 mod checkbox_page;
 mod chip_page;
+mod date_picker_page;
 mod dialog_page;
 mod divider_page;
 mod fab_page;
@@ -52,6 +53,7 @@ use crate::button_page::ButtonPage;
 use crate::card_page::CardPage;
 use crate::checkbox_page::CheckboxPage;
 use crate::chip_page::ChipPage;
+use crate::date_picker_page::DatePickerPage;
 use crate::dialog_page::DialogPage;
 use crate::divider_page::DividerPage;
 use crate::fab_page::FabPage;
@@ -110,6 +112,7 @@ enum Page {
     SearchBar,
     TimeInput,
     TimePicker,
+    DatePicker,
     Menu,
     Dialog,
     Select,
@@ -147,6 +150,7 @@ struct Gallery {
     search_bar_page: Entity<SearchBarPage>,
     time_input_page: Entity<TimeInputPage>,
     time_picker_page: Entity<TimePickerPage>,
+    date_picker_page: Entity<DatePickerPage>,
     navigation_rail_page: Entity<NavigationRailPage>,
     menu_page: Entity<MenuPage>,
     dialog_page: Entity<DialogPage>,
@@ -186,6 +190,7 @@ impl Gallery {
             search_bar_page: cx.new(SearchBarPage::new),
             time_input_page: cx.new(TimeInputPage::new),
             time_picker_page: cx.new(TimePickerPage::new),
+            date_picker_page: cx.new(DatePickerPage::new),
             navigation_rail_page: cx.new(NavigationRailPage::new),
             menu_page: cx.new(|_| MenuPage::default()),
             dialog_page: cx.new(DialogPage::new),
@@ -239,6 +244,7 @@ impl Render for Gallery {
             Page::SearchBar => self.search_bar_page.clone().into(),
             Page::TimeInput => self.time_input_page.clone().into(),
             Page::TimePicker => self.time_picker_page.clone().into(),
+            Page::DatePicker => self.date_picker_page.clone().into(),
             Page::NavigationRail => self.navigation_rail_page.clone().into(),
             Page::Menu => self.menu_page.clone().into(),
             Page::Dialog => self.dialog_page.clone().into(),
@@ -289,7 +295,8 @@ impl Render for Gallery {
                         .child(tab(Page::BottomSheet, "Bottom sheet", cx))
                         .child(tab(Page::SearchBar, "Search bar", cx))
                         .child(tab(Page::TimeInput, "Time input", cx))
-                        .child(tab(Page::TimePicker, "Time picker", cx)),
+                        .child(tab(Page::TimePicker, "Time picker", cx))
+                        .child(tab(Page::DatePicker, "Date picker", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )

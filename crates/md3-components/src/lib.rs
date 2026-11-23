@@ -22,6 +22,8 @@ mod checkbox;
 mod chip;
 #[cfg(feature = "connected-button-group")]
 mod connected_button_group;
+#[cfg(feature = "date-picker")]
+mod date_picker;
 #[cfg(feature = "dialog")]
 mod dialog;
 #[cfg(feature = "divider")]
@@ -89,7 +91,8 @@ mod select;
     feature = "slider",
     feature = "text-field",
     feature = "time-input",
-    feature = "time-picker"
+    feature = "time-picker",
+    feature = "date-picker"
 ))]
 mod shape;
 #[cfg(feature = "slider")]
@@ -198,6 +201,10 @@ pub use navigation_bar::{
 #[cfg(feature = "navigation-drawer")]
 pub use navigation_drawer::{ModalNavigationDrawer, NavigationDrawer, NavigationDrawerItem};
 // dialog feature が有効なら dialog から公開している
+#[cfg(feature = "date-picker")]
+pub use date_picker::DatePicker;
+#[cfg(feature = "date-picker")]
+pub use gpui_headless::calendar::Date;
 #[cfg(all(
     any(feature = "bottom-sheet", feature = "navigation-drawer"),
     not(feature = "dialog")
