@@ -6,8 +6,8 @@ use std::rc::Rc;
 use crate::accessibility::A11yInfoExt;
 use gpui::{
     AnyElement, App, ClickEvent, Div, ElementId, FocusHandle, InteractiveElement, Interactivity,
-    IntoElement, ParentElement, RenderOnce, Stateful, StatefulInteractiveElement, StyleRefinement,
-    Styled, Window, accesskit, div, prelude::FluentBuilder,
+    IntoElement, MouseButton, ParentElement, RenderOnce, Stateful, StatefulInteractiveElement,
+    StyleRefinement, Styled, Window, accesskit, div, prelude::FluentBuilder,
 };
 
 /// グレゴリオ暦の日付
@@ -158,10 +158,11 @@ type BlankFn = Box<dyn Fn(Div) -> Div>;
 /// - Tab で到達できる日付は 1 つだけで、フォーカスのある日付、選ばれている日付、[`Calendar::today`]、
 ///   月の最初の日の順に、表示している月の [`Calendar::range`] の中から選ぶ。範囲の中に日付が無ければ到達できない
 /// - 表示する月か [`Calendar::range`] が変わって、フォーカスのある日付が変わるか範囲の外になった場合は、
-///   Tab で到達できる日付にフォーカスを移す。範囲の中に日付が無ければフォーカスを外す
+///   Tab で到達できる日付にフォーカスを移す。範囲の中に日付が無ければ格子自身にフォーカスを移し、
+///   次の Tab はカレンダーの後ろへ進む
 /// - フォーカス中の左右の矢印キーで前後の日、上下の矢印キーで前後の週の同じ曜日、Home と End で週の始まりと終わり、
 ///   Page Up と Page Down で前後の月、Shift を押しながら Page Up と Page Down で前後の年の同じ日に、フォーカスだけを移す。
-///   月か年を移って同じ日が無ければ月末にする。
+///   月か年を移って同じ日が無ければ月末にし、続けて月か年を移るときは元の日を基準にする。
 ///   移る先が表示している月の外なら、その月を表示するよう [`Calendar::on_month_change`] で求める。
 ///   設定しない場合と、移る先が [`Calendar::range`] の外の場合は移らない
 /// - フォーカス中の Enter・Space、クリック、支援技術からのクリック操作で、日付を選ぶよう [`Calendar::on_change`] で求める。
@@ -341,6 +342,13 @@ impl RenderOnce for Calendar {
         let pending_target = pending
             .update(cx, |pending, _| pending.take())
             .filter(|target| (target.year, target.month) == (year, month));
+        // 日付にフォーカスできなくなったときに、フォーカスを置く格子のフォーカス。Tab では到達しない
+        let grid_focus = window
+            .use_keyed_state((self.id.clone(), "grid"), cx, |_, cx| cx.focus_handle())
+            .read(cx)
+            .clone();
+        // Page Up・Page Down で移る基準の日。月末に寄せる前の日を持つ
+        let anchor = window.use_keyed_state((self.id.clone(), "anchor"), cx, |_, _| None::<u8>);
         // 前の描画で表示していた月
         let shown = window.use_keyed_state((self.id.clone(), "shown"), cx, |_, _| (year, month));
         let month_changed = shown.update(cx, |shown, _| {
@@ -362,7 +370,8 @@ impl RenderOnce for Calendar {
             match next {
                 Some(next) if next != day => window.focus(&handles[usize::from(next) - 1], cx),
                 Some(_) => {}
-                None => window.blur(cx),
+                // フォーカスを外すと次の Tab がウィンドウの先頭から始まるため、格子に移して Tab の位置を保つ
+                None => window.focus(&grid_focus, cx),
             }
         }
         let focused_day = (1..=days)
@@ -384,6 +393,7 @@ impl RenderOnce for Calendar {
             let on_month_change = self.on_month_change.clone();
             let range = self.range.clone();
             let pending = pending.clone();
+            let anchor = anchor.clone();
             move |event: &gpui::KeyDownEvent, window: &mut Window, cx: &mut App| {
                 let Some(day) =
                     (1..=days).find(|&day| handles[usize::from(day) - 1].is_focused(window))
@@ -397,17 +407,29 @@ impl RenderOnce for Calendar {
                     return;
                 }
                 let weekday = i64::from(current.weekday());
-                let target = match (event.keystroke.key.as_str(), shift) {
-                    ("right", false) => current.add_days(1),
-                    ("left", false) => current.add_days(-1),
-                    ("down", false) => current.add_days(7),
-                    ("up", false) => current.add_days(-7),
-                    ("home", false) => current.add_days(-weekday),
-                    ("end", false) => current.add_days(6 - weekday),
-                    ("pagedown", false) => current.add_months(1),
-                    ("pageup", false) => current.add_months(-1),
-                    ("pagedown", true) => current.add_months(12),
-                    ("pageup", true) => current.add_months(-12),
+                let months = match (event.keystroke.key.as_str(), shift) {
+                    ("pagedown", false) => Some(1),
+                    ("pageup", false) => Some(-1),
+                    ("pagedown", true) => Some(12),
+                    ("pageup", true) => Some(-12),
+                    _ => None,
+                };
+                // 月か年を続けて移るときは、短い月で月末に寄せる前の日を基準にする
+                let base_day = anchor
+                    .read(cx)
+                    .filter(|&anchor| anchor.min(days) == day)
+                    .unwrap_or(day);
+                let target = match (months, event.keystroke.key.as_str(), shift) {
+                    (Some(months), _, _) => current.add_months(months).map(|target| Date {
+                        day: base_day.min(Date::days_in_month(target.year, target.month)),
+                        ..target
+                    }),
+                    (None, "right", false) => current.add_days(1),
+                    (None, "left", false) => current.add_days(-1),
+                    (None, "down", false) => current.add_days(7),
+                    (None, "up", false) => current.add_days(-7),
+                    (None, "home", false) => current.add_days(-weekday),
+                    (None, "end", false) => current.add_days(6 - weekday),
                     _ => return,
                 };
                 cx.stop_propagation();
@@ -416,6 +438,7 @@ impl RenderOnce for Calendar {
                 else {
                     return;
                 };
+                anchor.update(cx, |anchor, _| *anchor = months.map(|_| base_day));
                 if (target.year, target.month) == (year, month) {
                     window.focus(&handles[usize::from(target.day) - 1], cx);
                     return;
@@ -506,6 +529,17 @@ impl RenderOnce for Calendar {
                                 select(date, window, cx)
                             })
                         })
+                        .when(!state.enabled, |this| {
+                            let focus_handle = in_range(date.day).then(|| handles[day - 1].clone());
+                            // 押下を親に伝えず、親の on_click を呼ばせない。
+                            // 伝播を止めると track_focus によるクリック時のフォーカス移動も呼ばれないため、ここで移す
+                            this.on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                                if let Some(focus_handle) = &focus_handle {
+                                    window.focus(focus_handle, cx);
+                                }
+                                cx.stop_propagation();
+                            })
+                        })
                         .a11y_info(move |node: &mut accesskit::Node| {
                             if !state.enabled {
                                 node.set_disabled();
@@ -528,6 +562,7 @@ impl RenderOnce for Calendar {
         let weeks = (offset + usize::from(days)).div_ceil(7);
 
         self.inner
+            .track_focus(&grid_focus)
             .role(accesskit::Role::Grid)
             .aria_row_count(weeks + 1)
             .aria_column_count(7)
@@ -607,7 +642,10 @@ mod tests {
         month_change: bool,
         range: Option<RangeInclusive<Date>>,
         refuse_month: bool,
+        parent_clicks: usize,
         other: Option<FocusHandle>,
+        before: Option<FocusHandle>,
+        after: FocusHandle,
         next_range: Option<RangeInclusive<Date>>,
         changes: Rc<RefCell<Vec<Date>>>,
         focused: Rc<Cell<Option<Date>>>,
@@ -660,11 +698,17 @@ mod tests {
                 calendar
             };
             div()
+                .id("parent")
+                .on_click(cx.listener(|this, _, _, _| this.parent_clicks += 1))
                 .size_full()
+                .when_some(self.before.clone(), |this, before| {
+                    this.child(div().track_focus(&before).size(px(10.)))
+                })
                 .child(calendar)
                 .when_some(self.other.clone(), |this, other| {
                     this.child(div().track_focus(&other).size(px(10.)))
                 })
+                .child(div().track_focus(&self.after).size(px(10.)))
         }
     }
 
@@ -673,14 +717,17 @@ mod tests {
         selected: Option<Date>,
         month_change: bool,
     ) -> (gpui::Entity<CalendarView>, &mut VisualTestContext) {
-        let (view, cx) = add_test_window(cx, |_, _| CalendarView {
+        let (view, cx) = add_test_window(cx, |_, cx| CalendarView {
             year: 2026,
             month: 11,
             selected,
             month_change,
             range: None,
             refuse_month: false,
+            parent_clicks: 0,
             other: None,
+            before: None,
+            after: cx.focus_handle().tab_stop(true),
             next_range: None,
             changes: Rc::default(),
             focused: Rc::default(),
@@ -871,6 +918,58 @@ mod tests {
             cx.notify();
         });
         assert_eq!(focused(&view, cx), Some(date(2026, 12, 15)));
+    }
+
+    #[gpui::test]
+    fn 月を続けて移るときは月末に寄せる前の日を基準にする(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 1, 31)), true);
+        view.update(cx, |view, cx| {
+            view.month = 1;
+            cx.notify();
+        });
+        cx.simulate_keystrokes("tab pagedown");
+        assert_eq!(focused(&view, cx), Some(date(2026, 2, 28)));
+        cx.simulate_keystrokes("pagedown");
+        assert_eq!(focused(&view, cx), Some(date(2026, 3, 31)));
+        cx.simulate_keystrokes("pageup pageup");
+        assert_eq!(focused(&view, cx), Some(date(2026, 1, 31)));
+        // 月か年の移動以外の操作をすると、そのときの日を基準にする
+        cx.simulate_keystrokes("pagedown left pagedown");
+        assert_eq!(focused(&view, cx), Some(date(2026, 3, 27)));
+    }
+
+    #[gpui::test]
+    fn フォーカス中に範囲から日付が無くなっても次の_tab_はカレンダーの後ろへ進む(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 11, 10)), true);
+        // カレンダーの前に Tab で到達できる要素を置く
+        view.update(cx, |view, cx| {
+            view.before = Some(cx.focus_handle().tab_stop(true));
+            cx.notify();
+        });
+        cx.simulate_keystrokes("tab tab");
+        view.update(cx, |view, cx| {
+            view.range = Some(date(2026, 12, 1)..=date(2026, 12, 31));
+            cx.notify();
+        });
+        assert_eq!(focused(&view, cx), None);
+        cx.simulate_keystrokes("tab");
+        let after = view.read_with(cx, |view, _| view.after.clone());
+        assert!(cx.update(|window, _| after.is_focused(window)));
+    }
+
+    #[gpui::test]
+    fn 選べない日付の押下を親に伝えない(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, None, true);
+        // 11 月 8 日は日曜日で選べない。3 行目の 1 列目
+        cx.simulate_click(gpui::point(px(20.), px(100.)), Modifiers::none());
+        assert_eq!(view.read_with(cx, |view, _| view.parent_clicks), 0);
+        assert_eq!(focused(&view, cx), Some(date(2026, 11, 8)));
+        cx.simulate_click(gpui::point(px(60.), px(100.)), Modifiers::none());
+        assert_eq!(changes(&view, cx), [date(2026, 11, 9)]);
     }
 
     #[gpui::test]
