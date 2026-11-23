@@ -283,7 +283,8 @@ impl DatePicker {
     ///
     /// `handler` には選ぶ操作をされた日付を渡す。選ばれている日付でも呼ぶ。
     /// [`DatePickerDisplayMode::Input`] で入れた文字が選べる日付にならない間は `None` を渡す。
-    /// 表示を変えるには、`handler` で呼び出し側の状態を更新し、次の描画で [`DatePicker::new`] に渡すこと
+    /// 表示を変えるには、`handler` で呼び出し側の状態を更新し、次の描画で [`DatePicker::new`] に渡すこと。
+    /// `None` も反映しないと、見出しは前の日付のまま、欄は入れた文字のままになる
     pub fn on_change(
         mut self,
         handler: impl Fn(&Option<Date>, &mut Window, &mut App) + 'static,
@@ -293,6 +294,8 @@ impl DatePicker {
     }
 
     /// 表示を `mode` にする。既定は [`DatePickerDisplayMode::Picker`]
+    ///
+    /// 表示が変わると、選ばれている日付があればその月を表示する
     pub fn display_mode(mut self, mode: DatePickerDisplayMode) -> Self {
         self.display_mode = mode;
         self
@@ -340,6 +343,15 @@ impl RenderOnce for DatePicker {
         let displayed = window.use_keyed_state((self.id.clone(), "month"), cx, |_, _| initial);
         // year_range が変わって表示している月が範囲の外になった場合は、範囲の端の月を表示する。
         // 後で範囲を広げたときに元の月へ戻らないよう、補正した月を持つ
+        // Compose と同じく、表示を切り替えたときは選ばれている日付の月を表示する
+        let last_mode =
+            window.use_keyed_state((self.id.clone(), "last-mode"), cx, |_, _| self.display_mode);
+        if *last_mode.read(cx) != self.display_mode {
+            last_mode.update(cx, |last_mode, _| *last_mode = self.display_mode);
+            if let Some(date) = selected {
+                displayed.update(cx, |displayed, _| *displayed = date);
+            }
+        }
         let stored = *displayed.read(cx);
         let displayed_month = stored.clamp(first, last);
         if displayed_month != stored {
@@ -1436,5 +1448,31 @@ mod tests {
         });
         cx.run_until_parked();
         assert_eq!(field_text(cx), "01/05/2027");
+    }
+
+    #[gpui::test]
+    fn 表示を切り替えると選ばれている日付の月を表示する(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 11, 10)), DEFAULT_YEAR_RANGE);
+        view.update(cx, |view, cx| {
+            view.toggle = true;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        let toggle = point(px(326.), px(86.));
+        cx.simulate_click(toggle, Modifiers::none());
+        if cfg!(target_os = "macos") {
+            cx.simulate_keystrokes("cmd-a");
+        } else {
+            cx.simulate_keystrokes("ctrl-a");
+        }
+        type_text(cx, "03152027");
+        cx.simulate_click(toggle, Modifiers::none());
+        assert_eq!(mode(&view, cx), DatePickerDisplayMode::Picker);
+        view.update(cx, |view, _| view.changes.borrow_mut().clear());
+        // 2027 年 3 月は月曜日から始まるので、3 週目の月曜日は 15 日
+        cx.simulate_click(cell_center(2, 1), Modifiers::none());
+        assert_eq!(changes(&view, cx), [Some(date(2027, 3, 15))]);
     }
 }
