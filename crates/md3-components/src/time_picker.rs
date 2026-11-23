@@ -84,10 +84,11 @@ enum Selection {
 /// [`TimePicker::on_change`] で求める
 ///
 /// - 時と分の表示を押すと、文字盤で選ぶものをその表示に切り替える。最初は時を選ぶ
-/// - 文字盤を押して離すか、ドラッグすると、ポインタの向きの時か分を選ぶ。押して離した場合は離したときに選び、
+/// - 文字盤をマウスで押して離すか、ドラッグすると、ポインタの向きの時か分を選ぶ。押して離した場合は離したときに選び、
 ///   文字盤の外で離すと取り消す。押した位置から 8dp を超えて動かすとドラッグになり、動かすたびに選ぶ。
 ///   時は 1 時間ごと、分は 1 分ごとに選ぶ。
-///   24 時間制の時は、中心から 85dp より内側なら内側の円の 12 時から 23 時を選ぶ。円の外側で押した操作では選ばない。
+///   24 時間制の時は、中心から 85dp より内側なら内側の円の 12 時から 23 時を選ぶ。
+///   ただし選んでいる時の円の内側を押した場合は、選んでいる時の円の数字を選ぶ。円の外側で押した操作では選ばない。
 ///   時を選んでボタンを離すと、文字盤を分に切り替え、時の数字にあったフォーカスを分の文字盤に移す。
 ///   支援技術の利用中は切り替えない
 /// - 時の文字盤の数字は、矢印キーでフォーカスを移し、Enter・Space と支援技術からのクリック操作で選ぶ。
@@ -456,6 +457,20 @@ impl RenderOnce for TimePicker {
                         let ix = (pointer.angle / hour_step).round() as u8 % 12;
                         let hour = match format {
                             HourFormat::Hour12 => ix + if base.hour >= 12 { 12 } else { 0 },
+                            // 選んでいる時の円の内側なら、もう一方の円の数字と重なる位置でも選んでいる時の円にする
+                            HourFormat::Hour24
+                                if ix == base.hour % 12
+                                    && (pointer.distance
+                                        - dp(if base.hour >= 12 {
+                                            INNER_RADIUS
+                                        } else {
+                                            OUTER_RADIUS
+                                        }))
+                                    .abs()
+                                        < handle_radius =>
+                            {
+                                base.hour
+                            }
                             HourFormat::Hour24 if pointer.distance < inner_distance => ix + 12,
                             HourFormat::Hour24 => ix,
                         };
@@ -919,6 +934,18 @@ mod tests {
         mouse(cx, DialPointerPhase::Down, x + 75., y);
         mouse(cx, DialPointerPhase::Up, x + 75., y);
         assert_eq!(changes(&view, cx), [Time::new(15, 0)]);
+    }
+
+    #[gpui::test]
+    fn _24_時間制では選んでいる時の円の内側を押すとその時を選ぶ(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Time::new(15, 0), HourFormat::Hour24);
+        let (x, y) = dial_center(cx);
+        // 内側の 15 時の円 (中心 69dp、半径 24dp) の内側で、境界の 85dp より外
+        mouse(cx, DialPointerPhase::Down, x + 90., y);
+        mouse(cx, DialPointerPhase::Up, x + 90., y);
+        assert!(changes(&view, cx).is_empty(), "3 時にしないこと");
     }
 
     #[gpui::test]

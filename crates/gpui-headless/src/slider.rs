@@ -64,11 +64,14 @@ impl Scale {
             });
         };
         let position = (value - self.start) / step;
-        // 段階の値にある場合も浮動小数点の誤差で同じ値に留まらないよう、少しずらしてから切り捨てる
-        let next = if forward {
-            (position + 1e-4).floor() + 1.0
+        // 段階の値は浮動小数点の誤差で段階の番号からずれるため、近ければ段階の値にあるとみなす
+        let nearest = position.round();
+        let next = if (position - nearest).abs() < 1e-2 {
+            nearest + if forward { 1.0 } else { -1.0 }
+        } else if forward {
+            position.ceil()
         } else {
-            (position - 1e-4).ceil() - 1.0
+            position.floor()
         };
         self.snap(self.start + next * step)
     }
@@ -680,6 +683,19 @@ mod tests {
             vec![8.5, 8.0],
             "8 を飛ばして 6 にしない"
         );
+    }
+
+    #[gpui::test]
+    fn 小数の段階でも途中の値から_1_段階ずつ進める(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, 100.02, 100.0..=105.0, Some(0.01));
+        focus(&view, cx);
+        cx.simulate_keystrokes("right");
+        update(&view, cx, |view| view.value = 100.02);
+        cx.simulate_keystrokes("left");
+        let changes = changes(&view, cx);
+        assert_eq!(changes.len(), 2);
+        assert!((changes[0] - 100.03).abs() < 1e-3, "{changes:?}");
+        assert!((changes[1] - 100.01).abs() < 1e-3, "{changes:?}");
     }
 
     /// f32 では 0.7 / 9 * 9 が 0.7 に届かない
