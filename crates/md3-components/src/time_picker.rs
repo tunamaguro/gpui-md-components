@@ -491,8 +491,8 @@ impl RenderOnce for TimePicker {
                     return;
                 }
                 let state = *press.read(cx);
-                // 文字盤の四隅など、円の外側で押した操作では選ばない
-                if !state.inside {
+                // 文字盤の四隅など、円の外側で押した操作と、描画を挟まずに時と分が切り替わった後に届いた操作では選ばない
+                if !state.inside || *selection.read(cx) != current {
                     return;
                 }
                 match pointer.phase {
@@ -1031,6 +1031,37 @@ mod tests {
         mouse(cx, DialPointerPhase::Down, x, y + 101.);
         mouse(cx, DialPointerPhase::Up, x, y + 101.);
         assert_eq!(changes(&view, cx), [Time::new(9, 30)]);
+    }
+
+    #[gpui::test]
+    fn 描画を挟まずに時から分に切り替えた後に離しても選ばない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Time::new(9, 0), HourFormat::Hour24);
+        let (x, y) = dial_center(cx);
+        mouse(cx, DialPointerPhase::Down, x + 101., y);
+        press(cx, "shift-tab");
+        let keystroke = Keystroke::parse("right").expect("テストのキー表記が有効であること");
+        cx.update(|window, cx| {
+            window.dispatch_event(
+                gpui::PlatformInput::KeyDown(KeyDownEvent {
+                    keystroke: keystroke.clone(),
+                    is_held: false,
+                    prefer_character_input: false,
+                }),
+                cx,
+            );
+            window.dispatch_event(
+                gpui::PlatformInput::MouseUp(MouseUpEvent {
+                    position: gpui::point(px(x + 101.), px(y)),
+                    button: MouseButton::Left,
+                    modifiers: Modifiers::none(),
+                    click_count: 1,
+                }),
+                cx,
+            );
+        });
+        assert!(changes(&view, cx).is_empty(), "{:?}", changes(&view, cx));
     }
 
     #[gpui::test]
