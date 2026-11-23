@@ -307,9 +307,26 @@ impl RenderOnce for TimeInput {
                 let minute_focus = minute_focus.clone();
                 let fields = fields.clone();
                 input = input.on_edit(move |edit: &TextEdit, window, cx| {
+                    // 文字列を編集する前に戻して取り消す。変換中の文字列を表示していた場合も戻す
+                    let reject = |window: &mut Window, cx: &mut App| {
+                        fields.update(cx, |fields, cx| {
+                            fields.field_mut(kind).text = edit.old_text.to_string();
+                            cx.notify();
+                        });
+                        window.refresh();
+                    };
+                    // IME で変換中の文字列はそのまま表示し、確定したときに判定する
+                    if edit.composing {
+                        fields.update(cx, |fields, cx| {
+                            fields.field_mut(kind).text = edit.new_text.to_string();
+                            cx.notify();
+                        });
+                        window.refresh();
+                        return;
+                    }
                     // 数字以外を含む編集は取り消す
                     if !edit.new_text.chars().all(|c| c.is_ascii_digit()) {
-                        window.refresh();
+                        reject(window, cx);
                         return;
                     }
                     let mut digits = edit.new_text.to_string();
@@ -319,7 +336,7 @@ impl RenderOnce for TimeInput {
                         digits = edit.inserted.to_string();
                     }
                     if digits.len() > 2 {
-                        window.refresh();
+                        reject(window, cx);
                         return;
                     }
                     let number = digits.parse::<u8>().ok();
@@ -884,6 +901,9 @@ mod tests {
             quads(cx, ColorRole::PrimaryContainer).len() == 1,
             "無効な切り替えにはフォーカスが移らず、選択も変わらない"
         );
+        // 時、分の次は切り替えを飛ばして時に戻る
+        cx.simulate_input("3");
+        assert_eq!(changes(&view, cx), [Time::new(15, 5)]);
     }
 
     #[gpui::test]
