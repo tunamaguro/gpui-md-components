@@ -43,7 +43,8 @@ pub struct YearCell {
 /// - 修飾キーなしの左右の矢印キーで前後の年へ、上下の矢印キーで上下の行の同じ列の年へ、
 ///   Home と End で行の最初と最後の年へフォーカスを移す。範囲の外へは移らない。選ばれている年は変えない
 /// - マウスのクリック・支援技術からのクリック操作・フォーカス中の Enter と Space で、その年を選ぶ操作として扱う。
-///   選べない年は、押してもフォーカスを移すだけで、選ぶ操作にならない
+///   選べない年は、押してもフォーカスを移すだけで、選ぶ操作にならない。
+///   格子の中の左ボタンの押下は、年の無い所を含めて親に伝えない
 /// - [`YearGrid::scroll`] を渡した場合、フォーカスが別の年へ移ったときに、その年の行を表示範囲に入れる
 ///
 /// 支援技術には role `grid` として公開され、行は role `row`、年は role `gridcell` で、
@@ -268,7 +269,8 @@ impl RenderOnce for YearGrid {
                 let mut offset = scroll.offset();
                 let top = item.top() + offset.y;
                 let bottom = item.bottom() + offset.y;
-                if top < viewport.top() {
+                // 行が表示領域より高い場合は、行の上端を合わせる
+                if top < viewport.top() || item.size.height > viewport.size.height {
                     offset.y += viewport.top() - top;
                 } else if bottom > viewport.bottom() {
                     offset.y -= bottom - viewport.bottom();
@@ -409,6 +411,8 @@ impl RenderOnce for YearGrid {
                 this.track_scroll(scroll)
             })
             .on_key_down(on_key_down)
+            // 年の無い所 (行の間や空いた列) の押下を親に伝えず、親の track_focus がフォーカスを奪わないようにする
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .flex()
             .flex_col()
             .children(grid_rows)
@@ -736,6 +740,9 @@ mod tests {
         assert_eq!(focused(&view, cx), Some(2021));
         let offset = view.read_with(cx, |view, _| view.scroll.offset().y);
         assert_eq!(offset, px(0.));
+        // 描き直した位置で押せる。2022 年は 1 行目の 3 列目
+        cx.simulate_click(gpui::point(px(250.), px(30.)), Modifiers::none());
+        assert_eq!(changes(&view, cx), [2022]);
     }
 
     #[gpui::test]

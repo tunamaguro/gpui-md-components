@@ -898,6 +898,36 @@ mod tests {
     }
 
     #[gpui::test]
+    fn 年の一覧の行の間を押してもキー操作で年を選べる(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 11, 10)), DEFAULT_YEAR_RANGE);
+        let press = |cx: &mut VisualTestContext| {
+            let keystroke =
+                gpui::Keystroke::parse("enter").expect("テストのキー表記が有効であること");
+            cx.simulate_event(gpui::KeyDownEvent {
+                keystroke: keystroke.clone(),
+                is_held: false,
+                prefer_character_input: false,
+            });
+            cx.simulate_event(gpui::KeyUpEvent { keystroke });
+            cx.run_until_parked();
+        };
+        cx.simulate_keystrokes("tab");
+        press(cx);
+        // 1 行目と 2 行目の間の余白
+        cx.simulate_click(
+            point(px(12. + 56.), px(YEARS_TOP + 36. + 8.)),
+            Modifiers::none(),
+        );
+        cx.simulate_keystrokes("right");
+        press(cx);
+        // 2027 年 11 月 1 日は月曜日
+        cx.simulate_click(cell_center(0, 1), Modifiers::none());
+        assert_eq!(changes(&view, cx), [date(2027, 11, 1)]);
+    }
+
+    #[gpui::test]
     fn キーボードで年を選ぶと年を選ぶボタンにフォーカスを戻す(
         cx: &mut TestAppContext,
     ) {
