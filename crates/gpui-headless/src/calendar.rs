@@ -425,6 +425,9 @@ impl RenderOnce for Calendar {
                 };
                 pending.update(cx, |pending, _| *pending = Some(target));
                 on_month_change(&target, window, cx);
+                // 呼び出し側が月の変更を見送った場合も次の描画で保留を使い終え、後から別の経路で
+                // 月が変わったときに使わないよう、描画を求める
+                window.refresh();
             }
         };
 
@@ -511,20 +514,22 @@ impl RenderOnce for Calendar {
                         .into_any_element()
                 })
                 .collect::<Vec<_>>();
-            rows.push(
+            // 日付の無い週も高さをそろえるために置くが、セルの無い行は支援技術に公開しない
+            let row = if week * 7 < offset + usize::from(days) {
                 div()
                     .id(("week", week))
                     .role(accesskit::Role::Row)
                     .aria_row_index(week + 1)
-                    .flex()
-                    .children(cells)
-                    .into_any_element(),
-            );
+            } else {
+                div().id(("week", week))
+            };
+            rows.push(row.flex().children(cells).into_any_element());
         }
+        let weeks = (offset + usize::from(days)).div_ceil(7);
 
         self.inner
             .role(accesskit::Role::Grid)
-            .aria_row_count(WEEKS + 1)
+            .aria_row_count(weeks + 1)
             .aria_column_count(7)
             .on_key_down(on_key_down)
             .flex()
@@ -850,6 +855,22 @@ mod tests {
             cx.notify();
         });
         assert_eq!(focused(&view, cx), Some(date(2027, 1, 1)));
+    }
+
+    #[gpui::test]
+    fn 見送った月の変更の保留を後の月の変更で使わない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 11, 30)), true);
+        view.update(cx, |view, _| view.refuse_month = true);
+        cx.simulate_keystrokes("tab right");
+        cx.run_until_parked();
+        view.update(cx, |view, cx| {
+            view.month = 12;
+            view.selected = Some(date(2026, 12, 15));
+            cx.notify();
+        });
+        assert_eq!(focused(&view, cx), Some(date(2026, 12, 15)));
     }
 
     #[gpui::test]

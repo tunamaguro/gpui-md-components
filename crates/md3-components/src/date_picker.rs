@@ -194,8 +194,13 @@ impl RenderOnce for DatePicker {
         let today = self.today.filter(in_range);
         let initial = selected.or(today).unwrap_or(first);
         let displayed = window.use_keyed_state((self.id.clone(), "month"), cx, |_, _| initial);
-        // year_range が変わって表示している月が範囲の外になった場合は、範囲の端の月を表示する
-        let displayed_month = (*displayed.read(cx)).clamp(first, last);
+        // year_range が変わって表示している月が範囲の外になった場合は、範囲の端の月を表示する。
+        // 後で範囲を広げたときに元の月へ戻らないよう、補正した月を持つ
+        let stored = *displayed.read(cx);
+        let displayed_month = stored.clamp(first, last);
+        if displayed_month != stored {
+            displayed.update(cx, |displayed, _| *displayed = displayed_month);
+        }
         let (year, month) = (displayed_month.year(), displayed_month.month());
         let set_month = {
             let displayed = displayed.clone();
@@ -635,6 +640,23 @@ mod tests {
         // 今日の 2026 年 11 月を表示する。11 月 24 日は 4 行目の 3 列目
         cx.simulate_click(cell_center(3, 2), Modifiers::none());
         assert_eq!(changes(&view, cx), [date(2026, 11, 24)]);
+    }
+
+    #[gpui::test]
+    fn 年の範囲を狭めてから広げても補正した月を表示する(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 11, 10)), DEFAULT_YEAR_RANGE);
+        for range in [2027..=2027, 2026..=2027] {
+            view.update(cx, |view, cx| {
+                view.year_range = range;
+                cx.notify();
+            });
+            cx.run_until_parked();
+        }
+        // 2027 年 1 月 1 日は金曜日なので、2 行目の 3 列目は 5 日
+        cx.simulate_click(cell_center(1, 2), Modifiers::none());
+        assert_eq!(changes(&view, cx), [date(2027, 1, 5)]);
     }
 
     #[gpui::test]
