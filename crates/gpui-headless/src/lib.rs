@@ -5,6 +5,7 @@
 mod accessibility;
 pub mod button;
 pub mod choice;
+pub mod clock_dial;
 pub mod dialog;
 pub mod disclosure;
 mod focus_visible;
@@ -12,6 +13,7 @@ mod interaction;
 pub mod list;
 pub mod menu;
 mod navigation;
+mod pointer;
 mod popup;
 pub mod press;
 pub mod progress;

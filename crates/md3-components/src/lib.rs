@@ -88,7 +88,8 @@ mod select;
     feature = "select",
     feature = "slider",
     feature = "text-field",
-    feature = "time-input"
+    feature = "time-input",
+    feature = "time-picker"
 ))]
 mod shape;
 #[cfg(feature = "slider")]
@@ -103,8 +104,12 @@ mod switch;
 mod tabs;
 #[cfg(feature = "text-field")]
 mod text_field;
+#[cfg(any(feature = "time-input", feature = "time-picker"))]
+mod time;
 #[cfg(feature = "time-input")]
 mod time_input;
+#[cfg(feature = "time-picker")]
+mod time_picker;
 // ツールチップを付けられる部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(feature = "icon-button")]
 mod tooltip;
@@ -128,7 +133,8 @@ mod tooltip;
     feature = "switch",
     feature = "tabs",
     feature = "text-field",
-    feature = "time-input"
+    feature = "time-input",
+    feature = "time-picker"
 ))]
 mod util;
 
@@ -230,8 +236,12 @@ pub use switch::Switch;
 pub use tabs::{Tab, TabPanel, TabRow, TabRowVariant};
 #[cfg(feature = "text-field")]
 pub use text_field::{TextField, TextFieldVariant};
+#[cfg(any(feature = "time-input", feature = "time-picker"))]
+pub use time::{HourFormat, Time};
 #[cfg(feature = "time-input")]
-pub use time_input::{HourFormat, Time, TimeInput};
+pub use time_input::TimeInput;
+#[cfg(feature = "time-picker")]
+pub use time_picker::TimePicker;
 #[cfg(feature = "icon-button")]
 pub use tooltip::{Tooltip, TooltipVariant};
 

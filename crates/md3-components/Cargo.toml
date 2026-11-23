@@ -55,6 +55,7 @@ default = [
   "tabs",
   "text-field",
   "time-input",
+  "time-picker",
 ]
 platform = ["dep:gpui_platform"]
 badge = []
@@ -101,6 +102,7 @@ switch = []
 tabs = []
 text-field = []
 time-input = []
+time-picker = []
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }
