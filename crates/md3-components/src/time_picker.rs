@@ -524,6 +524,17 @@ impl RenderOnce for TimePicker {
                             if hour_focus.iter().any(|handle| handle.is_focused(window)) {
                                 window.focus(&minute_focus, cx);
                             }
+                        } else if current == Selection::Hour
+                            && hour_focus.iter().any(|handle| handle.is_focused(window))
+                        {
+                            // 押した位置の数字がフォーカスを取るが、24 時間制では重なった別の数字のことがあるため、
+                            // 選んだ時の数字に移す
+                            let hour = last.get().hour;
+                            let ix = match format {
+                                HourFormat::Hour12 => hour % 12,
+                                HourFormat::Hour24 => hour,
+                            };
+                            window.focus(&hour_focus[usize::from(ix)], cx);
                         }
                     }
                 }
@@ -577,7 +588,13 @@ impl RenderOnce for TimePicker {
                 let on_select = request.clone().map(|request| {
                     let last = last.clone();
                     move |hour: &u8, window: &mut Window, cx: &mut App| {
-                        request(Time::new(*hour, last.get().minute), window, cx);
+                        let base = last.get();
+                        // 12 時間制の数字は描画時の午前・午後の値を持つため、描画を挟まずに切り替えた午前・午後に合わせる
+                        let hour = match format {
+                            HourFormat::Hour12 => hour % 12 + if base.hour >= 12 { 12 } else { 0 },
+                            HourFormat::Hour24 => *hour,
+                        };
+                        request(Time::new(hour, base.minute), window, cx);
                     }
                 });
                 ClockDial::new(dial_id, Some(selected_value))
@@ -875,30 +892,31 @@ mod tests {
             let angle = TAU * minute / 60.;
             gpui::point(px(x + 100. * angle.sin()), px(y - 100. * angle.cos()))
         };
-        cx.simulate_event(MouseDownEvent {
-            position: at(15.),
-            button: MouseButton::Left,
-            modifiers: Modifiers::none(),
-            click_count: 1,
-            first_mouse: false,
+        cx.update(|window, cx| {
+            window.dispatch_event(
+                gpui::PlatformInput::MouseDown(MouseDownEvent {
+                    position: at(15.),
+                    button: MouseButton::Left,
+                    modifiers: Modifiers::none(),
+                    click_count: 1,
+                    first_mouse: false,
+                }),
+                cx,
+            );
+            for minute in [17., 15.] {
+                window.dispatch_event(
+                    gpui::PlatformInput::MouseMove(MouseMoveEvent {
+                        position: at(minute),
+                        pressed_button: Some(MouseButton::Left),
+                        modifiers: Modifiers::none(),
+                    }),
+                    cx,
+                );
+            }
         });
-        for minute in [17., 15.] {
-            cx.simulate_event(MouseMoveEvent {
-                position: at(minute),
-                pressed_button: Some(MouseButton::Left),
-                modifiers: Modifiers::none(),
-            });
-        }
-        cx.simulate_event(MouseUpEvent {
-            position: at(15.),
-            button: MouseButton::Left,
-            modifiers: Modifiers::none(),
-            click_count: 1,
-        });
-        cx.run_until_parked();
         assert_eq!(
-            changes(&view, cx).last(),
-            Some(&Time::new(9, 15)),
+            changes(&view, cx),
+            [Time::new(9, 17), Time::new(9, 15)],
             "最後にドラッグした 15 分に戻すこと"
         );
     }
@@ -995,6 +1013,24 @@ mod tests {
         mouse(cx, DialPointerPhase::Down, x + 90., y + 22.);
         mouse(cx, DialPointerPhase::Up, x + 90., y + 22.);
         assert_eq!(changes(&view, cx), [Time::new(3, 0)]);
+    }
+
+    #[gpui::test]
+    fn 押したまま時から分に切り替えると離しても選ばない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Time::new(9, 0), HourFormat::Hour24);
+        let (x, y) = dial_center(cx);
+        // 外側の 3 時を押し、押したまま時と分の表示に戻って分を選ぶ
+        mouse(cx, DialPointerPhase::Down, x + 101., y);
+        press(cx, "shift-tab");
+        press(cx, "right");
+        mouse(cx, DialPointerPhase::Up, x + 101., y);
+        assert!(changes(&view, cx).is_empty(), "{:?}", changes(&view, cx));
+        // 分の文字盤に切り替わっていて、押し直せば分を選ぶ
+        mouse(cx, DialPointerPhase::Down, x, y + 101.);
+        mouse(cx, DialPointerPhase::Up, x, y + 101.);
+        assert_eq!(changes(&view, cx), [Time::new(9, 30)]);
     }
 
     #[gpui::test]
