@@ -337,14 +337,19 @@ impl RenderOnce for Calendar {
             .or(in_month(self.today).filter(|&day| in_range(day)))
             .or((1..=days).find(|&day| in_range(day)));
 
-        // 月の外へ移るキー操作で、月が変わった後にフォーカスを移す日付と、Page Up・Page Down で移った場合の
-        // 月末に寄せる前の日。その次の描画で使い終える
+        // 月の外へ移るキー操作の、移動元の日と、月が変わった後にフォーカスを移す日付と、
+        // Page Up・Page Down で移った場合の月末に寄せる前の日。その次の描画で使い終える
         let pending = window.use_keyed_state((self.id.clone(), "pending"), cx, |_, _| {
-            None::<(Date, Option<u8>)>
+            None::<(u8, Date, Option<u8>)>
         });
+        // 描画までに別の日付へフォーカスが移っていれば、保留した移動は使わない
         let pending_move = pending
             .update(cx, |pending, _| pending.take())
-            .filter(|(target, _)| (target.year, target.month) == (year, month));
+            .filter(|(source, target, _)| {
+                (target.year, target.month) == (year, month)
+                    && handles[usize::from(*source) - 1].is_focused(window)
+            })
+            .map(|(_, target, base_day)| (target, base_day));
         let pending_target = pending_move.map(|(target, _)| target);
         // 日付にフォーカスできなくなったときに、フォーカスを置く格子のフォーカス。Tab では到達しない
         let grid_focus = window
@@ -468,7 +473,7 @@ impl RenderOnce for Calendar {
                     return;
                 };
                 pending.update(cx, |pending, _| {
-                    *pending = Some((target, months.map(|_| base_day)))
+                    *pending = Some((day, target, months.map(|_| base_day)))
                 });
                 on_month_change(&target, window, cx);
                 // 呼び出し側が月の変更を見送った場合も次の描画で保留を使い終え、後から別の経路で
@@ -1119,6 +1124,46 @@ mod tests {
         view.update(cx, |view, _| view.refuse_month = false);
         cx.simulate_keystrokes("pageup");
         assert_eq!(focused(&view, cx), Some(date(2026, 1, 31)));
+    }
+
+    #[gpui::test]
+    fn 月の移動の保留中に別の日付を押したら保留した移動先を使わない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 1, 31)), true);
+        view.update(cx, |view, cx| {
+            view.month = 1;
+            cx.notify();
+        });
+        cx.simulate_keystrokes("tab");
+        let keystroke =
+            gpui::Keystroke::parse("pagedown").expect("テストのキー表記が有効であること");
+        // 2026 年 1 月 1 日は木曜日なので、29 日は 5 行目の 5 列目
+        let position = gpui::point(px(180.), px(220.));
+        cx.update(|window, cx| {
+            window.dispatch_event(
+                gpui::PlatformInput::KeyDown(gpui::KeyDownEvent {
+                    keystroke: keystroke.clone(),
+                    is_held: false,
+                    prefer_character_input: false,
+                }),
+                cx,
+            );
+            window.dispatch_event(
+                gpui::PlatformInput::MouseDown(gpui::MouseDownEvent {
+                    position,
+                    button: gpui::MouseButton::Left,
+                    modifiers: Modifiers::none(),
+                    click_count: 1,
+                    first_mouse: false,
+                }),
+                cx,
+            );
+        });
+        // 月は 2 月に変わる。押した 29 日の後に、保留した 2 月 28 日へは移さず、2 月の Tab の候補に移す
+        assert_eq!(focused(&view, cx), Some(date(2026, 2, 1)));
+        cx.simulate_keystrokes("pagedown");
+        assert_eq!(focused(&view, cx), Some(date(2026, 3, 1)));
     }
 
     #[gpui::test]
