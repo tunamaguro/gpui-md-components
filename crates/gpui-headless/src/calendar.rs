@@ -222,8 +222,8 @@ impl Calendar {
         self
     }
 
-    /// フォーカスを移せる日付を `range` の中に限る。範囲の外へ移るキー操作では何もしない。
-    /// Tab で到達できる日付も範囲の中から選ぶ。既定では限らない
+    /// フォーカスを移せる日付と選べる日付を `range` の中に限る。範囲の外へ移るキー操作では何もしない。
+    /// 範囲の外の日付は、フォーカスを持たず、選べない日付として公開する。既定では限らない
     pub fn range(mut self, range: RangeInclusive<Date>) -> Self {
         self.range = Some(range);
         self
@@ -311,19 +311,6 @@ const WEEKS: usize = 6;
 impl RenderOnce for Calendar {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let handles: Rc<[FocusHandle]> = day_focus_handles(&self.id, window, cx).into();
-        // 月の外へ移るキー操作で、月が変わった後にフォーカスを移す日付。その次の描画で使い終える
-        let pending = window.use_keyed_state((self.id.clone(), "pending"), cx, |_, _| None::<Date>);
-        // 月が変わるまでの間に、呼び出し側が別の場所へフォーカスを移していれば移さない
-        if let Some(target) = pending.update(cx, |pending, _| pending.take())
-            && (target.year, target.month) == (self.year, self.month)
-            && self
-                .range
-                .as_ref()
-                .is_none_or(|range| range.contains(&target))
-            && handles.iter().any(|handle| handle.is_focused(window))
-        {
-            window.focus(&handles[usize::from(target.day) - 1], cx);
-        }
         let (year, month) = (self.year, self.month);
         let days = Date::days_in_month(year, month);
         let first = Date {
@@ -341,13 +328,32 @@ impl RenderOnce for Calendar {
                 .as_ref()
                 .is_none_or(|range| range.contains(&Date { year, month, day }))
         };
-        let focused_day = (1..=days).find(|&day| handles[usize::from(day) - 1].is_focused(window));
-        // 範囲の中に日付が無い月では、どの日付も Tab で到達できないようにする
-        let tab_day = focused_day
-            .or(in_month(self.selected))
-            .or(in_month(self.today))
+        // フォーカスが無いときに Tab で到達できる日付。範囲の中に日付が無い月では無い
+        let fallback_day = in_month(self.selected)
             .filter(|&day| in_range(day))
+            .or(in_month(self.today).filter(|&day| in_range(day)))
             .or((1..=days).find(|&day| in_range(day)));
+
+        // 月の外へ移るキー操作で、月が変わった後にフォーカスを移す日付。その次の描画で使い終える
+        let pending = window.use_keyed_state((self.id.clone(), "pending"), cx, |_, _| None::<Date>);
+        // 月が変わるまでの間に、呼び出し側が別の場所へフォーカスを移していれば移さない
+        if let Some(target) = pending.update(cx, |pending, _| pending.take())
+            && (target.year, target.month) == (year, month)
+            && handles.iter().any(|handle| handle.is_focused(window))
+        {
+            // 日付のフォーカスは日ごとに月をまたいで使い回すため、移る先が範囲から外れていても、
+            // 元の日付のフォーカスを残すと新しい月の同じ日にフォーカスがあることになる
+            let day = Some(target.day)
+                .filter(|&day| in_range(day))
+                .or(fallback_day);
+            match day {
+                Some(day) => window.focus(&handles[usize::from(day) - 1], cx),
+                None => window.blur(cx),
+            }
+        }
+        let focused_day = (1..=days)
+            .find(|&day| in_range(day) && handles[usize::from(day) - 1].is_focused(window));
+        let tab_day = focused_day.or(fallback_day);
         let enabled = self.enabled.clone();
         let is_enabled = move |date: &Date| enabled.as_ref().is_none_or(|enabled| enabled(date));
         let select = self.on_change.clone().map(|on_change| {
@@ -431,66 +437,66 @@ impl RenderOnce for Calendar {
                 .into_any_element(),
         ];
         for week in 0..WEEKS {
-            let cells =
-                (0..7usize)
-                    .map(|column| {
-                        let index = week * 7 + column;
-                        let Some(day) = index
-                            .checked_sub(offset)
-                            .map(|day| day + 1)
-                            .filter(|&day| day <= usize::from(days))
-                        else {
-                            let blank = div();
-                            return match &self.blank {
-                                Some(blank_fn) => blank_fn(blank),
-                                None => blank,
-                            }
-                            .into_any_element();
-                        };
-                        let date = Date {
-                            year,
-                            month,
-                            day: day as u8,
-                        };
-                        let state = CalendarDay {
-                            date,
-                            selected: self.selected == Some(date),
-                            enabled: is_enabled(&date),
-                            today: self.today == Some(date),
-                            focused: handles[day - 1].is_focused(window),
-                            focus_visible: crate::is_focus_visible(&handles[day - 1], window, cx),
-                        };
-                        // 月が変わると別の要素になるよう、id に年月を含める。
-                        // 押したまま月を移ってから離したときに、同じ位置の別の月の日付を選ばない
-                        let cell =
-                            div().id(ElementId::Name(format!("day-{year}-{month}-{day}").into()));
-                        let cell = match &self.day {
-                            Some(build) => build(&state, cell, window, cx),
-                            None => cell,
-                        };
-                        cell.role(accesskit::Role::GridCell)
-                            .aria_column_index(column + 1)
-                            .aria_selected(state.selected)
-                            .track_focus(&handles[day - 1].clone().tab_stop(
+            let cells = (0..7usize)
+                .map(|column| {
+                    let index = week * 7 + column;
+                    let Some(day) = index
+                        .checked_sub(offset)
+                        .map(|day| day + 1)
+                        .filter(|&day| day <= usize::from(days))
+                    else {
+                        let blank = div();
+                        return match &self.blank {
+                            Some(blank_fn) => blank_fn(blank),
+                            None => blank,
+                        }
+                        .into_any_element();
+                    };
+                    let date = Date {
+                        year,
+                        month,
+                        day: day as u8,
+                    };
+                    let state = CalendarDay {
+                        date,
+                        selected: self.selected == Some(date),
+                        enabled: in_range(date.day) && is_enabled(&date),
+                        today: self.today == Some(date),
+                        focused: handles[day - 1].is_focused(window),
+                        focus_visible: crate::is_focus_visible(&handles[day - 1], window, cx),
+                    };
+                    // 押した要素の状態を、月が変わった後の同じ位置の日付に引き継がないよう、id に年月を含める
+                    let cell =
+                        div().id(ElementId::Name(format!("day-{year}-{month}-{day}").into()));
+                    let cell = match &self.day {
+                        Some(build) => build(&state, cell, window, cx),
+                        None => cell,
+                    };
+                    cell.role(accesskit::Role::GridCell)
+                        .aria_column_index(column + 1)
+                        .aria_selected(state.selected)
+                        .when(in_range(date.day), |this| {
+                            this.track_focus(&handles[day - 1].clone().tab_stop(
                                 tab_day.is_some_and(|tab_day| usize::from(tab_day) == day),
                             ))
-                            .when_some(select.clone().filter(|_| state.enabled), |this, select| {
-                                let on_click = select.clone();
-                                this.on_click(move |_: &ClickEvent, window, cx| {
-                                    on_click(date, window, cx)
-                                })
-                                .on_a11y_action(accesskit::Action::Click, move |_, window, cx| {
-                                    select(date, window, cx)
-                                })
+                        })
+                        .when_some(select.clone().filter(|_| state.enabled), |this, select| {
+                            let on_click = select.clone();
+                            this.on_click(move |_: &ClickEvent, window, cx| {
+                                on_click(date, window, cx)
                             })
-                            .a11y_info(move |node: &mut accesskit::Node| {
-                                if !state.enabled {
-                                    node.set_disabled();
-                                }
+                            .on_a11y_action(accesskit::Action::Click, move |_, window, cx| {
+                                select(date, window, cx)
                             })
-                            .into_any_element()
-                    })
-                    .collect::<Vec<_>>();
+                        })
+                        .a11y_info(move |node: &mut accesskit::Node| {
+                            if !state.enabled {
+                                node.set_disabled();
+                            }
+                        })
+                        .into_any_element()
+                })
+                .collect::<Vec<_>>();
             rows.push(
                 div()
                     .id(("week", week))
@@ -583,6 +589,7 @@ mod tests {
         range: Option<RangeInclusive<Date>>,
         refuse_month: bool,
         other: Option<FocusHandle>,
+        next_range: Option<RangeInclusive<Date>>,
         changes: Rc<RefCell<Vec<Date>>>,
         focused: Rc<Cell<Option<Date>>>,
     }
@@ -623,6 +630,9 @@ mod tests {
                     if let Some(other) = &this.other {
                         window.focus(other, cx);
                     }
+                    if let Some(range) = this.next_range.take() {
+                        this.range = Some(range);
+                    }
                     this.year = date.year();
                     this.month = date.month();
                     cx.notify();
@@ -652,6 +662,7 @@ mod tests {
             range: None,
             refuse_month: false,
             other: None,
+            next_range: None,
             changes: Rc::default(),
             focused: Rc::default(),
         });
@@ -736,8 +747,9 @@ mod tests {
         cx: &mut TestAppContext,
     ) {
         let (view, cx) = setup(cx, None, true);
-        view.update(cx, |view, _| {
+        view.update(cx, |view, cx| {
             view.range = Some(date(2026, 11, 20)..=date(2026, 11, 22));
+            cx.notify();
         });
         cx.simulate_keystrokes("tab");
         assert_eq!(focused(&view, cx), Some(date(2026, 11, 20)));
@@ -756,10 +768,53 @@ mod tests {
     }
 
     #[gpui::test]
+    fn 範囲の外の選択日を飛ばして範囲の中の今日に入る(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 11, 10)), true);
+        view.update(cx, |view, cx| {
+            view.range = Some(date(2026, 11, 20)..=date(2026, 11, 30));
+            cx.notify();
+        });
+        cx.simulate_keystrokes("tab");
+        assert_eq!(focused(&view, cx), Some(date(2026, 11, 24)));
+    }
+
+    #[gpui::test]
+    fn 範囲の外の日付はクリックしてもフォーカスも選択もしない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, None, true);
+        view.update(cx, |view, cx| {
+            view.range = Some(date(2026, 11, 20)..=date(2026, 11, 30));
+            cx.notify();
+        });
+        // 11 月 10 日は 3 行目の 3 列目
+        cx.simulate_click(gpui::point(px(100.), px(100.)), Modifiers::none());
+        assert_eq!(focused(&view, cx), None);
+        assert!(changes(&view, cx).is_empty());
+    }
+
+    #[gpui::test]
+    fn 移る先が範囲から外れたら範囲の中の日付にフォーカスを移す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 11, 24)), true);
+        view.update(cx, |view, _| {
+            view.next_range = Some(date(2026, 12, 1)..=date(2026, 12, 10))
+        });
+        cx.simulate_keystrokes("tab pagedown");
+        assert_eq!(focused(&view, cx), Some(date(2026, 12, 1)));
+        press(cx, "enter");
+        assert_eq!(changes(&view, cx), [date(2026, 12, 1)]);
+    }
+
+    #[gpui::test]
     fn 範囲の中に日付が無い月では_tab_で到達できない(cx: &mut TestAppContext) {
         let (view, cx) = setup(cx, Some(date(2026, 11, 10)), true);
-        view.update(cx, |view, _| {
+        view.update(cx, |view, cx| {
             view.range = Some(date(2026, 12, 1)..=date(2026, 12, 31));
+            cx.notify();
         });
         cx.simulate_keystrokes("tab");
         assert_eq!(focused(&view, cx), None);
@@ -784,8 +839,9 @@ mod tests {
     #[gpui::test]
     fn 範囲の外へは移らない(cx: &mut TestAppContext) {
         let (view, cx) = setup(cx, Some(date(2026, 11, 30)), true);
-        view.update(cx, |view, _| {
+        view.update(cx, |view, cx| {
             view.range = Some(date(2026, 1, 1)..=date(2026, 12, 31));
+            cx.notify();
         });
         cx.simulate_keystrokes("tab pagedown");
         assert_eq!(focused(&view, cx), Some(date(2026, 12, 30)));
