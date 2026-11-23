@@ -54,6 +54,7 @@ default = [
   "switch",
   "tabs",
   "text-field",
+  "time-input",
 ]
 platform = ["dep:gpui_platform"]
 badge = []
@@ -99,6 +100,7 @@ snackbar = ["icon-button"]
 switch = []
 tabs = []
 text-field = []
+time-input = []
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }

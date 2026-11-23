@@ -87,7 +87,8 @@ mod select;
     feature = "segmented-button",
     feature = "select",
     feature = "slider",
-    feature = "text-field"
+    feature = "text-field",
+    feature = "time-input"
 ))]
 mod shape;
 #[cfg(feature = "slider")]
@@ -102,6 +103,8 @@ mod switch;
 mod tabs;
 #[cfg(feature = "text-field")]
 mod text_field;
+#[cfg(feature = "time-input")]
+mod time_input;
 // ツールチップを付けられる部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
 #[cfg(feature = "icon-button")]
 mod tooltip;
@@ -124,7 +127,8 @@ mod tooltip;
     feature = "slider",
     feature = "switch",
     feature = "tabs",
-    feature = "text-field"
+    feature = "text-field",
+    feature = "time-input"
 ))]
 mod util;
 
@@ -226,6 +230,8 @@ pub use switch::Switch;
 pub use tabs::{Tab, TabPanel, TabRow, TabRowVariant};
 #[cfg(feature = "text-field")]
 pub use text_field::{TextField, TextFieldVariant};
+#[cfg(feature = "time-input")]
+pub use time_input::{HourFormat, Time, TimeInput};
 #[cfg(feature = "icon-button")]
 pub use tooltip::{Tooltip, TooltipVariant};
 

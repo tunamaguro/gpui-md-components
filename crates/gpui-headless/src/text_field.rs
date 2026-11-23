@@ -123,13 +123,29 @@ pub(crate) fn init(cx: &mut App) {
     cx.bind_keys(bindings);
 }
 
-type ChangeHandler = Rc<dyn Fn(&SharedString, &mut Window, &mut App)>;
+type ChangeHandler = Rc<dyn Fn(&TextEdit, &mut Window, &mut App)>;
+type SubmitHandler = Rc<dyn Fn(&SharedString, &mut Window, &mut App)>;
+
+/// [`TextField::on_edit`] に渡す 1 回の編集
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TextEdit {
+    /// 編集する前の文字列
+    pub old_text: SharedString,
+    /// `old_text` のうち置き換えた範囲。UTF-8 のバイトの位置
+    pub range: Range<usize>,
+    /// `range` に入れた文字列。消しただけなら空
+    pub inserted: SharedString,
+    /// 編集した後の文字列
+    pub new_text: SharedString,
+    /// 編集した後の文字列が、IME で変換中の文字列を含むか
+    pub composing: bool,
+}
 
 /// 1 行の文字列を編集する、見た目を持たないテキストフィールド
 ///
 /// 文字列は呼び出し側が持ち、[`TextField::new`] に毎回渡す。部品自身は文字列を変えない。
 /// 次の操作で、[`TextField::on_change`] のハンドラに編集した後の文字列を求める。
-/// IME で変換中の文字列も、編集した後の文字列に含めて求める
+/// IME で変換中の文字列も、編集した後の文字列に含めて求め、変換を確定したときにも求める
 ///
 /// - 文字の入力と IME による入力。改行は入れない
 /// - Backspace・Delete で 1 文字、Ctrl (macOS では Option) と合わせて 1 語を消す。選択していれば選択している範囲を消す
@@ -150,7 +166,7 @@ type ChangeHandler = Rc<dyn Fn(&SharedString, &mut Window, &mut App)>;
 ///
 /// 支援技術には role `textbox` と、文字列・選択として公開される。
 /// アクセシブルな名前は `aria_label` で与えること。
-/// 文字列とカーソル・選択は部品が描き、書体と文字の色は継承した text style に従う。
+/// 文字列とカーソル・選択は部品が描き、書体と文字の色と、文字列が部品の幅に収まる間の横の揃えは、継承した text style に従う。
 /// ほかの見た目は [`Styled`] と [`InteractiveElement`] で呼び出し側が付ける
 #[derive(IntoElement)]
 pub struct TextField {
@@ -158,8 +174,9 @@ pub struct TextField {
     inner: Stateful<Div>,
     value: SharedString,
     on_change: Option<ChangeHandler>,
-    on_submit: Option<ChangeHandler>,
+    on_submit: Option<SubmitHandler>,
     placeholder: Option<SharedString>,
+    error: Option<SharedString>,
     read_only: bool,
     availability: Availability,
     provided_focus_handle: Option<FocusHandle>,
@@ -183,6 +200,7 @@ impl TextField {
             on_change: None,
             on_submit: None,
             placeholder: None,
+            error: None,
             read_only: false,
             availability: Availability::Enabled,
             provided_focus_handle: None,
@@ -196,11 +214,29 @@ impl TextField {
     ///
     /// `handler` には編集した後の文字列を渡す。表示を変えるには、`handler` で呼び出し側の状態を更新し、
     /// 次の描画で [`TextField::new`] に渡すこと。渡さなかった場合、編集は取り消される。
-    /// 設定しない場合、部品は文字列を編集させず、支援技術には read-only として公開される
+    /// 設定しない場合、部品は文字列を編集させず、支援技術には read-only として公開される。
+    /// [`TextField::on_edit`] と両方を呼んだ場合は、後に呼んだ方のハンドラだけを呼ぶ
     pub fn on_change(
         mut self,
         handler: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
     ) -> Self {
+        self.on_change = Some(Rc::new(move |edit: &TextEdit, window, cx| {
+            handler(&edit.new_text, window, cx)
+        }));
+        self
+    }
+
+    /// [`TextField::on_change`] と同じ操作で、編集した後の文字列の代わりに、置き換えた範囲と入れた文字列を含む編集を渡す
+    ///
+    /// 入力位置や貼り付けかどうか、IME で変換中かによって受け入れ方を変える場合に使う。
+    /// IME で変換中の編集は `composing` を `true` にして渡す。変換の確定は、変換を始める前の文字列の範囲を
+    /// 確定した文字列で置き換えた 1 回の編集として、`composing` を `false` にして渡す。
+    /// IME からの空の確定は変換の取り消しとして、変換を始める前の文字列と選択に戻し、文字列を変えない編集を渡す。
+    /// 変換中の範囲の外も置き換えた場合は、文字列全体を置き換えた編集として渡す。
+    /// 変換中の編集を受け入れなかった場合は変換を終える。
+    /// 受け入れなかった編集で文字列が戻る場合は、選択も編集する前に戻す。
+    /// [`TextField::on_change`] と両方を呼んだ場合は、後に呼んだ方のハンドラだけを呼ぶ
+    pub fn on_edit(mut self, handler: impl Fn(&TextEdit, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(Rc::new(handler));
         self
     }
@@ -221,6 +257,15 @@ impl TextField {
     /// 支援技術に、入力する内容の例やヒントとして `placeholder` を公開する。部品は描かない
     pub fn placeholder(mut self, placeholder: impl Into<SharedString>) -> Self {
         self.placeholder = Some(placeholder.into());
+        self
+    }
+
+    /// 文字列にエラーがあることを示す。`None` を渡すとエラーのない状態に戻す。既定ではエラーなし
+    ///
+    /// `Some` の場合、支援技術には invalid として公開され、`message` が説明 (description) の先頭に加わる。
+    /// 部品は `message` を表示しないため、エラーの内容は呼び出し側がテキストとしても表示すること
+    pub fn error(mut self, message: Option<SharedString>) -> Self {
+        self.error = message;
         self
     }
 
@@ -308,6 +353,8 @@ impl RenderOnce for TextField {
             model: EditModel::default(),
             focus_handle: focus_handle.clone(),
             on_change: None,
+            before_edit: None,
+            composition: None,
             layout: None,
             scroll: px(0.),
             selecting: false,
@@ -318,7 +365,19 @@ impl RenderOnce for TextField {
             if disabled {
                 state.selecting = false;
             }
-            (state.model.sync(&self.value), state.model.clone())
+            let before_edit = state.before_edit.take();
+            let synced = state.model.sync(&self.value);
+            if synced {
+                state.composition = None;
+            }
+            // 受け入れられなかった編集は、選択も編集する前に戻す
+            if let Some(before_edit) =
+                before_edit.filter(|before| synced && before.text == self.value.as_ref())
+            {
+                state.model.selection = before_edit.selection;
+                state.model.reversed = before_edit.reversed;
+            }
+            (synced, state.model.clone())
         });
         if synced {
             window.notify_text_input_changed(&focus_handle);
@@ -559,6 +618,7 @@ impl RenderOnce for TextField {
             })
             .a11y_info({
                 let placeholder = self.placeholder.clone();
+                let error = self.error.clone();
                 move |node: &mut accesskit::Node| {
                     if disabled {
                         node.set_disabled();
@@ -567,6 +627,16 @@ impl RenderOnce for TextField {
                     }
                     if let Some(placeholder) = &placeholder {
                         node.set_placeholder(placeholder.to_string());
+                    }
+                    if let Some(error) = &error {
+                        node.set_invalid(accesskit::Invalid::True);
+                        // AccessKit のアダプタは invalid や error_message を OS に渡さないため、
+                        // メッセージを description に含めて読み上げさせる
+                        let description = match node.description() {
+                            Some(description) => format!("{error} {description}"),
+                            None => error.to_string(),
+                        };
+                        node.set_description(description);
                     }
                 }
             })
@@ -860,12 +930,26 @@ fn a11y_offset(run: &A11yRun, text: &str, character_index: usize) -> usize {
     offset.min(text.len())
 }
 
+/// IME で変換を始める前の状態
+struct Composition {
+    /// 変換を始める前の文字列と選択
+    start: EditModel,
+    /// 変換を始めた編集が `start` の文字列で置き換えた範囲
+    range: Range<usize>,
+    /// 変換を始めた後の編集が、どれも変換中の範囲だけを置き換えたか
+    in_place: bool,
+}
+
 /// 描画をまたいで保つ、編集の状態
 struct EditState {
     model: EditModel,
     focus_handle: FocusHandle,
     /// 編集できない場合は `None`
     on_change: Option<ChangeHandler>,
+    /// 最後の描画の後で最初に編集する前の文字列と選択
+    before_edit: Option<EditModel>,
+    /// IME の変換中に保つ状態。変換中でなければ `None`
+    composition: Option<Composition>,
     /// 最後に描いた文字列の形と、その左上の位置と行の高さ
     layout: Option<(ShapedLine, Point<Pixels>, Pixels)>,
     /// 文字列を左にずらして描く量
@@ -896,15 +980,92 @@ impl EditState {
         if self.on_change.is_none() || (range.is_empty() && text.is_empty()) {
             return;
         }
-        self.model.replace(range, text);
-        self.text_changed(window, cx);
+        let before = self.model.clone();
+        self.model.replace(range.clone(), text);
+        self.text_changed(before, range, text, false, window, cx);
     }
 
-    fn text_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    /// 編集する前の `before` の `range` を `inserted` に置き換えた編集を求める。`ime` は IME からの入力か
+    fn text_changed(
+        &mut self,
+        before: EditModel,
+        range: Range<usize>,
+        inserted: &str,
+        ime: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         window.notify_text_input_changed(&self.focus_handle);
         cx.notify();
+        let new_text: SharedString = self.model.text.clone().into();
+        let composing = self.model.marked.is_some();
+        match &mut self.composition {
+            Some(composition) => {
+                composition.in_place &= before.marked.as_ref() == Some(&range);
+            }
+            None if composing => {
+                self.composition = Some(Composition {
+                    start: before.clone(),
+                    range: range.clone(),
+                    in_place: true,
+                });
+            }
+            None => {}
+        }
+        let edit = match (!composing).then(|| self.composition.take()).flatten() {
+            // 変換の確定は、変換を始める前の文字列に対する 1 回の編集として渡す
+            Some(Composition {
+                start,
+                range: start_range,
+                in_place,
+            }) => {
+                // 確定を受け入れなかった場合は、変換を始める前の選択へ戻す
+                self.before_edit = Some(start.clone());
+                if ime && inserted.is_empty() {
+                    // IME からの空の確定は変換の取り消しとして、変換を始める前の文字列と選択に戻す
+                    self.model = start.clone();
+                    TextEdit {
+                        old_text: start.text.clone().into(),
+                        range: start_range.start..start_range.start,
+                        inserted: SharedString::default(),
+                        new_text: start.text.into(),
+                        composing: false,
+                    }
+                } else if in_place
+                    && let Some(len) =
+                        (new_text.len() + start_range.len()).checked_sub(start.text.len())
+                {
+                    TextEdit {
+                        inserted: new_text[start_range.start..start_range.start + len]
+                            .to_owned()
+                            .into(),
+                        old_text: start.text.into(),
+                        range: start_range,
+                        new_text,
+                        composing: false,
+                    }
+                } else {
+                    // 変換中の範囲の外も置き換えた場合は、文字列全体を置き換えた編集とする
+                    TextEdit {
+                        range: 0..start.text.len(),
+                        old_text: start.text.into(),
+                        inserted: new_text.clone(),
+                        new_text,
+                        composing: false,
+                    }
+                }
+            }
+            None => TextEdit {
+                old_text: before.text.clone().into(),
+                range,
+                inserted: inserted.to_owned().into(),
+                new_text,
+                composing,
+            },
+        };
+        self.before_edit.get_or_insert(before);
         if let Some(on_change) = self.on_change.clone() {
-            on_change(&self.model.text.clone().into(), window, cx);
+            on_change(&edit, window, cx);
         }
     }
 
@@ -1003,10 +1164,26 @@ impl EntityInputHandler for EditState {
         })
     }
 
+    fn paste(&mut self, item: ClipboardItem, window: &mut Window, cx: &mut Context<Self>) {
+        // Web の貼り付けもキーバインドの Paste と同じく、改行を空白にする
+        if let Some(text) = item.text() {
+            let range = self.model.replacement_range(None);
+            self.edit(range, &text.replace(['\r', '\n'], " "), window, cx);
+        }
+    }
+
     fn unmark_text(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.model.marked = None;
-        window.notify_text_input_changed(&self.focus_handle);
-        cx.notify();
+        let before = self.model.clone();
+        let marked = self.model.marked.take();
+        if self.composition.is_some()
+            && let Some(marked) = marked
+        {
+            let committed = self.model.text[marked.clone()].to_owned();
+            self.text_changed(before, marked, &committed, true, window, cx);
+        } else {
+            window.notify_text_input_changed(&self.focus_handle);
+            cx.notify();
+        }
     }
 
     fn replace_text_in_range(
@@ -1018,8 +1195,13 @@ impl EntityInputHandler for EditState {
     ) {
         let explicit_range = range_utf16.is_some();
         let range = self.model.replacement_range(range_utf16);
-        // 1 行の部品のため改行は入れない。Enter の入力もここに届く
-        let text = text.replace(['\r', '\n'], "");
+        // 1 行の部品のため改行は入れない。Enter の入力もここに届くため、改行だけの入力は空にする。
+        // ほかの改行 (Web の貼り付けなど) は Paste と同じく空白にする
+        let text = if matches!(text, "\n" | "\r" | "\r\n") {
+            String::new()
+        } else {
+            text.replace(['\r', '\n'], " ")
+        };
         if text.is_empty() {
             match &self.model.marked {
                 // Enter と、範囲を指定しない空の確定では、選択している範囲を消さない
@@ -1031,7 +1213,12 @@ impl EntityInputHandler for EditState {
                 _ => {}
             }
         }
-        self.edit(range, &text, window, cx);
+        if self.on_change.is_none() || (range.is_empty() && text.is_empty()) {
+            return;
+        }
+        let before = self.model.clone();
+        self.model.replace(range.clone(), &text);
+        self.text_changed(before, range, &text, true, window, cx);
     }
 
     fn replace_and_mark_text_in_range(
@@ -1048,9 +1235,10 @@ impl EntityInputHandler for EditState {
             return;
         }
         let range = self.model.replacement_range(range_utf16);
+        let before = self.model.clone();
         self.model
-            .replace_and_mark(range, &new_text, new_selected_range_utf16);
-        self.text_changed(window, cx);
+            .replace_and_mark(range.clone(), &new_text, new_selected_range_utf16);
+        self.text_changed(before, range, &new_text, true, window, cx);
     }
 
     fn bounds_for_range(
@@ -1187,7 +1375,14 @@ impl Element for TextLine {
             .max(cursor_x + CARET_WIDTH - width)
             .min(max_scroll)
             .max(px(0.));
-        let origin = point(bounds.left() - scroll, bounds.top());
+        // 文字列が収まる間は、継承した text style の揃えに従って置く。収まらない間はカーソルに合わせてずらす
+        let free = (width - line.width() - CARET_WIDTH).max(px(0.));
+        let align_offset = match style.text_align {
+            TextAlign::Left => px(0.),
+            TextAlign::Center => free / 2.,
+            TextAlign::Right => free,
+        };
+        let origin = point(bounds.left() - scroll + align_offset, bounds.top());
 
         let selection = (!model.selection.is_empty()).then(|| {
             let color = self
@@ -1425,6 +1620,8 @@ mod tests {
         submits: Rc<RefCell<Vec<SharedString>>>,
         /// `on_change` を設定するか
         editable: bool,
+        /// `on_change` の代わりに `on_edit` を設定し、渡された編集を持つ
+        edits: Option<Rc<RefCell<Vec<TextEdit>>>>,
         /// `on_change` に渡された値を受け入れるか
         accept: bool,
         read_only: bool,
@@ -1436,6 +1633,9 @@ mod tests {
         parent_presses: Rc<RefCell<usize>>,
         /// 部品の編集の状態。IME の変換を直接起こすために持つ
         edit_state: Option<Entity<EditState>>,
+        /// 文字列の横の揃え
+        align: TextAlign,
+        error: Option<SharedString>,
     }
 
     impl Render for FieldView {
@@ -1453,6 +1653,18 @@ mod tests {
                         cx.notify();
                     }))
                 })
+                .when_some(self.edits.clone(), |this, edits| {
+                    this.on_edit(cx.listener(move |this, edit: &TextEdit, _, cx| {
+                        edits.borrow_mut().push(edit.clone());
+                        // 受け入れない編集は、変換中の文字列を表示していても編集する前に戻す
+                        this.value = if this.accept {
+                            edit.new_text.clone()
+                        } else {
+                            edit.old_text.clone()
+                        };
+                        cx.notify();
+                    }))
+                })
                 .read_only(self.read_only)
                 .availability(self.availability)
                 .placeholder("Your name")
@@ -1460,6 +1672,14 @@ mod tests {
                 .selection_color(SELECTION_COLOR())
                 .track_focus(&self.focus)
                 .aria_label("Name")
+                .error(self.error.clone())
+                .aria_description("Full name")
+                .map(|this| match self.align {
+                    TextAlign::Left => this,
+                    TextAlign::Center => this.text_center(),
+                    // 右揃えは親から継承させる
+                    TextAlign::Right => this,
+                })
                 .absolute()
                 .left(px(100.))
                 .top(px(100.))
@@ -1482,6 +1702,7 @@ mod tests {
             let parent_presses = self.parent_presses.clone();
             div()
                 .size(px(500.))
+                .when(self.align == TextAlign::Right, |this| this.text_right())
                 .on_mouse_down(MouseButton::Left, move |_, _, _| {
                     *parent_presses.borrow_mut() += 1;
                 })
@@ -1503,6 +1724,7 @@ mod tests {
             changes: Rc::default(),
             submits: Rc::default(),
             editable: true,
+            edits: None,
             accept: true,
             read_only: false,
             availability: Availability::Enabled,
@@ -1511,6 +1733,8 @@ mod tests {
             node: None,
             parent_presses: Rc::default(),
             edit_state: None,
+            align: TextAlign::Left,
+            error: None,
         })
     }
 
@@ -1767,6 +1991,300 @@ mod tests {
     }
 
     #[gpui::test]
+    fn 受け入れられなかった編集は選択も編集する前に戻す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "ab");
+        update(&view, cx, |view| view.accept = false);
+        focus(cx);
+        cx.simulate_keystrokes("ctrl-a");
+        cx.simulate_input("x");
+        cx.simulate_input("y");
+        assert_eq!(
+            changes(&view, cx),
+            ["x", "y"],
+            "すべてを選択した状態に戻すこと"
+        );
+    }
+
+    #[gpui::test]
+    fn on_edit_には置き換えた範囲と入れた文字列と変換中かを渡す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "ab");
+        let edits = Rc::new(RefCell::new(Vec::new()));
+        update(&view, cx, |view| view.edits = Some(edits.clone()));
+        focus(cx);
+        cx.simulate_keystrokes("end");
+        cx.simulate_input("x");
+        cx.simulate_keystrokes("shift-home backspace");
+        let state = view
+            .read_with(cx, |view, _| view.edit_state.clone())
+            .expect("描画済みであること");
+        state.update_in(cx, |state, window, cx| {
+            state.replace_and_mark_text_in_range(None, "か", None, window, cx);
+        });
+        cx.run_until_parked();
+        let edit =
+            |old: &str, range: Range<usize>, inserted: &str, new: &str, composing| TextEdit {
+                old_text: old.to_owned().into(),
+                range,
+                inserted: inserted.to_owned().into(),
+                new_text: new.to_owned().into(),
+                composing,
+            };
+        assert_eq!(
+            *edits.borrow(),
+            [
+                edit("ab", 2..2, "x", "abx", false),
+                edit("abx", 0..3, "", "", false),
+                edit("", 0..0, "か", "か", true),
+            ]
+        );
+        assert!(
+            changes(&view, cx).is_empty(),
+            "on_change は on_edit に置き換わる"
+        );
+    }
+
+    #[gpui::test]
+    fn 変換の確定は変換を始める前からの_1_回の編集として渡す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "09");
+        let edits = Rc::new(RefCell::new(Vec::new()));
+        update(&view, cx, |view| view.edits = Some(edits.clone()));
+        focus(cx);
+        cx.simulate_keystrokes("end");
+        let state = view
+            .read_with(cx, |view, _| view.edit_state.clone())
+            .expect("描画済みであること");
+        state.update_in(cx, |state, window, cx| {
+            state.replace_and_mark_text_in_range(None, "2", None, window, cx);
+        });
+        cx.run_until_parked();
+        state.update_in(cx, |state, window, cx| {
+            state.replace_and_mark_text_in_range(None, "23", None, window, cx);
+        });
+        cx.run_until_parked();
+        state.update_in(cx, |state, window, cx| state.unmark_text(window, cx));
+        cx.run_until_parked();
+        state.update_in(cx, |state, window, cx| {
+            state.replace_and_mark_text_in_range(None, "か", None, window, cx);
+        });
+        cx.run_until_parked();
+        state.update_in(cx, |state, window, cx| {
+            state.replace_text_in_range(None, "火", window, cx);
+        });
+        cx.run_until_parked();
+        let edits: Vec<_> = edits
+            .borrow()
+            .iter()
+            .map(|edit| {
+                (
+                    edit.old_text.to_string(),
+                    edit.range.clone(),
+                    edit.inserted.to_string(),
+                    edit.composing,
+                )
+            })
+            .collect();
+        assert_eq!(
+            edits,
+            [
+                ("09".into(), 2..2, "2".into(), true),
+                ("092".into(), 2..3, "23".into(), true),
+                ("09".into(), 2..2, "23".into(), false),
+                ("0923".into(), 4..4, "か".into(), true),
+                ("0923".into(), 4..4, "火".into(), false),
+            ]
+        );
+    }
+
+    #[gpui::test]
+    fn 変換の取り消しでは変換を始める前の文字列と選択に戻す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "09");
+        focus(cx);
+        cx.simulate_keystrokes("ctrl-a");
+        let state = view
+            .read_with(cx, |view, _| view.edit_state.clone())
+            .expect("描画済みであること");
+        state.update_in(cx, |state, window, cx| {
+            state.replace_and_mark_text_in_range(None, "あ", None, window, cx);
+        });
+        cx.run_until_parked();
+        state.update_in(cx, |state, window, cx| {
+            state.replace_and_mark_text_in_range(None, "", None, window, cx);
+            state.unmark_text(window, cx);
+        });
+        cx.run_until_parked();
+        assert_eq!(value(&view, cx), "09");
+        cx.simulate_input("x");
+        assert_eq!(value(&view, cx), "x", "すべてを選択した状態に戻すこと");
+    }
+
+    #[gpui::test]
+    fn 受け入れられなかった確定は変換を始める前の選択に戻す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "09");
+        let edits = Rc::new(RefCell::new(Vec::new()));
+        update(&view, cx, |view| view.edits = Some(edits.clone()));
+        focus(cx);
+        cx.simulate_keystrokes("ctrl-a");
+        let state = view
+            .read_with(cx, |view, _| view.edit_state.clone())
+            .expect("描画済みであること");
+        // 変換中の文字列は受け入れ、確定を断る
+        state.update_in(cx, |state, window, cx| {
+            state.replace_and_mark_text_in_range(None, "あ", None, window, cx);
+        });
+        cx.run_until_parked();
+        update(&view, cx, |view| view.accept = false);
+        state.update_in(cx, |state, window, cx| {
+            state.replace_text_in_range(Some(0..1), "亜", window, cx);
+        });
+        cx.run_until_parked();
+        assert_eq!(value(&view, cx), "09");
+        let last = edits.borrow().last().cloned().expect("確定を渡すこと");
+        assert_eq!(
+            (last.old_text.as_ref(), last.range, last.composing),
+            ("09", 0..2, false)
+        );
+        update(&view, cx, |view| view.accept = true);
+        cx.simulate_input("x");
+        assert_eq!(value(&view, cx), "x", "すべてを選択した状態に戻すこと");
+    }
+
+    #[gpui::test]
+    fn 変換を始めたときと違う範囲の確定は文字列全体を置き換えた編集として渡す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "09");
+        let edits = Rc::new(RefCell::new(Vec::new()));
+        update(&view, cx, |view| view.edits = Some(edits.clone()));
+        focus(cx);
+        cx.simulate_keystrokes("end");
+        let state = view
+            .read_with(cx, |view, _| view.edit_state.clone())
+            .expect("描画済みであること");
+        state.update_in(cx, |state, window, cx| {
+            state.replace_and_mark_text_in_range(None, "あ", None, window, cx);
+        });
+        cx.run_until_parked();
+        state.update_in(cx, |state, window, cx| {
+            state.replace_text_in_range(Some(1..3), "23", window, cx);
+        });
+        cx.run_until_parked();
+        let last = edits.borrow().last().cloned().expect("確定を渡すこと");
+        assert_eq!(
+            (
+                last.old_text.as_ref(),
+                last.range,
+                last.inserted.as_ref(),
+                last.new_text.as_ref()
+            ),
+            ("09", 0..2, "023", "023")
+        );
+    }
+
+    #[gpui::test]
+    fn 範囲の外も置き換えた後の確定と取り消しを変換の前から扱う(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "12");
+        let edits = Rc::new(RefCell::new(Vec::new()));
+        update(&view, cx, |view| view.edits = Some(edits.clone()));
+        focus(cx);
+        cx.simulate_keystrokes("home");
+        let state = view
+            .read_with(cx, |view, _| view.edit_state.clone())
+            .expect("描画済みであること");
+        let mark = |range: Option<Range<usize>>, text: &'static str, cx: &mut VisualTestContext| {
+            state.update_in(cx, |state, window, cx| {
+                state.replace_and_mark_text_in_range(range, text, None, window, cx);
+            });
+            cx.run_until_parked();
+        };
+        // 「あ1」を「い」にしてから取り消す
+        mark(None, "あ", cx);
+        mark(Some(0..2), "い", cx);
+        mark(None, "", cx);
+        assert_eq!(value(&view, cx), "12");
+        let last = edits.borrow().last().cloned().expect("取り消しを渡すこと");
+        assert_eq!(
+            (last.old_text.as_ref(), last.new_text.as_ref()),
+            ("12", "12")
+        );
+        // 「あ1」を「21」で確定すると、末尾が一致しても全体を置き換えた編集になる
+        mark(None, "あ", cx);
+        state.update_in(cx, |state, window, cx| {
+            state.replace_text_in_range(Some(0..2), "21", window, cx);
+        });
+        cx.run_until_parked();
+        let last = edits.borrow().last().cloned().expect("確定を渡すこと");
+        assert_eq!(
+            (last.old_text.as_ref(), last.range, last.new_text.as_ref()),
+            ("12", 0..2, "212")
+        );
+    }
+
+    #[gpui::test]
+    fn 変換中の切り取りは取り消しにせず文字列を消す(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, "09");
+        focus(cx);
+        cx.simulate_keystrokes("end");
+        let state = view
+            .read_with(cx, |view, _| view.edit_state.clone())
+            .expect("描画済みであること");
+        state.update_in(cx, |state, window, cx| {
+            state.replace_and_mark_text_in_range(None, "あ", None, window, cx);
+        });
+        cx.run_until_parked();
+        cx.simulate_keystrokes("ctrl-a ctrl-x");
+        assert_eq!(value(&view, cx), "");
+        assert_eq!(
+            cx.read_from_clipboard()
+                .and_then(|item| item.text())
+                .as_deref(),
+            Some("09あ")
+        );
+    }
+
+    #[gpui::test]
+    fn web_の貼り付けも改行を空白にする(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, "");
+        focus(cx);
+        let state = view
+            .read_with(cx, |view, _| view.edit_state.clone())
+            .expect("描画済みであること");
+        state.update_in(cx, |state, window, cx| {
+            state.paste(ClipboardItem::new_string("\n".into()), window, cx);
+        });
+        cx.run_until_parked();
+        assert_eq!(changes(&view, cx), [" "]);
+    }
+
+    #[gpui::test]
+    fn 改行だけの入力は入れず_改行を含む入力は改行を空白にする(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "");
+        focus(cx);
+        let state = view
+            .read_with(cx, |view, _| view.edit_state.clone())
+            .expect("描画済みであること");
+        state.update_in(cx, |state, window, cx| {
+            state.replace_text_in_range(None, "\n", window, cx);
+            state.replace_text_in_range(None, "a\nb", window, cx);
+        });
+        cx.run_until_parked();
+        assert_eq!(changes(&view, cx), ["a b"]);
+    }
+
+    #[gpui::test]
     fn 外から文字列を変えても求めずカーソルを収める(cx: &mut TestAppContext) {
         let (view, cx) = setup(cx, "abcd");
         focus(cx);
@@ -1932,6 +2450,73 @@ mod tests {
     }
 
     #[gpui::test]
+    fn 中央揃えなら収まる文字列を中央に置き_押した位置にカーソルを移す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "");
+        update(&view, cx, |view| view.align = TextAlign::Center);
+        focus(cx);
+        let (x, ..) = filled(cx, CARET_COLOR())[0];
+        assert_eq!(
+            x, 199.,
+            "幅 200 からカーソルの幅を除いた残りの中央に置くこと"
+        );
+        cx.simulate_input("mm");
+        cx.simulate_keystrokes("home");
+        let (start, ..) = filled(cx, CARET_COLOR())[0];
+        cx.simulate_keystrokes("end");
+        let (end, ..) = filled(cx, CARET_COLOR())[0];
+        assert!(
+            start > 100. && (start + end + 2. - 400.).abs() < 1.,
+            "文字列を中央に置くこと"
+        );
+        // 1 文字目と 2 文字目の境界の少し左を押すと、境界にカーソルを移す。
+        // gpui は最後の文字の始まりより右の位置を末尾として扱うため、境界ちょうどは押さない
+        mouse_down(cx, (start + end) / 2. - 2., 1, Modifiers::none());
+        cx.simulate_input("x");
+        assert_eq!(value(&view, cx), "mxm");
+    }
+
+    #[gpui::test]
+    fn 親から継承した右揃えなら収まる文字列を右に置き_はみ出す間はカーソルが見える位置までずらす(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "");
+        update(&view, cx, |view| view.align = TextAlign::Right);
+        focus(cx);
+        let (x, ..) = filled(cx, CARET_COLOR())[0];
+        assert_eq!(x, 298., "右端にカーソルの幅を空けて置くこと");
+        cx.simulate_input(&"m".repeat(100));
+        cx.simulate_keystrokes("home");
+        let (x, ..) = filled(cx, CARET_COLOR())[0];
+        assert_eq!(x, 100., "はみ出す間は左端から見せること");
+        // 短くすると右揃えに戻り、押した位置に対応する文字の境界へカーソルを移す
+        cx.simulate_keystrokes("ctrl-a");
+        cx.simulate_input("mm");
+        cx.simulate_keystrokes("home");
+        let (start, ..) = filled(cx, CARET_COLOR())[0];
+        cx.simulate_keystrokes("end");
+        let (end, ..) = filled(cx, CARET_COLOR())[0];
+        assert_eq!(end, 298.);
+        assert!(start > 250., "短い文字列は右に寄せること");
+        mouse_down(cx, (start + end) / 2. - 2., 1, Modifiers::none());
+        cx.simulate_input("x");
+        assert_eq!(value(&view, cx), "mxm");
+    }
+
+    #[gpui::test]
+    fn エラーがあれば_invalid_にしてメッセージを説明の先頭に加える(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "ab");
+        assert_eq!(node(&view, cx).invalid(), None);
+        update(&view, cx, |view| view.error = Some("Required".into()));
+        let node = node(&view, cx);
+        assert_eq!(node.invalid(), Some(accesskit::Invalid::True));
+        assert_eq!(node.description(), Some("Required Full name"));
+    }
+
+    #[gpui::test]
     fn フォーカスがある間だけカーソルを描き長い文字列はカーソルが見える位置までずらす(
         cx: &mut TestAppContext,
     ) {
@@ -2046,6 +2631,8 @@ mod tests {
                 },
                 focus_handle: cx.focus_handle(),
                 on_change: None,
+                before_edit: None,
+                composition: None,
                 layout: Some((shape("aaa", window), point(px(0.), px(0.)), px(20.))),
                 scroll: px(0.),
                 selecting: false,

@@ -32,6 +32,7 @@ mod switch_page;
 mod tabs_page;
 mod text_field_page;
 mod theme_page;
+mod time_input_page;
 mod tooltip_page;
 
 use gpui::{
@@ -72,6 +73,7 @@ use crate::switch_page::SwitchPage;
 use crate::tabs_page::TabsPage;
 use crate::text_field_page::TextFieldPage;
 use crate::theme_page::ThemePage;
+use crate::time_input_page::TimeInputPage;
 use crate::tooltip_page::TooltipPage;
 
 /// 表示するページ
@@ -104,6 +106,7 @@ enum Page {
     NavigationRail,
     BottomSheet,
     SearchBar,
+    TimeInput,
     Menu,
     Dialog,
     Select,
@@ -139,6 +142,7 @@ struct Gallery {
     navigation_drawer_page: Entity<NavigationDrawerPage>,
     bottom_sheet_page: Entity<BottomSheetPage>,
     search_bar_page: Entity<SearchBarPage>,
+    time_input_page: Entity<TimeInputPage>,
     navigation_rail_page: Entity<NavigationRailPage>,
     menu_page: Entity<MenuPage>,
     dialog_page: Entity<DialogPage>,
@@ -176,6 +180,7 @@ impl Gallery {
             navigation_drawer_page: cx.new(NavigationDrawerPage::new),
             bottom_sheet_page: cx.new(BottomSheetPage::new),
             search_bar_page: cx.new(SearchBarPage::new),
+            time_input_page: cx.new(TimeInputPage::new),
             navigation_rail_page: cx.new(NavigationRailPage::new),
             menu_page: cx.new(|_| MenuPage::default()),
             dialog_page: cx.new(DialogPage::new),
@@ -227,6 +232,7 @@ impl Render for Gallery {
             Page::NavigationDrawer => self.navigation_drawer_page.clone().into(),
             Page::BottomSheet => self.bottom_sheet_page.clone().into(),
             Page::SearchBar => self.search_bar_page.clone().into(),
+            Page::TimeInput => self.time_input_page.clone().into(),
             Page::NavigationRail => self.navigation_rail_page.clone().into(),
             Page::Menu => self.menu_page.clone().into(),
             Page::Dialog => self.dialog_page.clone().into(),
@@ -275,7 +281,8 @@ impl Render for Gallery {
                         .child(tab(Page::NavigationRail, "Navigation rail", cx))
                         .child(tab(Page::NavigationDrawer, "Navigation drawer", cx))
                         .child(tab(Page::BottomSheet, "Bottom sheet", cx))
-                        .child(tab(Page::SearchBar, "Search bar", cx)),
+                        .child(tab(Page::SearchBar, "Search bar", cx))
+                        .child(tab(Page::TimeInput, "Time input", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )
