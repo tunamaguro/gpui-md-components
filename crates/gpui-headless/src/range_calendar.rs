@@ -682,7 +682,8 @@ impl Shared {
             .on_children_prepainted({
                 let rows = rows.clone();
                 move |bounds: Vec<Bounds<Pixels>>, _, _| {
-                    if let [first, second, ..] = bounds[..] {
+                    // 週の行は grid で足された子の後に置くため、最後の WEEKS 個が週の行
+                    if let [first, second, ..] = bounds[bounds.len().saturating_sub(WEEKS)..] {
                         rows.set(Some((
                             first.top(),
                             second.top() - first.top(),
@@ -848,7 +849,11 @@ mod tests {
                         .header(|_, _, _| div().h(px(20.)).into_any_element())
                         .grid({
                             let margin = self.grid_margin;
-                            move |_, grid| grid.mb(px(margin))
+                            // 週の行より前に子を足しても、週の行だけを測ること
+                            move |_, grid| {
+                                grid.mb(px(margin))
+                                    .child(div().absolute().top_0().h(px(2.)).w_full())
+                            }
                         })
                         .week(move |week, row| {
                             bands.borrow_mut().extend(week.band);
