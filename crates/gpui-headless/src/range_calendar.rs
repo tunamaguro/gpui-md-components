@@ -450,9 +450,11 @@ impl RenderOnce for RangeCalendar {
         let focus_visible = crate::is_focus_visible(&focus, window, cx);
         // 一覧だけをスクロールした後にフォーカスが入ると、操作日のセルが描かれずフォーカスが見えないため、操作日の週を見せる
         let focused = focus.is_focused(window);
+        // 同じ描画で一覧の高さが変わることがあるため、月を測った後にも見せ直す
         let (gained, layout) = state.update(cx, |state, _| {
             let gained = focused && !state.focused;
             state.focused = focused;
+            state.reveal |= gained;
             (gained, state.layout)
         });
         if gained {
@@ -947,6 +949,19 @@ mod tests {
         -f32::from(scroll.0.borrow().base_handle.offset().y)
     }
 
+    /// 赤く塗った日付のセルの上端
+    fn painted_tops(cx: &mut VisualTestContext) -> Vec<f32> {
+        let red: gpui::Background = gpui::red().into();
+        cx.update(|window, _| {
+            window
+                .painted_quads()
+                .into_iter()
+                .filter(|quad| quad.background == red)
+                .map(|quad| quad.bounds.origin.y.0 / window.scale_factor())
+                .collect()
+        })
+    }
+
     /// 一番上に表示している月の `row` 週目の `column` 列のセルの中央
     fn cell_center(row: usize, column: usize) -> gpui::Point<gpui::Pixels> {
         gpui::point(
@@ -1194,16 +1209,7 @@ mod tests {
         );
         cx.run_until_parked();
         assert_eq!(scroll_top(&view, cx), 60.);
-        let red: gpui::Background = gpui::red().into();
-        let tops: Vec<f32> = cx.update(|window, _| {
-            window
-                .painted_quads()
-                .into_iter()
-                .filter(|quad| quad.background == red)
-                .map(|quad| quad.bounds.origin.y.0 / window.scale_factor())
-                .collect()
-        });
-        assert_eq!(tops, [120.]);
+        assert_eq!(painted_tops(cx), [120.]);
     }
 
     #[gpui::test]
@@ -1251,7 +1257,9 @@ mod tests {
     fn 一覧をスクロールした後に_tab_で入ると操作日の週を見せる(
         cx: &mut TestAppContext,
     ) {
-        let (view, cx) = setup(cx, DateRange::default());
+        let (view, cx) = setup_with(cx, DateRange::default(), |view| {
+            view.marked = Some(date(2026, 1, 1))
+        });
         let scroll = view.read_with(cx, |view, _| view.scroll.clone());
         scroll
             .0
@@ -1263,6 +1271,25 @@ mod tests {
         cx.simulate_keystrokes("tab tab");
         // 1 月 1 日の週は 20 から 60
         assert_eq!(scroll_top(&view, cx), 20.);
-        assert_eq!(visible(&view, cx), Some(date(2026, 1, 1)));
+        assert_eq!(painted_tops(cx), [0.]);
+    }
+
+    #[gpui::test]
+    fn フォーカスが入る描画で一覧が縮んでも操作日の週を見せる(
+        cx: &mut TestAppContext,
+    ) {
+        // 2026 年 1 月 31 日は 5 週目 (上端 180、下端 220)。高さ 300 では見えている
+        let (view, cx) = setup_with(cx, range(Some(date(2026, 1, 31)), None), |view| {
+            view.marked = Some(date(2026, 1, 31))
+        });
+        assert_eq!(scroll_top(&view, cx), 0.);
+        cx.simulate_keystrokes("tab");
+        // 描き直しを求めずに縮め、フォーカスが入る描画で同時に変わるようにする
+        view.update(cx, |view, _| view.height = 160.);
+        cx.simulate_keystrokes("tab");
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        assert_eq!(scroll_top(&view, cx), 60.);
+        assert_eq!(painted_tops(cx), [120.]);
     }
 }
