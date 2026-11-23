@@ -129,6 +129,7 @@ const WEEKS: usize = 6;
 /// - フォーカス中の Enter・Space、日付のクリック、支援技術からの日付のクリック操作で、その日付を選ぶよう求める。
 ///   選べない日付 ([`RangeCalendar::enabled`]) は求めない。選び方は [`DateRange::select`]
 /// - 日付を押すと、カレンダーにフォーカスを移し、その日付を操作日にする
+/// - フォーカスが入ったときに操作日の週が見えていなければ、見えるまでスクロールする
 /// - 支援技術から日付にフォーカスを移されると、カレンダーにフォーカスを移し、その日付を操作日にして、その週が見えるまでスクロールする
 ///
 /// 支援技術には、月ごとの role `grid` と、週ごとの role `row`、日付ごとの role `gridcell` と、
@@ -215,7 +216,8 @@ impl RangeCalendar {
 
     /// 月の格子の要素を整える。`build` には月の 1 日と格子の要素を渡す
     ///
-    /// 余白などの配置はすべての月で同じにすること。週の行の大きさを測れなくなるため、格子をスクロールさせないこと
+    /// 余白などの配置はすべての月で同じにすること。
+    /// 週の行の大きさを測れなくなるため、格子をスクロールさせず、スクロールのハンドル (`track_scroll`) も付けないこと
     pub fn grid(mut self, build: impl Fn(&Date, Stateful<Div>) -> Stateful<Div> + 'static) -> Self {
         self.grid = Some(Rc::new(build));
         self
@@ -280,6 +282,8 @@ struct State {
     first_year: Option<i32>,
     /// 次に月を測ったときに、操作日の週が見えるまでスクロールするか
     reveal: bool,
+    /// 前の描画でフォーカスがあったか
+    focused: bool,
 }
 
 /// 描いた月から測った大きさ
@@ -409,6 +413,7 @@ impl RenderOnce for RangeCalendar {
             layout: None,
             first_year: None,
             reveal: false,
+            focused: false,
         });
         let scroll = match self.scroll {
             Some(scroll) => scroll,
@@ -443,6 +448,16 @@ impl RenderOnce for RangeCalendar {
             (state.focus.clone(), active)
         });
         let focus_visible = crate::is_focus_visible(&focus, window, cx);
+        // 一覧だけをスクロールした後にフォーカスが入ると、操作日のセルが描かれずフォーカスが見えないため、操作日の週を見せる
+        let focused = focus.is_focused(window);
+        let (gained, layout) = state.update(cx, |state, _| {
+            let gained = focused && !state.focused;
+            state.focused = focused;
+            (gained, state.layout)
+        });
+        if gained {
+            reveal(&scroll, first_year, layout, active);
+        }
 
         let enabled = self.enabled.clone();
         let is_enabled = move |date: &Date| enabled.as_ref().is_none_or(|enabled| enabled(date));
@@ -1230,5 +1245,24 @@ mod tests {
         assert_eq!(scroll_top(&view, cx), 0.);
         cx.simulate_keystrokes("tab tab right");
         assert_eq!(visible(&view, cx), Some(date(2026, 1, 2)));
+    }
+
+    #[gpui::test]
+    fn 一覧をスクロールした後に_tab_で入ると操作日の週を見せる(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, DateRange::default());
+        let scroll = view.read_with(cx, |view, _| view.scroll.clone());
+        scroll
+            .0
+            .borrow()
+            .base_handle
+            .set_offset(gpui::point(px(0.), px(-260. * 5.)));
+        view.update(cx, |_, cx| cx.notify());
+        cx.run_until_parked();
+        cx.simulate_keystrokes("tab tab");
+        // 1 月 1 日の週は 20 から 60
+        assert_eq!(scroll_top(&view, cx), 20.);
+        assert_eq!(visible(&view, cx), Some(date(2026, 1, 1)));
     }
 }
