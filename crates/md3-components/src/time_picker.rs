@@ -21,7 +21,9 @@ use gpui::{
     Refineable, RenderOnce, StatefulInteractiveElement, StyleRefinement, Styled, Window, canvas,
     div, fill, point, prelude::FluentBuilder, size,
 };
-use gpui_headless::clock_dial::{ClockDial, ClockDialItem, DialPointer, DialPointerPhase};
+use gpui_headless::clock_dial::{
+    ClockDial, ClockDialItem, DialPointer, DialPointerPhase, DialSlider,
+};
 use gpui_headless::radio::{Radio, RadioGroup};
 use md3_theme::md3_tokens::component::time_picker as tokens;
 use md3_theme::md3_tokens::shape::ShapeKey;
@@ -69,13 +71,16 @@ enum Selection {
 ///   文字盤の外で離すと取り消す。時は 1 時間ごと、押して離した分は 5 分ごと、ドラッグした分は 1 分ごとに選ぶ。
 ///   24 時間制の時は、中心から 74dp より内側なら内側の円の 12 時から 23 時を選ぶ。
 ///   時を選んでボタンを離すと、文字盤を分に切り替える。支援技術の利用中は切り替えない
-/// - 文字盤の数字は、矢印キーでフォーカスを移し、Enter・Space と支援技術からのクリック操作で選ぶ。
+/// - 時の文字盤の数字は、矢印キーでフォーカスを移し、Enter・Space と支援技術からのクリック操作で選ぶ。
 ///   この操作では分に切り替えない
+/// - 分の文字盤は、フォーカス中の右と上の矢印キーで 1 分増やし、左と下の矢印キーで 1 分減らす。
+///   Page Up と Page Down で 5 分、Home で 0 分、End で 59 分にする。0 分と 59 分の間では戻らない
 /// - 午前・午後の切り替えは矢印キー・Space・クリックで選び、時を 12 時間ずらすよう求める
 ///
 /// 支援技術には、時と分の表示が名前 Time の role `radiogroup` の中の role `radio`
 /// (名前は Select hour, 2 o'clock のように、選ぶものと表示している値)、
-/// 文字盤が role `radiogroup` (名前は Hour と Minute) と、数字ごとの role `radio` として公開される。
+/// 時の文字盤が名前 Hour の role `radiogroup` と数字ごとの role `radio`、
+/// 分の文字盤が名前 Minute の role `slider` (値は 0 から 59) として公開される。
 /// 文言は英語に固定している
 #[derive(IntoElement)]
 pub struct TimePicker {
@@ -317,63 +322,40 @@ impl RenderOnce for TimePicker {
         let dial_size = dp(tokens::CLOCK_DIAL_CONTAINER_SIZE);
         let dial_id = ElementId::from((self.id.clone(), "dial"));
         let number_size = dp(NUMBER_SIZE);
-        let mut number_font = theme.text_style(tokens::CLOCK_DIAL_LABEL_TEXT_FONT);
-        let items: Vec<_> = numbers
-            .iter()
-            .enumerate()
-            .map(|(ix, &(label, value, inner))| {
-                let angle = angle_of(ix % 12);
-                let radius = dp(if inner { INNER_RADIUS } else { OUTER_RADIUS });
-                let center = dial_size / 2.;
-                let x = center + radius * angle.sin() - number_size / 2.;
-                let y = center - radius * angle.cos() - number_size / 2.;
-                let name = match (current, format) {
-                    (Selection::Minute, _) => format!("{label} minutes"),
-                    (Selection::Hour, HourFormat::Hour12) => format!("{label} o'clock"),
-                    (Selection::Hour, HourFormat::Hour24) => format!("{label} hours"),
-                };
-                number_font.color = Some(theme.color(if value == selected_value {
-                    tokens::CLOCK_DIAL_SELECTED_LABEL_TEXT_COLOR
-                } else {
-                    tokens::CLOCK_DIAL_UNSELECTED_LABEL_TEXT_COLOR
-                }));
-                let item_id = ElementId::from((self.id.clone(), format!("number-{ix}")));
-                let focus_handle = util::keyed_focus_handle(&item_id, window, cx);
-                let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
-                let mut item = ClockDialItem::new(item_id, value)
-                    .track_focus(&focus_handle)
+        let number_font = theme.text_style(tokens::CLOCK_DIAL_LABEL_TEXT_FONT);
+        let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
+        let ring = |shape: ShapeKey| {
+            Shaped::new(
+                div()
                     .absolute()
-                    .left(x)
-                    .top(y)
-                    .size(number_size)
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .aria_label(name)
-                    .child(label.to_string());
-                if focus_visible {
-                    let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
-                    item = item.child(
-                        Shaped::new(
-                            div()
-                                .absolute()
-                                .top(-outset)
-                                .left(-outset)
-                                .right(-outset)
-                                .bottom(-outset)
-                                .border(dp(focus_ring::WIDTH))
-                                .border_color(theme.color(focus_ring::COLOR)),
-                            theme.clone(),
-                            ShapeKey::CornerFull,
-                        )
-                        .outset(outset),
-                    );
-                }
-                item.text_style().refine(&number_font);
-                item
-            })
-            .collect();
-
+                    .top(-outset)
+                    .left(-outset)
+                    .right(-outset)
+                    .bottom(-outset)
+                    .border(dp(focus_ring::WIDTH))
+                    .border_color(theme.color(focus_ring::COLOR)),
+                theme.clone(),
+                shape,
+            )
+            .outset(outset)
+        };
+        // 数字の左上の位置と、文字の書式
+        let place = |ix: usize, inner: bool, value: u8| {
+            let angle = angle_of(ix % 12);
+            let radius = dp(if inner { INNER_RADIUS } else { OUTER_RADIUS });
+            let center = dial_size / 2.;
+            let mut font = number_font.clone();
+            font.color = Some(theme.color(if value == selected_value {
+                tokens::CLOCK_DIAL_SELECTED_LABEL_TEXT_COLOR
+            } else {
+                tokens::CLOCK_DIAL_UNSELECTED_LABEL_TEXT_COLOR
+            }));
+            (
+                center + radius * angle.sin() - number_size / 2.,
+                center - radius * angle.cos() - number_size / 2.,
+                font,
+            )
+        };
         // セレクタは選んでいる時か分の向きへ中心から伸ばし、先端に数字と同じ大きさの円を描く
         let selector_angle = match current {
             Selection::Hour => angle_of(usize::from(time.hour % 12)),
@@ -475,40 +457,113 @@ impl RenderOnce for TimePicker {
                 }
             }
         });
-        let on_select = request.clone().map(|request| {
-            let last = last.clone();
-            move |value: &u8, window: &mut Window, cx: &mut App| {
-                let base = last.get();
-                let next = match current {
-                    Selection::Hour => Time::new(*value, base.minute),
-                    Selection::Minute => Time::new(base.hour, *value),
-                };
-                request(next, window, cx);
+        let background = Shaped::new(
+            div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .right_0()
+                .bottom_0()
+                .bg(theme.color(tokens::CLOCK_DIAL_COLOR)),
+            theme.clone(),
+            tokens::CLOCK_DIAL_SHAPE,
+        );
+        let dial = match current {
+            // 時は Compose と同じく数字を項目として選ぶ
+            Selection::Hour => {
+                let items: Vec<_> = numbers
+                    .iter()
+                    .enumerate()
+                    .map(|(ix, &(label, value, inner))| {
+                        let (x, y, font) = place(ix, inner, value);
+                        let name = match format {
+                            HourFormat::Hour12 => format!("{label} o'clock"),
+                            HourFormat::Hour24 => format!("{label} hours"),
+                        };
+                        let item_id = ElementId::from((self.id.clone(), format!("hour-{ix}")));
+                        let focus_handle = util::keyed_focus_handle(&item_id, window, cx);
+                        let focus_visible =
+                            gpui_headless::is_focus_visible(&focus_handle, window, cx);
+                        let mut item = ClockDialItem::new(item_id, value)
+                            .track_focus(&focus_handle)
+                            .absolute()
+                            .left(x)
+                            .top(y)
+                            .size(number_size)
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .aria_label(name)
+                            .child(label.to_string())
+                            .children(focus_visible.then(|| ring(ShapeKey::CornerFull)));
+                        item.text_style().refine(&font);
+                        item
+                    })
+                    .collect();
+                let on_select = request.clone().map(|request| {
+                    let last = last.clone();
+                    move |hour: &u8, window: &mut Window, cx: &mut App| {
+                        request(Time::new(*hour, last.get().minute), window, cx);
+                    }
+                });
+                ClockDial::new(dial_id, Some(selected_value))
+                    .when_some(on_pointer, |this, on_pointer| this.on_pointer(on_pointer))
+                    .when_some(on_select, |this, on_select| this.on_change(on_select))
+                    .aria_label("Hour")
+                    .relative()
+                    .flex_none()
+                    .size(dial_size)
+                    .child(background)
+                    .child(selector_canvas)
+                    .items(items)
+                    .into_any_element()
             }
-        });
-        let dial = ClockDial::new(dial_id, Some(selected_value))
-            .when_some(on_pointer, |this, on_pointer| this.on_pointer(on_pointer))
-            .when_some(on_select, |this, on_select| this.on_change(on_select))
-            .aria_label(match current {
-                Selection::Hour => "Hour",
-                Selection::Minute => "Minute",
-            })
-            .relative()
-            .flex_none()
-            .size(dial_size)
-            .child(Shaped::new(
-                div()
-                    .absolute()
-                    .top_0()
-                    .left_0()
-                    .right_0()
-                    .bottom_0()
-                    .bg(theme.color(tokens::CLOCK_DIAL_COLOR)),
-                theme.clone(),
-                tokens::CLOCK_DIAL_SHAPE,
-            ))
-            .child(selector_canvas)
-            .items(items);
+            // 分は 5 分ごとの数字だけでは選べない分があるため、文字盤全体を 1 分ずつ増減するスライダーにする
+            Selection::Minute => {
+                let labels = numbers
+                    .iter()
+                    .enumerate()
+                    .map(|(ix, &(label, value, inner))| {
+                        let (x, y, font) = place(ix, inner, value);
+                        let mut number = div()
+                            .absolute()
+                            .left(x)
+                            .top(y)
+                            .size(number_size)
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(label.to_string());
+                        number.text_style().refine(&font);
+                        number
+                    });
+                let focus_handle = util::keyed_focus_handle(&dial_id, window, cx);
+                let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
+                let on_change = request.clone().map(|request| {
+                    let last = last.clone();
+                    move |minute: &f32, window: &mut Window, cx: &mut App| {
+                        request(Time::new(last.get().hour, *minute as u8), window, cx);
+                    }
+                });
+                DialSlider::new(dial_id, f32::from(time.minute))
+                    .range(0.0..=59.0)
+                    .step(1.0)
+                    .track_focus(&focus_handle)
+                    .when_some(on_pointer, |this, on_pointer| this.on_pointer(on_pointer))
+                    .when_some(on_change, |this, on_change| this.on_change(on_change))
+                    .aria_label("Minute")
+                    .relative()
+                    .flex_none()
+                    .size(dial_size)
+                    .child(background)
+                    .child(selector_canvas)
+                    .children(labels)
+                    .when(focus_visible, |this| {
+                        this.child(ring(tokens::CLOCK_DIAL_SHAPE))
+                    })
+                    .into_any_element()
+            }
+        };
 
         let mut root = div()
             .id(self.id)
@@ -819,6 +874,39 @@ mod tests {
             changes(&view, cx),
             [Time::new(4, 0), Time::new(5, 0)],
             "時の文字盤のまま次の時を選ぶ"
+        );
+    }
+
+    #[gpui::test]
+    fn 分の文字盤は矢印キーで_1_分ずつ変える(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, Time::new(9, 15), HourFormat::Hour24);
+        // 時の表示から分の表示に移って分を選び、文字盤に入る
+        press(cx, "tab");
+        press(cx, "right");
+        press(cx, "tab");
+        let rings = cx.update(|window, cx| {
+            let ring = cx.md3_theme().color(focus_ring::COLOR);
+            let scale = window.scale_factor();
+            window
+                .painted_quads()
+                .iter()
+                .filter(|quad| quad.border_color == ring && quad.border_widths.top.0 > 0.)
+                .map(|quad| (quad.bounds.size.width.0 / scale).round())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(rings, [266.], "文字盤の外側にリングを描く");
+        press(cx, "right");
+        press(cx, "left");
+        press(cx, "left");
+        press(cx, "end");
+        assert_eq!(
+            changes(&view, cx),
+            [
+                Time::new(9, 16),
+                Time::new(9, 15),
+                Time::new(9, 14),
+                Time::new(9, 59)
+            ]
         );
     }
 

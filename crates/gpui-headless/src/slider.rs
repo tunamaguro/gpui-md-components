@@ -19,15 +19,15 @@ type ChangeHandler = Rc<dyn Fn(&f32, &mut Window, &mut App)>;
 
 /// 値の範囲と段階
 #[derive(Debug, Clone, Copy)]
-struct Scale {
-    start: f32,
-    end: f32,
-    step: Option<f32>,
+pub(crate) struct Scale {
+    pub(crate) start: f32,
+    pub(crate) end: f32,
+    pub(crate) step: Option<f32>,
 }
 
 impl Scale {
     /// `value` を範囲に収め、段階があれば、範囲の始まりから段階ごとの値と範囲の終わりのうち最も近い値にする
-    fn snap(self, value: f32) -> f32 {
+    pub(crate) fn snap(self, value: f32) -> f32 {
         // 始まりが終わりより大きい範囲でも panic しないよう、clamp ではなく max と min で収める
         let value = value.max(self.start).min(self.end);
         let Some(step) = self.step else {
@@ -46,12 +46,12 @@ impl Scale {
     }
 
     /// 矢印キーで増減する量。段階が無ければ範囲の 1%
-    fn key_delta(self) -> f32 {
+    pub(crate) fn key_delta(self) -> f32 {
         self.step.unwrap_or((self.end - self.start) / 100.0)
     }
 
     /// Page Up と Page Down で増減する量。範囲の段階の数の 1/10 を、2 から 10 段階に収めた量
-    fn page_delta(self) -> f32 {
+    pub(crate) fn page_delta(self) -> f32 {
         let delta = self.key_delta();
         let count = if delta > 0.0 {
             ((self.end - self.start) / delta).round()
