@@ -347,8 +347,9 @@ impl RenderOnce for Calendar {
             .use_keyed_state((self.id.clone(), "grid"), cx, |_, cx| cx.focus_handle())
             .read(cx)
             .clone();
-        // Page Up・Page Down で移る基準の日。月末に寄せる前の日を持つ
-        let anchor = window.use_keyed_state((self.id.clone(), "anchor"), cx, |_, _| None::<u8>);
+        // Page Up・Page Down で最後に移った先の日付と、月末に寄せる前の日
+        let anchor =
+            window.use_keyed_state((self.id.clone(), "anchor"), cx, |_, _| None::<(Date, u8)>);
         // 前の描画で表示していた月
         let shown = window.use_keyed_state((self.id.clone(), "shown"), cx, |_, _| (year, month));
         let month_changed = shown.update(cx, |shown, _| {
@@ -422,11 +423,11 @@ impl RenderOnce for Calendar {
                     ("pageup", true) => Some(-12),
                     _ => None,
                 };
-                // 月か年を続けて移るときは、短い月で月末に寄せる前の日を基準にする
+                // 月か年の移動で着いた日付から続けて移るときは、短い月で月末に寄せる前の日を基準にする
                 let base_day = anchor
                     .read(cx)
-                    .filter(|&anchor| anchor.min(days) == day)
-                    .unwrap_or(day);
+                    .filter(|&(landed, _)| landed == current)
+                    .map_or(day, |(_, base_day)| base_day);
                 let target = match (months, event.keystroke.key.as_str(), shift) {
                     (Some(months), _, _) => current.add_months(months).map(|target| Date {
                         day: base_day.min(Date::days_in_month(target.year, target.month)),
@@ -446,7 +447,7 @@ impl RenderOnce for Calendar {
                 else {
                     return;
                 };
-                anchor.update(cx, |anchor, _| *anchor = months.map(|_| base_day));
+                anchor.update(cx, |anchor, _| *anchor = months.map(|_| (target, base_day)));
                 if (target.year, target.month) == (year, month) {
                     window.focus(&handles[usize::from(target.day) - 1], cx);
                     return;
@@ -570,9 +571,9 @@ impl RenderOnce for Calendar {
         let weeks = (offset + usize::from(days)).div_ceil(7);
 
         self.inner
-            // 日付にフォーカスできない間だけ、退避先として格子にフォーカスを付ける。
+            // 退避先として格子にフォーカスを移した間だけ、格子にフォーカスを付ける。
             // 常に付けると曜日の見出しや空白を押したときに格子にフォーカスが移り、日付のキー操作が届かない
-            .when(tab_day.is_none() || grid_focus.is_focused(window), |this| {
+            .when(grid_focus.is_focused(window), |this| {
                 this.track_focus(&grid_focus)
             })
             .role(accesskit::Role::Grid)
@@ -1026,6 +1027,43 @@ mod tests {
         assert_eq!(focused(&view, cx), Some(date(2026, 2, 28)));
         cx.simulate_keystrokes("pagedown");
         assert_eq!(focused(&view, cx), Some(date(2026, 3, 28)));
+    }
+
+    #[gpui::test]
+    fn 呼び出し側が月を変えた後は月の移動の基準日を使わない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 1, 31)), true);
+        view.update(cx, |view, cx| {
+            view.month = 1;
+            view.range = Some(date(2026, 1, 1)..=date(2026, 5, 30));
+            cx.notify();
+        });
+        cx.simulate_keystrokes("tab pagedown");
+        assert_eq!(focused(&view, cx), Some(date(2026, 2, 28)));
+        view.update(cx, |view, cx| {
+            view.month = 4;
+            view.selected = Some(date(2026, 4, 30));
+            cx.notify();
+        });
+        assert_eq!(focused(&view, cx), Some(date(2026, 4, 30)));
+        cx.simulate_keystrokes("pagedown");
+        assert_eq!(focused(&view, cx), Some(date(2026, 5, 30)));
+    }
+
+    #[gpui::test]
+    fn 範囲に日付が無い月で曜日の見出しを押してもフォーカスを奪わない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, None, true);
+        let after = view.update(cx, |view, cx| {
+            view.range = Some(date(2026, 12, 1)..=date(2026, 12, 31));
+            cx.notify();
+            view.after.clone()
+        });
+        cx.update(|window, cx| window.focus(&after, cx));
+        cx.simulate_click(gpui::point(px(20.), px(20.)), Modifiers::none());
+        assert!(cx.update(|window, _| after.is_focused(window)));
     }
 
     #[gpui::test]
