@@ -373,6 +373,14 @@ impl RenderOnce for Calendar {
                 // フォーカスを外すと次の Tab がウィンドウの先頭から始まるため、格子に移して Tab の位置を保つ
                 None => window.focus(&grid_focus, cx),
             }
+        } else if grid_focus.is_focused(window)
+            && let Some(day) = fallback_day
+        {
+            // 格子に退避している間に日付が再び使えるようになったら、日付に戻す
+            window.focus(&handles[usize::from(day) - 1], cx);
+        } else {
+            // 日付の外へフォーカスが移ったら、月の移動の基準日を捨てる
+            anchor.update(cx, |anchor, _| *anchor = None);
         }
         let focused_day = (1..=days)
             .find(|&day| in_range(day) && handles[usize::from(day) - 1].is_focused(window));
@@ -562,7 +570,11 @@ impl RenderOnce for Calendar {
         let weeks = (offset + usize::from(days)).div_ceil(7);
 
         self.inner
-            .track_focus(&grid_focus)
+            // 日付にフォーカスできない間だけ、退避先として格子にフォーカスを付ける。
+            // 常に付けると曜日の見出しや空白を押したときに格子にフォーカスが移り、日付のキー操作が届かない
+            .when(tab_day.is_none() || grid_focus.is_focused(window), |this| {
+                this.track_focus(&grid_focus)
+            })
             .role(accesskit::Role::Grid)
             .aria_row_count(weeks + 1)
             .aria_column_count(7)
@@ -959,6 +971,61 @@ mod tests {
         cx.simulate_keystrokes("tab");
         let after = view.read_with(cx, |view, _| view.after.clone());
         assert!(cx.update(|window, _| after.is_focused(window)));
+    }
+
+    #[gpui::test]
+    fn 格子に退避した後に範囲を戻すと日付にフォーカスを戻す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 11, 10)), true);
+        cx.simulate_keystrokes("tab");
+        view.update(cx, |view, cx| {
+            view.range = Some(date(2026, 12, 1)..=date(2026, 12, 31));
+            cx.notify();
+        });
+        assert_eq!(focused(&view, cx), None);
+        view.update(cx, |view, cx| {
+            view.range = None;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        assert_eq!(focused(&view, cx), Some(date(2026, 11, 10)));
+    }
+
+    #[gpui::test]
+    fn 曜日の見出しを押しても日付のフォーカスを奪わない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 11, 10)), true);
+        cx.simulate_keystrokes("tab");
+        // 1 行目は曜日の見出し
+        cx.simulate_click(gpui::point(px(20.), px(20.)), Modifiers::none());
+        cx.simulate_keystrokes("right");
+        assert_eq!(focused(&view, cx), Some(date(2026, 11, 11)));
+    }
+
+    #[gpui::test]
+    fn 日付の外へ出て入り直したら月の移動の基準日を捨てる(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 1, 31)), true);
+        let other = view.update(cx, |view, cx| {
+            view.month = 1;
+            view.range = Some(date(2026, 1, 1)..=date(2026, 3, 28));
+            let other = cx.focus_handle().tab_stop(true);
+            view.after = other.clone();
+            cx.notify();
+            other
+        });
+        cx.simulate_keystrokes("tab pagedown");
+        assert_eq!(focused(&view, cx), Some(date(2026, 2, 28)));
+        cx.simulate_keystrokes("tab");
+        assert!(cx.update(|window, _| other.is_focused(window)));
+        // 2 月 28 日 (2026 年 2 月 1 日は日曜日なので 5 行目の 7 列目) を押して入り直す
+        cx.simulate_click(gpui::point(px(260.), px(180.)), Modifiers::none());
+        assert_eq!(focused(&view, cx), Some(date(2026, 2, 28)));
+        cx.simulate_keystrokes("pagedown");
+        assert_eq!(focused(&view, cx), Some(date(2026, 3, 28)));
     }
 
     #[gpui::test]
