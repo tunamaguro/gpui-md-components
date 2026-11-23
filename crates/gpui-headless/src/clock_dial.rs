@@ -534,8 +534,8 @@ impl RenderOnce for DialSlider {
                         }
                         let value = last.get();
                         let next = match event.keystroke.key.as_str() {
-                            "right" | "up" => value + scale.key_delta(),
-                            "left" | "down" => value - scale.key_delta(),
+                            "right" | "up" => scale.step_from(value, true),
+                            "left" | "down" => scale.step_from(value, false),
                             "pageup" => value + scale.page_delta(),
                             "pagedown" => value - scale.page_delta(),
                             "home" => scale.start,
@@ -551,10 +551,10 @@ impl RenderOnce for DialSlider {
                 let (increment_base, decrement_base) = (last.clone(), last);
                 this.on_key_down(on_key_down)
                     .on_a11y_action(accesskit::Action::Increment, move |_, window, cx| {
-                        increment(increment_base.get() + scale.key_delta(), window, cx);
+                        increment(scale.step_from(increment_base.get(), true), window, cx);
                     })
                     .on_a11y_action(accesskit::Action::Decrement, move |_, window, cx| {
-                        decrement(decrement_base.get() - scale.key_delta(), window, cx);
+                        decrement(scale.step_from(decrement_base.get(), false), window, cx);
                     })
                     .on_a11y_action(accesskit::Action::SetValue, move |data, window, cx| {
                         if let Some(accesskit::ActionData::NumericValue(next)) = data {
@@ -796,7 +796,8 @@ mod tests {
         assert!(node.supports_action(accesskit::Action::Focus));
     }
 
-    /// (100, 100) から 200x200 に置いた、0 から 59 の 1 刻みの文字盤のスライダー
+    /// (100, 100) から 200x200 に置いた、0 から 59 の 1 刻みの文字盤のスライダー。
+    /// 値を求められても再描画しない
     struct SliderView {
         value: f32,
         focus_handle: FocusHandle,
@@ -812,10 +813,10 @@ mod tests {
                 .range(0.0..=59.0)
                 .step(1.0)
                 .track_focus(&self.focus_handle)
-                .on_change(cx.listener(|this, value: &f32, _, cx| {
+                // 再描画を求めず、描画を挟まずに続く操作を確かめられるようにする
+                .on_change(cx.listener(|this, value: &f32, _, _| {
                     this.changes.borrow_mut().push(*value);
                     this.value = *value;
-                    cx.notify();
                 }))
                 .on_pointer(move |pointer, _, _| pointers.borrow_mut().push(*pointer))
                 .aria_label("Minute")

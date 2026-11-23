@@ -50,6 +50,29 @@ impl Scale {
         self.step.unwrap_or((self.end - self.start) / 100.0)
     }
 
+    /// `value` から矢印キーで 1 段階増やすか (`forward`)、減らした値
+    ///
+    /// 段階があれば、範囲の始まりから段階ごとの値と範囲の終わりの並びで隣の値にする。
+    /// 段階の途中にある範囲の終わりから減らす場合も、手前の段階の値を飛ばさない
+    pub(crate) fn step_from(self, value: f32, forward: bool) -> f32 {
+        let Some(step) = self.step else {
+            let delta = self.key_delta();
+            return self.snap(if forward {
+                value + delta
+            } else {
+                value - delta
+            });
+        };
+        let position = (value - self.start) / step;
+        // 段階の値にある場合も浮動小数点の誤差で同じ値に留まらないよう、少しずらしてから切り捨てる
+        let next = if forward {
+            (position + 1e-4).floor() + 1.0
+        } else {
+            (position - 1e-4).ceil() - 1.0
+        };
+        self.snap(self.start + next * step)
+    }
+
     /// Page Up と Page Down で増減する量。範囲の段階の数の 1/10 を、2 から 10 段階に収めた量
     pub(crate) fn page_delta(self) -> f32 {
         let delta = self.key_delta();
@@ -293,8 +316,8 @@ impl RenderOnce for Slider {
                             return;
                         }
                         let next = match event.keystroke.key.as_str() {
-                            "right" | "up" => value + scale.key_delta(),
-                            "left" | "down" => value - scale.key_delta(),
+                            "right" | "up" => scale.step_from(value, true),
+                            "left" | "down" => scale.step_from(value, false),
                             "pageup" => value + scale.page_delta(),
                             "pagedown" => value - scale.page_delta(),
                             "home" => scale.start,
@@ -310,10 +333,10 @@ impl RenderOnce for Slider {
                 this.on_mouse_down(MouseButton::Left, on_mouse_down)
                     .on_key_down(on_key_down)
                     .on_a11y_action(accesskit::Action::Increment, move |_, window, cx| {
-                        increment(scale.snap(value + scale.key_delta()), window, cx);
+                        increment(scale.step_from(value, true), window, cx);
                     })
                     .on_a11y_action(accesskit::Action::Decrement, move |_, window, cx| {
-                        decrement(scale.snap(value - scale.key_delta()), window, cx);
+                        decrement(scale.step_from(value, false), window, cx);
                     })
                     .on_a11y_action(accesskit::Action::SetValue, move |data, window, cx| {
                         if let Some(accesskit::ActionData::NumericValue(next)) = data {
@@ -641,6 +664,22 @@ mod tests {
         cx.simulate_click(at(INSET + 190.0), Modifiers::none());
         cx.simulate_click(at(INSET + 170.0), Modifiers::none());
         assert_eq!(changes(&view, cx), vec![10.0, 8.0, 0.0, 10.0, 8.0]);
+    }
+
+    #[gpui::test]
+    fn 段階の途中にある終わりから減らすと手前の段階の値にする(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, 8.0, 0.0..=8.5, Some(2.0));
+        focus(&view, cx);
+        cx.simulate_keystrokes("right");
+        update(&view, cx, |view| view.value = 8.5);
+        cx.simulate_keystrokes("left");
+        assert_eq!(
+            changes(&view, cx),
+            vec![8.5, 8.0],
+            "8 を飛ばして 6 にしない"
+        );
     }
 
     /// f32 では 0.7 / 9 * 9 が 0.7 に届かない
