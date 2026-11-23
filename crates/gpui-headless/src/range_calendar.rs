@@ -114,7 +114,8 @@ const WEEKS: usize = 6;
 /// 年の範囲のすべての月を、月ごとに見出しと日曜日から始まる 6 週の格子にして縦に並べ、見えている月だけを描く。
 /// 月の外の日はセルを空にする。選ばれている範囲は呼び出し側が持ち、[`RangeCalendar::new`] に毎回渡す。
 /// カレンダー自身は範囲を変えず、選ぶ操作をされた後の範囲を [`RangeCalendar::on_change`] で求める。
-/// 月の高さと、月の中での見出しと格子の配置は、すべての月で同じにすること。違うと、スクロールと描く範囲がずれる
+/// 月の高さと、月の中での見出しと格子の配置は、すべての月で同じにすること。
+/// 週の行も、高さと行の上端どうしの間隔をすべての行で同じにすること。違うと、スクロールと描く範囲がずれる
 ///
 /// フォーカスはカレンダー全体で 1 つで、Tab で 1 回だけ到達する。キー操作の対象の日付 (操作日) をカレンダーが持つ。
 /// 操作日は最初は範囲の始まり、無ければ [`RangeCalendar::today`]、どちらも無ければ年の範囲の最初の日にし、その月を一番上に表示する
@@ -220,12 +221,16 @@ impl RangeCalendar {
     }
 
     /// 週の行の要素を整える。`build` には週の状態と、7 つのセルを横に並べる行の要素を渡す
+    ///
+    /// 行の高さと余白はすべての週で同じにすること
     pub fn week(mut self, build: impl Fn(&RangeWeek, Div) -> Div + 'static) -> Self {
         self.week = Some(Rc::new(build));
         self
     }
 
     /// 日付のセルの要素を整える。`build` には日付の状態とセルの要素を渡す
+    ///
+    /// 週の行の高さが変わらないよう、セルの高さはすべての日付と空のセルで同じにすること
     pub fn day(
         mut self,
         build: impl Fn(&RangeDay, Stateful<Div>, &mut Window, &mut App) -> Stateful<Div> + 'static,
@@ -364,7 +369,7 @@ fn retarget(
         return None;
     }
     let index = (top / layout.month).floor().max(0.) as i64;
-    // 見えている範囲が週の行より高ければ、上端の月か次の月に全体が見える行がある
+    // 全体が見える行があれば、上端の月か次の月にある
     (index..index + 2)
         .filter_map(|index| first.add_months(index))
         .filter(|month_first| *month_first <= last)
@@ -1157,7 +1162,11 @@ mod tests {
             view.height = 160.;
             view.marked = Some(date(2026, 1, 31));
         });
-        cx.update(|window, cx| window.simulate_next_frame(cx));
+        // テストの環境はウィンドウを前面にしたときにも描き直すため、描き直しを予約したことを別に確かめる
+        assert!(
+            cx.update(|window, cx| window.simulate_next_frame(cx)) > 0,
+            "次のフレームでの描き直しを予約すること"
+        );
         cx.run_until_parked();
         assert_eq!(scroll_top(&view, cx), 60.);
         let red: gpui::Background = gpui::red().into();
