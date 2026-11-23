@@ -25,8 +25,8 @@ use md3_theme::{SharedTheme, dp};
 use crate::shape::Shaped;
 use crate::util;
 
-/// 午前・午後の切り替えの 2 つの項目の間の余白 (Compose の `PeriodTogglePaddingSmall`)
-const PERIOD_ITEM_SPACE: Dp = Dp(4.0);
+/// 午前・午後の切り替えと隣の要素の間の余白と、切り替えの 2 つの項目の間の余白 (Compose の `PeriodTogglePaddingSmall`)
+pub(crate) const PERIOD_TOGGLE_SPACE: Dp = Dp(4.0);
 
 /// 時刻
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -151,6 +151,6 @@ pub(crate) fn period_toggle(
         .flex()
         .flex_col()
         .flex_none()
-        .gap(dp(PERIOD_ITEM_SPACE))
+        .gap(dp(PERIOD_TOGGLE_SPACE))
         .w(dp(tokens::PERIOD_SELECTOR_CONTAINER_WIDTH))
 }
