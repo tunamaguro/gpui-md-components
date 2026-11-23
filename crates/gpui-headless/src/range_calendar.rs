@@ -353,7 +353,7 @@ fn reveal(
     state.base_handle.set_offset(point(offset.x, -new_top));
 }
 
-/// `current` の週の行がスクロールで見えなくなっていれば `Some` を返し、
+/// `current` の週の行がスクロールで見えなくなっているか、一覧の高さが 0 なら `Some` を返し、
 /// 中身は全体が見えている最初の週の行のうちその月の最初の日付で、そのような行が無ければ `None`。
 /// まだ描いていないときと、`current` の行が少しでも見えているときは `None`
 fn retarget(
@@ -369,6 +369,9 @@ fn retarget(
         let top = -state.base_handle.offset().y;
         (top, top + state.last_item_size?.item.height)
     };
+    if bottom <= top {
+        return Some(None);
+    }
     let current_top = layout.row_top(first.year(), current);
     if current_top + layout.row_height > top && current_top < bottom {
         return None;
@@ -448,18 +451,13 @@ impl RenderOnce for RangeCalendar {
             (state.focus.clone(), active)
         });
         let focus_visible = crate::is_focus_visible(&focus, window, cx);
-        // 一覧だけをスクロールした後にフォーカスが入ると、操作日のセルが描かれずフォーカスが見えないため、操作日の週を見せる
+        // 一覧だけをスクロールした後にフォーカスが入ると、操作日のセルが描かれずフォーカスが見えないため、操作日の週を見せる。
+        // 同じ描画で一覧の高さが変わることがあるため、月を測った後に新しい高さで見せる
         let focused = focus.is_focused(window);
-        // 同じ描画で一覧の高さが変わることがあるため、月を測った後にも見せ直す
-        let (gained, layout) = state.update(cx, |state, _| {
-            let gained = focused && !state.focused;
+        state.update(cx, |state, _| {
+            state.reveal |= focused && !state.focused;
             state.focused = focused;
-            state.reveal |= gained;
-            (gained, state.layout)
         });
-        if gained {
-            reveal(&scroll, first_year, layout, active);
-        }
 
         let enabled = self.enabled.clone();
         let is_enabled = move |date: &Date| enabled.as_ref().is_none_or(|enabled| enabled(date));
@@ -782,8 +780,7 @@ impl Shared {
         };
         let set_active = self.set_active.clone();
         let focus = self.focus.clone();
-        let (state_entity, scroll, first_year) =
-            (self.state.clone(), self.scroll.clone(), self.first.year());
+        let state_entity = self.state.clone();
         cell.role(accesskit::Role::GridCell)
             .aria_column_index(column)
             .aria_selected(state.start || state.end)
@@ -795,8 +792,8 @@ impl Shared {
             .on_a11y_action(accesskit::Action::Focus, move |_, window, cx| {
                 window.focus(&focus, cx);
                 set_active(date, cx);
-                // 支援技術は一覧で描いている画面外の日付にもフォーカスを移せるため、その週が見えるまでスクロールする
-                reveal(&scroll, first_year, state_entity.read(cx).layout, date);
+                // 支援技術は一覧で描いている画面外の日付にもフォーカスを移せるため、月を測った後にその週が見えるまでスクロールする
+                state_entity.update(cx, |state, _| state.reveal = true);
             })
             .when_some(
                 self.select.clone().filter(|_| state.enabled),
@@ -1269,6 +1266,8 @@ mod tests {
         view.update(cx, |_, cx| cx.notify());
         cx.run_until_parked();
         cx.simulate_keystrokes("tab tab");
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
         // 1 月 1 日の週は 20 から 60
         assert_eq!(scroll_top(&view, cx), 20.);
         assert_eq!(painted_tops(cx), [0.]);
@@ -1291,5 +1290,47 @@ mod tests {
         cx.run_until_parked();
         assert_eq!(scroll_top(&view, cx), 60.);
         assert_eq!(painted_tops(cx), [120.]);
+    }
+
+    #[gpui::test]
+    fn 一覧の高さが_0_ならキー操作で選ばない(cx: &mut TestAppContext) {
+        // 1 月 31 日の週 (180 から 220) の途中までスクロールしてから、高さを 0 にする
+        let (view, cx) = setup(cx, range(Some(date(2026, 1, 31)), None));
+        cx.simulate_keystrokes("tab tab");
+        let scroll = view.read_with(cx, |view, _| view.scroll.clone());
+        scroll
+            .0
+            .borrow()
+            .base_handle
+            .set_offset(gpui::point(px(0.), px(-200.)));
+        view.update(cx, |view, cx| {
+            view.height = 0.;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        cx.simulate_keystrokes("enter");
+        assert!(changes(&view, cx).is_empty());
+    }
+
+    #[gpui::test]
+    fn フォーカスが入る描画で一覧が広がっても見えている週ではスクロールしない(
+        cx: &mut TestAppContext,
+    ) {
+        // 1 月 31 日の週 (180 から 220) は高さ 160 では隠れ、300 では見える
+        let (view, cx) = setup_with(cx, range(Some(date(2026, 1, 31)), None), |view| {
+            view.height = 160.
+        });
+        let scroll = view.read_with(cx, |view, _| view.scroll.clone());
+        scroll
+            .0
+            .borrow()
+            .base_handle
+            .set_offset(gpui::point(px(0.), px(0.)));
+        cx.simulate_keystrokes("tab");
+        view.update(cx, |view, _| view.height = 300.);
+        cx.simulate_keystrokes("tab");
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        assert_eq!(scroll_top(&view, cx), 0.);
     }
 }
