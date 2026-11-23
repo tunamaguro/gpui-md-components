@@ -194,6 +194,7 @@ impl RenderOnce for YearGrid {
         let handles = handles_state.read(cx).clone();
         let handle = |year: i32| &handles[&year];
 
+        let focused_before = window.focused(cx);
         let mut focused_year = years.clone().find(|&year| handle(year).is_focused(window));
         let fallback_year = self
             .selected
@@ -233,15 +234,21 @@ impl RenderOnce for YearGrid {
             window.focus(handle(year), cx);
             focused_year = Some(year);
         }
+        // 描画中に移したフォーカスは、gpui がこの描画の後に描き直しを求めないため、
+        // 先に描いた要素のフォーカスの見た目を消すよう、次のフレームで描き直す
+        if window.focused(cx) != focused_before {
+            window.request_animation_frame();
+        }
         // 範囲の外の年のフォーカスは、移し先を決めた後は使わない
         handles_state.update(cx, |handles, _| handles.retain(|&year, _| in_range(year)));
         let focused_row =
             focused_year.map(|year| (i64::from(year) - i64::from(first)) as usize / columns);
-        // 前の描画で表示範囲に入れたときの、フォーカスのある行・表示領域の高さ・その行の表示領域からの位置
+        // 前の描画で表示範囲に入れたときの、フォーカスのある年・表示領域の高さ・その行の表示領域からの位置
         let placed = window.use_keyed_state((self.id.clone(), "placed"), cx, |_, _| {
-            None::<(Option<usize>, Pixels, Option<(Pixels, Pixels)>)>
+            None::<(Option<i32>, Pixels, Option<(Pixels, Pixels)>)>
         });
-        // フォーカスのある行・表示領域の高さ・行の配置のどれかが変わったら、その行を表示範囲に入れる。
+        // フォーカスのある年・表示領域の高さ・行の配置のどれかが変わったら、その行を表示範囲に入れる。
+        // 手で動かしたスクロールは、これらが変わるまで保つ。
         // Tab で入った年、範囲が変わって行が移った年、格子が動いた場合も対象にする。
         // 行と表示領域の位置がどちらもこの描画で決まった後に求めるため、子を prepaint した後に行う
         let scroll_into_view = self.scroll.clone().map(|scroll| {
@@ -251,7 +258,7 @@ impl RenderOnce for YearGrid {
                 // 行の範囲はスクロールする前の位置なので、表示領域からの位置はスクロールで変わらず、配置が変わると変わる
                 let placement =
                     item.map(|item| (item.top() - viewport.top(), item.bottom() - viewport.top()));
-                let key = Some((focused_row, viewport.size.height, placement));
+                let key = Some((focused_year, viewport.size.height, placement));
                 if placed.update(cx, |placed, _| std::mem::replace(placed, key)) == key {
                     return;
                 }
@@ -696,16 +703,39 @@ mod tests {
             cx.notify();
         });
         cx.run_until_parked();
-        // 格子を動かす描画を、次のフレームとして進める
-        view.update(cx, |view, cx| {
-            view.top = px(120.);
-            cx.notify();
+        // 格子を動かすのと同じフレームで描く
+        cx.update(|window, cx| {
+            view.update(cx, |view, cx| {
+                view.top = px(120.);
+                cx.notify();
+            });
+            window.simulate_next_frame(cx);
         });
-        cx.update(|window, cx| window.simulate_next_frame(cx));
         assert_eq!(focused(&view, cx), Some(2026));
         // 2026 年は 5 行目に移る
         let offset = view.read_with(cx, |view, _| view.scroll.offset().y);
         assert_eq!(offset, px(-80.));
+    }
+
+    #[gpui::test]
+    fn 手で動かした後に同じ行の年へ移っても表示範囲に入れる(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(2020), None);
+        cx.simulate_keystrokes("tab tab");
+        assert_eq!(focused(&view, cx), Some(2020));
+        view.update(cx, |view, cx| {
+            view.scroll.set_offset(gpui::point(px(0.), px(-120.)));
+            cx.notify();
+        });
+        assert_eq!(focused(&view, cx), Some(2020));
+        // 手で動かしたスクロールは、フォーカスが変わるまで保つ
+        let offset = view.read_with(cx, |view, _| view.scroll.offset().y);
+        assert_eq!(offset, px(-120.));
+        cx.simulate_keystrokes("right");
+        assert_eq!(focused(&view, cx), Some(2021));
+        let offset = view.read_with(cx, |view, _| view.scroll.offset().y);
+        assert_eq!(offset, px(0.));
     }
 
     #[gpui::test]
