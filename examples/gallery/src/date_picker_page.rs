@@ -4,7 +4,9 @@ use gpui::{
     Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
     SharedString, StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
-use md3_components::{Button, ButtonVariant, Date, DatePicker, DatePickerDialog};
+use md3_components::{
+    Button, ButtonVariant, Date, DatePicker, DatePickerDialog, DatePickerDisplayMode,
+};
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{Theme, ThemeExt as _};
 
@@ -19,6 +21,10 @@ pub struct DatePickerPage {
     dialog: Option<Date>,
     /// ダイアログで選んでいる、まだ確定していない日付。ダイアログを開いている間だけ `Some`
     dialog_draft: Option<Option<Date>>,
+    /// 最初のピッカーの表示
+    mode: DatePickerDisplayMode,
+    /// ダイアログのピッカーの表示
+    dialog_mode: DatePickerDisplayMode,
 }
 
 impl DatePickerPage {
@@ -28,6 +34,8 @@ impl DatePickerPage {
             weekdays: Date::new(2026, 11, 20),
             dialog: None,
             dialog_draft: None,
+            mode: DatePickerDisplayMode::Picker,
+            dialog_mode: DatePickerDisplayMode::Picker,
         }
     }
 }
@@ -61,10 +69,17 @@ impl Render for DatePickerPage {
                     .child(
                         DatePicker::new("picker", self.selected)
                             .today(today)
-                            .on_change(cx.listener(|this, date: &Date, _, cx| {
-                                this.selected = Some(*date);
+                            .on_change(cx.listener(|this, date: &Option<Date>, _, cx| {
+                                this.selected = *date;
                                 cx.notify();
-                            })),
+                            }))
+                            .display_mode(self.mode)
+                            .on_display_mode_change(cx.listener(
+                                |this, mode: &DatePickerDisplayMode, _, cx| {
+                                    this.mode = *mode;
+                                    cx.notify();
+                                },
+                            )),
                     )
                     .child(label(&theme, "picker-value", format(self.selected))),
             )
@@ -76,8 +91,8 @@ impl Render for DatePickerPage {
                             .today(today)
                             .year_range(2026..=2026)
                             .enabled(|date| !matches!(date.weekday(), 0 | 6))
-                            .on_change(cx.listener(|this, date: &Date, _, cx| {
-                                this.weekdays = Some(*date);
+                            .on_change(cx.listener(|this, date: &Option<Date>, _, cx| {
+                                this.weekdays = *date;
                                 cx.notify();
                             })),
                     )
@@ -106,6 +121,8 @@ impl Render for DatePickerPage {
                     .confirm_button(
                         Button::new("dialog-confirm")
                             .variant(ButtonVariant::Text)
+                            // 日付が選ばれていない間は確定させない
+                            .disabled(self.dialog_draft.flatten().is_none())
                             .on_click(cx.listener(|this, _, _, cx| {
                                 if let Some(draft) = this.dialog_draft.take() {
                                     this.dialog = draft;
@@ -128,10 +145,17 @@ impl Render for DatePickerPage {
                             .today(today)
                             // ダイアログの角丸の外まで塗らないよう、背景はダイアログの容器に任せる
                             .bg(gpui::transparent_black())
-                            .on_change(cx.listener(|this, date: &Date, _, cx| {
-                                this.dialog_draft = Some(Some(*date));
+                            .on_change(cx.listener(|this, date: &Option<Date>, _, cx| {
+                                this.dialog_draft = Some(*date);
                                 cx.notify();
-                            })),
+                            }))
+                            .display_mode(self.dialog_mode)
+                            .on_display_mode_change(cx.listener(
+                                |this, mode: &DatePickerDisplayMode, _, cx| {
+                                    this.dialog_mode = *mode;
+                                    cx.notify();
+                                },
+                            )),
                     ),
             )
     }

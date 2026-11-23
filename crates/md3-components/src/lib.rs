@@ -170,7 +170,7 @@ pub use connected_button_group::{
     SingleChoiceConnectedButtonGroup,
 };
 #[cfg(feature = "date-picker")]
-pub use date_picker::DatePicker;
+pub use date_picker::{DatePicker, DatePickerDisplayMode};
 #[cfg(feature = "date-picker")]
 pub use date_picker_dialog::DatePickerDialog;
 #[cfg(feature = "dialog")]
