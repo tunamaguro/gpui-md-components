@@ -22,6 +22,8 @@ mod checkbox;
 mod chip;
 #[cfg(feature = "connected-button-group")]
 mod connected_button_group;
+#[cfg(feature = "date-picker")]
+mod date_picker;
 #[cfg(feature = "dialog")]
 mod dialog;
 #[cfg(feature = "divider")]
@@ -89,7 +91,8 @@ mod select;
     feature = "slider",
     feature = "text-field",
     feature = "time-input",
-    feature = "time-picker"
+    feature = "time-picker",
+    feature = "date-picker"
 ))]
 mod shape;
 #[cfg(feature = "slider")]
@@ -164,6 +167,8 @@ pub use connected_button_group::{
     ConnectedButton, ConnectedToggleButton, MultiChoiceConnectedButtonGroup,
     SingleChoiceConnectedButtonGroup,
 };
+#[cfg(feature = "date-picker")]
+pub use date_picker::DatePicker;
 #[cfg(feature = "dialog")]
 pub use dialog::{Dialog, DialogKind, DismissReason};
 #[cfg(feature = "divider")]
@@ -177,6 +182,8 @@ pub use fab_menu::{FabMenu, FabMenuItem};
 #[cfg(feature = "floating-toolbar")]
 pub use floating_toolbar::{FloatingToolbar, FloatingToolbarColor, FloatingToolbarOrientation};
 pub use gpui;
+#[cfg(feature = "date-picker")]
+pub use gpui_headless::calendar::Date;
 #[cfg(feature = "platform")]
 pub use gpui_platform;
 #[cfg(feature = "icon-button")]

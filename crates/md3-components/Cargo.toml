@@ -29,6 +29,7 @@ default = [
   "button-group",
   "connected-button-group",
   "card",
+  "date-picker",
   "checkbox",
   "chip",
   "dialog",
@@ -74,6 +75,8 @@ bottom-sheet = []
 button-group = []
 connected-button-group = ["button"]
 card = []
+# 前後の月へ移るボタンに使う
+date-picker = ["icon-button"]
 checkbox = []
 chip = []
 dialog = []
