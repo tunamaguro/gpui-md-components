@@ -15,11 +15,12 @@ use std::rc::Rc;
 
 use gpui::{
     App, ElementId, FontWeight, InteractiveElement, IntoElement, MouseButton, ParentElement,
-    Refineable, RenderOnce, SharedString, StatefulInteractiveElement, StyleRefinement, Styled,
-    Window, div, prelude::FluentBuilder,
+    Refineable, RenderOnce, StatefulInteractiveElement, StyleRefinement, Styled, Window, div,
+    prelude::FluentBuilder,
 };
 use gpui_headless::radio::{Radio, RadioGroup};
-use gpui_headless::text_field::TextField as HeadlessTextField;
+use gpui_headless::text::StaticText;
+use gpui_headless::text_field::{TextEdit, TextField as HeadlessTextField};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::{time_input as tokens, time_picker};
 use md3_theme::md3_tokens::shape::ShapeKey;
@@ -74,19 +75,21 @@ pub enum HourFormat {
 /// 入力欄は幅 96dp、高さ 72dp で、下に補足の文 (Hour・Minute) を表示する。
 /// 時刻は呼び出し側が持ち、[`TimeInput::new`] に毎回渡す。入力自身は時刻を変えず、変えた後の時刻を [`TimeInput::on_change`] で求める
 ///
-/// - 入力欄には 2 桁までの数字だけを入れる。数字以外を含む編集は取り消し、2 桁の入力欄に 1 桁を入れると入れた数字だけを残す。
+/// - 入力欄には 2 桁までの数字だけを入れる。数字以外を含む編集と 3 桁になる貼り付けは取り消し、
+///   2 桁の入力欄にカーソルを置いて 1 桁を入れると入れた数字だけを残す。
 ///   範囲内の数になると時刻を変えるよう求め、範囲外か空なら求めない。
 ///   範囲外か空の間は入力欄をエラーの色にし、補足の文を範囲を示す文に変える
 /// - 入力欄の文字列は描画をまたいで保つ。渡された時刻か時の表し方が入力欄の受け付けた時刻と違えば、
 ///   両方の入力欄を渡された時刻で置き換える。求めた時刻を次の描画で渡さなかった場合も置き換える
 /// - 時の入力欄に範囲内の 2 桁の数か、[`HourFormat::Hour12`] で 2 から 9 の 1 桁の数を入れると、分の入力欄へフォーカスを移す。
-///   支援技術の利用中は移さない
+///   支援技術の利用中と IME で変換中の間は移さない。範囲内の時の入力欄で Enter を押しても分の入力欄へ移す
 /// - 午前・午後の切り替えは矢印キー・Space・クリックで選び、時を 12 時間ずらすよう求める。
 ///   時の入力欄が範囲外か空の間は無効にする
 /// - フォーカスのある入力欄を選んだ色で表示する。入力欄の文字の行の上下の余白を押しても、その入力欄にフォーカスを移す
 ///
 /// 支援技術には、入力欄が role `textbox` (名前は Hour と Minute)、午前・午後の切り替えが role `radiogroup` として公開される。
-/// 範囲外か空の入力欄は invalid として公開し、範囲を示す文を説明に加える。文言は英語に固定している
+/// 範囲外か空の入力欄は invalid として公開し、範囲を示す文を説明に加える。範囲を示す文は、現れたときに支援技術へ知らせる。
+/// 文言は英語に固定している
 #[derive(IntoElement)]
 pub struct TimeInput {
     id: ElementId,
@@ -289,30 +292,31 @@ impl RenderOnce for TimeInput {
                 .aria_label(label)
                 .text_center()
                 .w_full();
+            // Enter で、範囲内の時から分の入力欄へ進む (Compose の `ImeAction.Next`)
+            if kind == Field::Hour {
+                let fields = fields.clone();
+                let minute_focus = minute_focus.clone();
+                input = input.on_submit(move |_, window, cx| {
+                    if fields.read(cx).hour.valid {
+                        window.focus(&minute_focus, cx);
+                    }
+                });
+            }
             if let Some(on_change) = on_change.clone() {
                 let on_validity_change = on_validity_change.clone();
                 let minute_focus = minute_focus.clone();
                 let fields = fields.clone();
-                input = input.on_change(move |new: &SharedString, window, cx| {
+                input = input.on_edit(move |edit: &TextEdit, window, cx| {
                     // 数字以外を含む編集は取り消す
-                    if !new.chars().all(|c| c.is_ascii_digit()) {
+                    if !edit.new_text.chars().all(|c| c.is_ascii_digit()) {
                         window.refresh();
                         return;
                     }
-                    let old = match kind {
-                        Field::Hour => fields.read(cx).hour.text.clone(),
-                        Field::Minute => fields.read(cx).minute.text.clone(),
-                    };
-                    let mut digits = new.to_string();
-                    // 2 桁の入力欄の前・間・後ろに 1 桁を入れた場合は、入れた数字だけを残す
-                    // (Compose の `TimeInputTransformation`)
-                    if old.len() == 2 && digits.len() == 3 {
-                        let at = old
-                            .bytes()
-                            .zip(digits.bytes())
-                            .take_while(|(old, new)| old == new)
-                            .count();
-                        digits = digits[at..=at].to_string();
+                    let mut digits = edit.new_text.to_string();
+                    // 2 桁の入力欄の前・間・後ろにカーソルを置いて 1 桁を入れた場合は、入れた数字だけを残す。
+                    // 3 桁になるほかの編集は取り消す (Compose の `TimeInputTransformation`)
+                    if edit.range.is_empty() && edit.old_text.len() == 2 && digits.len() == 3 {
+                        digits = edit.inserted.to_string();
                     }
                     if digits.len() > 2 {
                         window.refresh();
@@ -353,18 +357,18 @@ impl RenderOnce for TimeInput {
                     {
                         on_validity_change(now_valid, window, cx);
                     }
-                    // Compose は支援技術の利用中には自動で進めない
-                    let deleted = digits.len() < old.len() && old.contains(digits.as_str());
+                    // Compose は支援技術の利用中には自動で進めない。IME で変換中の間も進めない
                     let advance = match (accepted, number) {
                         (Some(_), Some(number)) => {
                             digits.len() == 2
                                 || (format == HourFormat::Hour12
-                                    && !deleted
+                                    && !edit.inserted.is_empty()
                                     && (2..=9).contains(&number))
                         }
                         _ => false,
                     };
-                    if kind == Field::Hour && advance && !window.is_a11y_active() {
+                    if kind == Field::Hour && advance && !edit.composing && !window.is_a11y_active()
+                    {
                         window.focus(&minute_focus, cx);
                     }
                 });
@@ -424,7 +428,16 @@ impl RenderOnce for TimeInput {
                 .pt(dp(SUPPORTING_TEXT_TOP))
                 // Compose は補足の文に 2 行分の高さを取る (`minLines = 2`)
                 .min_h(dp(SUPPORTING_TEXT_TOP) + line_height * 2.)
-                .child(if valid { label } else { error });
+                .child(if valid {
+                    // 名前は入力欄が公開するため、支援技術には公開しない
+                    label.into_any_element()
+                } else {
+                    // Compose と同じく、エラーの文が現れたことを支援技術に知らせる
+                    StaticText::new((field_id.clone(), "error"), error)
+                        .live(true)
+                        .child(error)
+                        .into_any_element()
+                });
             supporting.text_style().refine(&supporting_font);
 
             div().flex().flex_col().child(field).child(supporting)
@@ -727,6 +740,44 @@ mod tests {
         cx.simulate_keystrokes("home");
         cx.simulate_input("1");
         assert_eq!(changes(&view, cx), [Time::new(8, 5), Time::new(18, 5)]);
+    }
+
+    #[gpui::test]
+    fn 選択を_3_桁にする貼り付けは取り消す(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, Time::new(9, 5), HourFormat::Hour24);
+        press(cx, "tab");
+        cx.simulate_keystrokes("end shift-left");
+        cx.write_to_clipboard(gpui::ClipboardItem::new_string("12".into()));
+        cx.simulate_keystrokes("ctrl-v");
+        assert!(
+            changes(&view, cx).is_empty(),
+            "09 の 9 を 12 にすると 3 桁になる"
+        );
+        // 取り消した後も選択を保つため、1 桁を入れると 9 を置き換える
+        cx.simulate_input("7");
+        assert_eq!(changes(&view, cx), [Time::new(7, 5)]);
+    }
+
+    #[gpui::test]
+    fn _12_時間制では全選択して_2_から_9_を入れても分の入力欄へ移る(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Time::new(2, 5), HourFormat::Hour12);
+        press(cx, "tab");
+        cx.simulate_keystrokes("ctrl-a");
+        cx.simulate_input("2");
+        cx.simulate_keystrokes("ctrl-a");
+        cx.simulate_input("9");
+        assert_eq!(changes(&view, cx), [Time::new(2, 5), Time::new(2, 9)]);
+    }
+
+    #[gpui::test]
+    fn 範囲内の時で_enter_を押すと分の入力欄へ移る(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, Time::new(9, 5), HourFormat::Hour24);
+        press(cx, "tab");
+        cx.simulate_keystrokes("enter ctrl-a");
+        cx.simulate_input("4");
+        assert_eq!(changes(&view, cx), [Time::new(9, 4)]);
     }
 
     #[gpui::test]

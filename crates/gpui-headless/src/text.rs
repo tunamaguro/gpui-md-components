@@ -6,6 +6,8 @@ use gpui::{
     div,
 };
 
+use crate::accessibility::A11yInfoExt;
+
 /// 子の内容の代わりに、渡した文字列をテキストとして支援技術に公開する要素
 ///
 /// 支援技術には role `label` (静的なテキスト) として公開され、文字列は、子孫から名前を求める祖先
@@ -18,6 +20,7 @@ use gpui::{
 pub struct StaticText {
     inner: Stateful<Div>,
     text: SharedString,
+    live: bool,
 }
 
 impl StaticText {
@@ -28,16 +31,31 @@ impl StaticText {
         Self {
             inner: div().id(id),
             text: text.into(),
+            live: false,
         }
+    }
+
+    /// `true` なら、文字列が変わったときと要素が現れたときに、読み上げ中の内容を遮らずに支援技術へ知らせる。既定では `false`
+    ///
+    /// 入力のエラーのように、操作の結果として現れる短い文に使う
+    pub fn live(mut self, live: bool) -> Self {
+        self.live = live;
+        self
     }
 }
 
 impl RenderOnce for StaticText {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
         // AccessKit は Label の名前を値から求めるため、gpui のテキスト (`gpui::text!`) と同じく値に書く
+        let live = self.live;
         self.inner
             .role(accesskit::Role::Label)
             .aria_value(self.text)
+            .a11y_info(move |node: &mut accesskit::Node| {
+                if live {
+                    node.set_live(accesskit::Live::Polite);
+                }
+            })
     }
 }
 
@@ -62,12 +80,14 @@ mod tests {
 
     struct TextView {
         node: Option<accesskit::Node>,
+        live: bool,
     }
 
     impl Render for TextView {
         fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
             let element = StaticText::new("text", "3 new messages")
                 .child("3")
+                .live(self.live)
                 .render(window, cx)
                 .into_element();
             // テスト用ウィンドウは支援技術を有効にできず a11y ツリーを組み立てないため、
@@ -81,12 +101,29 @@ mod tests {
 
     #[gpui::test]
     fn 渡した文字列を_label_の値として公開する(cx: &mut TestAppContext) {
-        let (view, cx) = add_test_window(cx, |_, _| TextView { node: None });
+        let (view, cx) = add_test_window(cx, |_, _| TextView {
+            node: None,
+            live: false,
+        });
         cx.run_until_parked();
         let node = view
             .read_with(cx, |view, _| view.node.clone())
             .expect("描画されていること");
         assert_eq!(node.role(), accesskit::Role::Label);
         assert_eq!(node.value(), Some("3 new messages"));
+        assert_eq!(node.live(), None);
+    }
+
+    #[gpui::test]
+    fn live_なら_polite_として公開する(cx: &mut TestAppContext) {
+        let (view, cx) = add_test_window(cx, |_, _| TextView {
+            node: None,
+            live: true,
+        });
+        cx.run_until_parked();
+        let node = view
+            .read_with(cx, |view, _| view.node.clone())
+            .expect("描画されていること");
+        assert_eq!(node.live(), Some(accesskit::Live::Polite));
     }
 }

@@ -123,7 +123,23 @@ pub(crate) fn init(cx: &mut App) {
     cx.bind_keys(bindings);
 }
 
-type ChangeHandler = Rc<dyn Fn(&SharedString, &mut Window, &mut App)>;
+type ChangeHandler = Rc<dyn Fn(&TextEdit, &mut Window, &mut App)>;
+type SubmitHandler = Rc<dyn Fn(&SharedString, &mut Window, &mut App)>;
+
+/// [`TextField::on_edit`] に渡す 1 回の編集
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TextEdit {
+    /// 編集する前の文字列
+    pub old_text: SharedString,
+    /// `old_text` のうち置き換えた範囲。UTF-8 のバイトの位置
+    pub range: Range<usize>,
+    /// `range` に入れた文字列。消しただけなら空
+    pub inserted: SharedString,
+    /// 編集した後の文字列
+    pub new_text: SharedString,
+    /// 編集した後の文字列が、IME で変換中の文字列を含むか
+    pub composing: bool,
+}
 
 /// 1 行の文字列を編集する、見た目を持たないテキストフィールド
 ///
@@ -158,7 +174,7 @@ pub struct TextField {
     inner: Stateful<Div>,
     value: SharedString,
     on_change: Option<ChangeHandler>,
-    on_submit: Option<ChangeHandler>,
+    on_submit: Option<SubmitHandler>,
     placeholder: Option<SharedString>,
     error: Option<SharedString>,
     read_only: bool,
@@ -198,11 +214,24 @@ impl TextField {
     ///
     /// `handler` には編集した後の文字列を渡す。表示を変えるには、`handler` で呼び出し側の状態を更新し、
     /// 次の描画で [`TextField::new`] に渡すこと。渡さなかった場合、編集は取り消される。
-    /// 設定しない場合、部品は文字列を編集させず、支援技術には read-only として公開される
+    /// 設定しない場合、部品は文字列を編集させず、支援技術には read-only として公開される。
+    /// [`TextField::on_edit`] と両方を呼んだ場合は、後に呼んだ方のハンドラだけを呼ぶ
     pub fn on_change(
         mut self,
         handler: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
     ) -> Self {
+        self.on_change = Some(Rc::new(move |edit: &TextEdit, window, cx| {
+            handler(&edit.new_text, window, cx)
+        }));
+        self
+    }
+
+    /// [`TextField::on_change`] と同じ操作で、編集した後の文字列の代わりに、置き換えた範囲と入れた文字列を含む編集を渡す
+    ///
+    /// 入力位置や貼り付けかどうか、IME で変換中かによって受け入れ方を変える場合に使う。
+    /// 受け入れなかった編集は、文字列と選択を編集する前に戻す。
+    /// [`TextField::on_change`] と両方を呼んだ場合は、後に呼んだ方のハンドラだけを呼ぶ
+    pub fn on_edit(mut self, handler: impl Fn(&TextEdit, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(Rc::new(handler));
         self
     }
@@ -319,6 +348,7 @@ impl RenderOnce for TextField {
             model: EditModel::default(),
             focus_handle: focus_handle.clone(),
             on_change: None,
+            before_edit: None,
             layout: None,
             scroll: px(0.),
             selecting: false,
@@ -329,7 +359,16 @@ impl RenderOnce for TextField {
             if disabled {
                 state.selecting = false;
             }
-            (state.model.sync(&self.value), state.model.clone())
+            let before_edit = state.before_edit.take();
+            let synced = state.model.sync(&self.value);
+            // 受け入れられなかった編集は、選択も編集する前に戻す
+            if let Some(before_edit) =
+                before_edit.filter(|before| synced && before.text == self.value.as_ref())
+            {
+                state.model.selection = before_edit.selection;
+                state.model.reversed = before_edit.reversed;
+            }
+            (synced, state.model.clone())
         });
         if synced {
             window.notify_text_input_changed(&focus_handle);
@@ -888,6 +927,8 @@ struct EditState {
     focus_handle: FocusHandle,
     /// 編集できない場合は `None`
     on_change: Option<ChangeHandler>,
+    /// 最後の描画の後で最初に編集する前の文字列と選択
+    before_edit: Option<EditModel>,
     /// 最後に描いた文字列の形と、その左上の位置と行の高さ
     layout: Option<(ShapedLine, Point<Pixels>, Pixels)>,
     /// 文字列を左にずらして描く量
@@ -918,15 +959,32 @@ impl EditState {
         if self.on_change.is_none() || (range.is_empty() && text.is_empty()) {
             return;
         }
-        self.model.replace(range, text);
-        self.text_changed(window, cx);
+        let before = self.model.clone();
+        self.model.replace(range.clone(), text);
+        self.text_changed(before, range, text, window, cx);
     }
 
-    fn text_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    /// 編集する前の `before` の `range` を `inserted` に置き換えた編集を求める
+    fn text_changed(
+        &mut self,
+        before: EditModel,
+        range: Range<usize>,
+        inserted: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         window.notify_text_input_changed(&self.focus_handle);
         cx.notify();
+        let edit = TextEdit {
+            old_text: before.text.clone().into(),
+            range,
+            inserted: inserted.to_owned().into(),
+            new_text: self.model.text.clone().into(),
+            composing: self.model.marked.is_some(),
+        };
+        self.before_edit.get_or_insert(before);
         if let Some(on_change) = self.on_change.clone() {
-            on_change(&self.model.text.clone().into(), window, cx);
+            on_change(&edit, window, cx);
         }
     }
 
@@ -1070,9 +1128,10 @@ impl EntityInputHandler for EditState {
             return;
         }
         let range = self.model.replacement_range(range_utf16);
+        let before = self.model.clone();
         self.model
-            .replace_and_mark(range, &new_text, new_selected_range_utf16);
-        self.text_changed(window, cx);
+            .replace_and_mark(range.clone(), &new_text, new_selected_range_utf16);
+        self.text_changed(before, range, &new_text, window, cx);
     }
 
     fn bounds_for_range(
@@ -1454,6 +1513,8 @@ mod tests {
         submits: Rc<RefCell<Vec<SharedString>>>,
         /// `on_change` を設定するか
         editable: bool,
+        /// `on_change` の代わりに `on_edit` を設定し、渡された編集を持つ
+        edits: Option<Rc<RefCell<Vec<TextEdit>>>>,
         /// `on_change` に渡された値を受け入れるか
         accept: bool,
         read_only: bool,
@@ -1481,6 +1542,15 @@ mod tests {
                         changes.borrow_mut().push(value.clone());
                         if this.accept {
                             this.value = value.clone();
+                        }
+                        cx.notify();
+                    }))
+                })
+                .when_some(self.edits.clone(), |this, edits| {
+                    this.on_edit(cx.listener(move |this, edit: &TextEdit, _, cx| {
+                        edits.borrow_mut().push(edit.clone());
+                        if this.accept {
+                            this.value = edit.new_text.clone();
                         }
                         cx.notify();
                     }))
@@ -1544,6 +1614,7 @@ mod tests {
             changes: Rc::default(),
             submits: Rc::default(),
             editable: true,
+            edits: None,
             accept: true,
             read_only: false,
             availability: Availability::Enabled,
@@ -1806,6 +1877,63 @@ mod tests {
             changes(&view, cx),
             ["abx", "aby"],
             "取り消した文字列から編集すること"
+        );
+    }
+
+    #[gpui::test]
+    fn 受け入れられなかった編集は選択も編集する前に戻す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "ab");
+        update(&view, cx, |view| view.accept = false);
+        focus(cx);
+        cx.simulate_keystrokes("ctrl-a");
+        cx.simulate_input("x");
+        cx.simulate_input("y");
+        assert_eq!(
+            changes(&view, cx),
+            ["x", "y"],
+            "すべてを選択した状態に戻すこと"
+        );
+    }
+
+    #[gpui::test]
+    fn on_edit_には置き換えた範囲と入れた文字列と変換中かを渡す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "ab");
+        let edits = Rc::new(RefCell::new(Vec::new()));
+        update(&view, cx, |view| view.edits = Some(edits.clone()));
+        focus(cx);
+        cx.simulate_keystrokes("end");
+        cx.simulate_input("x");
+        cx.simulate_keystrokes("shift-home backspace");
+        let state = view
+            .read_with(cx, |view, _| view.edit_state.clone())
+            .expect("描画済みであること");
+        state.update_in(cx, |state, window, cx| {
+            state.replace_and_mark_text_in_range(None, "か", None, window, cx);
+        });
+        cx.run_until_parked();
+        let edit =
+            |old: &str, range: Range<usize>, inserted: &str, new: &str, composing| TextEdit {
+                old_text: old.to_owned().into(),
+                range,
+                inserted: inserted.to_owned().into(),
+                new_text: new.to_owned().into(),
+                composing,
+            };
+        assert_eq!(
+            *edits.borrow(),
+            [
+                edit("ab", 2..2, "x", "abx", false),
+                edit("abx", 0..3, "", "", false),
+                edit("", 0..0, "か", "か", true),
+            ]
+        );
+        assert!(
+            changes(&view, cx).is_empty(),
+            "on_change は on_edit に置き換わる"
         );
     }
 
@@ -2156,6 +2284,7 @@ mod tests {
                 },
                 focus_handle: cx.focus_handle(),
                 on_change: None,
+                before_edit: None,
                 layout: Some((shape("aaa", window), point(px(0.), px(0.)), px(20.))),
                 scroll: px(0.),
                 selecting: false,
