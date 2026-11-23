@@ -43,7 +43,7 @@ pub struct YearCell {
 ///   Home と End で行の最初と最後の年へフォーカスを移す。範囲の外へは移らない。選ばれている年は変えない
 /// - マウスのクリック・支援技術からのクリック操作・フォーカス中の Enter と Space で、その年を選ぶ操作として扱う。
 ///   選べない年は、押してもフォーカスを移すだけで、選ぶ操作にならない
-/// - [`YearGrid::scroll`] を渡した場合、キー操作でフォーカスを移した年の行を表示範囲に入れる
+/// - [`YearGrid::scroll`] を渡した場合、フォーカスが別の年へ移ったときに、その年の行を表示範囲に入れる
 ///
 /// 支援技術には role `grid` として公開され、行は role `row`、年は role `gridcell` で、
 /// 選ばれているかどうかと選べるかどうかを持つ。格子と年の名前は `aria_label` で呼び出し側が与えること。
@@ -60,6 +60,7 @@ pub struct YearGrid {
     on_change: Option<YearHandler>,
     year: Option<YearBuilder>,
     row: Option<Box<dyn Fn(Div) -> Div>>,
+    blank: Option<Box<dyn Fn(Div) -> Div>>,
     scroll: Option<ScrollHandle>,
     autofocus: bool,
 }
@@ -83,6 +84,7 @@ impl YearGrid {
             on_change: None,
             year: None,
             row: None,
+            blank: None,
             scroll: None,
             autofocus: false,
         }
@@ -129,7 +131,13 @@ impl YearGrid {
         self
     }
 
-    /// 格子のスクロールを `handle` で追い、キー操作でフォーカスを移した年の行を表示範囲に入れる
+    /// 最後の行の、年の無い列の見た目を `build` で付ける。年のセルと同じ大きさにして列の位置をそろえる場合に使う
+    pub fn blank(mut self, build: impl Fn(Div) -> Div + 'static) -> Self {
+        self.blank = Some(Box::new(build));
+        self
+    }
+
+    /// 格子のスクロールを `handle` で追い、フォーカスが別の年へ移ったときに、その年の行を表示範囲に入れる
     ///
     /// 格子の子は行だけになるため、`handle` の子の番号は範囲の最初の年からの行の番号になる。
     /// スクロールさせるには、格子の高さを限り `overflow_y_scroll` を付けること。
@@ -191,11 +199,25 @@ impl RenderOnce for YearGrid {
             window.focus(handle(year), cx);
         }
         let mounted = window.use_keyed_state((self.id.clone(), "mounted"), cx, |_, _| false);
-        if !mounted.update(cx, |mounted, _| std::mem::replace(mounted, true))
+        let first_frame = !mounted.update(cx, |mounted, _| std::mem::replace(mounted, true));
+        if first_frame
             && self.autofocus
             && let Some(year) = tab_year
         {
             window.focus(handle(year), cx);
+        }
+        // フォーカスのある年が前の描画から変わったら、その行を表示範囲に入れる。Tab で入った年も対象にする。
+        // 描画され始めたフレームは表示領域の位置がまだ決まっておらず、正しくスクロールできないため除く
+        let last_focused =
+            window.use_keyed_state((self.id.clone(), "last-focused"), cx, |_, _| None::<i32>);
+        let focus_changed = last_focused.update(cx, |last, _| {
+            std::mem::replace(last, focused_year) != focused_year
+        });
+        if !first_frame
+            && focus_changed
+            && let (Some(year), Some(scroll)) = (focused_year, &self.scroll)
+        {
+            scroll.scroll_to_item((i64::from(year) - i64::from(first)) as usize / columns);
         }
 
         let enabled = self.enabled.clone();
@@ -212,7 +234,6 @@ impl RenderOnce for YearGrid {
         let on_key_down = {
             let handles = handles.clone();
             let years = self.years.clone();
-            let scroll = self.scroll.clone();
             move |event: &gpui::KeyDownEvent, window: &mut Window, cx: &mut App| {
                 let Some(current) = years.clone().find(|year| handles[year].is_focused(window))
                 else {
@@ -239,63 +260,64 @@ impl RenderOnce for YearGrid {
                 }
                 let year = (i64::from(first) + target) as i32;
                 window.focus(&handles[&year], cx);
-                if let Some(scroll) = &scroll {
-                    scroll.scroll_to_item(target as usize / columns);
-                }
             }
         };
 
         let mut grid_rows = Vec::with_capacity(rows);
         for row in 0..rows {
-            let cells = (0..columns)
-                .filter_map(|column| {
-                    let index = row * columns + column;
-                    (index < count).then(|| first + index as i32)
-                })
-                .enumerate()
-                .map(|(column, year)| {
-                    let focus_handle = handle(year);
-                    let state = YearCell {
-                        year,
-                        selected: self.selected == Some(year),
-                        enabled: is_enabled(year),
-                        current: self.current == Some(year),
-                        focused: focus_handle.is_focused(window),
-                        focus_visible: crate::is_focus_visible(focus_handle, window, cx),
-                    };
-                    let cell = div().id(ElementId::Name(format!("year-{year}").into()));
-                    let cell = match &self.year {
-                        Some(build) => build(&state, cell, window, cx),
-                        None => cell,
-                    };
-                    cell.role(accesskit::Role::GridCell)
-                        .aria_column_index(column)
-                        .aria_selected(state.selected)
-                        .track_focus(&focus_handle.clone().tab_stop(tab_year == Some(year)))
-                        .when_some(select.clone().filter(|_| state.enabled), |this, select| {
-                            let on_click = select.clone();
-                            this.on_click(move |_: &ClickEvent, window, cx| {
-                                on_click(year, window, cx)
-                            })
+            let cells = (0..columns).map(|column| {
+                let index = row * columns + column;
+                if index >= count {
+                    // 最後の行の空いた列も埋め、年の列の位置をほかの行とそろえる
+                    let blank = div();
+                    return match &self.blank {
+                        Some(build) => build(blank),
+                        None => blank,
+                    }
+                    .into_any_element();
+                }
+                let year = first + index as i32;
+                let focus_handle = handle(year);
+                let state = YearCell {
+                    year,
+                    selected: self.selected == Some(year),
+                    enabled: is_enabled(year),
+                    current: self.current == Some(year),
+                    focused: focus_handle.is_focused(window),
+                    focus_visible: crate::is_focus_visible(focus_handle, window, cx),
+                };
+                let cell = div().id(ElementId::Name(format!("year-{year}").into()));
+                let cell = match &self.year {
+                    Some(build) => build(&state, cell, window, cx),
+                    None => cell,
+                };
+                cell.role(accesskit::Role::GridCell)
+                    .aria_column_index(column)
+                    .aria_selected(state.selected)
+                    .track_focus(&focus_handle.clone().tab_stop(tab_year == Some(year)))
+                    .when_some(select.clone().filter(|_| state.enabled), |this, select| {
+                        let on_click = select.clone();
+                        this.on_click(move |_: &ClickEvent, window, cx| on_click(year, window, cx))
                             .on_a11y_action(accesskit::Action::Click, move |_, window, cx| {
                                 select(year, window, cx)
                             })
+                    })
+                    .when(!state.enabled, |this| {
+                        let focus_handle = focus_handle.clone();
+                        // 押下を親に伝えず、親の on_click を呼ばせない。
+                        // 伝播を止めると track_focus によるクリック時のフォーカス移動も呼ばれないため、ここで移す
+                        this.on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                            window.focus(&focus_handle, cx);
+                            cx.stop_propagation();
                         })
-                        .when(!state.enabled, |this| {
-                            let focus_handle = focus_handle.clone();
-                            // 押下を親に伝えず、親の on_click を呼ばせない。
-                            // 伝播を止めると track_focus によるクリック時のフォーカス移動も呼ばれないため、ここで移す
-                            this.on_mouse_down(MouseButton::Left, move |_, window, cx| {
-                                window.focus(&focus_handle, cx);
-                                cx.stop_propagation();
-                            })
-                        })
-                        .a11y_info(move |node: &mut accesskit::Node| {
-                            if !state.enabled {
-                                node.set_disabled();
-                            }
-                        })
-                });
+                    })
+                    .a11y_info(move |node: &mut accesskit::Node| {
+                        if !state.enabled {
+                            node.set_disabled();
+                        }
+                    })
+                    .into_any_element()
+            });
             let row_div = div().flex();
             let row_div = match &self.row {
                 Some(build) => build(row_div),
@@ -526,6 +548,21 @@ mod tests {
         // 4 行目を 3 行分の高さに入れる
         let offset = view.read_with(cx, |view, _| view.scroll.offset().y);
         assert_eq!(offset, px(-40.));
+    }
+
+    #[gpui::test]
+    fn tab_で入った年の行を表示範囲に入れる(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, Some(2020), None);
+        cx.simulate_keystrokes("tab tab shift-tab");
+        view.update(cx, |view, cx| {
+            view.scroll.set_offset(gpui::point(px(0.), px(-120.)));
+            cx.notify();
+        });
+        cx.run_until_parked();
+        cx.simulate_keystrokes("tab");
+        assert_eq!(focused(&view, cx), Some(2020));
+        let offset = view.read_with(cx, |view, _| view.scroll.offset().y);
+        assert_eq!(offset, px(0.));
     }
 
     #[gpui::test]

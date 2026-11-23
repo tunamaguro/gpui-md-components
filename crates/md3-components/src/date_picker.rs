@@ -61,8 +61,8 @@ const YEARS_VERTICAL_PADDING: Dp = Dp(16.0);
 const YEAR_PICKER_HEIGHT: Dp = Dp(48.0 * 7.0 - 1.0);
 /// 年を選ぶボタンのアイコンとラベルの間隔 (Compose の `ButtonDefaults.IconSpacing`)
 const MENU_ICON_SPACING: Dp = Dp(8.0);
-/// 年を選ぶボタンのアイコンの大きさ (Compose の `ButtonDefaults.IconSize`)
-const MENU_ICON_SIZE: Dp = Dp(18.0);
+/// 年を選ぶボタンのアイコンの大きさ (Compose の `Icons.Filled.ArrowDropDown` の既定の大きさ)
+const MENU_ICON_SIZE: Dp = Dp(24.0);
 
 const MONTH_NAMES: [&str; 12] = [
     "January",
@@ -436,6 +436,12 @@ impl RenderOnce for DatePicker {
             }
         })
         .row(|row| row.flex_none().justify_around())
+        .blank(|blank| {
+            blank
+                .flex_none()
+                .w(dp(tokens::SELECTION_YEAR_CONTAINER_WIDTH))
+                .h(dp(tokens::SELECTION_YEAR_CONTAINER_HEIGHT))
+        })
         .year({
             let theme = theme.clone();
             move |cell, element, _, _| {
@@ -873,6 +879,18 @@ mod tests {
         // 2027 年 11 月 1 日は月曜日
         cx.simulate_click(cell_center(0, 1), Modifiers::none());
         assert_eq!(changes(&view, cx), [date(2027, 11, 1)]);
+    }
+
+    #[gpui::test]
+    fn 年の一覧の最後の行も列の位置をそろえる(cx: &mut TestAppContext) {
+        let (_, cx) = setup(cx, Some(date(2027, 11, 10)), 2024..=2027);
+        cx.simulate_click(point(px(60.), px(121. + 28.)), Modifiers::none());
+        cx.run_until_parked();
+        // 2027 年は 2 行目の 1 列目
+        assert_eq!(
+            quads(cx, tokens::SELECTION_YEAR_SELECTED_CONTAINER_COLOR),
+            [(12. + 56. - 36., YEARS_TOP + 52., 72., 36.)]
+        );
     }
 
     #[gpui::test]
