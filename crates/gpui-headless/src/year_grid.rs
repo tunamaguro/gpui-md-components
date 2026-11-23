@@ -192,25 +192,38 @@ impl RenderOnce for YearGrid {
         let handles = handles.read(cx).clone();
         let handle = |year: i32| &handles[&year];
 
-        let focused_year = years.clone().find(|&year| handle(year).is_focused(window));
+        let mut focused_year = years.clone().find(|&year| handle(year).is_focused(window));
         let fallback_year = self
             .selected
             .filter(|&year| in_range(year))
             .or(self.current.filter(|&year| in_range(year)))
             .or((count > 0).then_some(first));
         let tab_year = focused_year.or(fallback_year);
-        // 範囲が変わってフォーカスのある年が範囲の外になった場合は、範囲の中の年に移す
+        // 年が無くなったときに、フォーカスを置く格子のフォーカス。Tab では到達しない
+        let grid_focus = window
+            .use_keyed_state((self.id.clone(), "grid"), cx, |_, cx| cx.focus_handle())
+            .read(cx)
+            .clone();
+        // 範囲が変わってフォーカスのある年が範囲の外になった場合は、範囲の中の年に移す。
+        // 範囲の中に年が無ければ、フォーカスを外すと次の Tab がウィンドウの先頭から始まるため、格子に移して Tab の位置を保つ。
+        // 格子に退避している間に年が再び使えるようになったら、年に戻す
         if focused_year.is_none()
-            && let Some(year) = fallback_year
-            && handles
-                .iter()
-                .any(|(&year, handle)| !in_range(year) && handle.is_focused(window))
+            && (grid_focus.is_focused(window)
+                || handles
+                    .iter()
+                    .any(|(&year, handle)| !in_range(year) && handle.is_focused(window)))
         {
-            window.focus(handle(year), cx);
+            match fallback_year {
+                Some(year) => {
+                    window.focus(handle(year), cx);
+                    focused_year = Some(year);
+                }
+                None if !grid_focus.is_focused(window) => window.focus(&grid_focus, cx),
+                None => {}
+            }
         }
         let mounted = window.use_keyed_state((self.id.clone(), "mounted"), cx, |_, _| false);
         let first_frame = !mounted.update(cx, |mounted, _| std::mem::replace(mounted, true));
-        let mut focused_year = focused_year;
         if first_frame
             && self.autofocus
             && let Some(year) = tab_year
@@ -228,16 +241,12 @@ impl RenderOnce for YearGrid {
         let key = focused_year.zip(focused_row);
         let focus_changed = last_focused.update(cx, |last, _| std::mem::replace(last, key) != key);
         if focus_changed && let (Some(row), Some(scroll)) = (focused_row, self.scroll.clone()) {
-            if first_frame {
-                // 描画され始めたフレームは表示領域の位置がまだ決まっておらず、正しくスクロールできないため、
-                // 位置が決まった次のフレームでスクロールする
-                window.on_next_frame(move |window, _| {
-                    scroll.scroll_to_item(row);
-                    window.refresh();
-                });
-            } else {
+            // gpui は行の位置をその描画で、表示領域の位置を前の描画で求めてスクロールする。
+            // この描画で格子が描かれ始めたり動いたりすると両者がずれるため、位置がそろう次の描画でスクロールする
+            window.on_next_frame(move |window, _| {
                 scroll.scroll_to_item(row);
-            }
+                window.refresh();
+            });
         }
 
         let enabled = self.enabled.clone();
@@ -353,6 +362,11 @@ impl RenderOnce for YearGrid {
         }
 
         self.inner
+            // 退避先として格子にフォーカスを移した間だけ、格子にフォーカスを付ける。
+            // 常に付けると年の無い所を押したときに格子にフォーカスが移る
+            .when(grid_focus.is_focused(window), |this| {
+                this.track_focus(&grid_focus)
+            })
             .role(accesskit::Role::Grid)
             .aria_row_count(rows)
             .aria_column_count(columns)
@@ -394,6 +408,8 @@ mod tests {
         selected: Option<i32>,
         current: Option<i32>,
         visible: bool,
+        /// 格子の上の余白
+        top: gpui::Pixels,
         autofocus: bool,
         before: FocusHandle,
         after: FocusHandle,
@@ -429,6 +445,7 @@ mod tests {
             div()
                 .size_full()
                 .child(div().id("before").track_focus(&self.before).h(px(10.)))
+                .child(div().h(self.top))
                 .when(self.visible, |this| this.child(grid))
                 .child(div().id("after").track_focus(&self.after).h(px(10.)))
         }
@@ -444,6 +461,7 @@ mod tests {
             selected,
             current,
             visible: true,
+            top: px(0.),
             autofocus: false,
             before: cx.focus_handle().tab_stop(true),
             after: cx.focus_handle().tab_stop(true),
@@ -456,7 +474,11 @@ mod tests {
     }
 
     /// フォーカスのある年。最後の描画の時点の値
+    ///
+    /// テストにはフレームの供給が無いため、スクロールを行う次のフレームを進めてから読む
     fn focused(view: &gpui::Entity<YearGridView>, cx: &mut VisualTestContext) -> Option<i32> {
+        cx.run_until_parked();
+        cx.update(|window, cx| window.simulate_next_frame(cx));
         cx.run_until_parked();
         view.read_with(cx, |view, _| view.focused.get())
     }
@@ -618,14 +640,51 @@ mod tests {
         });
         cx.simulate_keystrokes("tab tab");
         assert_eq!(focused(&view, cx), Some(2026));
+        // 同じ描画で格子も下へ動かす
         view.update(cx, |view, cx| {
             view.years = 2014..=2040;
+            view.top = px(120.);
             cx.notify();
         });
-        cx.run_until_parked();
+        assert_eq!(focused(&view, cx), Some(2026));
         // 2026 年は 5 行目に移る
         let offset = view.read_with(cx, |view, _| view.scroll.offset().y);
         assert_eq!(offset, px(-80.));
+    }
+
+    #[gpui::test]
+    fn 範囲から外れた年の移動先も表示範囲に入れる(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, Some(2020), None);
+        cx.simulate_keystrokes("tab tab");
+        assert_eq!(focused(&view, cx), Some(2020));
+        view.update(cx, |view, cx| {
+            view.years = 2021..=2038;
+            view.selected = Some(2038);
+            cx.notify();
+        });
+        assert_eq!(focused(&view, cx), Some(2038));
+        // 2038 年は 6 行目
+        let offset = view.read_with(cx, |view, _| view.scroll.offset().y);
+        assert_eq!(offset, px(-120.));
+    }
+
+    #[gpui::test]
+    fn フォーカス中に範囲が空になっても_tab_の位置を保つ(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(2026), None);
+        cx.simulate_keystrokes("tab tab");
+        assert_eq!(focused(&view, cx), Some(2026));
+        let mut years = 2026..=2026;
+        years.next();
+        view.update(cx, |view, cx| {
+            view.years = years;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        cx.simulate_keystrokes("tab");
+        let after = view.read_with(cx, |view, _| view.after.clone());
+        assert!(cx.update(|window, _| after.is_focused(window)));
     }
 
     #[gpui::test]
