@@ -129,6 +129,7 @@ const WEEKS: usize = 6;
 /// - フォーカス中の Enter・Space、日付のクリック、支援技術からの日付のクリック操作で、その日付を選ぶよう求める。
 ///   選べない日付 ([`RangeCalendar::enabled`]) は求めない。選び方は [`DateRange::select`]
 /// - 日付を押すと、カレンダーにフォーカスを移し、その日付を操作日にする
+/// - 支援技術から日付にフォーカスを移されると、カレンダーにフォーカスを移し、その日付を操作日にして、その週が見えるまでスクロールする
 ///
 /// 支援技術には、月ごとの role `grid` と、週ごとの role `row`、日付ごとの role `gridcell` と、
 /// 範囲の始まりか終わりなら選ばれていること、選べるかどうかとして公開される。
@@ -214,7 +215,7 @@ impl RangeCalendar {
 
     /// 月の格子の要素を整える。`build` には月の 1 日と格子の要素を渡す
     ///
-    /// 余白などの配置はすべての月で同じにすること
+    /// 余白などの配置はすべての月で同じにすること。週の行の大きさを測れなくなるため、格子をスクロールさせないこと
     pub fn grid(mut self, build: impl Fn(&Date, Stateful<Div>) -> Stateful<Div> + 'static) -> Self {
         self.grid = Some(Rc::new(build));
         self
@@ -764,6 +765,8 @@ impl Shared {
         };
         let set_active = self.set_active.clone();
         let focus = self.focus.clone();
+        let (state_entity, scroll, first_year) =
+            (self.state.clone(), self.scroll.clone(), self.first.year());
         cell.role(accesskit::Role::GridCell)
             .aria_column_index(column)
             .aria_selected(state.start || state.end)
@@ -775,6 +778,8 @@ impl Shared {
             .on_a11y_action(accesskit::Action::Focus, move |_, window, cx| {
                 window.focus(&focus, cx);
                 set_active(date, cx);
+                // 支援技術は一覧で描いている画面外の日付にもフォーカスを移せるため、その週が見えるまでスクロールする
+                reveal(&scroll, first_year, state_entity.read(cx).layout, date);
             })
             .when_some(
                 self.select.clone().filter(|_| state.enabled),
