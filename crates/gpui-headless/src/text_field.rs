@@ -231,8 +231,8 @@ impl TextField {
     /// 入力位置や貼り付けかどうか、IME で変換中かによって受け入れ方を変える場合に使う。
     /// IME で変換中の編集は `composing` を `true` にして渡す。変換の確定は、変換を始める前の文字列の範囲を
     /// 確定した文字列で置き換えた 1 回の編集として、`composing` を `false` にして渡す。
-    /// 空の確定は変換の取り消しとして、変換を始める前の文字列に戻す編集を渡す。
-    /// 変換を始めたときと違う範囲を確定した場合は、文字列全体を置き換えた編集として渡す。
+    /// 空の確定は変換の取り消しとして、変換を始める前の文字列と選択に戻し、文字列を変えない編集を渡す。
+    /// 変換中の範囲の外も置き換えた場合は、文字列全体を置き換えた編集として渡す。
     /// 変換中の編集を受け入れなかった場合は変換を終える。
     /// 受け入れなかった編集で文字列が戻る場合は、選択も編集する前に戻す。
     /// [`TextField::on_change`] と両方を呼んだ場合は、後に呼んだ方のハンドラだけを呼ぶ
@@ -930,6 +930,16 @@ fn a11y_offset(run: &A11yRun, text: &str, character_index: usize) -> usize {
     offset.min(text.len())
 }
 
+/// IME で変換を始める前の状態
+struct Composition {
+    /// 変換を始める前の文字列と選択
+    start: EditModel,
+    /// 変換を始めた編集が `start` の文字列で置き換えた範囲
+    range: Range<usize>,
+    /// 変換を始めた後の編集が、どれも変換中の範囲だけを置き換えたか
+    in_place: bool,
+}
+
 /// 描画をまたいで保つ、編集の状態
 struct EditState {
     model: EditModel,
@@ -938,8 +948,8 @@ struct EditState {
     on_change: Option<ChangeHandler>,
     /// 最後の描画の後で最初に編集する前の文字列と選択
     before_edit: Option<EditModel>,
-    /// IME で変換を始める前の文字列と選択と、変換中の文字列で置き換えた範囲。変換中でなければ `None`
-    composition: Option<(EditModel, Range<usize>)>,
+    /// IME の変換中に保つ状態。変換中でなければ `None`
+    composition: Option<Composition>,
     /// 最後に描いた文字列の形と、その左上の位置と行の高さ
     layout: Option<(ShapedLine, Point<Pixels>, Pixels)>,
     /// 文字列を左にずらして描く量
@@ -988,48 +998,60 @@ impl EditState {
         cx.notify();
         let new_text: SharedString = self.model.text.clone().into();
         let composing = self.model.marked.is_some();
-        if composing && self.composition.is_none() {
-            self.composition = Some((before.clone(), range.clone()));
+        match &mut self.composition {
+            Some(composition) => {
+                composition.in_place &= before.marked.as_ref() == Some(&range);
+            }
+            None if composing => {
+                self.composition = Some(Composition {
+                    start: before.clone(),
+                    range: range.clone(),
+                    in_place: true,
+                });
+            }
+            None => {}
         }
         let edit = match (!composing).then(|| self.composition.take()).flatten() {
             // 変換の確定は、変換を始める前の文字列に対する 1 回の編集として渡す
-            Some((start, start_range)) => {
+            Some(Composition {
+                start,
+                range: start_range,
+                in_place,
+            }) => {
                 // 確定を受け入れなかった場合は、変換を始める前の選択へ戻す
                 self.before_edit = Some(start.clone());
-                let committed = (new_text.len() + start_range.len())
-                    .checked_sub(start.text.len())
-                    .map(|len| start_range.start..start_range.start + len)
-                    .filter(|committed| {
-                        new_text.get(..committed.start) == start.text.get(..start_range.start)
-                            && new_text.get(committed.end..) == start.text.get(start_range.end..)
-                    });
-                match committed {
+                if inserted.is_empty() {
                     // 空の確定は変換の取り消しとして、変換を始める前の文字列と選択に戻す
-                    Some(committed) if committed.is_empty() => {
-                        self.model = start.clone();
-                        TextEdit {
-                            old_text: start.text.clone().into(),
-                            range: start_range.start..start_range.start,
-                            inserted: SharedString::default(),
-                            new_text: start.text.into(),
-                            composing: false,
-                        }
+                    self.model = start.clone();
+                    TextEdit {
+                        old_text: start.text.clone().into(),
+                        range: start_range.start..start_range.start,
+                        inserted: SharedString::default(),
+                        new_text: start.text.into(),
+                        composing: false,
                     }
-                    Some(committed) => TextEdit {
-                        inserted: new_text[committed].to_owned().into(),
+                } else if in_place
+                    && let Some(len) =
+                        (new_text.len() + start_range.len()).checked_sub(start.text.len())
+                {
+                    TextEdit {
+                        inserted: new_text[start_range.start..start_range.start + len]
+                            .to_owned()
+                            .into(),
                         old_text: start.text.into(),
                         range: start_range,
                         new_text,
                         composing: false,
-                    },
-                    // 変換を始めたときと違う範囲を確定した場合は、文字列全体を置き換えた編集とする
-                    None => TextEdit {
+                    }
+                } else {
+                    // 変換中の範囲の外も置き換えた場合は、文字列全体を置き換えた編集とする
+                    TextEdit {
                         range: 0..start.text.len(),
                         old_text: start.text.into(),
                         inserted: new_text.clone(),
                         new_text,
                         composing: false,
-                    },
+                    }
                 }
             }
             None => TextEdit {
@@ -1150,10 +1172,13 @@ impl EntityInputHandler for EditState {
     }
 
     fn unmark_text(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.model.marked = None;
-        if self.composition.is_some() {
-            let cursor = self.model.cursor();
-            self.text_changed(self.model.clone(), cursor..cursor, "", window, cx);
+        let before = self.model.clone();
+        let marked = self.model.marked.take();
+        if self.composition.is_some()
+            && let Some(marked) = marked
+        {
+            let committed = self.model.text[marked.clone()].to_owned();
+            self.text_changed(before, marked, &committed, window, cx);
         } else {
             window.notify_text_input_changed(&self.focus_handle);
             cx.notify();
@@ -2156,6 +2181,47 @@ mod tests {
                 last.new_text.as_ref()
             ),
             ("09", 0..2, "023", "023")
+        );
+    }
+
+    #[gpui::test]
+    fn 範囲の外も置き換えた後の確定と取り消しを変換の前から扱う(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "12");
+        let edits = Rc::new(RefCell::new(Vec::new()));
+        update(&view, cx, |view| view.edits = Some(edits.clone()));
+        focus(cx);
+        cx.simulate_keystrokes("home");
+        let state = view
+            .read_with(cx, |view, _| view.edit_state.clone())
+            .expect("描画済みであること");
+        let mark = |range: Option<Range<usize>>, text: &'static str, cx: &mut VisualTestContext| {
+            state.update_in(cx, |state, window, cx| {
+                state.replace_and_mark_text_in_range(range, text, None, window, cx);
+            });
+            cx.run_until_parked();
+        };
+        // 「あ1」を「い」にしてから取り消す
+        mark(None, "あ", cx);
+        mark(Some(0..2), "い", cx);
+        mark(None, "", cx);
+        assert_eq!(value(&view, cx), "12");
+        let last = edits.borrow().last().cloned().expect("取り消しを渡すこと");
+        assert_eq!(
+            (last.old_text.as_ref(), last.new_text.as_ref()),
+            ("12", "12")
+        );
+        // 「あ1」を「20」で確定すると、全体を置き換えた編集になる
+        mark(None, "あ", cx);
+        state.update_in(cx, |state, window, cx| {
+            state.replace_text_in_range(Some(0..2), "20", window, cx);
+        });
+        cx.run_until_parked();
+        let last = edits.borrow().last().cloned().expect("確定を渡すこと");
+        assert_eq!(
+            (last.old_text.as_ref(), last.range, last.new_text.as_ref()),
+            ("12", 0..2, "202")
         );
     }
 

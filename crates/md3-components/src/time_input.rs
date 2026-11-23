@@ -315,8 +315,9 @@ impl RenderOnce for TimeInput {
                         });
                         window.refresh();
                     };
-                    // IME で変換中の文字列はそのまま表示し、確定したときに判定する
-                    if edit.composing {
+                    // IME で変換中の文字列はそのまま表示し、確定したときに判定する。
+                    // 変換の取り消しのように文字列を変えない編集も、表示を戻すだけにする
+                    if edit.composing || edit.new_text == edit.old_text {
                         fields.update(cx, |fields, cx| {
                             fields.field_mut(kind).text = edit.new_text.to_string();
                             cx.notify();
