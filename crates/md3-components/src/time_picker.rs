@@ -49,6 +49,8 @@ const INNER_RADIUS: Dp = Dp(69.0);
 const INNER_CIRCLE_DISTANCE: Dp = Dp((OUTER_RADIUS.0 + INNER_RADIUS.0) / 2.);
 /// 押した後にポインタがこの距離を超えて動いたらドラッグとみなす (Android の既定の touch slop)
 const DRAG_SLOP: Dp = Dp(8.0);
+/// 文字盤の数字の字画が中心から左右に届く距離の、1 桁あたりの目安。BodyLarge (16sp) の数字の幅の半分
+const DIGIT_HALF_WIDTH: Dp = Dp(5.0);
 /// 文字盤の数字の大きさ (Compose の `MinimumInteractiveSize`)
 const NUMBER_SIZE: Dp = Dp(48.0);
 
@@ -370,28 +372,28 @@ impl RenderOnce for TimePicker {
                 OUTER_RADIUS
             },
         );
-        // 数字の左上の位置と、文字の書式
+        let handle_radius = dp(tokens::CLOCK_DIAL_SELECTOR_HANDLE_CONTAINER_SIZE) / 2.;
+        // 数字の左上の位置と、数字の中心からセレクタの円の中心までの距離
         let place = |ix: usize, inner: bool| {
             let angle = angle_of(ix % 12);
             let radius = dp(if inner { INNER_RADIUS } else { OUTER_RADIUS });
             let center = dial_size / 2.;
-            // Compose はセレクタの円に重なった部分だけを選ばれた色で描く。
-            // 部分的に塗り分けられないため、数字の中心が円の内側にあれば数字全体を選ばれた色で描く
             let dx = radius * angle.sin() - selector_radius * selector_angle.sin();
             let dy = radius * angle.cos() - selector_radius * selector_angle.cos();
-            let covered = f32::from(dx).hypot(f32::from(dy))
-                < f32::from(dp(tokens::CLOCK_DIAL_SELECTOR_HANDLE_CONTAINER_SIZE)) / 2.;
+            (
+                center + radius * angle.sin() - number_size / 2.,
+                center - radius * angle.cos() - number_size / 2.,
+                Pixels::from(f32::from(dx).hypot(f32::from(dy))),
+            )
+        };
+        let font_of = |selected: bool| {
             let mut font = number_font.clone();
-            font.color = Some(theme.color(if covered {
+            font.color = Some(theme.color(if selected {
                 tokens::CLOCK_DIAL_SELECTED_LABEL_TEXT_COLOR
             } else {
                 tokens::CLOCK_DIAL_UNSELECTED_LABEL_TEXT_COLOR
             }));
-            (
-                center + radius * angle.sin() - number_size / 2.,
-                center - radius * angle.cos() - number_size / 2.,
-                font,
-            )
+            font
         };
         let selector_color = theme.color(tokens::CLOCK_DIAL_SELECTOR_HANDLE_CONTAINER_COLOR);
         let track_width = dp(tokens::CLOCK_DIAL_SELECTOR_TRACK_CONTAINER_WIDTH);
@@ -538,7 +540,9 @@ impl RenderOnce for TimePicker {
                     .iter()
                     .enumerate()
                     .map(|(ix, &(label, value, inner))| {
-                        let (x, y, font) = place(ix, inner);
+                        // 時のセレクタは選んでいる数字の中心にある
+                        let (x, y, distance) = place(ix, inner);
+                        let font = font_of(distance < handle_radius);
                         let name = match format {
                             HourFormat::Hour12 => format!("{label} o'clock"),
                             HourFormat::Hour24 => format!("{label} hours"),
@@ -584,7 +588,13 @@ impl RenderOnce for TimePicker {
             // 分は 5 分ごとの数字だけでは選べない分があるため、文字盤全体を 1 分ずつ増減するスライダーにする
             Selection::Minute => {
                 let labels = numbers.iter().enumerate().map(|(ix, &(label, _, inner))| {
-                    let (x, y, font) = place(ix, inner);
+                    // Compose はセレクタの円に重なった字画だけを選ばれた色で描く。
+                    // 字画の一部だけを塗り分けられないため、字画が円に重なりうる数字には数字の位置にも同じ円を描き、
+                    // 数字全体を選ばれた色で描く
+                    let (x, y, distance) = place(ix, inner);
+                    let digits = if label < 10 { 1. } else { 2. };
+                    let covered = distance < handle_radius + dp(DIGIT_HALF_WIDTH) * digits;
+                    let font = font_of(covered);
                     let mut number = div()
                         .absolute()
                         .left(x)
@@ -593,7 +603,16 @@ impl RenderOnce for TimePicker {
                         .flex()
                         .items_center()
                         .justify_center()
-                        .child(label.to_string());
+                        .when(covered, |this| {
+                            this.child(
+                                div()
+                                    .absolute()
+                                    .size(number_size)
+                                    .rounded(number_size / 2.)
+                                    .bg(selector_color),
+                            )
+                        })
+                        .child(div().relative().child(label.to_string()));
                     number.text_style().refine(&font);
                     number
                 });
@@ -1006,6 +1025,29 @@ mod tests {
                 Time::new(9, 15),
                 Time::new(9, 14),
                 Time::new(9, 59)
+            ]
+        );
+    }
+
+    #[gpui::test]
+    fn 分のセレクタと重なる数字の位置にも円を描く(cx: &mut TestAppContext) {
+        let (_, cx) = setup(cx, Time::new(9, 2), HourFormat::Hour24);
+        press(cx, "tab");
+        press(cx, "right");
+        let (x, y) = dial_center(cx);
+        let mut circles: Vec<_> = quads(cx, tokens::CLOCK_DIAL_SELECTOR_HANDLE_CONTAINER_COLOR)
+            .into_iter()
+            .filter(|quad| quad.2 == 48.)
+            .map(|quad| ((quad.0 + 24. - x).round(), (quad.1 + 24. - y).round()))
+            .collect();
+        circles.sort_by(|a, b| a.0.total_cmp(&b.0));
+        // 0 分の数字は 2 分のセレクタと重なり、5 分の数字 (1 桁) は重ならない
+        let angle = TAU * 2. / 60.;
+        assert_eq!(
+            circles,
+            [
+                (0., -101.),
+                ((101. * angle.sin()).round(), (-101. * angle.cos()).round())
             ]
         );
     }
