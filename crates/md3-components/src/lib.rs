@@ -26,6 +26,8 @@ mod connected_button_group;
 mod date_picker;
 #[cfg(feature = "date-picker")]
 mod date_picker_dialog;
+#[cfg(feature = "date-picker")]
+mod date_range_picker;
 #[cfg(feature = "dialog")]
 mod dialog;
 #[cfg(feature = "divider")]
@@ -173,6 +175,8 @@ pub use connected_button_group::{
 pub use date_picker::{DatePicker, DatePickerDisplayMode};
 #[cfg(feature = "date-picker")]
 pub use date_picker_dialog::DatePickerDialog;
+#[cfg(feature = "date-picker")]
+pub use date_range_picker::DateRangePicker;
 #[cfg(feature = "dialog")]
 pub use dialog::{Dialog, DialogKind, DismissReason};
 #[cfg(feature = "divider")]
@@ -188,6 +192,8 @@ pub use floating_toolbar::{FloatingToolbar, FloatingToolbarColor, FloatingToolba
 pub use gpui;
 #[cfg(feature = "date-picker")]
 pub use gpui_headless::calendar::Date;
+#[cfg(feature = "date-picker")]
+pub use gpui_headless::range_calendar::DateRange;
 #[cfg(feature = "platform")]
 pub use gpui_platform;
 #[cfg(feature = "icon-button")]

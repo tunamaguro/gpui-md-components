@@ -44,19 +44,19 @@ use crate::{
 };
 
 /// 日付と曜日のセルの大きさ (Compose の `RecommendedSizeForAccessibility`)
-const CELL_SIZE: Dp = Dp(48.0);
+pub(crate) const CELL_SIZE: Dp = Dp(48.0);
 /// 月を移るボタンの行の高さ (Compose の `MonthYearHeight`)
 const MONTH_YEAR_HEIGHT: Dp = Dp(56.0);
 /// 月の表示の左右の余白 (Compose の `DatePickerHorizontalPadding`)
-const HORIZONTAL_PADDING: Dp = Dp(12.0);
+pub(crate) const HORIZONTAL_PADDING: Dp = Dp(12.0);
 /// タイトルと見出しの左右の余白 (Compose の `DatePickerTitlePadding`、`DatePickerHeadlinePadding`)
 const HEADER_START_PADDING: Dp = Dp(24.0);
-const HEADER_END_PADDING: Dp = Dp(12.0);
+pub(crate) const HEADER_END_PADDING: Dp = Dp(12.0);
 /// タイトルの上と見出しの下の余白
 const TITLE_TOP_PADDING: Dp = Dp(16.0);
 const HEADLINE_BOTTOM_PADDING: Dp = Dp(12.0);
 /// 既定の年の範囲 (Compose の `DatePickerDefaults.YearRange`)
-const DEFAULT_YEAR_RANGE: RangeInclusive<i32> = 1900..=2100;
+pub(crate) const DEFAULT_YEAR_RANGE: RangeInclusive<i32> = 1900..=2100;
 /// 年の一覧の 1 行の年の数 (Compose の `YearsInRow`)
 const YEARS_IN_ROW: usize = 3;
 /// 年の一覧の行の間隔 (Compose の `YearsVerticalPadding`)
@@ -79,7 +79,7 @@ const INPUT_BOTTOM_PADDING: Dp = Dp(16.0);
 /// 日付を入れる欄に入れる数字の数。MM/DD/YYYY の区切りを除いた長さ
 const INPUT_DIGITS: usize = 8;
 
-const MONTH_NAMES: [&str; 12] = [
+pub(crate) const MONTH_NAMES: [&str; 12] = [
     "January",
     "February",
     "March",
@@ -93,7 +93,7 @@ const MONTH_NAMES: [&str; 12] = [
     "November",
     "December",
 ];
-const WEEKDAY_NAMES: [&str; 7] = [
+pub(crate) const WEEKDAY_NAMES: [&str; 7] = [
     "Sunday",
     "Monday",
     "Tuesday",
@@ -135,7 +135,7 @@ fn input_text(digits: &str) -> String {
 }
 
 /// 月の略称・日・年の表記。Nov 24, 2026 のように書く
-fn short_date(date: Date) -> String {
+pub(crate) fn short_date(date: Date) -> String {
     format!(
         "{} {}, {}",
         &MONTH_NAMES[usize::from(date.month()) - 1][..3],
@@ -174,7 +174,7 @@ fn validate_input(
 }
 
 /// 曜日・月・日・年をそろえた長い表記。Tuesday, November 24, 2026 のように書く
-fn long_date(date: Date) -> String {
+pub(crate) fn long_date(date: Date) -> String {
     format!(
         "{}, {} {}, {}",
         WEEKDAY_NAMES[usize::from(date.weekday())],
