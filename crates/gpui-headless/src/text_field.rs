@@ -214,6 +214,9 @@ impl TextField {
     ///
     /// `handler` には編集した後の文字列を渡す。表示を変えるには、`handler` で呼び出し側の状態を更新し、
     /// 次の描画で [`TextField::new`] に渡すこと。渡さなかった場合、編集は取り消される。
+    /// 編集した後の文字列と違う文字列を渡した場合は、選択をやめ、カーソルを渡した文字列の対応する位置に置く。
+    /// 編集した後の文字列と先頭か末尾で一致する部分にあったカーソルは、その部分の中の位置を保ち、
+    /// それ以外のカーソルは、渡した文字列の変わった部分の末尾に置く。
     /// 設定しない場合、部品は文字列を編集させず、支援技術には read-only として公開される。
     /// [`TextField::on_edit`] と両方を呼んだ場合は、後に呼んだ方のハンドラだけを呼ぶ
     pub fn on_change(
@@ -366,6 +369,10 @@ impl RenderOnce for TextField {
                 state.selecting = false;
             }
             let before_edit = state.before_edit.take();
+            // 編集した後の文字列と、そのカーソル
+            let edited = before_edit
+                .as_ref()
+                .map(|_| (state.model.text.clone(), state.model.cursor()));
             let synced = state.model.sync(&self.value);
             if synced {
                 state.composition = None;
@@ -376,6 +383,10 @@ impl RenderOnce for TextField {
             {
                 state.model.selection = before_edit.selection;
                 state.model.reversed = before_edit.reversed;
+            } else if let Some((edited, cursor)) = edited.filter(|_| synced) {
+                // 呼び出し側が書き換えた編集は、カーソルを書き換えた後の文字列の対応する位置へ移す
+                let cursor = remap_cursor(&edited, cursor, &self.value);
+                state.model.select(cursor, cursor);
             }
             (synced, state.model.clone())
         });
@@ -938,6 +949,32 @@ struct Composition {
     range: Range<usize>,
     /// 変換を始めた後の編集が、どれも変換中の範囲だけを置き換えたか
     in_place: bool,
+}
+
+/// `edited` の `cursor` の位置を、`edited` を書き換えた `value` の位置に移す
+///
+/// 先頭と末尾で一致する部分の中なら、その部分の中の位置を保つ。それ以外は `value` の変わった部分の末尾にする
+fn remap_cursor(edited: &str, cursor: usize, value: &str) -> usize {
+    let prefix: usize = edited
+        .chars()
+        .zip(value.chars())
+        .take_while(|(a, b)| a == b)
+        .map(|(c, _)| c.len_utf8())
+        .sum();
+    let suffix: usize = edited[prefix..]
+        .chars()
+        .rev()
+        .zip(value[prefix..].chars().rev())
+        .take_while(|(a, b)| a == b)
+        .map(|(c, _)| c.len_utf8())
+        .sum();
+    if cursor <= prefix {
+        cursor
+    } else if cursor >= edited.len() - suffix {
+        value.len() - (edited.len() - cursor)
+    } else {
+        value.len() - suffix
+    }
 }
 
 /// 描画をまたいで保つ、編集の状態
@@ -1624,6 +1661,8 @@ mod tests {
         edits: Option<Rc<RefCell<Vec<TextEdit>>>>,
         /// `on_change` に渡された値を受け入れるか
         accept: bool,
+        /// 受け入れる値を書き換える
+        rewrite: Option<fn(&str) -> String>,
         read_only: bool,
         availability: Availability,
         focus: FocusHandle,
@@ -1648,7 +1687,10 @@ mod tests {
                     this.on_change(cx.listener(move |this, value: &SharedString, _, cx| {
                         changes.borrow_mut().push(value.clone());
                         if this.accept {
-                            this.value = value.clone();
+                            this.value = match this.rewrite {
+                                Some(rewrite) => rewrite(value).into(),
+                                None => value.clone(),
+                            };
                         }
                         cx.notify();
                     }))
@@ -1726,6 +1768,7 @@ mod tests {
             editable: true,
             edits: None,
             accept: true,
+            rewrite: None,
             read_only: false,
             availability: Availability::Enabled,
             focus: cx.focus_handle(),
@@ -1988,6 +2031,41 @@ mod tests {
             ["abx", "aby"],
             "取り消した文字列から編集すること"
         );
+    }
+
+    #[test]
+    fn 書き換えた文字列でも変わらなかった部分に対するカーソルの位置を保つ() {
+        // 末尾に足した文字の後ろ
+        assert_eq!(remap_cursor("112", 3, "11/2"), 4);
+        // 変わらなかった先頭の中
+        assert_eq!(remap_cursor("11/2/2026", 3, "11/22/026"), 3);
+        // 変わらなかった末尾の中
+        assert_eq!(remap_cursor("abXcd", 4, "abYYcd"), 5);
+        // 変わった部分の中は、その末尾
+        assert_eq!(remap_cursor("abXYZcd", 3, "abQcd"), 3);
+        assert_eq!(remap_cursor("aあb", 4, "aいいb"), 7);
+    }
+
+    #[gpui::test]
+    fn 呼び出し側が書き換えた編集はカーソルを書き換えた文字列の対応する位置に置く(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "");
+        // 2 文字の後ろに文字が続くときだけ区切りを入れる
+        update(&view, cx, |view| {
+            view.rewrite = Some(|value| {
+                let digits: String = value.chars().filter(|c| *c != '/').collect();
+                match digits.split_at_checked(2) {
+                    Some((head, tail)) if !tail.is_empty() => format!("{head}/{tail}"),
+                    _ => digits,
+                }
+            })
+        });
+        focus(cx);
+        for c in ["1", "1", "2", "5"] {
+            cx.simulate_input(c);
+        }
+        assert_eq!(value(&view, cx), "11/25", "区切りの後ろに続けて入れること");
     }
 
     #[gpui::test]

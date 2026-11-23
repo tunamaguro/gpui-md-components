@@ -234,7 +234,8 @@ mod tests {
     use gpui::{Context, FocusHandle, Render, TestAppContext, VisualTestContext, px, size};
 
     use super::*;
-    use crate::DatePicker;
+    use crate::{DatePicker, DatePickerDisplayMode};
+    use gpui::prelude::FluentBuilder;
     use gpui_headless::button::Button;
     use gpui_headless::calendar::Date;
 
@@ -245,6 +246,10 @@ mod tests {
         dismiss_clicks: usize,
         /// デイトピッカーの後に加える子の高さ
         extra: f32,
+        /// デイトピッカーを文字の入力の表示にする
+        input: bool,
+        /// デイトピッカーに求められた日付
+        changes: Vec<Option<Date>>,
         confirm_focus: FocusHandle,
         dismiss_focus: FocusHandle,
     }
@@ -280,6 +285,13 @@ mod tests {
                         )
                         .child(
                             DatePicker::new("picker", Date::new(2026, 11, 10))
+                                .when(self.input, |this| {
+                                    this.display_mode(DatePickerDisplayMode::Input)
+                                })
+                                .on_change(cx.listener(|this, date: &Option<Date>, _, cx| {
+                                    this.changes.push(*date);
+                                    cx.notify();
+                                }))
                                 .bg(gpui::transparent_black()),
                         )
                         .child(div().flex_none().h(px(self.extra))),
@@ -300,6 +312,8 @@ mod tests {
                 dismisses: 0,
                 dismiss_clicks: 0,
                 extra: 0.,
+                input: false,
+                changes: Vec::new(),
                 confirm_focus: cx.focus_handle(),
                 dismiss_focus: cx.focus_handle(),
             }
@@ -413,5 +427,31 @@ mod tests {
         cx.simulate_keystrokes("escape");
         cx.run_until_parked();
         assert_eq!(view.read_with(cx, |view, _| view.dismisses), 1);
+    }
+
+    #[gpui::test]
+    fn 文字の入力の表示で開くと日付を入れる欄にフォーカスを移す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, 700.);
+        view.update(cx, |view, cx| {
+            view.open = false;
+            view.input = true;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        view.update(cx, |view, cx| {
+            view.open = true;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        // 欄の 11/10/2026 の末尾に入れても 8 桁を超えるため、すべてを選択して置き換える
+        if cfg!(target_os = "macos") {
+            cx.simulate_keystrokes("cmd-a");
+        } else {
+            cx.simulate_keystrokes("ctrl-a");
+        }
+        cx.simulate_input("1");
+        assert_eq!(view.read_with(cx, |view, _| view.changes.clone()), [None]);
     }
 }

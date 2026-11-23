@@ -8,6 +8,8 @@
 
 //! MD3 のテキストフィールド
 
+#[cfg(feature = "date-picker")]
+use gpui::FocusHandle;
 use gpui::{
     App, CursorStyle, ElementId, InteractiveElement, IntoElement, MouseButton, ParentElement,
     Refineable, RenderOnce, SharedString, StatefulInteractiveElement, StyleRefinement, Styled,
@@ -71,6 +73,8 @@ pub struct TextField {
     disabled: bool,
     read_only: bool,
     on_change: Option<ChangeHandler>,
+    #[cfg(feature = "date-picker")]
+    focus_handle: Option<FocusHandle>,
     style: StyleRefinement,
     theme: Option<SharedTheme>,
 }
@@ -97,9 +101,18 @@ impl TextField {
             disabled: false,
             read_only: false,
             on_change: None,
+            #[cfg(feature = "date-picker")]
+            focus_handle: None,
             style: StyleRefinement::default(),
             theme: None,
         }
+    }
+
+    /// 部品が内部で持つフォーカスの代わりに `focus_handle` を使う
+    #[cfg(feature = "date-picker")]
+    pub(crate) fn track_focus(mut self, focus_handle: &FocusHandle) -> Self {
+        self.focus_handle = Some(focus_handle.clone());
+        self
     }
 
     /// 入力欄の種類を `variant` にする
@@ -203,6 +216,11 @@ impl TextField {
 impl RenderOnce for TextField {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
+        #[cfg(feature = "date-picker")]
+        let focus_handle = self
+            .focus_handle
+            .unwrap_or_else(|| util::keyed_focus_handle(&self.id, window, cx));
+        #[cfg(not(feature = "date-picker"))]
         let focus_handle = util::keyed_focus_handle(&self.id, window, cx);
         let field = Field {
             variant: match self.variant {
