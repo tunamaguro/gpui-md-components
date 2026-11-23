@@ -231,7 +231,7 @@ impl TextField {
     /// 入力位置や貼り付けかどうか、IME で変換中かによって受け入れ方を変える場合に使う。
     /// IME で変換中の編集は `composing` を `true` にして渡す。変換の確定は、変換を始める前の文字列の範囲を
     /// 確定した文字列で置き換えた 1 回の編集として、`composing` を `false` にして渡す。
-    /// 空の確定は変換の取り消しとして、変換を始める前の文字列と選択に戻し、文字列を変えない編集を渡す。
+    /// IME からの空の確定は変換の取り消しとして、変換を始める前の文字列と選択に戻し、文字列を変えない編集を渡す。
     /// 変換中の範囲の外も置き換えた場合は、文字列全体を置き換えた編集として渡す。
     /// 変換中の編集を受け入れなかった場合は変換を終える。
     /// 受け入れなかった編集で文字列が戻る場合は、選択も編集する前に戻す。
@@ -982,15 +982,16 @@ impl EditState {
         }
         let before = self.model.clone();
         self.model.replace(range.clone(), text);
-        self.text_changed(before, range, text, window, cx);
+        self.text_changed(before, range, text, false, window, cx);
     }
 
-    /// 編集する前の `before` の `range` を `inserted` に置き換えた編集を求める
+    /// 編集する前の `before` の `range` を `inserted` に置き換えた編集を求める。`ime` は IME からの入力か
     fn text_changed(
         &mut self,
         before: EditModel,
         range: Range<usize>,
         inserted: &str,
+        ime: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -1020,8 +1021,8 @@ impl EditState {
             }) => {
                 // 確定を受け入れなかった場合は、変換を始める前の選択へ戻す
                 self.before_edit = Some(start.clone());
-                if inserted.is_empty() {
-                    // 空の確定は変換の取り消しとして、変換を始める前の文字列と選択に戻す
+                if ime && inserted.is_empty() {
+                    // IME からの空の確定は変換の取り消しとして、変換を始める前の文字列と選択に戻す
                     self.model = start.clone();
                     TextEdit {
                         old_text: start.text.clone().into(),
@@ -1178,7 +1179,7 @@ impl EntityInputHandler for EditState {
             && let Some(marked) = marked
         {
             let committed = self.model.text[marked.clone()].to_owned();
-            self.text_changed(before, marked, &committed, window, cx);
+            self.text_changed(before, marked, &committed, true, window, cx);
         } else {
             window.notify_text_input_changed(&self.focus_handle);
             cx.notify();
@@ -1212,7 +1213,12 @@ impl EntityInputHandler for EditState {
                 _ => {}
             }
         }
-        self.edit(range, &text, window, cx);
+        if self.on_change.is_none() || (range.is_empty() && text.is_empty()) {
+            return;
+        }
+        let before = self.model.clone();
+        self.model.replace(range.clone(), &text);
+        self.text_changed(before, range, &text, true, window, cx);
     }
 
     fn replace_and_mark_text_in_range(
@@ -1232,7 +1238,7 @@ impl EntityInputHandler for EditState {
         let before = self.model.clone();
         self.model
             .replace_and_mark(range.clone(), &new_text, new_selected_range_utf16);
-        self.text_changed(before, range, &new_text, window, cx);
+        self.text_changed(before, range, &new_text, true, window, cx);
     }
 
     fn bounds_for_range(
@@ -2212,16 +2218,38 @@ mod tests {
             (last.old_text.as_ref(), last.new_text.as_ref()),
             ("12", "12")
         );
-        // 「あ1」を「20」で確定すると、全体を置き換えた編集になる
+        // 「あ1」を「21」で確定すると、末尾が一致しても全体を置き換えた編集になる
         mark(None, "あ", cx);
         state.update_in(cx, |state, window, cx| {
-            state.replace_text_in_range(Some(0..2), "20", window, cx);
+            state.replace_text_in_range(Some(0..2), "21", window, cx);
         });
         cx.run_until_parked();
         let last = edits.borrow().last().cloned().expect("確定を渡すこと");
         assert_eq!(
             (last.old_text.as_ref(), last.range, last.new_text.as_ref()),
-            ("12", 0..2, "202")
+            ("12", 0..2, "212")
+        );
+    }
+
+    #[gpui::test]
+    fn 変換中の切り取りは取り消しにせず文字列を消す(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, "09");
+        focus(cx);
+        cx.simulate_keystrokes("end");
+        let state = view
+            .read_with(cx, |view, _| view.edit_state.clone())
+            .expect("描画済みであること");
+        state.update_in(cx, |state, window, cx| {
+            state.replace_and_mark_text_in_range(None, "あ", None, window, cx);
+        });
+        cx.run_until_parked();
+        cx.simulate_keystrokes("ctrl-a ctrl-x");
+        assert_eq!(value(&view, cx), "");
+        assert_eq!(
+            cx.read_from_clipboard()
+                .and_then(|item| item.text())
+                .as_deref(),
+            Some("09あ")
         );
     }
 

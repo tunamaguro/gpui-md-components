@@ -316,8 +316,10 @@ impl RenderOnce for TimeInput {
                         window.refresh();
                     };
                     // IME で変換中の文字列はそのまま表示し、確定したときに判定する。
-                    // 変換の取り消しのように文字列を変えない編集も、表示を戻すだけにする
-                    if edit.composing || edit.new_text == edit.old_text {
+                    // 変換の取り消しのように何も入れず文字列を変えない編集も、表示を戻すだけにする
+                    if edit.composing
+                        || (edit.inserted.is_empty() && edit.new_text == edit.old_text)
+                    {
                         fields.update(cx, |fields, cx| {
                             fields.field_mut(kind).text = edit.new_text.to_string();
                             cx.notify();
@@ -367,7 +369,8 @@ impl RenderOnce for TimeInput {
                             (accepted, was_valid, fields.valid(), fields.time)
                         });
                     window.refresh();
-                    if accepted.is_some() {
+                    // 同じ数字で置き換えた場合は時刻が変わらないため求めない
+                    if accepted.is_some() && new_time != time {
                         on_change(&new_time, window, cx);
                     }
                     if was_valid != now_valid
@@ -786,7 +789,25 @@ mod tests {
         cx.simulate_input("2");
         cx.simulate_keystrokes("ctrl-a");
         cx.simulate_input("9");
-        assert_eq!(changes(&view, cx), [Time::new(2, 5), Time::new(2, 9)]);
+        assert_eq!(
+            changes(&view, cx),
+            [Time::new(2, 9)],
+            "同じ 2 時は求めず、分の入力欄で 9 を入れる"
+        );
+    }
+
+    #[gpui::test]
+    fn 同じ数字で置き換えても時刻は求めず分の入力欄へ移る(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Time::new(9, 5), HourFormat::Hour24);
+        press(cx, "tab");
+        cx.simulate_keystrokes("end shift-left");
+        cx.simulate_input("9");
+        assert!(changes(&view, cx).is_empty());
+        cx.simulate_keystrokes("ctrl-a");
+        cx.simulate_input("4");
+        assert_eq!(changes(&view, cx), [Time::new(9, 4)]);
     }
 
     #[gpui::test]
