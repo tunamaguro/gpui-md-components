@@ -460,20 +460,14 @@ impl RenderOnce for TimePicker {
                 let value = match current {
                     Selection::Hour => {
                         let ix = (pointer.angle / hour_step).round() as u8 % 12;
-                        // 24 時間制で選んでいる時のセレクタの円の中心
-                        let handle_angle = angle_of(usize::from(base.hour % 12));
-                        let handle_radius_from_center = f32::from(dp(if base.hour >= 12 {
-                            INNER_RADIUS
-                        } else {
-                            OUTER_RADIUS
-                        }));
-                        let on_handle = (x - handle_radius_from_center * handle_angle.sin())
-                            .hypot(y + handle_radius_from_center * handle_angle.cos())
+                        // 画面に描いているセレクタの円の内側か
+                        let on_handle = (x - f32::from(selector_radius) * selector_angle.sin())
+                            .hypot(y + f32::from(selector_radius) * selector_angle.cos())
                             < f32::from(handle_radius);
                         let hour = match format {
                             HourFormat::Hour12 => ix + if base.hour >= 12 { 12 } else { 0 },
-                            // 描画しているセレクタの円の内側なら、ほかの数字と重なる位置でも選んでいる時にする
-                            HourFormat::Hour24 if on_handle => base.hour,
+                            // 描画しているセレクタの円の内側なら、ほかの数字と重なる位置でも描いている時にする
+                            HourFormat::Hour24 if on_handle => time.hour,
                             HourFormat::Hour24 if pointer.distance < inner_distance => ix + 12,
                             HourFormat::Hour24 => ix,
                         };

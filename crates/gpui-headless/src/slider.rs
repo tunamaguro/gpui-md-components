@@ -64,8 +64,9 @@ impl Scale {
             });
         };
         let value = value.max(self.start).min(self.end);
-        // 段階の値と `value` は f32 の誤差でずれるため、この差より近い値は同じ値とみなす
-        let tolerance = (step * 1e-3).max(value.abs().max(self.start.abs()) * f32::EPSILON * 4.0);
+        // 段階の値と `value` は f32 の誤差でずれるため、この差より近い値は同じ値とみなす。
+        // 隣の段階を同じ値とみなさないよう、段階の半分より広げない
+        let tolerance = (value.abs().max(self.start.abs()) * f32::EPSILON * 4.0).min(step * 0.5);
         // 段階の番号は誤差で 1 ずれうるため、前後の段階の値を実際に求めて比べる
         let base = ((value - self.start) / step).floor();
         if forward {
@@ -703,6 +704,26 @@ mod tests {
         let changes = changes(&view, cx);
         assert_eq!(changes.len(), 1);
         assert!((changes[0] - 10000.03).abs() < 2e-3, "{changes:?}");
+    }
+
+    #[gpui::test]
+    fn 値に比べて小さな段階でも隣の段階に進む(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, 10000.0, 10000.0..=10005.0, Some(0.002));
+        focus(&view, cx);
+        cx.simulate_keystrokes("right");
+        let changes = changes(&view, cx);
+        assert_eq!(changes.len(), 1);
+        assert!((changes[0] - 10000.002).abs() < 1e-3, "{changes:?}");
+    }
+
+    #[gpui::test]
+    fn 段階のごくわずかに外にある終わりから減らすと手前の段階の値にする(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, 8.001, 0.0..=8.001, Some(2.0));
+        focus(&view, cx);
+        cx.simulate_keystrokes("left");
+        assert_eq!(changes(&view, cx), vec![8.0]);
     }
 
     #[gpui::test]
