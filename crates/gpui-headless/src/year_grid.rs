@@ -158,31 +158,37 @@ impl YearGrid {
 
 impl RenderOnce for YearGrid {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let (first, last) = (*self.years.start(), *self.years.end());
-        let columns = self.columns;
-        let count = if first <= last {
-            (i64::from(last) - i64::from(first) + 1) as usize
+        // 反復し終えた範囲は端点が残っていても空なので、空の範囲として扱う
+        let years = if self.years.is_empty() {
+            1..=0
         } else {
+            self.years.clone()
+        };
+        let (first, last) = (*years.start(), *years.end());
+        let columns = self.columns;
+        let count = if years.is_empty() {
             0
+        } else {
+            (i64::from(last) - i64::from(first) + 1) as usize
         };
         let rows = count.div_ceil(columns);
-        let in_range = move |year: i32| (first..=last).contains(&year);
+        let in_range = {
+            let years = years.clone();
+            move |year: i32| years.contains(&year)
+        };
         // 年のフォーカスは年ごとに持ち、範囲が変わっても同じ年には同じフォーカスを使う
         let handles = window.use_keyed_state((self.id.clone(), "handles"), cx, |_, _| {
             HashMap::<i32, FocusHandle>::new()
         });
         handles.update(cx, |handles, cx| {
-            for year in self.years.clone() {
+            for year in years.clone() {
                 handles.entry(year).or_insert_with(|| cx.focus_handle());
             }
         });
         let handles = handles.read(cx).clone();
         let handle = |year: i32| &handles[&year];
 
-        let focused_year = self
-            .years
-            .clone()
-            .find(|&year| handle(year).is_focused(window));
+        let focused_year = years.clone().find(|&year| handle(year).is_focused(window));
         let fallback_year = self
             .selected
             .filter(|&year| in_range(year))
@@ -200,24 +206,34 @@ impl RenderOnce for YearGrid {
         }
         let mounted = window.use_keyed_state((self.id.clone(), "mounted"), cx, |_, _| false);
         let first_frame = !mounted.update(cx, |mounted, _| std::mem::replace(mounted, true));
+        let mut focused_year = focused_year;
         if first_frame
             && self.autofocus
             && let Some(year) = tab_year
         {
             window.focus(handle(year), cx);
+            focused_year = Some(year);
         }
-        // フォーカスのある年が前の描画から変わったら、その行を表示範囲に入れる。Tab で入った年も対象にする。
-        // 描画され始めたフレームは表示領域の位置がまだ決まっておらず、正しくスクロールできないため除く
-        let last_focused =
-            window.use_keyed_state((self.id.clone(), "last-focused"), cx, |_, _| None::<i32>);
-        let focus_changed = last_focused.update(cx, |last, _| {
-            std::mem::replace(last, focused_year) != focused_year
+        // フォーカスのある年かその行が前の描画から変わったら、その行を表示範囲に入れる。
+        // Tab で入った年と、範囲が変わって行が移った年も対象にする
+        let focused_row =
+            focused_year.map(|year| (i64::from(year) - i64::from(first)) as usize / columns);
+        let last_focused = window.use_keyed_state((self.id.clone(), "last-focused"), cx, |_, _| {
+            None::<(i32, usize)>
         });
-        if !first_frame
-            && focus_changed
-            && let (Some(year), Some(scroll)) = (focused_year, &self.scroll)
-        {
-            scroll.scroll_to_item((i64::from(year) - i64::from(first)) as usize / columns);
+        let key = focused_year.zip(focused_row);
+        let focus_changed = last_focused.update(cx, |last, _| std::mem::replace(last, key) != key);
+        if focus_changed && let (Some(row), Some(scroll)) = (focused_row, self.scroll.clone()) {
+            if first_frame {
+                // 描画され始めたフレームは表示領域の位置がまだ決まっておらず、正しくスクロールできないため、
+                // 位置が決まった次のフレームでスクロールする
+                window.on_next_frame(move |window, _| {
+                    scroll.scroll_to_item(row);
+                    window.refresh();
+                });
+            } else {
+                scroll.scroll_to_item(row);
+            }
         }
 
         let enabled = self.enabled.clone();
@@ -233,7 +249,7 @@ impl RenderOnce for YearGrid {
 
         let on_key_down = {
             let handles = handles.clone();
-            let years = self.years.clone();
+            let years = years.clone();
             move |event: &gpui::KeyDownEvent, window: &mut Window, cx: &mut App| {
                 let Some(current) = years.clone().find(|year| handles[year].is_focused(window))
                 else {
@@ -563,6 +579,62 @@ mod tests {
         assert_eq!(focused(&view, cx), Some(2020));
         let offset = view.read_with(cx, |view, _| view.scroll.offset().y);
         assert_eq!(offset, px(0.));
+    }
+
+    #[gpui::test]
+    fn autofocus_で移った画面外の年を表示範囲に入れる(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, Some(2035), None);
+        view.update(cx, |view, cx| {
+            view.visible = false;
+            view.autofocus = true;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        view.update(cx, |view, cx| {
+            view.visible = true;
+            cx.notify();
+        });
+        assert_eq!(focused(&view, cx), Some(2035));
+        // テストにはフレームの供給が無いため、表示領域の位置が決まった次のフレームを進める
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        // 6 行目を 3 行分の高さの下端に入れる
+        let offset = view.read_with(cx, |view, _| view.scroll.offset().y);
+        assert_eq!(offset, px(-120.));
+    }
+
+    #[gpui::test]
+    fn 範囲が変わってフォーカスのある年の行が移ったら表示範囲に入れる(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(2026), None);
+        view.update(cx, |view, cx| {
+            view.years = 2026..=2040;
+            cx.notify();
+        });
+        cx.simulate_keystrokes("tab tab");
+        assert_eq!(focused(&view, cx), Some(2026));
+        view.update(cx, |view, cx| {
+            view.years = 2014..=2040;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        // 2026 年は 5 行目に移る
+        let offset = view.read_with(cx, |view, _| view.scroll.offset().y);
+        assert_eq!(offset, px(-80.));
+    }
+
+    #[gpui::test]
+    fn 反復し終えた範囲は空の範囲として扱う(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, None, None);
+        let mut years = 2026..=2026;
+        years.next();
+        view.update(cx, |view, cx| {
+            view.years = years;
+            cx.notify();
+        });
+        cx.simulate_keystrokes("tab tab");
+        assert_eq!(focused(&view, cx), None);
     }
 
     #[gpui::test]
