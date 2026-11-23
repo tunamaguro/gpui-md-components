@@ -1,5 +1,12 @@
+// DateRange::select の規則は Jetpack Compose Material 3 から移植している
+// (https://android.googlesource.com/platform/frameworks/support)
+// Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/DateRangePicker.kt
+//         (`updateDateSelection`) @ 2a941dd11aabd9bb7d2016ed159764b220117c20
+// Copyright 2023 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
+
 //! 月を縦に並べて日付の範囲を選ぶ、見た目を持たないカレンダー
 
+use std::cell::Cell;
 use std::ops::RangeInclusive;
 use std::rc::Rc;
 
@@ -252,22 +259,38 @@ impl StatefulInteractiveElement for RangeCalendar {}
 /// 描画をまたいで保つ状態
 struct State {
     focus: FocusHandle,
-    /// 操作日。`None` なら既定の日付
+    /// 操作日。最初の描画で決める
     active: Option<Date>,
     /// Page Up・Page Down で最後に移った先の日付と、月末に寄せる前の日
     anchor: Option<(Date, u8)>,
     /// 描いた月から測った大きさ
     layout: Option<MonthLayout>,
-    /// 最初の描画を終えたか
-    mounted: bool,
+    /// 一覧の最初の年。変わると操作日の月を一覧の一番上に表示し直す
+    first_year: Option<i32>,
+    /// 次に月を測ったときに、操作日の週が見えるまでスクロールするか
+    reveal: bool,
 }
 
-/// 描いた月から測った、月の高さと、月の上端から格子の上端までと、週の行の高さ
+/// 描いた月から測った大きさ
 #[derive(Clone, Copy)]
 struct MonthLayout {
+    /// 月の高さ
     month: Pixels,
+    /// 月の上端から最初の週の行の上端まで
     grid_top: Pixels,
+    /// 週の行の間隔
     row: Pixels,
+    /// 週の行の高さ
+    row_height: Pixels,
+}
+
+impl MonthLayout {
+    /// 一覧の上端から `date` の週の行の上端まで
+    fn row_top(&self, first_year: i32, date: Date) -> Pixels {
+        self.month * month_index(first_year, date) as f32
+            + self.grid_top
+            + self.row * week_row(date) as f32
+    }
 }
 
 /// 月の 1 日から、年の範囲の最初の月からの番号を求める
@@ -302,8 +325,8 @@ fn reveal(
     };
     let state = scroll.0.borrow();
     let offset = state.base_handle.offset();
-    let top = layout.month * index as f32 + layout.grid_top + layout.row * week_row(date) as f32;
-    let bottom = top + layout.row;
+    let top = layout.row_top(first_year, date);
+    let bottom = top + layout.row_height;
     let scroll_top = -offset.y;
     let new_top = if top < scroll_top {
         top
@@ -315,21 +338,44 @@ fn reveal(
     state.base_handle.set_offset(point(offset.x, -new_top));
 }
 
-/// 一覧で見えている最初と最後の月の番号。まだ描いていなければ `None`
-fn visible_months(
+/// `current` の週の行がスクロールで見えなくなっていれば、全体が見えている最初の週の行のうち月の最初の日付を返す。
+/// まだ描いていないときと、`current` の行が少しでも見えているときと、全体が見える行が無いときは `None`
+fn retarget(
     scroll: &UniformListScrollHandle,
     layout: Option<MonthLayout>,
-) -> Option<(usize, usize)> {
-    let state = scroll.0.borrow();
-    let viewport = state.last_item_size?.item.height;
-    let item = layout?.month;
-    if item <= Pixels::ZERO {
+    first: Date,
+    last: Date,
+    current: Date,
+) -> Option<Date> {
+    let layout = layout.filter(|layout| layout.month > Pixels::ZERO)?;
+    let (top, bottom) = {
+        let state = scroll.0.borrow();
+        let top = -state.base_handle.offset().y;
+        (top, top + state.last_item_size?.item.height)
+    };
+    let current_top = layout.row_top(first.year(), current);
+    if current_top + layout.row_height > top && current_top < bottom {
         return None;
     }
-    let scroll_top = -state.base_handle.offset().y;
-    let first = (scroll_top / item).floor().max(0.) as usize;
-    let last = ((scroll_top + viewport) / item).ceil().max(1.) as usize - 1;
-    Some((first, last))
+    let index = (top / layout.month).floor().max(0.) as i64;
+    // 見えている範囲が週の行より高ければ、上端の月か次の月に全体が見える行がある
+    (index..index + 2)
+        .filter_map(|index| first.add_months(index))
+        .filter(|month_first| *month_first <= last)
+        .flat_map(|month_first| {
+            let offset = usize::from(month_first.weekday());
+            let days = Date::days_in_month(month_first.year(), month_first.month());
+            (0..WEEKS).filter_map(move |row| {
+                let day = (row * 7).saturating_sub(offset) + 1;
+                (day <= usize::from(days))
+                    .then(|| Date::new(month_first.year(), month_first.month(), day as u8))
+                    .flatten()
+            })
+        })
+        .find(|date| {
+            let row_top = layout.row_top(first.year(), *date);
+            row_top >= top && row_top + layout.row_height <= bottom
+        })
 }
 
 impl RenderOnce for RangeCalendar {
@@ -348,7 +394,8 @@ impl RenderOnce for RangeCalendar {
             active: None,
             anchor: None,
             layout: None,
-            mounted: false,
+            first_year: None,
+            reveal: false,
         });
         let scroll = match self.scroll {
             Some(scroll) => scroll,
@@ -365,18 +412,18 @@ impl RenderOnce for RangeCalendar {
             .filter(in_years)
             .or(self.today.filter(in_years))
             .unwrap_or(first);
-        let (focus, active, mounted) = {
-            let state = state.read(cx);
-            (
-                state.focus.clone(),
-                state.active.filter(in_years).unwrap_or(fallback),
-                state.mounted,
-            )
-        };
-        if !mounted {
-            state.update(cx, |state, _| state.mounted = true);
-            scroll.scroll_to_item_strict(month_index(first_year, active), ScrollStrategy::Top);
-        }
+        // 操作日は最初の描画で決め、その後に選ばれた範囲が変わっても動かさない。
+        // 年の範囲の最初の年が変わると、保っているスクロールの位置が別の月を指すため、操作日の月を表示し直す
+        let (focus, active) = state.update(cx, |state, _| {
+            let active = state.active.filter(in_years).unwrap_or(fallback);
+            state.active = Some(active);
+            if state.first_year != Some(first_year) {
+                state.first_year = Some(first_year);
+                state.reveal = true;
+                scroll.scroll_to_item_strict(month_index(first_year, active), ScrollStrategy::Top);
+            }
+            (state.focus.clone(), active)
+        });
         let focus_visible = crate::is_focus_visible(&focus, window, cx);
 
         let enabled = self.enabled.clone();
@@ -413,13 +460,7 @@ impl RenderOnce for RangeCalendar {
                 let key = event.keystroke.key.as_str();
                 let shift = modifiers.shift;
                 let current = state.read(cx).active.filter(in_years).unwrap_or(fallback);
-                if matches!(key, "enter" | "space") && !shift {
-                    cx.stop_propagation();
-                    if let Some(select) = &select {
-                        select(current, window, cx);
-                    }
-                    return;
-                }
+                let confirm = matches!(key, "enter" | "space") && !shift;
                 let months = match (key, shift) {
                     ("pagedown", false) => Some(1),
                     ("pageup", false) => Some(-1),
@@ -428,23 +469,29 @@ impl RenderOnce for RangeCalendar {
                     _ => None,
                 };
                 let weekday = i64::from(current.weekday());
-                if months.is_none()
+                if !confirm
+                    && months.is_none()
                     && (shift || !matches!(key, "right" | "left" | "down" | "up" | "home" | "end"))
                 {
                     return;
                 }
                 cx.stop_propagation();
-                // 操作日の月がスクロールで見えなくなっていれば、見えている最初の月の 1 日に移す
-                if let Some((first_visible, last_visible)) =
-                    visible_months(&scroll, state.read(cx).layout)
+                // 押し続けたときの繰り返しで選ぶと、始まりと終わりが交互に入れ替わる
+                if confirm && event.is_held {
+                    return;
+                }
+                // 操作日の週がスクロールで見えなくなっていれば、見えている日付に移すだけにする
+                if let Some(visible) =
+                    retarget(&scroll, state.read(cx).layout, first, last, current)
                 {
-                    let index = month_index(first_year, current);
-                    if !(first_visible..=last_visible).contains(&index)
-                        && let Some(visible) = first.add_months(first_visible as i64)
-                    {
-                        set_active(visible, cx);
-                        return;
+                    set_active(visible, cx);
+                    return;
+                }
+                if confirm {
+                    if let Some(select) = &select {
+                        select(current, window, cx);
                     }
+                    return;
                 }
                 let base_day = state
                     .read(cx)
@@ -497,6 +544,7 @@ impl RenderOnce for RangeCalendar {
             day: self.day,
             blank: self.blank,
             state: state.clone(),
+            scroll: scroll.clone(),
         });
         let list = uniform_list(
             (self.id.clone(), "months"),
@@ -540,6 +588,7 @@ struct Shared {
     day: Option<DayFn>,
     blank: Option<BlankFn>,
     state: Entity<State>,
+    scroll: UniformListScrollHandle,
 }
 
 impl Shared {
@@ -607,33 +656,61 @@ impl Shared {
                     .children(cells),
             );
         }
-        let grid = div().id("grid");
+        // 週の行の位置と高さ。格子の子を描いた後に、月の大きさと合わせて状態に入れる
+        let rows = Rc::new(Cell::new(None));
+        let grid = div()
+            .on_children_prepainted({
+                let rows = rows.clone();
+                move |bounds: Vec<Bounds<Pixels>>, _, _| {
+                    if let [first, second, ..] = bounds[..] {
+                        rows.set(Some((
+                            first.top(),
+                            second.top() - first.top(),
+                            first.size.height,
+                        )));
+                    }
+                }
+            })
+            .id("grid");
         let grid = match &self.grid {
             Some(build) => build(&month_first, grid),
             None => grid,
         };
         let state = self.state.clone();
+        let scroll = self.scroll.clone();
+        let first_year = self.first.year();
+        let content = div().flex().flex_col().children(header).child(
+            grid.role(accesskit::Role::Grid)
+                .aria_row_count(WEEKS)
+                .aria_column_count(7)
+                .flex()
+                .flex_col()
+                .children(weeks),
+        );
+        // 操作日の週を見える位置までスクロールするために、月と週の行の大きさを測る。
+        // 子の余白も月の高さに含めるため、月の中身を包んだ要素から測る
         div()
-            .flex()
-            .flex_col()
-            .children(header)
-            .child(
-                grid.role(accesskit::Role::Grid)
-                    .aria_row_count(WEEKS)
-                    .aria_column_count(7)
-                    .flex()
-                    .flex_col()
-                    .children(weeks),
-            )
-            // 操作日の週を見える位置までスクロールするために、月の上端から格子までと週の行の高さを測る
-            .on_children_prepainted(move |bounds: Vec<Bounds<Pixels>>, _, cx| {
-                if let (Some(top), Some(grid)) = (bounds.first(), bounds.last()) {
-                    let layout = MonthLayout {
-                        month: grid.bottom() - top.top(),
-                        grid_top: grid.top() - top.top(),
-                        row: grid.size.height / WEEKS as f32,
-                    };
-                    state.update(cx, |state, _| state.layout = Some(layout));
+            .child(content)
+            .on_children_prepainted(move |bounds: Vec<Bounds<Pixels>>, window, cx| {
+                let (Some(month), Some((row_top, row, row_height))) = (bounds.first(), rows.get())
+                else {
+                    return;
+                };
+                let layout = MonthLayout {
+                    month: month.size.height,
+                    grid_top: row_top - month.top(),
+                    row,
+                    row_height,
+                };
+                let reveal_active = state.update(cx, |state, _| {
+                    state.layout = Some(layout);
+                    std::mem::take(&mut state.reveal)
+                        .then_some(state.active)
+                        .flatten()
+                });
+                if let Some(active) = reveal_active {
+                    reveal(&scroll, first_year, Some(layout), active);
+                    window.refresh();
                 }
             })
             .id((self.id.clone(), format!("month-{year}-{month}")))
@@ -709,9 +786,13 @@ mod tests {
         Date::new(year, month, day).expect("テストの日付が有効であること")
     }
 
-    /// (0, 0) に置いた高さ 300 のカレンダー。月は高さ 20 の見出しと 40x40 のセルで、高さ 260
+    /// (0, 0) に置いたカレンダー。既定では高さ 300 で、月は高さ 20 の見出しと 40x40 のセルで、高さ 260
     struct RangeView {
         selection: DateRange,
+        years: RangeInclusive<i32>,
+        height: f32,
+        /// 格子の下の余白
+        grid_margin: f32,
         scroll: UniformListScrollHandle,
         before: FocusHandle,
         after: FocusHandle,
@@ -732,7 +813,7 @@ mod tests {
                 .size_full()
                 .child(div().id("before").track_focus(&self.before).h(px(0.)))
                 .child(
-                    RangeCalendar::new("range", 2026..=2027, self.selection)
+                    RangeCalendar::new("range", self.years.clone(), self.selection)
                         // 2026 年 1 月 15 日は選べない
                         .enabled(|day| *day != date(2026, 1, 15))
                         .scroll(&self.scroll)
@@ -742,6 +823,10 @@ mod tests {
                             cx.notify();
                         }))
                         .header(|_, _, _| div().h(px(20.)).into_any_element())
+                        .grid({
+                            let margin = self.grid_margin;
+                            move |_, grid| grid.mb(px(margin))
+                        })
                         .week(move |week, row| {
                             bands.borrow_mut().extend(week.band);
                             row
@@ -754,7 +839,7 @@ mod tests {
                         })
                         .blank(|blank| blank.size(px(40.)))
                         .w(px(280.))
-                        .h(px(300.)),
+                        .h(px(self.height)),
                 )
                 .child(div().id("after").track_focus(&self.after).h(px(10.)))
         }
@@ -764,14 +849,29 @@ mod tests {
         cx: &mut TestAppContext,
         selection: DateRange,
     ) -> (gpui::Entity<RangeView>, &mut VisualTestContext) {
-        let (view, cx) = add_test_window(cx, |_, cx| RangeView {
-            selection,
-            scroll: UniformListScrollHandle::new(),
-            before: cx.focus_handle().tab_stop(true),
-            after: cx.focus_handle().tab_stop(true),
-            changes: Rc::default(),
-            visible: Rc::default(),
-            bands: Rc::default(),
+        setup_with(cx, selection, |_| {})
+    }
+
+    fn setup_with(
+        cx: &mut TestAppContext,
+        selection: DateRange,
+        configure: impl FnOnce(&mut RangeView),
+    ) -> (gpui::Entity<RangeView>, &mut VisualTestContext) {
+        let (view, cx) = add_test_window(cx, |_, cx| {
+            let mut view = RangeView {
+                selection,
+                years: 2026..=2027,
+                height: 300.,
+                grid_margin: 0.,
+                scroll: UniformListScrollHandle::new(),
+                before: cx.focus_handle().tab_stop(true),
+                after: cx.focus_handle().tab_stop(true),
+                changes: Rc::default(),
+                visible: Rc::default(),
+                bands: Rc::default(),
+            };
+            configure(&mut view);
+            view
         });
         cx.run_until_parked();
         (view, cx)
@@ -936,5 +1036,92 @@ mod tests {
         assert_eq!(changes(&view, cx), [range(Some(date(2026, 1, 2)), None)]);
         cx.simulate_keystrokes("right");
         assert_eq!(visible(&view, cx), Some(date(2026, 1, 3)));
+    }
+
+    #[gpui::test]
+    fn 最初に操作日の週が隠れていれば見えるまでスクロールする(
+        cx: &mut TestAppContext,
+    ) {
+        // 2026 年 1 月 31 日は 5 週目 (上端 180、下端 220)
+        let (view, cx) = setup_with(cx, range(Some(date(2026, 1, 31)), None), |view| {
+            view.height = 200.
+        });
+        assert_eq!(scroll_top(&view, cx), 20.);
+    }
+
+    #[gpui::test]
+    fn 格子の余白も月の高さに含めてスクロールする(cx: &mut TestAppContext) {
+        // 月の高さは 270 になる
+        let (view, cx) = setup_with(cx, range(Some(date(2026, 1, 31)), None), |view| {
+            view.grid_margin = 10.
+        });
+        cx.simulate_keystrokes("tab tab down");
+        assert_eq!(visible(&view, cx), Some(date(2026, 2, 7)));
+        // 2 月の 1 週目は 270 + 20 = 290 から 330
+        assert_eq!(scroll_top(&view, cx), 30.);
+    }
+
+    #[gpui::test]
+    fn 操作日の週が見えないときの_enter_は選ばずに見えている日付に移す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, DateRange::default());
+        cx.simulate_keystrokes("tab tab");
+        let scroll = view.read_with(cx, |view, _| view.scroll.clone());
+        scroll
+            .0
+            .borrow()
+            .base_handle
+            .set_offset(gpui::point(px(0.), px(-260. * 5.)));
+        view.update(cx, |_, cx| cx.notify());
+        cx.run_until_parked();
+        cx.simulate_keystrokes("enter");
+        assert!(changes(&view, cx).is_empty());
+        assert_eq!(visible(&view, cx), Some(date(2026, 6, 1)));
+        cx.simulate_keystrokes("enter");
+        assert_eq!(changes(&view, cx), [range(Some(date(2026, 6, 1)), None)]);
+    }
+
+    #[gpui::test]
+    fn enter_を押し続けても_1_回だけ選ぶ(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, DateRange::default());
+        cx.simulate_keystrokes("tab tab");
+        let enter = gpui::Keystroke::parse("enter").expect("キーを解釈できること");
+        for is_held in [false, true, true] {
+            cx.simulate_event(gpui::KeyDownEvent {
+                keystroke: enter.clone(),
+                is_held,
+                prefer_character_input: false,
+            });
+        }
+        assert_eq!(changes(&view, cx), [range(Some(date(2026, 1, 1)), None)]);
+    }
+
+    #[gpui::test]
+    fn 最初の年が変わると操作日の月を表示し直す(cx: &mut TestAppContext) {
+        let (view, cx) = setup_with(cx, range(Some(date(2027, 6, 10)), None), |view| {
+            view.years = 2026..=2028
+        });
+        assert_eq!(scroll_top(&view, cx), 260. * 17.);
+        view.update(cx, |view, cx| {
+            view.years = 2027..=2028;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        assert_eq!(scroll_top(&view, cx), 260. * 5.);
+        cx.simulate_keystrokes("tab tab right");
+        assert_eq!(visible(&view, cx), Some(date(2027, 6, 11)));
+    }
+
+    #[gpui::test]
+    fn 操作日は呼び出し側が始まりを変えても動かない(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, range(Some(date(2026, 1, 10)), None));
+        view.update(cx, |view, cx| {
+            view.selection = range(Some(date(2026, 1, 20)), None);
+            cx.notify();
+        });
+        cx.run_until_parked();
+        cx.simulate_keystrokes("tab tab");
+        assert_eq!(visible(&view, cx), Some(date(2026, 1, 10)));
     }
 }
