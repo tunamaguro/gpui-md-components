@@ -400,7 +400,8 @@ impl<T> StatefulInteractiveElement for ClockDialItem<T> {}
 /// - 支援技術からの増減 (Increment・Decrement) と値の設定 (SetValue)
 ///
 /// 求める値は範囲に収め、段階があれば、範囲の始まりから段階ごとの値と範囲の終わりのうち最も近い値にする。
-/// 今の値と同じになる場合は求めない。端から反対の端には戻らない
+/// 今の値と同じになる場合は求めない。端から反対の端には戻らない。
+/// 描画を挟まずに続く操作は、直前に求めた値を元に増減する
 ///
 /// マウスの左ボタンの押下・ドラッグ・離す操作は、[`ClockDial::on_pointer`] と同じく [`DialSlider::on_pointer`] に渡す。
 /// 押すと文字盤にフォーカスを移す。ポインタの位置から値を決めるのは呼び出し側
@@ -500,11 +501,15 @@ impl RenderOnce for DialSlider {
             step: self.step,
         };
         let value = self.value.max(scale.start).min(scale.end);
-        // 求める値が今の値と同じなら呼ばない
+        // 最後に求めた値。描画を挟まずに続く操作は、この値を元に増減する
+        let last = Rc::new(Cell::new(value));
+        // 求める値が最後に求めた値と同じなら呼ばない
         let request = self.on_change.map(|on_change| {
+            let last = last.clone();
             Rc::new(move |next: f32, window: &mut Window, cx: &mut App| {
                 let next = scale.snap(next);
-                if next != value {
+                if next != last.get() {
+                    last.set(next);
                     on_change(&next, window, cx);
                 }
             })
@@ -522,10 +527,12 @@ impl RenderOnce for DialSlider {
             .when_some(request, |this, request| {
                 let on_key_down = {
                     let request = request.clone();
+                    let last = last.clone();
                     move |event: &gpui::KeyDownEvent, window: &mut Window, cx: &mut App| {
                         if event.keystroke.modifiers.modified() {
                             return;
                         }
+                        let value = last.get();
                         let next = match event.keystroke.key.as_str() {
                             "right" | "up" => value + scale.key_delta(),
                             "left" | "down" => value - scale.key_delta(),
@@ -541,12 +548,13 @@ impl RenderOnce for DialSlider {
                 };
                 let increment = request.clone();
                 let decrement = request.clone();
+                let (increment_base, decrement_base) = (last.clone(), last);
                 this.on_key_down(on_key_down)
                     .on_a11y_action(accesskit::Action::Increment, move |_, window, cx| {
-                        increment(value + scale.key_delta(), window, cx);
+                        increment(increment_base.get() + scale.key_delta(), window, cx);
                     })
                     .on_a11y_action(accesskit::Action::Decrement, move |_, window, cx| {
-                        decrement(value - scale.key_delta(), window, cx);
+                        decrement(decrement_base.get() - scale.key_delta(), window, cx);
                     })
                     .on_a11y_action(accesskit::Action::SetValue, move |data, window, cx| {
                         if let Some(accesskit::ActionData::NumericValue(next)) = data {
@@ -855,6 +863,26 @@ mod tests {
             view.read_with(cx, |view, _| view.changes.borrow().clone()),
             [59., 0., 5., 59.],
             "59 から右、0 から左では反対の端に戻さない"
+        );
+    }
+
+    #[gpui::test]
+    fn スライダーは描画を挟まずに続くキー操作を直前に求めた値から増減する(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup_slider(cx, 15.);
+        press(cx, "tab");
+        for key in ["right", "left"] {
+            cx.simulate_event(KeyDownEvent {
+                keystroke: Keystroke::parse(key).expect("テストのキー表記が有効であること"),
+                is_held: false,
+                prefer_character_input: false,
+            });
+        }
+        cx.run_until_parked();
+        assert_eq!(
+            view.read_with(cx, |view, _| view.changes.borrow().clone()),
+            [16., 15.]
         );
     }
 

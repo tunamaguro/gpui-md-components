@@ -31,11 +31,11 @@ use md3_theme::md3_tokens::{Dp, focus_ring};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
 use crate::shape::Shaped;
-use crate::time::{HourFormat, PERIOD_TOGGLE_SPACE, PeriodHandler, Time, period_toggle};
+use crate::time::{
+    HourFormat, PERIOD_TOGGLE_SPACE, PeriodHandler, SEPARATOR_WIDTH, Time, period_toggle,
+};
 use crate::util;
 
-/// 時と分の表示の間の区切りの幅 (Compose の `DisplaySeparatorWidth`)
-const SEPARATOR_WIDTH: Dp = Dp(24.0);
 /// 時刻の表示と文字盤の間の余白 (Compose の `ClockDisplayBottomMargin`)
 const CLOCK_DISPLAY_BOTTOM_MARGIN: Dp = Dp(36.0);
 /// 文字盤の下の余白 (Compose の `ClockFaceBottomMargin`)
@@ -46,6 +46,8 @@ const OUTER_RADIUS: Dp = Dp(101.0);
 const INNER_RADIUS: Dp = Dp(69.0);
 /// 24 時間制の時で、中心からこの距離より内側を押すと内側の円の時を選ぶ (Compose の `MaxDistance`)
 const INNER_CIRCLE_DISTANCE: Dp = Dp(74.0);
+/// 押した後にポインタがこの距離を超えて動いたらドラッグとみなす (Android の既定の touch slop)
+const DRAG_SLOP: Dp = Dp(8.0);
 /// 文字盤の数字の大きさ (Compose の `MinimumInteractiveSize`)
 const NUMBER_SIZE: Dp = Dp(48.0);
 
@@ -68,7 +70,8 @@ enum Selection {
 ///
 /// - 時と分の表示を押すと、文字盤で選ぶものをその表示に切り替える。最初は時を選ぶ
 /// - 文字盤を押して離すか、ドラッグすると、ポインタの向きの時か分を選ぶ。押して離した場合は離したときに選び、
-///   文字盤の外で離すと取り消す。時は 1 時間ごと、押して離した分は 5 分ごと、ドラッグした分は 1 分ごとに選ぶ。
+///   文字盤の外で離すと取り消す。押した位置から 8dp を超えて動かすとドラッグになり、動かすたびに選ぶ。
+///   時は 1 時間ごと、分は 1 分ごとに選ぶ。
 ///   24 時間制の時は、中心から 74dp より内側なら内側の円の 12 時から 23 時を選ぶ。
 ///   時を選んでボタンを離すと、文字盤を分に切り替える。支援技術の利用中は切り替えない
 /// - 時の文字盤の数字は、矢印キーでフォーカスを移し、Enter・Space と支援技術からのクリック操作で選ぶ。
@@ -78,7 +81,7 @@ enum Selection {
 /// - 午前・午後の切り替えは矢印キー・Space・クリックで選び、時を 12 時間ずらすよう求める
 ///
 /// 支援技術には、時と分の表示が名前 Time の role `radiogroup` の中の role `radio`
-/// (名前は Select hour, 2 o'clock のように、選ぶものと表示している値)、
+/// (名前は Select hour, 02 o'clock のように、選ぶものと表示している値)、
 /// 時の文字盤が名前 Hour の role `radiogroup` と数字ごとの role `radio`、
 /// 分の文字盤が名前 Minute の role `slider` (値は 0 から 59) として公開される。
 /// 文言は英語に固定している
@@ -163,8 +166,10 @@ impl RenderOnce for TimePicker {
                 }
             })
         });
-        // ドラッグしたか。押した後に動かさずに離した場合だけ、押した位置の値に決める
-        let dragged = window.use_keyed_state((self.id.clone(), "dragged"), cx, |_, _| false);
+        // 押した位置 (文字盤の中心から見た x と y) と、ドラッグしたか。
+        // 押した位置から動かさずに離した場合だけ、離した位置の値に決める
+        let press =
+            window.use_keyed_state((self.id.clone(), "press"), cx, |_, _| (0f32, 0f32, false));
 
         // 時と分の表示
         let selector = |value: Selection, window: &mut Window, cx: &mut App| {
@@ -181,11 +186,14 @@ impl RenderOnce for TimePicker {
                 ),
                 Selection::Minute => ("minute", time.minute),
             };
-            // Compose は表示に選ぶものの説明と値の説明を付ける
+            // Compose は表示に選ぶものの説明と値の説明を付ける。
+            // 音声操作で見えている文字を指定できるよう、値は表示と同じ 2 桁で書く
             let label = match (value, format) {
-                (Selection::Hour, HourFormat::Hour12) => format!("Select hour, {number} o'clock"),
-                (Selection::Hour, HourFormat::Hour24) => format!("Select hour, {number} hours"),
-                (Selection::Minute, _) => format!("Select minutes, {number} minutes"),
+                (Selection::Hour, HourFormat::Hour12) => {
+                    format!("Select hour, {number:02} o'clock")
+                }
+                (Selection::Hour, HourFormat::Hour24) => format!("Select hour, {number:02} hours"),
+                (Selection::Minute, _) => format!("Select minutes, {number:02} minutes"),
             };
             let item_id = ElementId::from((self.id.clone(), suffix));
             let focus_handle = util::keyed_focus_handle(&item_id, window, cx);
@@ -339,23 +347,6 @@ impl RenderOnce for TimePicker {
             )
             .outset(outset)
         };
-        // 数字の左上の位置と、文字の書式
-        let place = |ix: usize, inner: bool, value: u8| {
-            let angle = angle_of(ix % 12);
-            let radius = dp(if inner { INNER_RADIUS } else { OUTER_RADIUS });
-            let center = dial_size / 2.;
-            let mut font = number_font.clone();
-            font.color = Some(theme.color(if value == selected_value {
-                tokens::CLOCK_DIAL_SELECTED_LABEL_TEXT_COLOR
-            } else {
-                tokens::CLOCK_DIAL_UNSELECTED_LABEL_TEXT_COLOR
-            }));
-            (
-                center + radius * angle.sin() - number_size / 2.,
-                center - radius * angle.cos() - number_size / 2.,
-                font,
-            )
-        };
         // セレクタは選んでいる時か分の向きへ中心から伸ばし、先端に数字と同じ大きさの円を描く
         let selector_angle = match current {
             Selection::Hour => angle_of(usize::from(time.hour % 12)),
@@ -368,6 +359,29 @@ impl RenderOnce for TimePicker {
                 OUTER_RADIUS
             },
         );
+        // 数字の左上の位置と、文字の書式
+        let place = |ix: usize, inner: bool| {
+            let angle = angle_of(ix % 12);
+            let radius = dp(if inner { INNER_RADIUS } else { OUTER_RADIUS });
+            let center = dial_size / 2.;
+            // Compose はセレクタの円に重なった部分だけを選ばれた色で描く。
+            // 部分的に塗り分けられないため、数字の中心が円の内側にあれば数字全体を選ばれた色で描く
+            let dx = radius * angle.sin() - selector_radius * selector_angle.sin();
+            let dy = radius * angle.cos() - selector_radius * selector_angle.cos();
+            let covered = f32::from(dx).hypot(f32::from(dy))
+                < f32::from(dp(tokens::CLOCK_DIAL_SELECTOR_HANDLE_CONTAINER_SIZE)) / 2.;
+            let mut font = number_font.clone();
+            font.color = Some(theme.color(if covered {
+                tokens::CLOCK_DIAL_SELECTED_LABEL_TEXT_COLOR
+            } else {
+                tokens::CLOCK_DIAL_UNSELECTED_LABEL_TEXT_COLOR
+            }));
+            (
+                center + radius * angle.sin() - number_size / 2.,
+                center - radius * angle.cos() - number_size / 2.,
+                font,
+            )
+        };
         let selector_color = theme.color(tokens::CLOCK_DIAL_SELECTOR_HANDLE_CONTAINER_COLOR);
         let track_width = dp(tokens::CLOCK_DIAL_SELECTOR_TRACK_CONTAINER_WIDTH);
         let center_size = dp(tokens::CLOCK_DIAL_SELECTOR_CENTER_CONTAINER_SIZE);
@@ -411,8 +425,7 @@ impl RenderOnce for TimePicker {
             move |pointer: &DialPointer, window: &mut Window, cx: &mut App| {
                 let base = last.get();
                 let hour_step = TAU / 12.;
-                // 時は 1 時間ごと、押した分は 5 分ごと、ドラッグした分は 1 分ごとの値
-                let value_at = |fine: bool| match current {
+                let value = match current {
                     Selection::Hour => {
                         let ix = (pointer.angle / hour_step).round() as u8 % 12;
                         let hour = match format {
@@ -422,29 +435,36 @@ impl RenderOnce for TimePicker {
                         };
                         Time::new(hour, base.minute)
                     }
-                    Selection::Minute if fine => {
+                    // Compose は押した分を 5 分ごとにするが、ドラッグできなくても任意の分を選べるよう 1 分ごとにする
+                    Selection::Minute => {
                         Time::new(base.hour, (pointer.angle / (TAU / 60.)).round() as u8 % 60)
                     }
-                    Selection::Minute => Time::new(
-                        base.hour,
-                        (pointer.angle / hour_step).round() as u8 % 12 * 5,
-                    ),
                 };
+                let distance = f32::from(pointer.distance);
+                let (x, y) = (
+                    distance * pointer.angle.sin(),
+                    -distance * pointer.angle.cos(),
+                );
                 match pointer.phase {
                     DialPointerPhase::Down => {
-                        dragged.update(cx, |dragged, _| *dragged = false);
+                        press.update(cx, |press, _| *press = (x, y, false));
                     }
                     DialPointerPhase::Move => {
-                        dragged.update(cx, |dragged, _| *dragged = true);
-                        request(value_at(true), window, cx);
+                        let (start_x, start_y, dragged) = *press.read(cx);
+                        if !dragged && (x - start_x).hypot(y - start_y) <= f32::from(dp(DRAG_SLOP))
+                        {
+                            return;
+                        }
+                        press.update(cx, |press, _| press.2 = true);
+                        request(value, window, cx);
                     }
                     DialPointerPhase::Up => {
-                        if !*dragged.read(cx) {
+                        if !press.read(cx).2 {
                             // 文字盤の外で離した場合は取り消す (Compose の onTap と同じ)
                             if pointer.distance > dial_size / 2. {
                                 return;
                             }
-                            request(value_at(false), window, cx);
+                            request(value, window, cx);
                         }
                         // Compose は支援技術の利用中には分に切り替えない
                         if current == Selection::Hour && !window.is_a11y_active() {
@@ -475,7 +495,7 @@ impl RenderOnce for TimePicker {
                     .iter()
                     .enumerate()
                     .map(|(ix, &(label, value, inner))| {
-                        let (x, y, font) = place(ix, inner, value);
+                        let (x, y, font) = place(ix, inner);
                         let name = match format {
                             HourFormat::Hour12 => format!("{label} o'clock"),
                             HourFormat::Hour24 => format!("{label} hours"),
@@ -520,23 +540,20 @@ impl RenderOnce for TimePicker {
             }
             // 分は 5 分ごとの数字だけでは選べない分があるため、文字盤全体を 1 分ずつ増減するスライダーにする
             Selection::Minute => {
-                let labels = numbers
-                    .iter()
-                    .enumerate()
-                    .map(|(ix, &(label, value, inner))| {
-                        let (x, y, font) = place(ix, inner, value);
-                        let mut number = div()
-                            .absolute()
-                            .left(x)
-                            .top(y)
-                            .size(number_size)
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .child(label.to_string());
-                        number.text_style().refine(&font);
-                        number
-                    });
+                let labels = numbers.iter().enumerate().map(|(ix, &(label, _, inner))| {
+                    let (x, y, font) = place(ix, inner);
+                    let mut number = div()
+                        .absolute()
+                        .left(x)
+                        .top(y)
+                        .size(number_size)
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(label.to_string());
+                    number.text_style().refine(&font);
+                    number
+                });
                 let focus_handle = util::keyed_focus_handle(&dial_id, window, cx);
                 let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
                 let on_change = request.clone().map(|request| {
@@ -732,7 +749,7 @@ mod tests {
     }
 
     #[gpui::test]
-    fn 時を押すと時刻を求め_離すと分に切り替え_押した分は_5_分ごとにする(
+    fn 時を押して離すと時刻を求めて分に切り替え_押した分は_1_分ごとにする(
         cx: &mut TestAppContext,
     ) {
         let (view, cx) = setup(cx, Time::new(14, 5), HourFormat::Hour12);
@@ -745,7 +762,7 @@ mod tests {
             [Time::new(15, 5)],
             "午後のまま 3 時にする"
         );
-        // 分の文字盤で、6 時より少し右 (29 分の向き) を押す
+        // 分の文字盤で、29 分の向きを押す
         let angle = TAU * 29. / 60.;
         let (x29, y29) = (x + 100. * angle.sin(), y - 100. * angle.cos());
         mouse(cx, DialPointerPhase::Down, x29, y29);
@@ -753,8 +770,8 @@ mod tests {
         mouse(cx, DialPointerPhase::Up, x29, y29);
         assert_eq!(
             changes(&view, cx),
-            [Time::new(15, 5), Time::new(15, 30)],
-            "押した分は 5 分ごとにする"
+            [Time::new(15, 5), Time::new(15, 29)],
+            "ドラッグしなくても 1 分ごとに選ぶ"
         );
     }
 
@@ -835,6 +852,11 @@ mod tests {
         let (view, cx) = setup(cx, Time::new(9, 0), HourFormat::Hour24);
         let (x, y) = dial_center(cx);
         mouse(cx, DialPointerPhase::Down, x + 100., y);
+        mouse(cx, DialPointerPhase::Up, x + 300., y);
+        assert!(changes(&view, cx).is_empty());
+        // 押した位置から 8dp 以内の動きはドラッグにしないため、外で離すと取り消す
+        mouse(cx, DialPointerPhase::Down, x + 100., y);
+        mouse(cx, DialPointerPhase::Move, x + 100., y + 5.);
         mouse(cx, DialPointerPhase::Up, x + 300., y);
         assert!(changes(&view, cx).is_empty());
         // 時の文字盤のままなので、3 時の位置は 3 時になる

@@ -1,7 +1,7 @@
 // 配置・余白・色・文言は Jetpack Compose Material 3 から移植している
 // (https://android.googlesource.com/platform/frameworks/support)
 // Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/TimePicker.kt
-//         (`VerticalPeriodToggle`、`ToggleItem`、`PeriodTogglePaddingSmall`)
+//         (`VerticalPeriodToggle`、`ToggleItem`、`PeriodTogglePaddingSmall`、`DisplaySeparatorWidth`)
 //         compose/material3/material3/src/androidMain/res/values/strings.xml (`m3c_time_picker_period_toggle_description`)
 //         @ 2a941dd11aabd9bb7d2016ed159764b220117c20
 // Copyright 2023 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
@@ -27,6 +27,8 @@ use crate::util;
 
 /// 午前・午後の切り替えと隣の要素の間の余白と、切り替えの 2 つの項目の間の余白 (Compose の `PeriodTogglePaddingSmall`)
 pub(crate) const PERIOD_TOGGLE_SPACE: Dp = Dp(4.0);
+/// 時と分の間の区切りの幅 (Compose の `DisplaySeparatorWidth`)
+pub(crate) const SEPARATOR_WIDTH: Dp = Dp(24.0);
 
 /// 時刻
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

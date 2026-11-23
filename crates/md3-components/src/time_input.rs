@@ -26,11 +26,11 @@ use md3_theme::md3_tokens::component::{time_input as tokens, time_picker};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
 use crate::shape::Shaped;
-use crate::time::{HourFormat, PERIOD_TOGGLE_SPACE, PeriodHandler, Time, period_toggle};
+use crate::time::{
+    HourFormat, PERIOD_TOGGLE_SPACE, PeriodHandler, SEPARATOR_WIDTH, Time, period_toggle,
+};
 use crate::util;
 
-/// 時と分の入力欄の間の区切りの幅 (Compose の `DisplaySeparatorWidth`)
-const SEPARATOR_WIDTH: Dp = Dp(24.0);
 /// 入力欄と補足の文の間の余白 (Compose の `SupportLabelTop`)
 const SUPPORTING_TEXT_TOP: Dp = Dp(7.0);
 /// 入力欄の枠線の太さ (Compose の `TimePickerTextField` の `focusedBorderThickness` と `unfocusedBorderThickness`)
