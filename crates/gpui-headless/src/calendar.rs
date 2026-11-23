@@ -12,7 +12,7 @@ use gpui::{
 
 /// グレゴリオ暦の日付
 ///
-/// 月は 1 から 12、日は 1 からその月の日数までの値を持つ
+/// 年は 1 から 9999、月は 1 から 12、日は 1 からその月の日数までの値を持つ
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Date {
     year: i32,
@@ -21,10 +21,25 @@ pub struct Date {
 }
 
 impl Date {
-    /// `year` 年 `month` 月 `day` 日を作る。存在しない日付なら `None`
+    /// 表せる最も前の日付。1 年 1 月 1 日
+    pub const MIN: Self = Self {
+        year: 1,
+        month: 1,
+        day: 1,
+    };
+    /// 表せる最も後の日付。9999 年 12 月 31 日
+    pub const MAX: Self = Self {
+        year: 9999,
+        month: 12,
+        day: 31,
+    };
+
+    /// `year` 年 `month` 月 `day` 日を作る。存在しない日付と、[`Date::MIN`] から [`Date::MAX`] の外なら `None`
     pub fn new(year: i32, month: u8, day: u8) -> Option<Self> {
-        ((1..=12).contains(&month) && (1..=Self::days_in_month(year, month)).contains(&day))
-            .then_some(Self { year, month, day })
+        ((Self::MIN.year..=Self::MAX.year).contains(&year)
+            && (1..=12).contains(&month)
+            && (1..=Self::days_in_month(year, month)).contains(&day))
+        .then_some(Self { year, month, day })
     }
 
     /// 年
@@ -58,21 +73,21 @@ impl Date {
         (self.days_since_epoch() + 4).rem_euclid(7) as u8
     }
 
-    /// `days` 日後の日付。負の値なら前の日付
-    pub fn add_days(self, days: i64) -> Self {
-        Self::from_days_since_epoch(self.days_since_epoch() + days)
+    /// `days` 日後の日付。負の値なら前の日付。[`Date::MIN`] から [`Date::MAX`] の外になる場合は `None`
+    pub fn add_days(self, days: i64) -> Option<Self> {
+        let target = self.days_since_epoch().checked_add(days)?;
+        (Self::MIN.days_since_epoch()..=Self::MAX.days_since_epoch())
+            .contains(&target)
+            .then(|| Self::from_days_since_epoch(target))
     }
 
-    /// `months` か月後の同じ日。その月に同じ日が無ければ月末にする。負の値なら前の月
-    pub fn add_months(self, months: i32) -> Self {
-        let index = self.year * 12 + i32::from(self.month) - 1 + months;
-        let year = index.div_euclid(12);
+    /// `months` か月後の同じ日。その月に同じ日が無ければ月末にする。負の値なら前の月。
+    /// [`Date::MIN`] から [`Date::MAX`] の外になる場合は `None`
+    pub fn add_months(self, months: i64) -> Option<Self> {
+        let index = (i64::from(self.year) * 12 + i64::from(self.month) - 1).checked_add(months)?;
+        let year = i32::try_from(index.div_euclid(12)).ok()?;
         let month = index.rem_euclid(12) as u8 + 1;
-        Self {
-            year,
-            month,
-            day: self.day.min(Self::days_in_month(year, month)),
-        }
+        Self::new(year, month, self.day.min(Self::days_in_month(year, month)))
     }
 
     // 日付と日数の変換は Howard Hinnant の days_from_civil と civil_from_days
@@ -141,7 +156,7 @@ type BlankFn = Box<dyn Fn(Div) -> Div>;
 /// 曜日の見出しの行と、日曜日から始まる 6 週の行を並べる。月の外の日はセルを空にする
 ///
 /// - Tab で到達できる日付は 1 つだけで、フォーカスのある日付、選ばれている日付、[`Calendar::today`]、
-///   月の最初の日の順に、表示している月の中から選ぶ
+///   [`Calendar::range`] の中の最初の日の順に、表示している月の中から選ぶ
 /// - フォーカス中の左右の矢印キーで前後の日、上下の矢印キーで前後の週の同じ曜日、Home と End で週の始まりと終わり、
 ///   Page Up と Page Down で前後の月、Shift を押しながら Page Up と Page Down で前後の年の同じ日に、フォーカスだけを移す。
 ///   月か年を移って同じ日が無ければ月末にする。
@@ -172,17 +187,17 @@ pub struct Calendar {
 }
 
 impl Calendar {
-    /// `year` 年 `month` 月を表示するカレンダーを作る。`month` は 1 から 12 にすること
+    /// `month` の日付がある月を表示するカレンダーを作る。日は使わない
     ///
     /// `id` は同じ親の中で一意にし、描画のたびに同じ値を渡すこと。
     /// `id` が変わるか 1 フレームでも描画されないと、日付のフォーカスが外れる
-    pub fn new(id: impl Into<ElementId>, year: i32, month: u8) -> Self {
+    pub fn new(id: impl Into<ElementId>, month: Date) -> Self {
         let id = id.into();
         Self {
             id: id.clone(),
             inner: div().id(id),
-            year,
-            month,
+            year: month.year,
+            month: month.month,
             selected: None,
             today: None,
             range: None,
@@ -207,8 +222,8 @@ impl Calendar {
         self
     }
 
-    /// キー操作でフォーカスを移せる日付を `range` の中に限る。範囲の外へ移る操作では何もしない。
-    /// 既定では限らない
+    /// フォーカスを移せる日付を `range` の中に限る。範囲の外へ移るキー操作では何もしない。
+    /// Tab で到達できる日付も範囲の中から選ぶ。既定では限らない
     pub fn range(mut self, range: RangeInclusive<Date>) -> Self {
         self.range = Some(range);
         self
@@ -235,8 +250,8 @@ impl Calendar {
     /// キー操作で表示している月の外へフォーカスを移すときに、`handler` に移る先の日付を渡す。
     /// 複数回呼んだ場合は最後に渡した `handler` だけを呼ぶ
     ///
-    /// 次の描画でその日付の年と月を [`Calendar::new`] に渡すと、その日付にフォーカスが移る。
-    /// 渡さなかった場合はフォーカスが外れる
+    /// 次の描画でその日付の月を [`Calendar::new`] に渡すと、その日付にフォーカスが移る。
+    /// 渡さなかった場合は、フォーカスは元の日付に残る
     pub fn on_month_change(
         mut self,
         handler: impl Fn(&Date, &mut Window, &mut App) + 'static,
@@ -296,6 +311,13 @@ const WEEKS: usize = 6;
 impl RenderOnce for Calendar {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let handles: Rc<[FocusHandle]> = day_focus_handles(&self.id, window, cx).into();
+        // 月の外へ移るキー操作で、月が変わった後にフォーカスを移す日付。その次の描画で使い終える
+        let pending = window.use_keyed_state((self.id.clone(), "pending"), cx, |_, _| None::<Date>);
+        if let Some(target) = pending.update(cx, |pending, _| pending.take())
+            && (target.year, target.month) == (self.year, self.month)
+        {
+            window.focus(&handles[usize::from(target.day) - 1], cx);
+        }
         let (year, month) = (self.year, self.month);
         let days = Date::days_in_month(year, month);
         let first = Date {
@@ -308,10 +330,16 @@ impl RenderOnce for Calendar {
             date.filter(|date| date.year == year && date.month == month)
                 .map(|date| date.day)
         };
+        let in_range = |day: u8| {
+            self.range
+                .as_ref()
+                .is_none_or(|range| range.contains(&Date { year, month, day }))
+        };
         let focused_day = (1..=days).find(|&day| handles[usize::from(day) - 1].is_focused(window));
         let tab_day = focused_day
-            .or(in_month(self.selected))
-            .or(in_month(self.today))
+            .or(in_month(self.selected).filter(|&day| in_range(day)))
+            .or(in_month(self.today).filter(|&day| in_range(day)))
+            .or((1..=days).find(|&day| in_range(day)))
             .unwrap_or(1);
         let enabled = self.enabled.clone();
         let is_enabled = move |date: &Date| enabled.as_ref().is_none_or(|enabled| enabled(date));
@@ -328,6 +356,7 @@ impl RenderOnce for Calendar {
             let handles = handles.clone();
             let on_month_change = self.on_month_change.clone();
             let range = self.range.clone();
+            let pending = pending.clone();
             move |event: &gpui::KeyDownEvent, window: &mut Window, cx: &mut App| {
                 let Some(day) =
                     (1..=days).find(|&day| handles[usize::from(day) - 1].is_focused(window))
@@ -355,16 +384,20 @@ impl RenderOnce for Calendar {
                     _ => return,
                 };
                 cx.stop_propagation();
-                if range.as_ref().is_some_and(|range| !range.contains(&target)) {
+                let Some(target) = target
+                    .filter(|target| range.as_ref().is_none_or(|range| range.contains(target)))
+                else {
+                    return;
+                };
+                if (target.year, target.month) == (year, month) {
+                    window.focus(&handles[usize::from(target.day) - 1], cx);
                     return;
                 }
-                if (target.year, target.month) != (year, month) {
-                    let Some(on_month_change) = &on_month_change else {
-                        return;
-                    };
-                    on_month_change(&target, window, cx);
-                }
-                window.focus(&handles[usize::from(target.day) - 1], cx);
+                let Some(on_month_change) = &on_month_change else {
+                    return;
+                };
+                pending.update(cx, |pending, _| *pending = Some(target));
+                on_month_change(&target, window, cx);
             }
         };
 
@@ -515,13 +548,22 @@ mod tests {
         assert_eq!(date(1970, 1, 1).weekday(), 4);
         assert_eq!(date(2026, 11, 24).weekday(), 2);
         assert_eq!(date(1969, 12, 31).weekday(), 3);
-        assert_eq!(date(2024, 2, 28).add_days(1), date(2024, 2, 29));
-        assert_eq!(date(2024, 12, 31).add_days(1), date(2025, 1, 1));
-        assert_eq!(date(2025, 3, 1).add_days(-1), date(2025, 2, 28));
-        assert_eq!(date(1600, 3, 1).add_days(-1), date(1600, 2, 29));
-        assert_eq!(date(2025, 1, 31).add_months(1), date(2025, 2, 28));
-        assert_eq!(date(2025, 1, 15).add_months(-1), date(2024, 12, 15));
-        assert_eq!(date(2024, 2, 29).add_months(12), date(2025, 2, 28));
+        assert_eq!(date(2024, 2, 28).add_days(1), Some(date(2024, 2, 29)));
+        assert_eq!(date(2024, 12, 31).add_days(1), Some(date(2025, 1, 1)));
+        assert_eq!(date(2025, 3, 1).add_days(-1), Some(date(2025, 2, 28)));
+        assert_eq!(date(1600, 3, 1).add_days(-1), Some(date(1600, 2, 29)));
+        assert_eq!(date(2025, 1, 31).add_months(1), Some(date(2025, 2, 28)));
+        assert_eq!(date(2025, 1, 15).add_months(-1), Some(date(2024, 12, 15)));
+        assert_eq!(date(2024, 2, 29).add_months(12), Some(date(2025, 2, 28)));
+        assert_eq!(Date::new(0, 1, 1), None);
+        assert_eq!(Date::new(10_000, 1, 1), None);
+        assert_eq!(Date::MAX.add_days(1), None);
+        assert_eq!(Date::MIN.add_days(-1), None);
+        assert_eq!(Date::MIN.add_days(1), Some(date(1, 1, 2)));
+        assert_eq!(Date::MAX.add_months(1), None);
+        assert_eq!(Date::MIN.add_months(i64::MIN), None);
+        assert_eq!(Date::MAX.add_days(i64::MAX), None);
+        assert_eq!(date(1, 1, 1).weekday(), 1);
     }
 
     struct CalendarView {
@@ -530,13 +572,14 @@ mod tests {
         selected: Option<Date>,
         month_change: bool,
         range: Option<RangeInclusive<Date>>,
+        refuse_month: bool,
         changes: Rc<RefCell<Vec<Date>>>,
         focused: Rc<Cell<Option<Date>>>,
     }
 
     impl Render for CalendarView {
         fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-            let calendar = Calendar::new("calendar", self.year, self.month)
+            let calendar = Calendar::new("calendar", date(self.year, self.month, 1))
                 .selected(self.selected)
                 .today(Some(date(2026, 11, 24)))
                 .enabled(|date| date.weekday() != 0)
@@ -564,6 +607,9 @@ mod tests {
             };
             let calendar = if self.month_change {
                 calendar.on_month_change(cx.listener(|this, date: &Date, _, cx| {
+                    if this.refuse_month {
+                        return;
+                    }
                     this.year = date.year();
                     this.month = date.month();
                     cx.notify();
@@ -586,6 +632,7 @@ mod tests {
             selected,
             month_change,
             range: None,
+            refuse_month: false,
             changes: Rc::default(),
             focused: Rc::default(),
         });
@@ -663,6 +710,30 @@ mod tests {
         let (view, cx) = setup(cx, Some(date(2026, 11, 30)), false);
         cx.simulate_keystrokes("tab right pagedown");
         assert_eq!(focused(&view, cx), Some(date(2026, 11, 30)));
+    }
+
+    #[gpui::test]
+    fn 月の途中から始まる範囲では範囲の最初の日に入る(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, None, true);
+        view.update(cx, |view, _| {
+            view.range = Some(date(2026, 11, 20)..=date(2026, 11, 22));
+        });
+        cx.simulate_keystrokes("tab");
+        assert_eq!(focused(&view, cx), Some(date(2026, 11, 20)));
+    }
+
+    #[gpui::test]
+    fn 月の変更が反映されなければフォーカスは元の日付に残る(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 11, 30)), true);
+        view.update(cx, |view, _| view.refuse_month = true);
+        cx.simulate_keystrokes("tab right");
+        assert_eq!(focused(&view, cx), Some(date(2026, 11, 30)));
+        press(cx, "enter");
+        assert_eq!(changes(&view, cx), [date(2026, 11, 30)]);
     }
 
     #[gpui::test]

@@ -167,6 +167,8 @@ pub use connected_button_group::{
     ConnectedButton, ConnectedToggleButton, MultiChoiceConnectedButtonGroup,
     SingleChoiceConnectedButtonGroup,
 };
+#[cfg(feature = "date-picker")]
+pub use date_picker::DatePicker;
 #[cfg(feature = "dialog")]
 pub use dialog::{Dialog, DialogKind, DismissReason};
 #[cfg(feature = "divider")]
@@ -180,6 +182,8 @@ pub use fab_menu::{FabMenu, FabMenuItem};
 #[cfg(feature = "floating-toolbar")]
 pub use floating_toolbar::{FloatingToolbar, FloatingToolbarColor, FloatingToolbarOrientation};
 pub use gpui;
+#[cfg(feature = "date-picker")]
+pub use gpui_headless::calendar::Date;
 #[cfg(feature = "platform")]
 pub use gpui_platform;
 #[cfg(feature = "icon-button")]
@@ -201,10 +205,6 @@ pub use navigation_bar::{
 #[cfg(feature = "navigation-drawer")]
 pub use navigation_drawer::{ModalNavigationDrawer, NavigationDrawer, NavigationDrawerItem};
 // dialog feature が有効なら dialog から公開している
-#[cfg(feature = "date-picker")]
-pub use date_picker::DatePicker;
-#[cfg(feature = "date-picker")]
-pub use gpui_headless::calendar::Date;
 #[cfg(all(
     any(feature = "bottom-sheet", feature = "navigation-drawer"),
     not(feature = "dialog")

@@ -21,6 +21,7 @@ use gpui::{
     StatefulInteractiveElement, StyleRefinement, Styled, Window, div, prelude::FluentBuilder,
 };
 use gpui_headless::calendar::{Calendar, Date};
+use gpui_headless::text::StaticText;
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::date_picker_modal as tokens;
 use md3_theme::md3_tokens::component::divider;
@@ -98,9 +99,12 @@ fn long_date(date: Date) -> String {
 /// - 日付の操作は [`Calendar`] と同じ。キー操作で月の外の日付へ移ると、表示する月も変える。
 ///   [`DatePicker::year_range`] の外の日付へは移らない
 ///
-/// 支援技術には、日付の格子が [`Calendar`] として公開される。日付の名前は
-/// Today, Tuesday, November 24, 2026 のように、今日であることと曜日・月・日・年を書く。
-/// 見出しの名前は Current selection: と選ばれている日付で、選ばれていなければ None にする。
+/// 支援技術には、日付の格子が表示している月 (November 2026 のような名前) の role `grid` として公開される。
+/// 曜日の見出しは role `columnheader`、日付は role `gridcell` で、選ばれているかどうかと選べるかどうかを持ち、
+/// 名前は Today, Tuesday, November 24, 2026 のように、今日であることと曜日・月・日・年を書く。
+/// 選ばれている日付の見出し (Current selection: に続けて日付、選ばれていなければ None) と表示している月は
+/// role `label` で、変わったときに読み上げ中の内容を遮らずに知らせる。
+/// 前後の月へ移るボタンの名前は Change to previous month と Change to next month。
 /// 文言は英語に固定している
 #[derive(IntoElement)]
 pub struct DatePicker {
@@ -140,7 +144,8 @@ impl DatePicker {
 
     /// 表示できる年を `range` に限る。既定では 1900 年から 2100 年
     ///
-    /// 範囲の外の日付は選べない。`range` が空の場合は、最初の年だけを表示する
+    /// 範囲の外の日付は選べず、[`DatePicker::new`] と [`DatePicker::today`] に渡しても無いものとして扱う。
+    /// 1 年から 9999 年の外は除く。`range` が空の場合は、最初の年だけを表示する
     pub fn year_range(mut self, range: RangeInclusive<i32>) -> Self {
         self.year_range = range;
         self
@@ -177,32 +182,26 @@ impl Styled for DatePicker {
 impl RenderOnce for DatePicker {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
-        let first_year = *self.year_range.start();
-        let last_year = (*self.year_range.end()).max(first_year);
-        let first = Date::new(first_year, 1, 1).expect("1 月 1 日はどの年にもある");
-        let last = Date::new(last_year, 12, 31).expect("12 月 31 日はどの年にもある");
-        let initial = self
-            .selected
-            .or(self.today)
-            .filter(|date| (first..=last).contains(date))
-            .unwrap_or(first);
-        let displayed = window.use_keyed_state((self.id.clone(), "month"), cx, |_, _| {
-            (initial.year(), initial.month())
-        });
-        let (year, month) = *displayed.read(cx);
-        // year_range が変わって表示している月が範囲の外になった場合は、範囲の端の月を表示する
-        let (year, month) = if year < first_year {
-            (first_year, 1)
-        } else if year > last_year {
-            (last_year, 12)
-        } else {
-            (year, month)
+        let first_year = (*self.year_range.start()).clamp(Date::MIN.year(), Date::MAX.year());
+        let last_year = (*self.year_range.end()).clamp(first_year, Date::MAX.year());
+        let (Some(first), Some(last)) = (Date::new(first_year, 1, 1), Date::new(last_year, 12, 31))
+        else {
+            unreachable!("years are clamped to the range of Date");
         };
+        let in_range = |date: &Date| (first..=last).contains(date);
+        // Compose と同じく、範囲の外の日付は選ばれていないものとして扱う
+        let selected = self.selected.filter(in_range);
+        let today = self.today.filter(in_range);
+        let initial = selected.or(today).unwrap_or(first);
+        let displayed = window.use_keyed_state((self.id.clone(), "month"), cx, |_, _| initial);
+        // year_range が変わって表示している月が範囲の外になった場合は、範囲の端の月を表示する
+        let displayed_month = (*displayed.read(cx)).clamp(first, last);
+        let (year, month) = (displayed_month.year(), displayed_month.month());
         let set_month = {
             let displayed = displayed.clone();
-            move |year: i32, month: u8, cx: &mut App| {
+            move |date: Date, cx: &mut App| {
                 displayed.update(cx, |displayed, cx| {
-                    *displayed = (year, month);
+                    *displayed = date;
                     cx.notify();
                 });
             }
@@ -219,7 +218,7 @@ impl RenderOnce for DatePicker {
         title.text_style().refine(&title_font);
         let mut headline_font = theme.text_style(tokens::HEADER_HEADLINE_FONT);
         headline_font.color = Some(theme.color(tokens::HEADER_HEADLINE_COLOR));
-        let (headline_text, headline_label) = match self.selected {
+        let (headline_text, headline_label) = match selected {
             Some(date) => (
                 format!(
                     "{} {}, {}",
@@ -234,11 +233,8 @@ impl RenderOnce for DatePicker {
                 "Current selection: None".to_owned(),
             ),
         };
-        let mut headline = div()
-            .id((self.id.clone(), "headline"))
-            .role(gpui::accesskit::Role::Label)
-            // Label の名前は値から求まる
-            .aria_value(headline_label)
+        let mut headline = StaticText::new((self.id.clone(), "headline"), headline_label)
+            .live(true)
             .pb(dp(HEADLINE_BOTTOM_PADDING))
             .pl(dp(HEADER_START_PADDING))
             .pr(dp(HEADER_END_PADDING))
@@ -261,19 +257,23 @@ impl RenderOnce for DatePicker {
         // 表示している月と、前後の月へ移るボタン
         let mut month_font = theme.text_style(TypeScale::LabelLarge);
         month_font.color = Some(theme.color(ColorRole::OnSurfaceVariant));
-        let mut month_label = div().px(dp(Dp(12.0))).child(gpui::text!(
-            id = (self.id.clone(), "month-label"),
-            format!("{} {}", MONTH_NAMES[usize::from(month) - 1], year)
-        ));
+        let month_text = format!("{} {}", MONTH_NAMES[usize::from(month) - 1], year);
+        let mut month_label = StaticText::new((self.id.clone(), "month-label"), month_text.clone())
+            .live(true)
+            .px(dp(Dp(12.0)))
+            .child(month_text.clone());
         month_label.text_style().refine(&month_font);
-        let month_index = year * 12 + i32::from(month) - 1;
-        let move_month = |delta: i32| {
-            let set_month = set_month.clone();
-            move |_: &gpui::ClickEvent, _: &mut Window, cx: &mut App| {
-                let index = month_index + delta;
-                set_month(index.div_euclid(12), index.rem_euclid(12) as u8 + 1, cx);
-            }
+        let neighbor = |delta: i64| {
+            displayed_month
+                .add_months(delta)
+                .filter(|date| (first..=last).contains(date))
         };
+        let move_month = |target: Date| {
+            let set_month = set_month.clone();
+            move |_: &gpui::ClickEvent, _: &mut Window, cx: &mut App| set_month(target, cx)
+        };
+        let previous = neighbor(-1);
+        let next = neighbor(1);
         let navigation = div()
             .flex()
             .flex_none()
@@ -292,8 +292,8 @@ impl RenderOnce for DatePicker {
                             "Change to previous month",
                         )
                         .variant(IconButtonVariant::Standard)
-                        .disabled(year == first_year && month == 1)
-                        .on_click(move_month(-1))
+                        .disabled(previous.is_none())
+                        .when_some(previous, |this, target| this.on_click(move_month(target)))
                         .theme(theme.clone()),
                     )
                     .child(
@@ -303,8 +303,8 @@ impl RenderOnce for DatePicker {
                             "Change to next month",
                         )
                         .variant(IconButtonVariant::Standard)
-                        .disabled(year == last_year && month == 12)
-                        .on_click(move_month(1))
+                        .disabled(next.is_none())
+                        .when_some(next, |this, target| this.on_click(move_month(target)))
                         .theme(theme.clone()),
                     ),
             );
@@ -315,12 +315,12 @@ impl RenderOnce for DatePicker {
         let mut day_font = theme.text_style(tokens::DATE_LABEL_TEXT_FONT);
         day_font.color = None;
         let enabled = self.enabled.clone();
-        let mut calendar = Calendar::new((self.id.clone(), "calendar"), year, month)
-            .selected(self.selected)
-            .today(self.today)
+        let mut calendar = Calendar::new((self.id.clone(), "calendar"), displayed_month)
+            .selected(selected)
+            .today(today)
             .range(first..=last)
             .enabled(move |date| enabled.as_ref().is_none_or(|enabled| enabled(date)))
-            .on_month_change(move |date: &Date, _, cx| set_month(date.year(), date.month(), cx))
+            .on_month_change(move |date: &Date, _, cx| set_month(*date, cx))
             .weekday(move |weekday, cell, _, _| {
                 let mut cell = cell
                     .flex()
@@ -400,7 +400,7 @@ impl RenderOnce for DatePicker {
                         long_date(day.date)
                     };
                     let mut cell = cell
-                        .group(group)
+                        .group(group.clone())
                         .flex()
                         .flex_none()
                         .items_center()
@@ -421,6 +421,24 @@ impl RenderOnce for DatePicker {
                                     theme.clone(),
                                     tokens::DATE_CONTAINER_SHAPE,
                                 ))
+                                // group_active は id を持つ要素にしか付けられないため、押下の色は別の層に描く。
+                                // 押している間は hover の層も残るので、重ねて押下の不透明度になる分だけを足す。
+                                // 日付の容器の形 (CornerFull) は円なので rounded_full で同じ形になる
+                                .when(day.enabled, |this| {
+                                    this.child(
+                                        div()
+                                            .id("pressed")
+                                            .absolute()
+                                            .inset_0()
+                                            .rounded_full()
+                                            .group_active(group.clone(), |style| {
+                                                style.bg(content.opacity(
+                                                    state::PRESSED_STATE_LAYER_OPACITY
+                                                        - state::HOVER_STATE_LAYER_OPACITY,
+                                                ))
+                                            }),
+                                    )
+                                })
                                 .child(div().relative().child(day.date.day().to_string()))
                                 .when(day.focus_visible, |this| {
                                     this.child(
@@ -444,7 +462,7 @@ impl RenderOnce for DatePicker {
                     cell
                 }
             })
-            .aria_label(format!("{} {}", MONTH_NAMES[usize::from(month) - 1], year));
+            .aria_label(month_text);
         if let Some(on_change) = self.on_change {
             calendar = calendar.on_change(move |date, window, cx| on_change(date, window, cx));
         }
@@ -612,6 +630,20 @@ mod tests {
         cx.simulate_event(gpui::KeyUpEvent { keystroke });
         cx.run_until_parked();
         assert_eq!(changes(&view, cx), [date(2026, 12, 1)]);
+    }
+
+    #[gpui::test]
+    fn 範囲の外の選択は無いものとして今日の月を表示する(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2025, 12, 15)), 2026..=2026);
+        assert!(
+            quads(cx, tokens::DATE_SELECTED_CONTAINER_COLOR).is_empty(),
+            "範囲の外の日付は選ばれた日付として示さない"
+        );
+        // 今日の 2026 年 11 月を表示する。11 月 24 日は 4 行目の 3 列目
+        cx.simulate_click(cell_center(3, 2), Modifiers::none());
+        assert_eq!(changes(&view, cx), [date(2026, 11, 24)]);
     }
 
     #[gpui::test]
