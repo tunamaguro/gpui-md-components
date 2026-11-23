@@ -2,7 +2,7 @@
 // (https://android.googlesource.com/platform/frameworks/support)
 // Source: compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/TimePicker.kt
 //         (`TimeInput`、`TimeInputImpl`、`TimePickerTextField`、`SupportingText`、`VerticalPeriodToggle`、
-//         `ToggleItem`、`TimePickerDefaults.defaultTimeInputColors`、`DisplaySeparatorWidth`、`SupportLabelTop`、
+//         `TimePickerDefaults.defaultTimeInputColors`、`DisplaySeparatorWidth`、`SupportLabelTop`、
 //         `PeriodTogglePaddingSmall`)
 //         compose/material3/material3/src/androidMain/res/values/strings.xml (`m3c_time_picker_*`)
 //         @ 2a941dd11aabd9bb7d2016ed159764b220117c20
@@ -14,60 +14,31 @@
 use std::rc::Rc;
 
 use gpui::{
-    App, ElementId, FontWeight, InteractiveElement, IntoElement, MouseButton, ParentElement,
-    Refineable, RenderOnce, StatefulInteractiveElement, StyleRefinement, Styled, Window, div,
+    App, ElementId, InteractiveElement, IntoElement, MouseButton, ParentElement, Refineable,
+    RenderOnce, StatefulInteractiveElement, StyleRefinement, Styled, Window, div,
     prelude::FluentBuilder,
 };
-use gpui_headless::radio::{Radio, RadioGroup};
 use gpui_headless::text::StaticText;
 use gpui_headless::text_field::{TextEdit, TextField as HeadlessTextField};
 use md3_theme::md3_color::ColorRole;
+use md3_theme::md3_tokens::Dp;
 use md3_theme::md3_tokens::component::{time_input as tokens, time_picker};
-use md3_theme::md3_tokens::shape::ShapeKey;
-use md3_theme::md3_tokens::{Dp, focus_ring};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
 use crate::shape::Shaped;
+use crate::time::{
+    HourFormat, PERIOD_TOGGLE_SPACE, PeriodHandler, SEPARATOR_WIDTH, Time, period_toggle,
+};
 use crate::util;
 
-/// 時と分の入力欄の間の区切りの幅 (Compose の `DisplaySeparatorWidth`)
-const SEPARATOR_WIDTH: Dp = Dp(24.0);
 /// 入力欄と補足の文の間の余白 (Compose の `SupportLabelTop`)
 const SUPPORTING_TEXT_TOP: Dp = Dp(7.0);
-/// 分の入力欄と午前・午後の切り替えの間の余白、切り替えの 2 つの項目の間の余白 (Compose の `PeriodTogglePaddingSmall`)
-const PERIOD_TOGGLE_SPACE: Dp = Dp(4.0);
 /// 入力欄の枠線の太さ (Compose の `TimePickerTextField` の `focusedBorderThickness` と `unfocusedBorderThickness`)
 const FOCUSED_OUTLINE_WIDTH: Dp = Dp(2.0);
 const OUTLINE_WIDTH: Dp = Dp(1.0);
 
 type ChangeHandler = Box<dyn Fn(&Time, &mut Window, &mut App)>;
 type ValidityHandler = Box<dyn Fn(bool, &mut Window, &mut App)>;
-
-/// 時刻
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct Time {
-    /// 時。0 から 23
-    pub hour: u8,
-    /// 分。0 から 59
-    pub minute: u8,
-}
-
-impl Time {
-    /// `hour` 時 `minute` 分の時刻を作る。`hour` は 0 から 23、`minute` は 0 から 59 にすること
-    pub fn new(hour: u8, minute: u8) -> Self {
-        Self { hour, minute }
-    }
-}
-
-/// [`TimeInput`] の時の表し方
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum HourFormat {
-    /// 1 時から 12 時と、午前・午後で表す
-    #[default]
-    Hour12,
-    /// 0 時から 23 時で表す
-    Hour24,
-}
 
 /// MD3 の時刻の入力 (Compose の `TimeInput`)
 ///
@@ -481,107 +452,35 @@ impl RenderOnce for TimeInput {
         // 時が範囲外か空の間も切り替えられない
         let read_only = on_change.is_none() || !fields.read(cx).hour.valid;
         let period = (format == HourFormat::Hour12).then(|| {
-            let pm = time.hour >= 12;
-            let item = |id: &'static str,
-                        label: &'static str,
-                        value: bool,
-                        window: &mut Window,
-                        cx: &mut App| {
-                let item_id = ElementId::from((self.id.clone(), id));
-                let focus_handle = util::keyed_focus_handle(&item_id, window, cx);
-                let focus_visible = gpui_headless::is_focus_visible(&focus_handle, window, cx);
-                let checked = value == pm;
-                let (container, content, shape) = if checked {
-                    (
-                        ColorRole::PrimaryContainer,
-                        ColorRole::OnPrimaryContainer,
-                        ShapeKey::CornerMedium,
-                    )
-                } else {
-                    (
-                        ColorRole::SurfaceContainerLowest,
-                        tokens::PERIOD_SELECTOR_UNSELECTED_LABEL_TEXT_COLOR,
-                        ShapeKey::CornerFull,
-                    )
-                };
-                let mut font = theme.text_style(tokens::PERIOD_SELECTOR_LABEL_TEXT_FONT);
-                font.color = Some(theme.color(content));
-                if checked {
-                    font.font_weight = Some(FontWeight::BOLD);
-                }
-                let outset = dp(focus_ring::OUTWARD_OFFSET) + dp(focus_ring::WIDTH);
-                let mut radio = Radio::new(item_id, value)
-                    .disabled(read_only)
-                    .track_focus(&focus_handle)
-                    .relative()
-                    .flex()
-                    .flex_1()
-                    .items_center()
-                    .justify_center()
-                    .child(Shaped::new(
-                        div()
-                            .absolute()
-                            .top_0()
-                            .left_0()
-                            .right_0()
-                            .bottom_0()
-                            .bg(theme.color(container)),
-                        theme.clone(),
-                        shape,
-                    ))
-                    .child(div().relative().child(label))
-                    .aria_label(label);
-                if focus_visible {
-                    radio = radio.child(
-                        Shaped::new(
-                            div()
-                                .absolute()
-                                .top(-outset)
-                                .left(-outset)
-                                .right(-outset)
-                                .bottom(-outset)
-                                .border(dp(focus_ring::WIDTH))
-                                .border_color(theme.color(focus_ring::COLOR)),
-                            theme.clone(),
-                            shape,
-                        )
-                        .outset(outset),
-                    );
-                }
-                radio.text_style().refine(&font);
-                radio
-            };
-            let am = item("am", "AM", false, window, cx);
-            let pm_item = item("pm", "PM", true, window, cx);
-            RadioGroup::new((self.id.clone(), "period"), Some(pm))
-                .when_some(on_change.clone(), |this, on_change| {
-                    let fields = fields.clone();
-                    this.on_change(move |pm: &bool, window, cx| {
-                        // 編集中の分の入力欄を置き換えないよう、受け付けた時刻を先に変える
-                        let new_time = fields.update(cx, |fields, cx| {
-                            // Compose と同じく、時が範囲外か空の間は切り替えない
-                            if !fields.hour.valid {
-                                return None;
-                            }
-                            fields.time.hour = fields.time.hour % 12 + if *pm { 12 } else { 0 };
-                            cx.notify();
-                            Some(fields.time)
-                        });
-                        if let Some(new_time) = new_time {
-                            on_change(&new_time, window, cx);
+            let on_change = on_change.clone().map(|on_change| {
+                let fields = fields.clone();
+                Rc::new(move |pm: bool, window: &mut Window, cx: &mut App| {
+                    // 編集中の分の入力欄を置き換えないよう、受け付けた時刻を先に変える
+                    let new_time = fields.update(cx, |fields, cx| {
+                        // Compose と同じく、時が範囲外か空の間は切り替えない
+                        if !fields.hour.valid {
+                            return None;
                         }
-                    })
-                })
-                .item(am)
-                .item(pm_item)
-                .aria_label("Select AM or PM")
-                .flex()
-                .flex_col()
-                .flex_none()
-                .gap(dp(PERIOD_TOGGLE_SPACE))
-                .ml(dp(PERIOD_TOGGLE_SPACE))
-                .w(dp(tokens::PERIOD_SELECTOR_CONTAINER_WIDTH))
-                .h(dp(tokens::PERIOD_SELECTOR_CONTAINER_HEIGHT))
+                        fields.time.hour = fields.time.hour % 12 + if pm { 12 } else { 0 };
+                        cx.notify();
+                        Some(fields.time)
+                    });
+                    if let Some(new_time) = new_time {
+                        on_change(&new_time, window, cx);
+                    }
+                }) as PeriodHandler
+            });
+            period_toggle(
+                &self.id,
+                &theme,
+                time.hour >= 12,
+                read_only,
+                on_change,
+                window,
+                cx,
+            )
+            .ml(dp(PERIOD_TOGGLE_SPACE))
+            .h(dp(tokens::PERIOD_SELECTOR_CONTAINER_HEIGHT))
         });
 
         let mut root = div()

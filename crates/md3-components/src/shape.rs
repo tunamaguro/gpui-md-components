@@ -58,7 +58,8 @@ impl Shaped {
         feature = "navigation-drawer",
         feature = "navigation-rail",
         feature = "slider",
-        feature = "time-input"
+        feature = "time-input",
+        feature = "time-picker"
     ))]
     pub(crate) fn outset(mut self, outset: Pixels) -> Self {
         self.outset = outset;

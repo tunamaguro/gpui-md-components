@@ -33,6 +33,7 @@ mod tabs_page;
 mod text_field_page;
 mod theme_page;
 mod time_input_page;
+mod time_picker_page;
 mod tooltip_page;
 
 use gpui::{
@@ -74,6 +75,7 @@ use crate::tabs_page::TabsPage;
 use crate::text_field_page::TextFieldPage;
 use crate::theme_page::ThemePage;
 use crate::time_input_page::TimeInputPage;
+use crate::time_picker_page::TimePickerPage;
 use crate::tooltip_page::TooltipPage;
 
 /// 表示するページ
@@ -107,6 +109,7 @@ enum Page {
     BottomSheet,
     SearchBar,
     TimeInput,
+    TimePicker,
     Menu,
     Dialog,
     Select,
@@ -143,6 +146,7 @@ struct Gallery {
     bottom_sheet_page: Entity<BottomSheetPage>,
     search_bar_page: Entity<SearchBarPage>,
     time_input_page: Entity<TimeInputPage>,
+    time_picker_page: Entity<TimePickerPage>,
     navigation_rail_page: Entity<NavigationRailPage>,
     menu_page: Entity<MenuPage>,
     dialog_page: Entity<DialogPage>,
@@ -181,6 +185,7 @@ impl Gallery {
             bottom_sheet_page: cx.new(BottomSheetPage::new),
             search_bar_page: cx.new(SearchBarPage::new),
             time_input_page: cx.new(TimeInputPage::new),
+            time_picker_page: cx.new(TimePickerPage::new),
             navigation_rail_page: cx.new(NavigationRailPage::new),
             menu_page: cx.new(|_| MenuPage::default()),
             dialog_page: cx.new(DialogPage::new),
@@ -233,6 +238,7 @@ impl Render for Gallery {
             Page::BottomSheet => self.bottom_sheet_page.clone().into(),
             Page::SearchBar => self.search_bar_page.clone().into(),
             Page::TimeInput => self.time_input_page.clone().into(),
+            Page::TimePicker => self.time_picker_page.clone().into(),
             Page::NavigationRail => self.navigation_rail_page.clone().into(),
             Page::Menu => self.menu_page.clone().into(),
             Page::Dialog => self.dialog_page.clone().into(),
@@ -282,7 +288,8 @@ impl Render for Gallery {
                         .child(tab(Page::NavigationDrawer, "Navigation drawer", cx))
                         .child(tab(Page::BottomSheet, "Bottom sheet", cx))
                         .child(tab(Page::SearchBar, "Search bar", cx))
-                        .child(tab(Page::TimeInput, "Time input", cx)),
+                        .child(tab(Page::TimeInput, "Time input", cx))
+                        .child(tab(Page::TimePicker, "Time picker", cx)),
                 )
                 .child(div().flex_1().min_h_0().child(page)),
         )

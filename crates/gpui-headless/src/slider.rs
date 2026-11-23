@@ -3,28 +3,31 @@
 use std::{cell::Cell, ops::RangeInclusive, rc::Rc};
 
 use gpui::{
-    AnyElement, App, Bounds, DispatchPhase, Div, Element, ElementId, Entity, FocusHandle,
-    GlobalElementId, InspectorElementId, InteractiveElement, Interactivity, IntoElement, LayoutId,
-    MouseButton, MouseMoveEvent, MouseUpEvent, ParentElement, Pixels, RenderOnce, SharedString,
-    Stateful, StatefulInteractiveElement, StyleRefinement, Styled, Window, accesskit, div,
+    AnyElement, App, Bounds, Div, ElementId, FocusHandle, InteractiveElement, Interactivity,
+    IntoElement, MouseButton, ParentElement, Pixels, Point, RenderOnce, SharedString, Stateful,
+    StatefulInteractiveElement, StyleRefinement, Styled, Window, accesskit, div,
     prelude::FluentBuilder, px,
 };
 
-use crate::{Availability, InteractionSource, accessibility::A11yInfoExt};
+use crate::{
+    Availability, InteractionSource,
+    accessibility::A11yInfoExt,
+    pointer::{DragHandler, PointerLayer, PointerState},
+};
 
 type ChangeHandler = Rc<dyn Fn(&f32, &mut Window, &mut App)>;
 
 /// 値の範囲と段階
 #[derive(Debug, Clone, Copy)]
-struct Scale {
-    start: f32,
-    end: f32,
-    step: Option<f32>,
+pub(crate) struct Scale {
+    pub(crate) start: f32,
+    pub(crate) end: f32,
+    pub(crate) step: Option<f32>,
 }
 
 impl Scale {
     /// `value` を範囲に収め、段階があれば、範囲の始まりから段階ごとの値と範囲の終わりのうち最も近い値にする
-    fn snap(self, value: f32) -> f32 {
+    pub(crate) fn snap(self, value: f32) -> f32 {
         // 始まりが終わりより大きい範囲でも panic しないよう、clamp ではなく max と min で収める
         let value = value.max(self.start).min(self.end);
         let Some(step) = self.step else {
@@ -43,12 +46,12 @@ impl Scale {
     }
 
     /// 矢印キーで増減する量。段階が無ければ範囲の 1%
-    fn key_delta(self) -> f32 {
+    pub(crate) fn key_delta(self) -> f32 {
         self.step.unwrap_or((self.end - self.start) / 100.0)
     }
 
     /// Page Up と Page Down で増減する量。範囲の段階の数の 1/10 を、2 から 10 段階に収めた量
-    fn page_delta(self) -> f32 {
+    pub(crate) fn page_delta(self) -> f32 {
         let delta = self.key_delta();
         let count = if delta > 0.0 {
             ((self.end - self.start) / delta).round()
@@ -69,13 +72,6 @@ impl Scale {
         };
         self.snap(self.start + (self.end - self.start) * fraction)
     }
-}
-
-/// ポインタで値を選ぶための状態。描画をまたいで保つ
-#[derive(Default)]
-struct PointerState {
-    /// 左ボタンを部品の上で押してから離すまでの間か
-    dragging: bool,
 }
 
 /// 範囲の中から値を選ぶ、見た目を持たないスライダー
@@ -336,11 +332,15 @@ impl RenderOnce for Slider {
             bounds,
             drag: request.map(|request| {
                 Rc::new(
-                    move |x: Pixels, bounds: Bounds<Pixels>, window: &mut Window, cx: &mut App| {
-                        request(scale.value_at(bounds, inset, x), window, cx);
+                    move |position: Point<Pixels>,
+                          bounds: Bounds<Pixels>,
+                          window: &mut Window,
+                          cx: &mut App| {
+                        request(scale.value_at(bounds, inset, position.x), window, cx);
                     },
                 ) as DragHandler
             }),
+            release: None,
             pointer,
         }
     }
@@ -366,133 +366,14 @@ impl InteractiveElement for Slider {
 
 impl StatefulInteractiveElement for Slider {}
 
-/// ドラッグ中のポインタの位置 `x` と、部品の位置を受け取るハンドラ
-type DragHandler = Rc<dyn Fn(Pixels, Bounds<Pixels>, &mut Window, &mut App)>;
-
-/// `inner` の位置を記録し、ドラッグ中のマウスの移動とボタンを離す操作を、部品の外でも受ける要素
-struct PointerLayer<E> {
-    inner: E,
-    bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
-    /// 値を変えられない場合は `None`
-    drag: Option<DragHandler>,
-    pointer: Entity<PointerState>,
-}
-
-impl<E: Element> IntoElement for PointerLayer<E> {
-    type Element = Self;
-
-    fn into_element(self) -> Self::Element {
-        self
-    }
-}
-
-impl<E: Element> Element for PointerLayer<E> {
-    type RequestLayoutState = E::RequestLayoutState;
-    type PrepaintState = E::PrepaintState;
-
-    fn id(&self) -> Option<ElementId> {
-        self.inner.id()
-    }
-
-    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
-        self.inner.source_location()
-    }
-
-    fn request_layout(
-        &mut self,
-        id: Option<&GlobalElementId>,
-        inspector_id: Option<&InspectorElementId>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> (LayoutId, Self::RequestLayoutState) {
-        self.inner.request_layout(id, inspector_id, window, cx)
-    }
-
-    fn prepaint(
-        &mut self,
-        id: Option<&GlobalElementId>,
-        inspector_id: Option<&InspectorElementId>,
-        bounds: Bounds<Pixels>,
-        request_layout: &mut Self::RequestLayoutState,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Self::PrepaintState {
-        self.bounds.set(Some(bounds));
-        self.inner
-            .prepaint(id, inspector_id, bounds, request_layout, window, cx)
-    }
-
-    fn paint(
-        &mut self,
-        id: Option<&GlobalElementId>,
-        inspector_id: Option<&InspectorElementId>,
-        bounds: Bounds<Pixels>,
-        request_layout: &mut Self::RequestLayoutState,
-        prepaint: &mut Self::PrepaintState,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        self.inner.paint(
-            id,
-            inspector_id,
-            bounds,
-            request_layout,
-            prepaint,
-            window,
-            cx,
-        );
-        // gpui の要素のマウスのリスナーは、ポインタが要素の上にある間しか移動を受けないため、ウィンドウ全体で受ける。
-        // 後から描かれた要素が Bubble で伝播を止めても受けるよう Capture で受け、
-        // ドラッグ中に値を変えられなくなっても押下の状態を戻す
-        let drag = self.drag.clone();
-        let pointer = self.pointer.clone();
-        window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
-            if phase != DispatchPhase::Capture || !pointer.read(cx).dragging {
-                return;
-            }
-            // ウィンドウの外でボタンを離した場合は離す操作が届かないため、移動のときにも確かめる
-            if event.pressed_button != Some(MouseButton::Left) {
-                pointer.update(cx, |pointer, _| pointer.dragging = false);
-                return;
-            }
-            if let Some(drag) = &drag {
-                drag(event.position.x, bounds, window, cx);
-            }
-        });
-        let pointer = self.pointer.clone();
-        window.on_mouse_event(move |event: &MouseUpEvent, phase, _, cx| {
-            if phase == DispatchPhase::Capture
-                && event.button == MouseButton::Left
-                && pointer.read(cx).dragging
-            {
-                pointer.update(cx, |pointer, _| pointer.dragging = false);
-            }
-        });
-    }
-
-    fn a11y_role(&self) -> Option<accesskit::Role> {
-        self.inner.a11y_role()
-    }
-
-    fn a11y_synthetic_children(
-        &mut self,
-        prepaint: &mut Self::PrepaintState,
-        builder: &mut gpui::A11ySubtreeBuilder,
-    ) {
-        self.inner.a11y_synthetic_children(prepaint, builder);
-    }
-
-    fn write_a11y_info(&self, node: &mut accesskit::Node) {
-        self.inner.write_a11y_info(node);
-    }
-}
-
 /// APG の Slider パターン (content/patterns/slider/slider-pattern.html) で期待される振る舞い
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
 
-    use gpui::{Context, Modifiers, Render, TestAppContext, VisualTestContext, point};
+    use gpui::{
+        Context, Element, Entity, Modifiers, Render, TestAppContext, VisualTestContext, point,
+    };
 
     use super::*;
     use crate::test_window::add_test_window;
