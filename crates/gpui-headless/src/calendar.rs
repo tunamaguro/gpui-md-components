@@ -157,6 +157,8 @@ type BlankFn = Box<dyn Fn(Div) -> Div>;
 ///
 /// - Tab で到達できる日付は 1 つだけで、フォーカスのある日付、選ばれている日付、[`Calendar::today`]、
 ///   月の最初の日の順に、表示している月の [`Calendar::range`] の中から選ぶ。範囲の中に日付が無ければ到達できない
+/// - 表示する月か [`Calendar::range`] が変わって、フォーカスのある日付が変わるか範囲の外になった場合は、
+///   Tab で到達できる日付にフォーカスを移す。範囲の中に日付が無ければフォーカスを外す
 /// - フォーカス中の左右の矢印キーで前後の日、上下の矢印キーで前後の週の同じ曜日、Home と End で週の始まりと終わり、
 ///   Page Up と Page Down で前後の月、Shift を押しながら Page Up と Page Down で前後の年の同じ日に、フォーカスだけを移す。
 ///   月か年を移って同じ日が無ければ月末にする。
@@ -336,18 +338,30 @@ impl RenderOnce for Calendar {
 
         // 月の外へ移るキー操作で、月が変わった後にフォーカスを移す日付。その次の描画で使い終える
         let pending = window.use_keyed_state((self.id.clone(), "pending"), cx, |_, _| None::<Date>);
-        // 月が変わるまでの間に、呼び出し側が別の場所へフォーカスを移していれば移さない
-        if let Some(target) = pending.update(cx, |pending, _| pending.take())
-            && (target.year, target.month) == (year, month)
-            && handles.iter().any(|handle| handle.is_focused(window))
-        {
-            // 日付のフォーカスは日ごとに月をまたいで使い回すため、移る先が範囲から外れていても、
-            // 元の日付のフォーカスを残すと新しい月の同じ日にフォーカスがあることになる
-            let day = Some(target.day)
-                .filter(|&day| in_range(day))
-                .or(fallback_day);
-            match day {
-                Some(day) => window.focus(&handles[usize::from(day) - 1], cx),
+        let pending_target = pending
+            .update(cx, |pending, _| pending.take())
+            .filter(|target| (target.year, target.month) == (year, month));
+        // 前の描画で表示していた月
+        let shown = window.use_keyed_state((self.id.clone(), "shown"), cx, |_, _| (year, month));
+        let month_changed = shown.update(cx, |shown, _| {
+            std::mem::replace(shown, (year, month)) != (year, month)
+        });
+        // 日付のフォーカスは日ごとに月をまたいで使い回すため、フォーカスのある日付が月や範囲の変更で
+        // 別の日付や範囲の外の日付になっていれば、範囲の中の日付に移す。
+        // 呼び出し側が日付の外へフォーカスを移していれば何もしない
+        if let Some(index) = handles.iter().position(|handle| handle.is_focused(window)) {
+            let day = (index + 1) as u8;
+            let valid = !month_changed && day <= days && in_range(day);
+            let next = match pending_target {
+                Some(target) => Some(target.day)
+                    .filter(|&day| in_range(day))
+                    .or(fallback_day),
+                None if valid => Some(day),
+                None => fallback_day,
+            };
+            match next {
+                Some(next) if next != day => window.focus(&handles[usize::from(next) - 1], cx),
+                Some(_) => {}
                 None => window.blur(cx),
             }
         }
@@ -422,7 +436,7 @@ impl RenderOnce for Calendar {
                     None => cell,
                 };
                 cell.role(accesskit::Role::ColumnHeader)
-                    .aria_column_index(usize::from(weekday) + 1)
+                    .aria_column_index(usize::from(weekday))
                     .into_any_element()
             })
             .collect::<Vec<_>>();
@@ -431,7 +445,7 @@ impl RenderOnce for Calendar {
             div()
                 .id("weekdays")
                 .role(accesskit::Role::Row)
-                .aria_row_index(1)
+                .aria_row_index(0)
                 .flex()
                 .children(weekday_row)
                 .into_any_element(),
@@ -473,7 +487,7 @@ impl RenderOnce for Calendar {
                         None => cell,
                     };
                     cell.role(accesskit::Role::GridCell)
-                        .aria_column_index(column + 1)
+                        .aria_column_index(column)
                         .aria_selected(state.selected)
                         .when(in_range(date.day), |this| {
                             this.track_focus(&handles[day - 1].clone().tab_stop(
@@ -501,7 +515,7 @@ impl RenderOnce for Calendar {
                 div()
                     .id(("week", week))
                     .role(accesskit::Role::Row)
-                    .aria_row_index(week + 2)
+                    .aria_row_index(week + 1)
                     .flex()
                     .children(cells)
                     .into_any_element(),
@@ -807,6 +821,35 @@ mod tests {
         assert_eq!(focused(&view, cx), Some(date(2026, 12, 1)));
         press(cx, "enter");
         assert_eq!(changes(&view, cx), [date(2026, 12, 1)]);
+    }
+
+    #[gpui::test]
+    fn フォーカス中に範囲を狭めると範囲の中の日付に移す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 11, 10)), true);
+        cx.simulate_keystrokes("tab");
+        view.update(cx, |view, cx| {
+            view.range = Some(date(2026, 11, 20)..=date(2026, 11, 30));
+            cx.notify();
+        });
+        assert_eq!(focused(&view, cx), Some(date(2026, 11, 24)));
+        cx.simulate_keystrokes("right");
+        assert_eq!(focused(&view, cx), Some(date(2026, 11, 25)));
+    }
+
+    #[gpui::test]
+    fn フォーカス中に表示する月が変わると新しい月の候補に移す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 11, 10)), true);
+        cx.simulate_keystrokes("tab");
+        view.update(cx, |view, cx| {
+            view.year = 2027;
+            view.month = 1;
+            cx.notify();
+        });
+        assert_eq!(focused(&view, cx), Some(date(2027, 1, 1)));
     }
 
     #[gpui::test]

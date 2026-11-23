@@ -1,8 +1,8 @@
 //! デイトピッカーを並べるページ
 
 use gpui::{
-    Context, IntoElement, ParentElement as _, Refineable as _, Render, SharedString, Styled as _,
-    Window, div, px,
+    Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
+    SharedString, StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
 use md3_components::{Date, DatePicker};
 use md3_theme::md3_tokens::typography::TypeScale;
@@ -41,6 +41,9 @@ impl Render for DatePickerPage {
         };
         let column = || div().flex().flex_col().items_start().gap(px(16.));
         div()
+            .id("date-picker-page")
+            .size_full()
+            .overflow_y_scroll()
             .flex()
             .flex_wrap()
             .items_start()
