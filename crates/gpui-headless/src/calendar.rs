@@ -337,11 +337,15 @@ impl RenderOnce for Calendar {
             .or(in_month(self.today).filter(|&day| in_range(day)))
             .or((1..=days).find(|&day| in_range(day)));
 
-        // 月の外へ移るキー操作で、月が変わった後にフォーカスを移す日付。その次の描画で使い終える
-        let pending = window.use_keyed_state((self.id.clone(), "pending"), cx, |_, _| None::<Date>);
-        let pending_target = pending
+        // 月の外へ移るキー操作で、月が変わった後にフォーカスを移す日付と、Page Up・Page Down で移った場合の
+        // 月末に寄せる前の日。その次の描画で使い終える
+        let pending = window.use_keyed_state((self.id.clone(), "pending"), cx, |_, _| {
+            None::<(Date, Option<u8>)>
+        });
+        let pending_move = pending
             .update(cx, |pending, _| pending.take())
-            .filter(|target| (target.year, target.month) == (year, month));
+            .filter(|(target, _)| (target.year, target.month) == (year, month));
+        let pending_target = pending_move.map(|(target, _)| target);
         // 日付にフォーカスできなくなったときに、フォーカスを置く格子のフォーカス。Tab では到達しない
         let grid_focus = window
             .use_keyed_state((self.id.clone(), "grid"), cx, |_, cx| cx.focus_handle())
@@ -379,10 +383,19 @@ impl RenderOnce for Calendar {
         {
             // 格子に退避している間に日付が再び使えるようになったら、日付に戻す
             window.focus(&handles[usize::from(day) - 1], cx);
-        } else {
-            // 日付の外へフォーカスが移ったら、月の移動の基準日を捨てる
-            anchor.update(cx, |anchor, _| *anchor = None);
         }
+        let focused_date = (1..=days)
+            .find(|&day| in_range(day) && handles[usize::from(day) - 1].is_focused(window))
+            .map(|day| Date { year, month, day });
+        // 月の移動の基準日は、Page Up・Page Down の移動先に実際にフォーカスが着いたときに持ち、
+        // フォーカスがその日付から離れたら捨てる
+        anchor.update(cx, |anchor, _| match pending_move {
+            Some((target, Some(base_day))) if focused_date == Some(target) => {
+                *anchor = Some((target, base_day));
+            }
+            _ if anchor.is_some_and(|(landed, _)| Some(landed) != focused_date) => *anchor = None,
+            _ => {}
+        });
         let focused_day = (1..=days)
             .find(|&day| in_range(day) && handles[usize::from(day) - 1].is_focused(window));
         let tab_day = focused_day.or(fallback_day);
@@ -447,7 +460,6 @@ impl RenderOnce for Calendar {
                 else {
                     return;
                 };
-                anchor.update(cx, |anchor, _| *anchor = months.map(|_| (target, base_day)));
                 if (target.year, target.month) == (year, month) {
                     window.focus(&handles[usize::from(target.day) - 1], cx);
                     return;
@@ -455,7 +467,9 @@ impl RenderOnce for Calendar {
                 let Some(on_month_change) = &on_month_change else {
                     return;
                 };
-                pending.update(cx, |pending, _| *pending = Some(target));
+                pending.update(cx, |pending, _| {
+                    *pending = Some((target, months.map(|_| base_day)))
+                });
                 on_month_change(&target, window, cx);
                 // 呼び出し側が月の変更を見送った場合も次の描画で保留を使い終え、後から別の経路で
                 // 月が変わったときに使わないよう、描画を求める
@@ -1064,6 +1078,47 @@ mod tests {
         cx.update(|window, cx| window.focus(&after, cx));
         cx.simulate_click(gpui::point(px(20.), px(20.)), Modifiers::none());
         assert!(cx.update(|window, _| after.is_focused(window)));
+    }
+
+    #[gpui::test]
+    fn 呼び出し側が月を往復しても月の移動の基準日を戻さない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, Some(date(2026, 1, 31)), true);
+        view.update(cx, |view, cx| {
+            view.month = 1;
+            cx.notify();
+        });
+        cx.simulate_keystrokes("tab pagedown");
+        assert_eq!(focused(&view, cx), Some(date(2026, 2, 28)));
+        for (month, selected) in [(4, date(2026, 4, 30)), (2, date(2026, 2, 28))] {
+            view.update(cx, |view, cx| {
+                view.month = month;
+                view.selected = Some(selected);
+                cx.notify();
+            });
+            assert_eq!(focused(&view, cx), Some(selected));
+        }
+        cx.simulate_keystrokes("pagedown");
+        assert_eq!(focused(&view, cx), Some(date(2026, 3, 28)));
+    }
+
+    #[gpui::test]
+    fn 見送られた月の移動は基準日を変えない(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, Some(date(2026, 1, 31)), true);
+        view.update(cx, |view, cx| {
+            view.month = 1;
+            cx.notify();
+        });
+        cx.simulate_keystrokes("tab pagedown");
+        assert_eq!(focused(&view, cx), Some(date(2026, 2, 28)));
+        view.update(cx, |view, _| view.refuse_month = true);
+        cx.simulate_keystrokes("pagedown");
+        cx.run_until_parked();
+        assert_eq!(focused(&view, cx), Some(date(2026, 2, 28)));
+        view.update(cx, |view, _| view.refuse_month = false);
+        cx.simulate_keystrokes("pageup");
+        assert_eq!(focused(&view, cx), Some(date(2026, 1, 31)));
     }
 
     #[gpui::test]
