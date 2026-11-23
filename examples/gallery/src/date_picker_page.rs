@@ -4,7 +4,7 @@ use gpui::{
     Context, InteractiveElement as _, IntoElement, ParentElement as _, Refineable as _, Render,
     SharedString, StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
-use md3_components::{Date, DatePicker};
+use md3_components::{Button, ButtonVariant, Date, DatePicker, DatePickerDialog};
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{Theme, ThemeExt as _};
 
@@ -15,6 +15,10 @@ const TODAY: (i32, u8, u8) = (2026, 11, 24);
 pub struct DatePickerPage {
     selected: Option<Date>,
     weekdays: Option<Date>,
+    /// ダイアログで確定した日付
+    dialog: Option<Date>,
+    /// ダイアログで選んでいる、まだ確定していない日付。ダイアログを開いている間だけ `Some`
+    dialog_draft: Option<Option<Date>>,
 }
 
 impl DatePickerPage {
@@ -22,6 +26,8 @@ impl DatePickerPage {
         Self {
             selected: None,
             weekdays: Date::new(2026, 11, 20),
+            dialog: None,
+            dialog_draft: None,
         }
     }
 }
@@ -76,6 +82,57 @@ impl Render for DatePickerPage {
                             })),
                     )
                     .child(label(&theme, "weekdays-value", format(self.weekdays))),
+            )
+            .child(
+                column()
+                    .child(label(&theme, "dialog-label", "Date picker dialog"))
+                    .child(
+                        Button::new("open-dialog")
+                            .variant(ButtonVariant::Outlined)
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.dialog_draft = Some(this.dialog);
+                                cx.notify();
+                            }))
+                            .child(gpui::text!("Open date picker")),
+                    )
+                    .child(label(&theme, "dialog-value", format(self.dialog))),
+            )
+            .child(
+                DatePickerDialog::new("dialog", self.dialog_draft.is_some())
+                    .on_dismiss(cx.listener(|this, _, _, cx| {
+                        this.dialog_draft = None;
+                        cx.notify();
+                    }))
+                    .confirm_button(
+                        Button::new("dialog-confirm")
+                            .variant(ButtonVariant::Text)
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                if let Some(draft) = this.dialog_draft.take() {
+                                    this.dialog = draft;
+                                }
+                                cx.notify();
+                            }))
+                            .child(gpui::text!("OK")),
+                    )
+                    .dismiss_button(
+                        Button::new("dialog-dismiss")
+                            .variant(ButtonVariant::Text)
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.dialog_draft = None;
+                                cx.notify();
+                            }))
+                            .child(gpui::text!("Cancel")),
+                    )
+                    .child(
+                        DatePicker::new("dialog-picker", self.dialog_draft.flatten())
+                            .today(today)
+                            // ダイアログの角丸の外まで塗らないよう、背景はダイアログの容器に任せる
+                            .bg(gpui::transparent_black())
+                            .on_change(cx.listener(|this, date: &Date, _, cx| {
+                                this.dialog_draft = Some(Some(*date));
+                                cx.notify();
+                            })),
+                    ),
             )
     }
 }

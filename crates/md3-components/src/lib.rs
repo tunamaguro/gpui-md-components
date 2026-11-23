@@ -24,6 +24,8 @@ mod chip;
 mod connected_button_group;
 #[cfg(feature = "date-picker")]
 mod date_picker;
+#[cfg(feature = "date-picker")]
+mod date_picker_dialog;
 #[cfg(feature = "dialog")]
 mod dialog;
 #[cfg(feature = "divider")]
@@ -169,6 +171,8 @@ pub use connected_button_group::{
 };
 #[cfg(feature = "date-picker")]
 pub use date_picker::DatePicker;
+#[cfg(feature = "date-picker")]
+pub use date_picker_dialog::DatePickerDialog;
 #[cfg(feature = "dialog")]
 pub use dialog::{Dialog, DialogKind, DismissReason};
 #[cfg(feature = "divider")]
@@ -206,7 +210,11 @@ pub use navigation_bar::{
 pub use navigation_drawer::{ModalNavigationDrawer, NavigationDrawer, NavigationDrawerItem};
 // dialog feature が有効なら dialog から公開している
 #[cfg(all(
-    any(feature = "bottom-sheet", feature = "navigation-drawer"),
+    any(
+        feature = "bottom-sheet",
+        feature = "date-picker",
+        feature = "navigation-drawer"
+    ),
     not(feature = "dialog")
 ))]
 pub use gpui_headless::dialog::DismissReason;
