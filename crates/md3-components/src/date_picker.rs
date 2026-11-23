@@ -425,7 +425,11 @@ impl RenderOnce for DatePicker {
         .on_change({
             let set_month = set_month.clone();
             let year_mode = year_mode.clone();
-            move |&selected_year: &i32, _, cx| {
+            let menu_focus = menu_focus.clone();
+            move |&selected_year: &i32, window, cx| {
+                // 支援技術のクリック操作はフォーカスを年へ移さないため、一覧の外から選ばれても
+                // 表示している月のボタンへフォーカスを戻す
+                window.focus(&menu_focus, cx);
                 if let Some(date) = Date::new(selected_year, month, 1) {
                     set_month(date.clamp(first, last), cx);
                 }
