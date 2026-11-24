@@ -243,7 +243,7 @@ pub use radio_button::{RadioButton, RadioButtonIndicator, RadioGroup};
 #[cfg(feature = "search-bar")]
 pub use search_bar::SearchBar;
 #[cfg(feature = "search-view")]
-pub use search_view::SearchView;
+pub use search_view::{SearchView, SearchViewVariant};
 #[cfg(feature = "segmented-button")]
 pub use segmented_button::{
     MultiChoiceSegmentedButtonRow, SegmentedButton, SegmentedToggleButton,

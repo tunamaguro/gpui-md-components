@@ -188,7 +188,8 @@ pub struct TextField {
 impl TextField {
     /// `value` を表示するテキストフィールドを作る
     ///
-    /// `value` の改行は空白として描く。最初に描いたときは、カーソルを `value` の末尾に置く。
+    /// `value` の改行は空白として描く。最初に描いたときと、フォーカスの無い間に前の描画と違う `value` を渡したときは、
+    /// カーソルを `value` の末尾に置く。
     /// `id` は同じ親の中で一意にし、描画のたびに同じ値を渡すこと。`id` が変わるか 1 フレームでも描画されないと、
     /// カーソルと選択が失われる。[`TextField::track_focus`] を指定しない場合はフォーカスも外れる
     pub fn new(id: impl Into<ElementId>, value: impl Into<SharedString>) -> Self {
@@ -370,6 +371,7 @@ impl RenderOnce for TextField {
             scroll: px(0.),
             selecting: false,
         });
+        let focused = focus_handle.is_focused(window);
         let (synced, model) = state.update(cx, |state, _| {
             state.focus_handle = focus_handle.clone();
             state.on_change = on_change.clone();
@@ -395,6 +397,10 @@ impl RenderOnce for TextField {
                 // 呼び出し側が書き換えた編集は、カーソルを書き換えた後の文字列の対応する位置へ移す
                 let cursor = remap_cursor(&edited, cursor, &self.value);
                 state.model.select(cursor, cursor);
+            } else if synced && !focused {
+                // フォーカスの無い間に呼び出し側が変えた文字列は、フォーカスを受けて続けて入力できるよう末尾にカーソルを置く
+                let end = state.model.text.len();
+                state.model.select(end, end);
             }
             (synced, state.model.clone())
         });
@@ -1862,6 +1868,21 @@ mod tests {
             modifiers: Modifiers::none(),
             click_count: 1,
         });
+    }
+
+    #[gpui::test]
+    fn フォーカスの無い間に変えた文字列は末尾にカーソルを置く(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, "");
+        view.update(cx, |view, cx| {
+            view.value = "ab".into();
+            cx.notify();
+        });
+        cx.run_until_parked();
+        focus(cx);
+        cx.simulate_input("c");
+        assert_eq!(value(&view, cx), "abc");
     }
 
     #[gpui::test]
