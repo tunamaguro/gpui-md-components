@@ -4,7 +4,7 @@ use gpui::{
     Context, FocusHandle, IntoElement, ParentElement as _, Refineable as _, Render, SharedString,
     Styled as _, Window, div, prelude::*,
 };
-use md3_components::{Button, ButtonVariant, Dialog, DialogKind};
+use md3_components::{Button, ButtonVariant, Dialog, DialogKind, FullScreenDialog, IconButton};
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{Theme, ThemeExt as _};
@@ -87,7 +87,8 @@ impl Render for DialogPage {
                     .gap_4()
                     .child(self.opener("open-basic", "Basic", cx))
                     .child(self.opener("open-alert", "Alert with icon", cx))
-                    .child(self.opener("open-long", "Long content", cx)),
+                    .child(self.opener("open-long", "Long content", cx))
+                    .child(self.opener("open-full-screen", "Full-screen", cx)),
             )
             .child(label(&theme, "last-action", last_action))
             .child(
@@ -125,6 +126,50 @@ impl Render for DialogPage {
                     .confirm_button(self.action("long-agree", "Agree", cx))
                     .dismiss_button(self.action("long-decline", "Decline", cx)),
             )
+            .child(self.full_screen_dialog(cx))
+    }
+}
+
+impl DialogPage {
+    /// 予定を作る全画面のダイアログ
+    fn full_screen_dialog(&self, cx: &mut Context<Self>) -> FullScreenDialog {
+        let theme = cx.md3_theme().clone();
+        FullScreenDialog::new(
+            "full-screen",
+            self.open == Some("open-full-screen"),
+            "New event",
+        )
+        .on_dismiss(cx.listener(|this, reason, _, cx| {
+            this.open = None;
+            this.last_action = Some(format!("Dismissed ({reason:?})").into());
+            cx.notify();
+        }))
+        .navigation_icon(
+            IconButton::new("full-screen-close", md3_icons::CLOSE, "Close").on_click(cx.listener(
+                |this, _, _, cx| {
+                    this.open = None;
+                    this.last_action = Some("Closed".into());
+                    cx.notify();
+                },
+            )),
+        )
+        .confirm_button(self.action("full-screen-save", "Save", cx))
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap_4()
+                .p_6()
+                .children((1..=30u32).map(|ix| {
+                    let mut line = div();
+                    line.text_style()
+                        .refine(&theme.text_style(TypeScale::BodyLarge));
+                    line.child(gpui::text!(
+                        id = ("event-field", ix),
+                        SharedString::from(format!("Event detail {ix}"))
+                    ))
+                })),
+        )
     }
 }
 
