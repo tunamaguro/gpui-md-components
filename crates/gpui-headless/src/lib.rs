@@ -5,6 +5,7 @@
 mod accessibility;
 pub mod button;
 pub mod calendar;
+pub mod carousel;
 pub mod choice;
 pub mod clock_dial;
 pub mod dialog;

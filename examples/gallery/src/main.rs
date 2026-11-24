@@ -8,6 +8,7 @@ mod bottom_sheet_page;
 mod button_group_page;
 mod button_page;
 mod card_page;
+mod carousel_page;
 mod checkbox_page;
 mod chip_page;
 mod date_picker_page;
@@ -51,6 +52,7 @@ use crate::bottom_sheet_page::BottomSheetPage;
 use crate::button_group_page::ButtonGroupPage;
 use crate::button_page::ButtonPage;
 use crate::card_page::CardPage;
+use crate::carousel_page::CarouselPage;
 use crate::checkbox_page::CheckboxPage;
 use crate::chip_page::ChipPage;
 use crate::date_picker_page::DatePickerPage;
@@ -95,6 +97,7 @@ enum Page {
     ProgressIndicator,
     Badge,
     Card,
+    Carousel,
     Fab,
     SegmentedButton,
     Slider,
@@ -134,6 +137,7 @@ struct Gallery {
     progress_indicator_page: Entity<ProgressIndicatorPage>,
     badge_page: Entity<BadgePage>,
     card_page: Entity<CardPage>,
+    carousel_page: Entity<CarouselPage>,
     fab_page: Entity<FabPage>,
     segmented_button_page: Entity<SegmentedButtonPage>,
     slider_page: Entity<SliderPage>,
@@ -174,6 +178,7 @@ impl Gallery {
             progress_indicator_page: cx.new(|_| ProgressIndicatorPage::default()),
             badge_page: cx.new(|_| BadgePage),
             card_page: cx.new(|_| CardPage::default()),
+            carousel_page: cx.new(|_| CarouselPage::default()),
             fab_page: cx.new(|_| FabPage::default()),
             segmented_button_page: cx.new(|_| SegmentedButtonPage::default()),
             slider_page: cx.new(|_| SliderPage::default()),
@@ -228,6 +233,7 @@ impl Render for Gallery {
             Page::ProgressIndicator => self.progress_indicator_page.clone().into(),
             Page::Badge => self.badge_page.clone().into(),
             Page::Card => self.card_page.clone().into(),
+            Page::Carousel => self.carousel_page.clone().into(),
             Page::Fab => self.fab_page.clone().into(),
             Page::SegmentedButton => self.segmented_button_page.clone().into(),
             Page::Slider => self.slider_page.clone().into(),
@@ -275,6 +281,7 @@ impl Render for Gallery {
                         .child(tab(Page::ProgressIndicator, "Progress & loading", cx))
                         .child(tab(Page::Badge, "Badge", cx))
                         .child(tab(Page::Card, "Card", cx))
+                        .child(tab(Page::Carousel, "Carousel", cx))
                         .child(tab(Page::Fab, "FAB", cx))
                         .child(tab(Page::SegmentedButton, "Segmented button", cx))
                         .child(tab(Page::Slider, "Slider", cx))

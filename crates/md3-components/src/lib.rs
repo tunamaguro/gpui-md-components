@@ -16,6 +16,8 @@ mod button;
 mod button_group;
 #[cfg(feature = "card")]
 mod card;
+#[cfg(feature = "carousel")]
+mod carousel;
 #[cfg(feature = "checkbox")]
 mod checkbox;
 #[cfg(feature = "chip")]
@@ -162,6 +164,8 @@ pub use button::{
 pub use button_group::{ButtonGroup, ButtonGroupItem};
 #[cfg(feature = "card")]
 pub use card::{Card, CardVariant};
+#[cfg(feature = "carousel")]
+pub use carousel::{Carousel, CarouselItem, CarouselSnap, CarouselVariant};
 #[cfg(feature = "checkbox")]
 pub use checkbox::{Checkbox, CheckboxIndicator, CheckboxRow, CheckboxState};
 #[cfg(feature = "chip")]
