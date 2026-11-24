@@ -43,16 +43,21 @@ type ExpandedChangeHandler = Rc<dyn Fn(&bool, &mut Window, &mut App)>;
 /// 開いているかどうかと文字列は呼び出し側が持ち、[`SearchView::new`] に毎回渡す。
 /// 次の操作で、[`SearchView::on_expanded_change`] のハンドラに開閉を求める
 ///
-/// - 閉じている間に検索バーを押すか、検索バーで文字列を編集する操作をすると、開くよう求める
+/// - 閉じている間に検索バーを左ボタンで押すか、検索バーで文字列を編集する操作をすると、開くよう求める。
+///   IME で変換中の編集では開くよう求めず、変換を確定したときに求める
 /// - 開いている間に、戻るボタンを押すか、修飾キーなしの Escape を押すと、閉じるよう求める
 ///
 /// 開いたときは見出しの入力欄にフォーカスを移し、閉じたときは開く前にフォーカスのあった要素へ戻す。
 /// 入力欄の操作は [`SearchBar`] と同じで、編集した後の文字列を [`SearchView::on_change`] で、
 /// Enter で確定した文字列を [`SearchView::on_search`] で求める。
-/// [`Styled`] は閉じている間の検索バーに適用する
+/// 検索バーは既定の幅 360dp で、親の幅を超えない。[`Styled`] は検索バーを置く箱に適用し、検索バーはその幅に広がる
 ///
 /// 支援技術には、開いている間はダイアログが `label` を名前とする modal の `dialog` として、
-/// 入力欄が `label` を名前とする role `textbox` として公開される
+/// 入力欄が `label` を名前とする role `textbox` として公開される。
+/// ウィンドウのルートを [`crate::root`] で包むと、開いている間はダイアログ以外を支援技術から隠す。
+/// ただし、一覧のように子を遅れてレイアウトする要素や、キャッシュされたビューの中に置くと、隠すかどうかの判定に含まれない。
+/// ほかの部品がウィンドウの手前に描く要素 (開いているメニューなど) は隠れないため、開く前に閉じること。
+/// アプリ全体のキー割り当てと、置いた場所の祖先のキーのハンドラは開いている間も働くため、ウィンドウのルートの近くに置くこと
 #[derive(IntoElement)]
 pub struct SearchView {
     id: ElementId,
@@ -160,31 +165,35 @@ impl RenderOnce for SearchView {
             }
         };
 
-        // 検索バーと見出しの入力欄は同時に描くため、フォーカスを分ける。
-        // 閉じたときはダイアログが検索バーの入力欄へフォーカスを戻す
+        // 検索バーと見出しの入力欄は同時に描くため、フォーカスを分ける
         let view_focus = util::keyed_focus_handle(&(self.id.clone(), "view").into(), window, cx);
         let mut bar = SearchBar::new(
             (self.id.clone(), "bar"),
             self.value.clone(),
             self.label.clone(),
         )
-        .theme(theme.clone());
+        .theme(theme.clone())
+        .w_full();
         if let Some(placeholder) = &self.placeholder {
             bar = bar.placeholder(placeholder.clone());
         }
         if let Some(on_change) = self.on_change.clone() {
             let request = request.clone();
-            bar = bar.on_change(move |value, window, cx| {
-                on_change(value, window, cx);
-                request(true, window, cx);
+            bar = bar.on_edit(move |edit, window, cx| {
+                on_change(&edit.new_text, window, cx);
+                // 変換中に見出しの入力欄へフォーカスを移すと、変換中の文字列が検索バーに残るため、確定を待つ
+                if !edit.composing {
+                    request(true, window, cx);
+                }
             });
         }
         if let Some(on_search) = self.on_search.clone() {
             bar = bar.on_search(move |value, window, cx| on_search(value, window, cx));
         }
-        bar.style().refine(&self.style);
-        let collapsed = div()
+        let mut root = div()
             .id(self.id.clone())
+            .w(dp(crate::search_bar::DEFAULT_WIDTH))
+            .max_w_full()
             // 入力欄は押下を親に伝えないため、捕捉の段階で受ける
             .capture_any_mouse_down({
                 let request = request.clone();
@@ -196,6 +205,7 @@ impl RenderOnce for SearchView {
                 }
             })
             .child(bar);
+        root.style().refine(&self.style);
 
         let dismiss = request.clone();
         let mut dialog = HeadlessDialog::new((self.id.clone(), "dialog"), self.expanded)
@@ -288,7 +298,7 @@ impl RenderOnce for SearchView {
                         .children(self.children),
                 );
         }
-        div().child(collapsed).child(dialog)
+        root.child(dialog)
     }
 }
 
@@ -297,48 +307,74 @@ mod tests {
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    use gpui::{Context, Modifiers, Render, TestAppContext, VisualTestContext, point, px};
+    use gpui::{
+        Context, Modifiers, Render, TestAppContext, VisualTestContext, point,
+        prelude::FluentBuilder, px,
+    };
+    use md3_theme::md3_tokens::component::search_bar;
 
     use super::*;
 
-    /// (100, 100) に検索を置き、文字列と開いているかと、検索を求められた文字列を持つビュー
+    /// (100, 100) から幅 800 の横並びの親に、検索と幅 40 の箱を置き、文字列と開いているかと、
+    /// 検索を求められた文字列を持つビュー
     struct SearchViewView {
         value: SharedString,
         expanded: bool,
         searches: Rc<RefCell<Vec<SharedString>>>,
+        /// 文字列の編集を受け入れるか
+        editable: bool,
+        /// 検索を `flex_1` で広げるか
+        grow: bool,
     }
 
     impl Render for SearchViewView {
         fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
             let searches = self.searches.clone();
             div().size_full().child(
-                div().absolute().left(px(100.)).top(px(100.)).child(
-                    SearchView::new("search", self.value.clone(), "Search", self.expanded)
-                        .placeholder("Search mail")
-                        .on_change(cx.listener(|this, value: &SharedString, _, cx| {
-                            this.value = value.clone();
-                            cx.notify();
-                        }))
-                        .on_search(move |value, _, _| searches.borrow_mut().push(value.clone()))
-                        .on_expanded_change(cx.listener(|this, expanded: &bool, _, cx| {
-                            this.expanded = *expanded;
-                            cx.notify();
-                        }))
-                        .child(div().h(px(50.)).bg(gpui::red())),
-                ),
+                div()
+                    .absolute()
+                    .left(px(100.))
+                    .top(px(100.))
+                    .w(px(800.))
+                    .flex()
+                    .child(
+                        SearchView::new("search", self.value.clone(), "Search", self.expanded)
+                            .placeholder("Search mail")
+                            .when(self.editable, |this| {
+                                this.on_change(cx.listener(|this, value: &SharedString, _, cx| {
+                                    this.value = value.clone();
+                                    cx.notify();
+                                }))
+                            })
+                            .when(self.grow, |this| this.flex_1())
+                            .on_search(move |value, _, _| searches.borrow_mut().push(value.clone()))
+                            .on_expanded_change(cx.listener(|this, expanded: &bool, _, cx| {
+                                this.expanded = *expanded;
+                                cx.notify();
+                            }))
+                            .child(div().h(px(50.)).bg(gpui::red())),
+                    )
+                    .child(div().flex_none().w(px(40.)).h(px(10.))),
             )
         }
     }
 
-    fn setup(cx: &mut TestAppContext) -> (gpui::Entity<SearchViewView>, &mut VisualTestContext) {
+    fn setup(
+        cx: &mut TestAppContext,
+        f: impl FnOnce(&mut SearchViewView),
+    ) -> (gpui::Entity<SearchViewView>, &mut VisualTestContext) {
         cx.update(crate::init);
         let (view, cx) = cx.add_window_view(|window, cx| {
             cx.init_md3_theme(window);
-            SearchViewView {
+            let mut view = SearchViewView {
                 value: SharedString::default(),
                 expanded: false,
                 searches: Rc::default(),
-            }
+                editable: true,
+                grow: false,
+            };
+            f(&mut view);
+            view
         });
         cx.update(|window, _| window.activate_window());
         cx.run_until_parked();
@@ -347,6 +383,20 @@ mod tests {
 
     fn state(view: &gpui::Entity<SearchViewView>, cx: &mut VisualTestContext) -> (String, bool) {
         view.read_with(cx, |view, _| (view.value.to_string(), view.expanded))
+    }
+
+    /// 検索バーの容器の色で塗った矩形の幅
+    fn bar_widths(cx: &mut VisualTestContext) -> Vec<f32> {
+        cx.update(|window, cx| {
+            let scale = window.scale_factor();
+            let color: gpui::Background = cx.md3_theme().color(search_bar::CONTAINER_COLOR).into();
+            window
+                .painted_quads()
+                .into_iter()
+                .filter(|quad| quad.background == color)
+                .map(|quad| quad.bounds.size.width.0 / scale)
+                .collect()
+        })
     }
 
     /// 赤く塗った子の要素の (x, y, 幅)
@@ -372,8 +422,9 @@ mod tests {
     fn 検索バーを押すと開いて見出しの入力欄で入力できる(
         cx: &mut TestAppContext,
     ) {
-        let (view, cx) = setup(cx);
+        let (view, cx) = setup(cx, |_| ());
         assert_eq!(content(cx), None, "閉じている間は子を描かないこと");
+        assert_eq!(bar_widths(cx), [360.], "既定の幅は 360");
         cx.simulate_click(point(px(200.), px(128.)), Modifiers::none());
         assert_eq!(state(&view, cx), (String::new(), true));
         // 見出しの高さ 72 と区切り線の 1 の下に、ウィンドウの幅いっぱいに子を置く
@@ -391,7 +442,7 @@ mod tests {
 
     #[gpui::test]
     fn 検索バーで入力すると開く(cx: &mut TestAppContext) {
-        let (view, cx) = setup(cx);
+        let (view, cx) = setup(cx, |_| ());
         cx.simulate_keystrokes("tab x");
         assert_eq!(state(&view, cx), ("x".into(), true));
         cx.simulate_keystrokes("y");
@@ -406,7 +457,7 @@ mod tests {
     fn escape_と戻るボタンで閉じて検索バーへフォーカスを戻す(
         cx: &mut TestAppContext,
     ) {
-        let (view, cx) = setup(cx);
+        let (view, cx) = setup(cx, |_| ());
         cx.simulate_click(point(px(200.), px(128.)), Modifiers::none());
         cx.simulate_keystrokes("escape");
         assert_eq!(state(&view, cx), (String::new(), false));
@@ -417,5 +468,37 @@ mod tests {
         // 戻るボタンは見出しの左端から 4 の位置の 48 の枠の中央にある
         cx.simulate_click(point(px(28.), px(36.)), Modifiers::none());
         assert_eq!(state(&view, cx), ("c".into(), false));
+        cx.simulate_keystrokes("d");
+        assert_eq!(
+            state(&view, cx),
+            ("cd".into(), true),
+            "戻るボタンで閉じた後も検索バーへフォーカスを戻すこと"
+        );
+    }
+
+    #[gpui::test]
+    fn 右ボタンの押下と_on_change_の無い入力では開かない(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, |view| view.editable = false);
+        cx.simulate_mouse_down(
+            point(px(200.), px(128.)),
+            gpui::MouseButton::Right,
+            Modifiers::none(),
+        );
+        cx.simulate_mouse_up(
+            point(px(200.), px(128.)),
+            gpui::MouseButton::Right,
+            Modifiers::none(),
+        );
+        assert_eq!(state(&view, cx), (String::new(), false));
+        cx.simulate_keystrokes("tab x");
+        assert_eq!(state(&view, cx), (String::new(), false));
+    }
+
+    #[gpui::test]
+    fn styled_は検索バーを置く箱に適用する(cx: &mut TestAppContext) {
+        let (_, cx) = setup(cx, |view| view.grow = true);
+        assert_eq!(bar_widths(cx), [760.], "flex_1 で親の残りの幅に広がること");
     }
 }
