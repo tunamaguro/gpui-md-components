@@ -42,6 +42,8 @@ mod fab;
 mod fab_menu;
 #[cfg(feature = "floating-toolbar")]
 mod floating_toolbar;
+#[cfg(feature = "full-screen-dialog")]
+mod full_screen_dialog;
 #[cfg(feature = "icon-button")]
 mod icon_button;
 // 使う部品の feature がすべて無効なときに未使用にならないよう、それらの feature で囲む
@@ -195,6 +197,8 @@ pub use fab::{ExtendedFab, ExtendedFabSize, Fab, FabColor, FabSize};
 pub use fab_menu::{FabMenu, FabMenuItem};
 #[cfg(feature = "floating-toolbar")]
 pub use floating_toolbar::{FloatingToolbar, FloatingToolbarColor, FloatingToolbarOrientation};
+#[cfg(feature = "full-screen-dialog")]
+pub use full_screen_dialog::FullScreenDialog;
 pub use gpui;
 #[cfg(feature = "date-picker")]
 pub use gpui_headless::calendar::Date;
@@ -225,6 +229,7 @@ pub use navigation_drawer::{ModalNavigationDrawer, NavigationDrawer, NavigationD
     any(
         feature = "bottom-sheet",
         feature = "date-picker",
+        feature = "full-screen-dialog",
         feature = "navigation-drawer"
     ),
     not(feature = "dialog")

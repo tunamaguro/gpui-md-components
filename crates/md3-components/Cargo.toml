@@ -39,6 +39,7 @@ default = [
   "fab",
   "fab-menu",
   "floating-toolbar",
+  "full-screen-dialog",
   "list",
   "loading-indicator",
   "menu",
@@ -83,6 +84,8 @@ date-picker = ["icon-button", "text-field"]
 checkbox = []
 chip = []
 dialog = []
+# 見出しのバーにトップアプリバーを使う
+full-screen-dialog = ["app-bar"]
 divider = []
 fab = []
 # 開閉ボタンに FAB を使う
