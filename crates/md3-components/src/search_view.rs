@@ -44,13 +44,14 @@ type ExpandedChangeHandler = Rc<dyn Fn(&bool, &mut Window, &mut App)>;
 /// 次の操作で、[`SearchView::on_expanded_change`] のハンドラに開閉を求める
 ///
 /// - 閉じている間に検索バーを左ボタンで押すか、検索バーで文字列を編集する操作をすると、開くよう求める。
-///   IME で変換中の編集では開くよう求めず、変換を確定したときに求める
+///   IME で変換中の編集と変換の取り消しでは開くよう求めず、変換を確定したときに求める
 /// - 開いている間に、戻るボタンを押すか、修飾キーなしの Escape を押すと、閉じるよう求める
 ///
 /// 開いたときは見出しの入力欄にフォーカスを移し、閉じたときは開く前にフォーカスのあった要素へ戻す。
 /// 入力欄の操作は [`SearchBar`] と同じで、編集した後の文字列を [`SearchView::on_change`] で、
 /// Enter で確定した文字列を [`SearchView::on_search`] で求める。
-/// 検索バーは既定の幅 360dp で、親の幅を超えない。[`Styled`] は検索バーを置く箱に適用し、検索バーはその幅に広がる
+/// 検索バーは既定の幅 360dp で、親の幅を超えない。[`Styled`] は検索バーを置く箱に適用し、検索バーはその幅に広がる。
+/// 箱に付けた文字のスタイルは、開いている間の検索の画面にも及ぶ
 ///
 /// 支援技術には、開いている間はダイアログが `label` を名前とする modal の `dialog` として、
 /// 入力欄が `label` を名前とする role `textbox` として公開される。
@@ -181,8 +182,9 @@ impl RenderOnce for SearchView {
             let request = request.clone();
             bar = bar.on_edit(move |edit, window, cx| {
                 on_change(&edit.new_text, window, cx);
-                // 変換中に見出しの入力欄へフォーカスを移すと、変換中の文字列が検索バーに残るため、確定を待つ
-                if !edit.composing {
+                // 変換中に見出しの入力欄へフォーカスを移すと、変換中の文字列が検索バーに残るため、確定を待つ。
+                // 変換の取り消しは文字列を変えない編集として届くため、開かない
+                if !edit.composing && edit.new_text != edit.old_text {
                     request(true, window, cx);
                 }
             });
