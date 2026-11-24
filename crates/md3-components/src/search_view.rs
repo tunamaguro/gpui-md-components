@@ -16,7 +16,7 @@ use std::rc::Rc;
 use gpui::{
     AnyElement, App, Bounds, ElementId, InteractiveElement, IntoElement, MouseButton,
     ParentElement, Pixels, Refineable, RenderOnce, SharedString, StatefulInteractiveElement,
-    StyleRefinement, Styled, Window, canvas, div,
+    StyleRefinement, Styled, Window, canvas, div, prelude::FluentBuilder,
 };
 use gpui_headless::dialog::Dialog as HeadlessDialog;
 use gpui_headless::text_field::TextField as HeadlessTextField;
@@ -224,7 +224,7 @@ impl RenderOnce for SearchView {
         if let Some(on_search) = self.on_search.clone() {
             bar = bar.on_search(move |value, window, cx| on_search(value, window, cx));
         }
-        // 検索バーの位置に開くダイアログのため、検索バーを置く箱の位置を描画ごとに記録する
+        // 検索バーの位置に開くダイアログのため、検索バーの位置を描画ごとに記録する
         let bar_bounds = window
             .use_keyed_state((self.id.clone(), "bounds"), cx, |_, _| {
                 Rc::new(Cell::new(None::<Bounds<Pixels>>))
@@ -237,8 +237,9 @@ impl RenderOnce for SearchView {
             canvas(
                 move |bounds, window, _| {
                     if bar_bounds.replace(Some(bounds)) != Some(bounds) && docked {
-                        // 開いているダイアログの位置を、変わった位置に合わせて描き直す
-                        window.refresh();
+                        // ダイアログの位置は描画の前に決めるため、変わった位置で次のフレームを描く。
+                        // 描画中の refresh は次のフレームを予約しない
+                        window.request_animation_frame();
                     }
                 },
                 |_, _, _, _| {},
@@ -263,8 +264,7 @@ impl RenderOnce for SearchView {
                     }
                 }
             })
-            .child(bar)
-            .child(record);
+            .child(div().relative().child(bar).child(record));
         root.style().refine(&self.style);
 
         let dismiss = request.clone();
@@ -290,7 +290,9 @@ impl RenderOnce for SearchView {
             if let Some(on_search) = self.on_search {
                 header = header.on_search(move |value, window, cx| on_search(value, window, cx));
             }
-            let bounds = bar_bounds.get().unwrap_or_default();
+            // 検索バーの位置を記録する前のフレームでは、位置が決まらないため描かない
+            let measured = bar_bounds.get();
+            let bounds = measured.unwrap_or_default();
             let max_height = window.viewport_size().height * DOCKED_MAX_HEIGHT_RATIO;
             // extra large の形は 4 つの角が同じ丸め
             let radius = theme
@@ -299,6 +301,7 @@ impl RenderOnce for SearchView {
             dialog = dialog
                 .scrim(div().size_full())
                 .aria_label(self.label)
+                .when(measured.is_none(), |this| this.invisible())
                 .absolute()
                 .left(bounds.origin.x)
                 .top(bounds.origin.y)
@@ -442,6 +445,10 @@ mod tests {
         /// 検索を `flex_1` で広げるか
         grow: bool,
         variant: SearchViewVariant,
+        /// 検索を置く親の上端
+        top: f32,
+        /// 赤く塗った子の高さ
+        content_height: f32,
     }
 
     impl Render for SearchViewView {
@@ -451,7 +458,7 @@ mod tests {
                 div()
                     .absolute()
                     .left(px(100.))
-                    .top(px(100.))
+                    .top(px(self.top))
                     .w(px(800.))
                     .flex()
                     .child(
@@ -470,7 +477,7 @@ mod tests {
                                 this.expanded = *expanded;
                                 cx.notify();
                             }))
-                            .child(div().h(px(50.)).bg(gpui::red())),
+                            .child(div().flex_none().h(px(self.content_height)).bg(gpui::red())),
                     )
                     .child(div().flex_none().w(px(40.)).h(px(10.))),
             )
@@ -491,6 +498,8 @@ mod tests {
                 editable: true,
                 grow: false,
                 variant: SearchViewVariant::FullScreen,
+                top: 100.,
+                content_height: 50.,
             };
             f(&mut view);
             view
@@ -660,5 +669,40 @@ mod tests {
         assert_eq!(state(&view, cx), ("ab".into(), true));
         cx.simulate_keystrokes("escape");
         assert_eq!(state(&view, cx), ("ab".into(), false));
+    }
+
+    #[gpui::test]
+    fn docked_は開いたまま動いた検索バーに合わせ_最初から開いていても位置を合わせる(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, |view| {
+            view.variant = SearchViewVariant::Docked;
+            view.expanded = true;
+        });
+        assert_eq!(content(cx), Some((100., 157., 360.)));
+        view.update(cx, |view, cx| {
+            view.top = 300.;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        // 位置の変わった検索バーを測ったフレームが求めた、次のフレームを描く
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        assert_eq!(content(cx), Some((100., 357., 360.)));
+    }
+
+    #[gpui::test]
+    fn docked_の高さはウィンドウの高さの_3_分の_2_まで(cx: &mut TestAppContext) {
+        let (_, cx) = setup(cx, |view| {
+            view.variant = SearchViewVariant::Docked;
+            view.expanded = true;
+            view.content_height = 2000.;
+        });
+        let height = cx.update(|window, _| window.viewport_size().height / px(1.)) * 2. / 3.;
+        assert!(
+            container_quads(cx).contains(&(100., 100., 360., height)),
+            "{height}: {:?}",
+            container_quads(cx)
+        );
     }
 }
