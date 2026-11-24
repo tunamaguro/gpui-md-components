@@ -176,6 +176,16 @@ pub(crate) fn validate_input(
 /// 日付を入れる欄の数字を日付として確かめる処理
 pub(crate) type ValidateFn = Rc<dyn Fn(&str) -> Result<Date, String>>;
 
+/// 日付を入れる欄が描画をまたいで持つ値
+struct InputState {
+    /// 欄の数字
+    digits: String,
+    /// 欄の数字を合わせた、選ばれている日付
+    synced: Option<Date>,
+    /// 欄の数字が変わったときに確かめた誤り
+    error: Option<String>,
+}
+
 /// [`date_input_field`] に渡す値
 pub(crate) struct DateInputField {
     /// 欄と、欄の数字などの状態の id
@@ -206,21 +216,41 @@ pub(crate) fn date_input_field(field: DateInputField, window: &mut Window, cx: &
         autofocus,
         theme,
     } = field;
-    let digits = window.use_keyed_state((id.clone(), "digits"), cx, |_, _| {
-        (selected.map(input_digits).unwrap_or_default(), selected)
-    });
-    let (mut text, synced) = digits.read(cx).clone();
-    if synced != selected {
-        if let Some(date) = selected
-            && validate_input(&text, &years, None).ok() != Some(date)
-        {
-            text = input_digits(date);
+    // 誤りは欄の数字が変わったときだけ確かめる。誤りを示している欄は `None` を渡しているため、
+    // ほかの値 (範囲のもう一方の日付など) が変わって誤りでなくなっても、示し続けて入れ直しを求める
+    let check = |digits: &str| {
+        (digits.len() == INPUT_DIGITS)
+            .then(|| validate(digits).err())
+            .flatten()
+    };
+    let state = window.use_keyed_state((id.clone(), "digits"), cx, |_, _| {
+        let digits = selected.map(input_digits).unwrap_or_default();
+        InputState {
+            error: check(&digits),
+            digits,
+            synced: selected,
         }
-        digits.update(cx, |digits, _| *digits = (text.clone(), selected));
+    });
+    if state.read(cx).synced != selected {
+        let mut digits = state.read(cx).digits.clone();
+        if let Some(date) = selected
+            && validate_input(&digits, &years, None).ok() != Some(date)
+        {
+            digits = input_digits(date);
+        }
+        let error = check(&digits);
+        state.update(cx, |state, _| {
+            *state = InputState {
+                digits,
+                synced: selected,
+                error,
+            }
+        });
     }
-    let error = (text.len() == INPUT_DIGITS)
-        .then(|| validate(&text).err())
-        .flatten();
+    let (text, error) = {
+        let state = state.read(cx);
+        (state.digits.clone(), state.error.clone())
+    };
 
     let field_focus = window
         .use_keyed_state((id.clone(), "focus"), cx, |_, cx| cx.focus_handle())
@@ -256,20 +286,24 @@ pub(crate) fn date_input_field(field: DateInputField, window: &mut Window, cx: &
                     _ => return,
                 }
             }
-            if new_digits.len() > INPUT_DIGITS || new_digits == digits.read(cx).0 {
+            if new_digits.len() > INPUT_DIGITS || new_digits == state.read(cx).digits {
                 return;
             }
-            digits.update(cx, |digits, cx| {
-                digits.0 = new_digits.clone();
+            let result = validate(&new_digits);
+            state.update(cx, |state, cx| {
+                state.error = (new_digits.len() == INPUT_DIGITS)
+                    .then(|| result.clone().err())
+                    .flatten();
+                state.digits = new_digits.clone();
                 cx.notify();
             });
             if let Some(on_change) = &on_change {
-                on_change(&validate(&new_digits).ok(), window, cx);
+                on_change(&result.ok(), window, cx);
             }
         })
         .theme(theme)
         .w_full()
-        // Compose の欄の最小の幅は、2 つの欄を並べる行で幅を割り当てると効かないため、ここでも外す
+        // Compose の欄の最小の幅は、幅を割り当てた欄 (範囲のピッカーで 2 つ並べた欄など) では効かないため、ここでも外す
         .min_w_0();
     div()
         .pb(if error.is_some() {

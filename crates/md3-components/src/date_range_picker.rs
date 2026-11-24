@@ -72,7 +72,10 @@ type EnabledFn = Rc<dyn Fn(&Date) -> bool>;
 ///
 /// [`DatePickerDisplayMode::Input`] では、タイトルを Enter dates にし、区切り線の下に始まりと終わりの日付を
 /// MM/DD/YYYY の形で入れる 2 つの欄を並べる。8 桁そろった日付が選べない日付か年の範囲の外であるか、
-/// 始まりが終わりより後になると、欄の下に誤りを示す。表示し始めたとき、始まりの欄にフォーカスを移す。
+/// 始まりが終わりより後になると、欄の下に誤りを示し、[`DateRangePicker::on_change`] にはその側を `None` にした範囲を渡す。
+/// 誤りは欄の文字が変わったときだけ確かめ、もう一方の欄を直しても示し続ける。
+/// 終わりだけを入れた範囲も渡し、保つ (カレンダーの表示では、始まりの無い終わりは無いものとして扱う)。
+/// 表示し始めたとき、始まりの欄にフォーカスを移す。
 /// [`DateRangePicker::on_display_mode_change`] を設定すると、見出しの右に表示を切り替えるボタンを置く
 ///
 /// 選ばれている範囲は呼び出し側が持ち、[`DateRangePicker::new`] に毎回渡す。ピッカー自身は範囲を変えず、
@@ -837,5 +840,38 @@ mod tests {
             })
         );
         assert_eq!(field_text(cx), "11/05/2026");
+    }
+
+    #[gpui::test]
+    fn 前後が逆の誤りはもう一方の欄を直しても示し続ける(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, DateRange::default());
+        view.update(cx, |view, cx| {
+            view.mode = DatePickerDisplayMode::Input;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        type_text(cx, "11102026");
+        cx.simulate_keystrokes("tab");
+        type_text(cx, "11052026");
+        // 始まりを終わりより前に直しても、終わりの欄は誤りのまま選ばない
+        cx.simulate_keystrokes(
+            "shift-tab backspace backspace backspace backspace backspace backspace",
+        );
+        type_text(cx, "012026");
+        assert_eq!(
+            last_change(&view, cx),
+            Some(DateRange {
+                start: Some(date(2026, 11, 1)),
+                end: None,
+            })
+        );
+        // 誤りの文は debug ビルドでだけ探せる
+        #[cfg(debug_assertions)]
+        assert!(
+            cx.debug_bounds("md3-field-supporting-text").is_some(),
+            "終わりの欄の誤りを示し続けること"
+        );
     }
 }
