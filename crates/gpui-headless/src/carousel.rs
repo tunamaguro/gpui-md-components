@@ -100,8 +100,8 @@ struct State {
     snapped: Option<usize>,
     active: usize,
     layout: Option<Layout>,
-    /// ホイールの操作を始めたときの項目
-    gesture_start: Option<usize>,
+    /// ホイールの操作を始めたときの項目と、描いていたスクロール量
+    gesture_start: Option<(usize, f32)>,
     settle: Option<Task<()>>,
 }
 
@@ -123,18 +123,34 @@ impl State {
 
 /// ホイールの操作が止まったときに止める項目
 ///
-/// 操作を始めた項目 `start` から動いた向きに、少なくとも 1 つ進める。
+/// 操作を始めた項目 `start` から、操作を始めたスクロール量 `origin` から動いた向きに、
+/// 止まる位置の異なる項目まで少なくとも 1 つ進める。
 /// 1 ノッチのスクロール量が項目の間隔の半分に届かなくても、ゆっくり回して先へ進めるようにする
-fn settle_index(layout: &Layout, snap: CarouselSnap, start: usize, offset: f32) -> usize {
-    let origin = layout.snap_offset(start);
+fn settle_index(
+    layout: &Layout,
+    snap: CarouselSnap,
+    start: usize,
+    origin: f32,
+    offset: f32,
+) -> usize {
     let last = layout.count.saturating_sub(1);
-    let step = if offset > origin {
-        (start + 1).min(last)
+    let start_offset = layout.snap_offset(start);
+    let mut step = start;
+    if offset > origin {
+        while step < last {
+            step += 1;
+            if layout.snap_offset(step) != start_offset {
+                break;
+            }
+        }
     } else if offset < origin {
-        start.saturating_sub(1)
-    } else {
-        start
-    };
+        while step > 0 {
+            step -= 1;
+            if layout.snap_offset(step) != start_offset {
+                break;
+            }
+        }
+    }
     match snap {
         CarouselSnap::SingleAdvance => step,
         _ => {
@@ -324,8 +340,8 @@ impl RenderOnce for Carousel {
                         return false;
                     }
                     if snap != CarouselSnap::None && state.gesture_start.is_none() {
-                        state.gesture_start =
-                            Some(state.snapped.unwrap_or_else(|| layout.nearest(before)));
+                        let start = state.snapped.unwrap_or_else(|| layout.nearest(before));
+                        state.gesture_start = Some((start, before));
                     }
                     state.target = target;
                     state.animate = false;
@@ -336,10 +352,11 @@ impl RenderOnce for Carousel {
                             cx.background_executor().timer(SETTLE_DELAY).await;
                             this.update(cx, |state: &mut State, cx| {
                                 let start = state.gesture_start.take();
-                                let (Some(layout), Some(start)) = (&state.layout, start) else {
+                                let (Some(layout), Some((start, origin))) = (&state.layout, start)
+                                else {
                                     return;
                                 };
-                                let index = settle_index(layout, snap, start, state.target);
+                                let index = settle_index(layout, snap, start, origin, state.target);
                                 state.snap_to(index);
                                 cx.notify();
                             })
@@ -810,6 +827,58 @@ mod tests {
         scroll(cx, 60.);
         settle(cx);
         assert_eq!(active(&view, cx), Some(1));
+    }
+
+    #[test]
+    fn 止まる位置へ動いている途中の操作は描いていた位置からの向きで止める() {
+        let strategy = Strategy::new(
+            keylines::multi_browse(360.0, 186.0, 8.0, 10, 40.0, 56.0),
+            360.0,
+            8.0,
+            0.0,
+            0.0,
+        );
+        let layout = Layout {
+            strategy,
+            count: 10,
+        };
+        // 項目 1 へ動いている途中の 95 から 60 進めると、項目 1 の止まる位置より手前でも先へ進める
+        assert!(95.0 + 60.0 < layout.snap_offset(1));
+        assert_eq!(
+            settle_index(&layout, CarouselSnap::Nearest, 1, 95.0, 155.0),
+            2
+        );
+        assert_eq!(
+            settle_index(&layout, CarouselSnap::SingleAdvance, 1, 95.0, 35.0),
+            0
+        );
+    }
+
+    #[test]
+    fn 止まる位置が同じ項目は飛ばして進める() {
+        let strategy = Strategy::new(
+            keylines::uncontained(360.0, 150.0, 0.0),
+            360.0,
+            0.0,
+            0.0,
+            0.0,
+        );
+        let layout = Layout {
+            strategy,
+            count: 10,
+        };
+        assert_eq!(layout.snap_offset(7), layout.snap_offset(8));
+        let origin = layout.snap_offset(8);
+        assert_eq!(
+            settle_index(
+                &layout,
+                CarouselSnap::SingleAdvance,
+                8,
+                origin,
+                origin - 10.0
+            ),
+            6
+        );
     }
 
     #[gpui::test]
