@@ -768,7 +768,7 @@ impl Strategy {
         !self.default.0.is_empty() && self.available_space != 0.0 && self.item_size() != 0.0
     }
 
-    /// 焦点の項目の大きさ。項目はこの大きさで描き、キーラインの大きさで切り抜く
+    /// 焦点の項目の大きさ
     pub fn item_size(&self) -> f32 {
         if self.default.0.is_empty() {
             0.0
@@ -844,11 +844,11 @@ impl Strategy {
             return 0.0;
         }
         let half = self.item_size() / 2.0;
-        let mut offset = (self.default.first_focal().unadjusted_offset - half).round();
+        let mut offset = self.default.first_focal().unadjusted_offset - half;
         let start_last = self.start_steps.len().saturating_sub(1);
         if index <= start_last && !self.start_steps.is_empty() {
             let step = &self.start_steps[(start_last - index).min(start_last)];
-            offset = (step.first_focal().unadjusted_offset - half).round();
+            offset = step.first_focal().unadjusted_offset - half;
         }
         let end_last = self.end_steps.len().saturating_sub(1);
         let last_item = item_count.saturating_sub(1);
@@ -856,8 +856,10 @@ impl Strategy {
             && index + end_last >= last_item
             && item_count > self.default.focal_count()
         {
-            let step = &self.end_steps[end_last.saturating_sub(last_item - index).min(end_last)];
-            offset = (step.last_focal().unadjusted_offset - half).round();
+            let step = &self.end_steps[end_last
+                .saturating_sub(last_item.saturating_sub(index))
+                .min(end_last)];
+            offset = step.last_focal().unadjusted_offset - half;
         }
         offset
     }

@@ -94,6 +94,8 @@ struct State {
     target: f32,
     /// 目標までバネで動かすか。`false` ならすぐに目標の位置で描く
     animate: bool,
+    /// 最後に描いたスクロール量
+    presented: f32,
     /// スクロールの位置を止めている項目。広さが変わっても、この項目の止まる位置を保つ
     snapped: Option<usize>,
     active: usize,
@@ -116,6 +118,29 @@ impl State {
         self.target = layout.snap_offset(index);
         self.snapped = Some(index);
         self.animate = true;
+    }
+}
+
+/// ホイールの操作が止まったときに止める項目
+///
+/// 操作を始めた項目 `start` から動いた向きに、少なくとも 1 つ進める。
+/// 1 ノッチのスクロール量が項目の間隔の半分に届かなくても、ゆっくり回して先へ進めるようにする
+fn settle_index(layout: &Layout, snap: CarouselSnap, start: usize, offset: f32) -> usize {
+    let origin = layout.snap_offset(start);
+    let last = layout.count.saturating_sub(1);
+    let step = if offset > origin {
+        (start + 1).min(last)
+    } else if offset < origin {
+        start.saturating_sub(1)
+    } else {
+        start
+    };
+    match snap {
+        CarouselSnap::SingleAdvance => step,
+        _ => {
+            let nearest = layout.nearest(offset);
+            if nearest == start { step } else { nearest }
+        }
     }
 }
 
@@ -227,6 +252,7 @@ impl RenderOnce for Carousel {
             focus: cx.focus_handle(),
             target: 0.0,
             animate: false,
+            presented: 0.0,
             snapped: Some(0),
             active: 0,
             layout: None,
@@ -278,18 +304,28 @@ impl RenderOnce for Carousel {
             let snap = self.snap;
             move |event: &ScrollEvent, window: &mut Window, cx: &mut App| {
                 let delta = event.delta.pixel_delta(window.line_height());
-                let delta = if delta.x == px(0.0) { delta.y } else { delta.x };
+                let delta = if delta.x.abs() > delta.y.abs() {
+                    delta.x
+                } else {
+                    delta.y
+                };
                 let scrolled = state.update(cx, |state, cx| {
                     let Some(layout) = state.layout.clone() else {
                         return false;
                     };
-                    let before = state.target;
+                    // 止まる位置へ動いている途中は、描いている位置から続ける
+                    let before = if state.animate {
+                        state.presented
+                    } else {
+                        state.target
+                    };
                     let target = (before - f32::from(delta)).clamp(0.0, layout.max_offset());
-                    if target == before {
+                    if target == state.target {
                         return false;
                     }
-                    if snap == CarouselSnap::SingleAdvance {
-                        state.gesture_start.get_or_insert(state.active);
+                    if snap != CarouselSnap::None && state.gesture_start.is_none() {
+                        state.gesture_start =
+                            Some(state.snapped.unwrap_or_else(|| layout.nearest(before)));
                     }
                     state.target = target;
                     state.animate = false;
@@ -299,13 +335,11 @@ impl RenderOnce for Carousel {
                         cx.spawn(async move |this, cx| {
                             cx.background_executor().timer(SETTLE_DELAY).await;
                             this.update(cx, |state: &mut State, cx| {
-                                let Some(layout) = &state.layout else {
+                                let start = state.gesture_start.take();
+                                let (Some(layout), Some(start)) = (&state.layout, start) else {
                                     return;
                                 };
-                                let mut index = layout.nearest(state.target);
-                                if let Some(start) = state.gesture_start {
-                                    index = index.clamp(start.saturating_sub(1), start + 1);
-                                }
+                                let index = settle_index(layout, snap, start, state.target);
                                 state.snap_to(index);
                                 cx.notify();
                             })
@@ -439,6 +473,7 @@ impl Element for Track {
                 None => state.target = state.target.clamp(0.0, max),
             }
             state.layout = Some(layout.clone());
+            state.presented = offset;
             (offset, state.active)
         });
 
@@ -758,6 +793,23 @@ mod tests {
         settle(cx);
         assert_eq!(left(&view, cx, 2), 0.);
         assert_eq!(width(&view, cx, 2), large);
+    }
+
+    #[gpui::test]
+    fn 項目の間隔の半分に届かないホイールでも動いた向きに進める(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, |_| {});
+        scroll(cx, -60.);
+        settle(cx);
+        assert_eq!(active(&view, cx), Some(1));
+        assert_eq!(left(&view, cx, 1), 0.);
+        scroll(cx, -60.);
+        settle(cx);
+        assert_eq!(active(&view, cx), Some(2));
+        scroll(cx, 60.);
+        settle(cx);
+        assert_eq!(active(&view, cx), Some(1));
     }
 
     #[gpui::test]
