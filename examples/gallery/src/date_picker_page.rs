@@ -5,7 +5,8 @@ use gpui::{
     SharedString, StatefulInteractiveElement as _, Styled as _, Window, div, px,
 };
 use md3_components::{
-    Button, ButtonVariant, Date, DatePicker, DatePickerDialog, DatePickerDisplayMode,
+    Button, ButtonVariant, Date, DatePicker, DatePickerDialog, DatePickerDisplayMode, DateRange,
+    DateRangePicker,
 };
 use md3_theme::md3_tokens::typography::TypeScale;
 use md3_theme::{Theme, ThemeExt as _};
@@ -25,6 +26,8 @@ pub struct DatePickerPage {
     mode: DatePickerDisplayMode,
     /// ダイアログのピッカーの表示
     dialog_mode: DatePickerDisplayMode,
+    /// 範囲のピッカーで選ばれている範囲
+    range: DateRange,
 }
 
 impl DatePickerPage {
@@ -36,6 +39,7 @@ impl DatePickerPage {
             dialog_draft: None,
             mode: DatePickerDisplayMode::Picker,
             dialog_mode: DatePickerDisplayMode::Picker,
+            range: DateRange::default(),
         }
     }
 }
@@ -111,6 +115,24 @@ impl Render for DatePickerPage {
                             .child(gpui::text!("Open date picker")),
                     )
                     .child(label(&theme, "dialog-value", format(self.dialog))),
+            )
+            .child(
+                column()
+                    .child(label(&theme, "range-label", "Date range picker"))
+                    .child(
+                        DateRangePicker::new("range", self.range)
+                            .today(today)
+                            .on_change(cx.listener(|this, range: &DateRange, _, cx| {
+                                this.range = *range;
+                                cx.notify();
+                            }))
+                            .h(px(520.)),
+                    )
+                    .child(label(
+                        &theme,
+                        "range-value",
+                        format!("{} / {}", format(self.range.start), format(self.range.end)),
+                    )),
             )
             .child(
                 DatePickerDialog::new("dialog", self.dialog_draft.is_some())

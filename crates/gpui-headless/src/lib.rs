@@ -19,6 +19,7 @@ mod popup;
 pub mod press;
 pub mod progress;
 pub mod radio;
+pub mod range_calendar;
 mod root;
 mod roving;
 pub mod select;
