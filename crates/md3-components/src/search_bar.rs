@@ -14,7 +14,7 @@ use gpui::{
     MouseButton, ParentElement, Refineable, RenderOnce, SharedString, StatefulInteractiveElement,
     StyleRefinement, Styled, Window, div, prelude::FluentBuilder, svg,
 };
-use gpui_headless::text_field::TextField as HeadlessTextField;
+use gpui_headless::text_field::{TextEdit, TextField as HeadlessTextField};
 use md3_icons::StyledIcon;
 use md3_theme::md3_color::ColorRole;
 use md3_theme::md3_tokens::component::search_bar as tokens;
@@ -25,7 +25,7 @@ use crate::shape::Shaped;
 use crate::util;
 
 /// 検索バーの既定の幅 (Compose の `SearchBarMinWidth`)
-const DEFAULT_WIDTH: Dp = Dp(360.0);
+pub(crate) const DEFAULT_WIDTH: Dp = Dp(360.0);
 /// 末尾の要素を置く枠の最小の大きさ (Compose の `TextFieldImplKt.MinIconSize` の 48dp)
 const TRAILING_MIN_SIZE: Dp = Dp(48.0);
 /// 先頭のアイコンの大きさ (Compose の `Icon` の既定)
@@ -40,6 +40,7 @@ const TRAILING_SPACE: Dp = Dp(4.0);
 const TEXT_END_SPACE: Dp = Dp(16.0);
 
 type ChangeHandler = Box<dyn Fn(&SharedString, &mut Window, &mut App)>;
+type EditHandler = Box<dyn Fn(&TextEdit, &mut Window, &mut App)>;
 
 /// MD3 の検索バー (Compose の `SearchBar` と `SearchBarDefaults.InputField`)
 ///
@@ -71,7 +72,7 @@ pub struct SearchBar {
     placeholder: Option<SharedString>,
     leading_icon: StyledIcon,
     children: Vec<AnyElement>,
-    on_change: Option<ChangeHandler>,
+    on_change: Option<EditHandler>,
     on_search: Option<ChangeHandler>,
     focus_handle: Option<FocusHandle>,
     style: StyleRefinement,
@@ -126,6 +127,20 @@ impl SearchBar {
     pub fn on_change(
         mut self,
         handler: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_change = Some(Box::new(move |edit: &TextEdit, window, cx| {
+            handler(&edit.new_text, window, cx)
+        }));
+        self
+    }
+
+    /// [`SearchBar::on_change`] と同じ操作で、編集した後の文字列の代わりに編集を渡す
+    ///
+    /// 渡す編集は [`HeadlessTextField::on_edit`] と同じ。[`SearchBar::on_change`] と両方を呼んだ場合は、後に呼んだ方のハンドラだけを呼ぶ
+    #[cfg(feature = "search-view")]
+    pub(crate) fn on_edit(
+        mut self,
+        handler: impl Fn(&TextEdit, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_change = Some(Box::new(handler));
         self
@@ -194,7 +209,7 @@ impl RenderOnce for SearchBar {
             input = input.placeholder(placeholder.clone());
         }
         if let Some(on_change) = self.on_change {
-            input = input.on_change(on_change);
+            input = input.on_edit(on_change);
         }
         if let Some(on_search) = self.on_search {
             input = input.on_submit(on_search);

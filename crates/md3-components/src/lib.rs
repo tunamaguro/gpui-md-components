@@ -71,6 +71,8 @@ mod progress_indicator;
 mod radio_button;
 #[cfg(feature = "search-bar")]
 mod search_bar;
+#[cfg(feature = "search-view")]
+mod search_view;
 #[cfg(feature = "segmented-button")]
 mod segmented_button;
 #[cfg(feature = "select")]
@@ -240,6 +242,8 @@ pub use progress_indicator::{
 pub use radio_button::{RadioButton, RadioButtonIndicator, RadioGroup};
 #[cfg(feature = "search-bar")]
 pub use search_bar::SearchBar;
+#[cfg(feature = "search-view")]
+pub use search_view::SearchView;
 #[cfg(feature = "segmented-button")]
 pub use segmented_button::{
     MultiChoiceSegmentedButtonRow, SegmentedButton, SegmentedToggleButton,
