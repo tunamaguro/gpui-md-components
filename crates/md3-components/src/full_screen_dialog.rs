@@ -2,7 +2,7 @@
 
 use gpui::{
     AnyElement, App, ElementId, FocusHandle, InteractiveElement, IntoElement, ParentElement,
-    RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window, div,
+    RenderOnce, ScrollHandle, SharedString, StatefulInteractiveElement, Styled, Window, div, px,
 };
 use gpui_headless::dialog::{Dialog as HeadlessDialog, DismissReason};
 use md3_theme::md3_color::ColorRole;
@@ -19,7 +19,9 @@ type DismissHandler = Box<dyn Fn(&DismissReason, &mut Window, &mut App)>;
 /// ウィンドウのルートの近くに置くこと。ウィンドウのルートを [`crate::root`] で包むと、開いている間はダイアログ以外を支援技術から隠す
 ///
 /// 上端に Small の [`TopAppBar`] を置き、ナビゲーションのアイコン (閉じるボタン)、見出し、確定するボタンを並べる。
-/// その下の残りの高さに子の内容を置き、収まらない内容は縦にスクロールする。内容の余白は呼び出し側が付ける
+/// その下の残りの高さに子の内容を置き、収まらない内容は縦にスクロールする。
+/// 内容がバーの下にスクロールして入り込んでいる間は、バーをスクロール中の色で塗る ([`TopAppBar::scrolled`])。
+/// 内容の余白と書体は呼び出し側が付ける。書体は置いた場所の text style を受け継ぐ
 ///
 /// - 開いたとき、[`FullScreenDialog::initial_focus`] の要素か、ダイアログの中で Tab で到達できる最初の要素にフォーカスを移す。
 ///   Tab の順は、ナビゲーションのアイコン、確定するボタン、内容の順になる
@@ -106,7 +108,7 @@ impl ParentElement for FullScreenDialog {
 }
 
 impl RenderOnce for FullScreenDialog {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let mut dialog = HeadlessDialog::new(self.id.clone(), self.open);
         if let Some(handler) = self.on_dismiss {
             dialog = dialog.on_dismiss(handler);
@@ -118,7 +120,13 @@ impl RenderOnce for FullScreenDialog {
             return dialog;
         }
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
-        let mut bar = TopAppBar::new("bar", self.headline.clone()).theme(theme.clone());
+        let scroll = window
+            .use_keyed_state((self.id, "scroll"), cx, |_, _| ScrollHandle::new())
+            .read(cx)
+            .clone();
+        let mut bar = TopAppBar::new("bar", self.headline.clone())
+            .scrolled(scroll.offset().y < px(0.))
+            .theme(theme.clone());
         if let Some(icon) = self.navigation_icon {
             bar = bar.navigation_icon(icon);
         }
@@ -126,7 +134,7 @@ impl RenderOnce for FullScreenDialog {
             bar = bar.child(button);
         }
         dialog
-            .scrim(div().size_full())
+            .scrim(div())
             .aria_label(self.headline)
             .size_full()
             .flex()
@@ -138,7 +146,8 @@ impl RenderOnce for FullScreenDialog {
             .child(div().flex_none().child(bar))
             .child(
                 div()
-                    .id((self.id, "content"))
+                    .id("content")
+                    .track_scroll(&scroll)
                     .flex()
                     .flex_col()
                     .flex_1()
@@ -169,6 +178,8 @@ mod tests {
         events: Rc<RefCell<Vec<&'static str>>>,
         close: FocusHandle,
         confirm: FocusHandle,
+        /// 内容の中のボタンのフォーカス
+        field: FocusHandle,
     }
 
     impl Render for DialogView {
@@ -193,7 +204,8 @@ mod tests {
                             .size(px(40.))
                             .on_click(move |_, _, _| confirm.borrow_mut().push("save")),
                     )
-                    .child(div().flex_none().h(px(2000.)).bg(gpui::red())),
+                    .child(div().flex_none().h(px(2000.)).bg(gpui::red()))
+                    .child(Button::new("field").track_focus(&self.field).size(px(40.))),
             )
         }
     }
@@ -207,9 +219,13 @@ mod tests {
                 events: Rc::default(),
                 close: cx.focus_handle(),
                 confirm: cx.focus_handle(),
+                field: cx.focus_handle(),
             }
         });
-        cx.update(|window, _| window.activate_window());
+        cx.update(|window, cx| {
+            window.activate_window();
+            cx.set_reduce_motion(true);
+        });
         cx.run_until_parked();
         (view, cx)
     }
@@ -243,11 +259,40 @@ mod tests {
         })
     }
 
+    /// 色 `role` で塗った矩形 (x, y, 幅, 高さ)
+    fn quads(cx: &mut VisualTestContext, role: ColorRole) -> Vec<(f32, f32, f32, f32)> {
+        cx.update(|window, cx| {
+            let scale = window.scale_factor();
+            let color: gpui::Background = cx.md3_theme().color(role).into();
+            window
+                .painted_quads()
+                .into_iter()
+                .filter(|quad| quad.background == color)
+                .map(|quad| {
+                    let b = quad.bounds;
+                    (
+                        b.origin.x.0 / scale,
+                        b.origin.y.0 / scale,
+                        b.size.width.0 / scale,
+                        b.size.height.0 / scale,
+                    )
+                })
+                .collect()
+        })
+    }
+
     #[gpui::test]
     fn バーの下に内容を置き_収まらない内容をスクロールする(
         cx: &mut TestAppContext,
     ) {
         let (_, cx) = setup(cx);
+        let size = cx.update(|window, _| window.viewport_size());
+        let (width, height) = (size.width / px(1.), size.height / px(1.));
+        assert!(
+            quads(cx, ColorRole::Surface).contains(&(0., 0., width, height)),
+            "ウィンドウ全体を Surface で塗ること"
+        );
+        assert!(quads(cx, ColorRole::SurfaceContainer).is_empty());
         // Small のトップアプリバーの高さは 64
         assert_eq!(content(cx), Some((0., 64.)));
         cx.simulate_event(ScrollEvent {
@@ -256,6 +301,10 @@ mod tests {
             ..Default::default()
         });
         assert_eq!(content(cx), Some((0., -36.)));
+        assert!(
+            quads(cx, ColorRole::SurfaceContainer).contains(&(0., 0., width, 64.)),
+            "スクロールするとバーをスクロール中の色で塗ること"
+        );
     }
 
     #[gpui::test]
@@ -271,6 +320,13 @@ mod tests {
         );
         cx.simulate_keystrokes("tab");
         assert!(cx.update(|window, _| confirm.is_focused(window)));
+        let field = view.read_with(cx, |view, _| view.field.clone());
+        cx.simulate_keystrokes("tab");
+        assert!(
+            cx.update(|window, _| field.is_focused(window)),
+            "確定するボタンの後は内容"
+        );
+        cx.simulate_keystrokes("shift-tab");
         press(cx, "space");
         cx.simulate_keystrokes("shift-tab");
         press(cx, "space");
