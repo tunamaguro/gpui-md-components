@@ -353,9 +353,9 @@ fn reveal(
     state.base_handle.set_offset(point(offset.x, -new_top));
 }
 
-/// `current` の週の行がスクロールで見えなくなっているか、一覧の高さが 0 なら `Some` を返し、
+/// `current` の週の行がスクロールで見えなくなっているか、一覧の高さが 0 か、まだ月を描いていなければ `Some` を返し、
 /// 中身は全体が見えている最初の週の行のうちその月の最初の日付で、そのような行が無ければ `None`。
-/// まだ描いていないときと、`current` の行が少しでも見えているときは `None`
+/// `current` の行が少しでも見えているときは `None`
 fn retarget(
     scroll: &UniformListScrollHandle,
     layout: Option<MonthLayout>,
@@ -363,11 +363,17 @@ fn retarget(
     last: Date,
     current: Date,
 ) -> Option<Option<Date>> {
-    let layout = layout.filter(|layout| layout.month > Pixels::ZERO)?;
+    // 月を 1 つも描いていなければ、見えている週は無い
+    let Some(layout) = layout.filter(|layout| layout.month > Pixels::ZERO) else {
+        return Some(None);
+    };
     let (top, bottom) = {
         let state = scroll.0.borrow();
         let top = -state.base_handle.offset().y;
-        (top, top + state.last_item_size?.item.height)
+        let Some(size) = state.last_item_size else {
+            return Some(None);
+        };
+        (top, top + size.item.height)
     };
     if bottom <= top {
         return Some(None);
@@ -739,8 +745,17 @@ impl Shared {
                     row,
                     row_height,
                 };
+                // 一覧の高さが 0 の間は見せる位置が決まらないため、高さができるまで待つ
+                let has_height = scroll
+                    .0
+                    .borrow()
+                    .last_item_size
+                    .is_some_and(|size| size.item.height > Pixels::ZERO);
                 let reveal_active = state.update(cx, |state, _| {
                     state.layout = Some(layout);
+                    if !has_height {
+                        return None;
+                    }
                     std::mem::take(&mut state.reveal)
                         .then_some(state.active)
                         .flatten()
@@ -1332,5 +1347,47 @@ mod tests {
         cx.update(|window, cx| window.simulate_next_frame(cx));
         cx.run_until_parked();
         assert_eq!(scroll_top(&view, cx), 0.);
+    }
+
+    #[gpui::test]
+    fn 最初から一覧の高さが_0_ならキー操作で選ばない(cx: &mut TestAppContext) {
+        let (view, cx) = setup_with(cx, range(Some(date(2026, 1, 31)), None), |view| {
+            view.height = 0.
+        });
+        cx.simulate_keystrokes("tab tab enter");
+        assert_eq!(changes(&view, cx), []);
+    }
+
+    #[gpui::test]
+    fn 高さが_0_の間にフォーカスが入ると高さができてから操作日の週を見せる(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup_with(cx, range(Some(date(2026, 1, 31)), None), |view| {
+            view.marked = Some(date(2026, 1, 31))
+        });
+        let scroll = view.read_with(cx, |view, _| view.scroll.clone());
+        scroll
+            .0
+            .borrow()
+            .base_handle
+            .set_offset(gpui::point(px(0.), px(-10.)));
+        view.update(cx, |view, cx| {
+            view.height = 0.;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        cx.simulate_keystrokes("tab tab");
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        view.update(cx, |view, cx| {
+            view.height = 160.;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        cx.update(|window, cx| window.simulate_next_frame(cx));
+        cx.run_until_parked();
+        // 1 月 31 日の週 (180 から 220) の下端が高さ 160 の一覧の下端に来る
+        assert_eq!(scroll_top(&view, cx), 60.);
+        assert_eq!(painted_tops(cx), [120.]);
     }
 }
