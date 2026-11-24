@@ -28,6 +28,8 @@ pub struct DatePickerPage {
     dialog_mode: DatePickerDisplayMode,
     /// 範囲のピッカーで選ばれている範囲
     range: DateRange,
+    /// 範囲のピッカーの表示
+    range_mode: DatePickerDisplayMode,
 }
 
 impl DatePickerPage {
@@ -40,6 +42,7 @@ impl DatePickerPage {
             mode: DatePickerDisplayMode::Picker,
             dialog_mode: DatePickerDisplayMode::Picker,
             range: DateRange::default(),
+            range_mode: DatePickerDisplayMode::Picker,
         }
     }
 }
@@ -126,6 +129,13 @@ impl Render for DatePickerPage {
                                 this.range = *range;
                                 cx.notify();
                             }))
+                            .display_mode(self.range_mode)
+                            .on_display_mode_change(cx.listener(
+                                |this, mode: &DatePickerDisplayMode, _, cx| {
+                                    this.range_mode = *mode;
+                                    cx.notify();
+                                },
+                            ))
                             .h(px(520.)),
                     )
                     .child(label(

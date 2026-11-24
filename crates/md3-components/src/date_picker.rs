@@ -22,7 +22,7 @@ use std::ops::RangeInclusive;
 use std::rc::Rc;
 
 use gpui::{
-    App, ElementId, InteractiveElement, IntoElement, ParentElement, Refineable, RenderOnce,
+    App, Div, ElementId, InteractiveElement, IntoElement, ParentElement, Refineable, RenderOnce,
     ScrollHandle, StatefulInteractiveElement, StyleRefinement, Styled, Transformation, Window, div,
     prelude::FluentBuilder, radians, svg,
 };
@@ -69,10 +69,10 @@ const MENU_ICON_SPACING: Dp = Dp(8.0);
 /// 年を選ぶボタンのアイコンの大きさ (Compose の `Icons.Filled.ArrowDropDown` の既定の大きさ)
 const MENU_ICON_SIZE: Dp = Dp(24.0);
 /// 表示を切り替えるボタンの右と下の余白 (Compose の `DatePickerModeTogglePadding`)
-const MODE_TOGGLE_PADDING: Dp = Dp(12.0);
+pub(crate) const MODE_TOGGLE_PADDING: Dp = Dp(12.0);
 /// 日付を入れる欄の左右と上の余白 (Compose の `InputTextFieldPadding`)
-const INPUT_HORIZONTAL_PADDING: Dp = Dp(24.0);
-const INPUT_TOP_PADDING: Dp = Dp(10.0);
+pub(crate) const INPUT_HORIZONTAL_PADDING: Dp = Dp(24.0);
+pub(crate) const INPUT_TOP_PADDING: Dp = Dp(10.0);
 /// 日付を入れる欄の、誤りを示していないときの下の余白 (Compose の `InputTextNonErroneousBottomPadding`)。
 /// 誤りを示している間は、補足の文の上の余白の分だけ減らす
 const INPUT_BOTTOM_PADDING: Dp = Dp(16.0);
@@ -103,9 +103,9 @@ pub(crate) const WEEKDAY_NAMES: [&str; 7] = [
     "Saturday",
 ];
 
-type ChangeHandler = Rc<dyn Fn(&Option<Date>, &mut Window, &mut App)>;
-type ModeChangeHandler = Rc<dyn Fn(&DatePickerDisplayMode, &mut Window, &mut App)>;
-type EnabledFn = Rc<dyn Fn(&Date) -> bool>;
+pub(crate) type ChangeHandler = Rc<dyn Fn(&Option<Date>, &mut Window, &mut App)>;
+pub(crate) type ModeChangeHandler = Rc<dyn Fn(&DatePickerDisplayMode, &mut Window, &mut App)>;
+pub(crate) type EnabledFn = Rc<dyn Fn(&Date) -> bool>;
 
 /// デイトピッカーの表示
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -145,7 +145,7 @@ pub(crate) fn short_date(date: Date) -> String {
 }
 
 /// 日付を入れる欄の数字 (MMDDYYYY の 8 桁まで) を日付として確かめる。誤りなら、利用者に示す文を返す
-fn validate_input(
+pub(crate) fn validate_input(
     digits: &str,
     years: &RangeInclusive<i32>,
     enabled: Option<&EnabledFn>,
@@ -171,6 +171,147 @@ fn validate_input(
         return Err(format!("Date not allowed: {}", short_date(date)));
     }
     Ok(date)
+}
+
+/// 日付を入れる欄の数字を日付として確かめる処理
+pub(crate) type ValidateFn = Rc<dyn Fn(&str) -> Result<Date, String>>;
+
+/// 日付を入れる欄が描画をまたいで持つ値
+struct InputState {
+    /// 欄の数字
+    digits: String,
+    /// 欄の数字を合わせた、選ばれている日付
+    synced: Option<Date>,
+    /// 欄の数字が変わったときに確かめた誤り
+    error: Option<String>,
+}
+
+/// [`date_input_field`] に渡す値
+pub(crate) struct DateInputField {
+    /// 欄と、欄の数字などの状態の id
+    pub id: ElementId,
+    pub label: &'static str,
+    /// 選ばれている日付。変わると、欄の数字がこの日付を表していなければ書き換える
+    pub selected: Option<Date>,
+    pub years: RangeInclusive<i32>,
+    /// 欄の数字 (8 桁) を日付として確かめる。誤りなら利用者に示す文を返す
+    pub validate: ValidateFn,
+    /// 欄の内容が変わったときに呼ぶ。欄の数字が `validate` で日付にならない間は `None` を渡す
+    pub on_change: Option<ChangeHandler>,
+    /// 表示し始めたときに欄にフォーカスを移すか
+    pub autofocus: bool,
+    pub theme: SharedTheme,
+}
+
+/// 日付を MM/DD/YYYY の形で入れる Outlined の欄と、その下の余白 (Compose の `DateInputTextField`)。
+/// 欄の数字は、欄を描いている間だけ `field.id` の状態として持つ。8 桁そろって誤りがあれば、欄の下に示す
+pub(crate) fn date_input_field(field: DateInputField, window: &mut Window, cx: &mut App) -> Div {
+    let DateInputField {
+        id,
+        label,
+        selected,
+        years,
+        validate,
+        on_change,
+        autofocus,
+        theme,
+    } = field;
+    // 誤りは欄の数字が変わったときだけ確かめる。誤りを示している欄は `None` を渡しているため、
+    // ほかの値 (範囲のもう一方の日付など) が変わって誤りでなくなっても、示し続けて入れ直しを求める
+    let check = |digits: &str| {
+        (digits.len() == INPUT_DIGITS)
+            .then(|| validate(digits).err())
+            .flatten()
+    };
+    let state = window.use_keyed_state((id.clone(), "digits"), cx, |_, _| {
+        let digits = selected.map(input_digits).unwrap_or_default();
+        InputState {
+            error: check(&digits),
+            digits,
+            synced: selected,
+        }
+    });
+    if state.read(cx).synced != selected {
+        let mut digits = state.read(cx).digits.clone();
+        if let Some(date) = selected
+            && validate_input(&digits, &years, None).ok() != Some(date)
+        {
+            digits = input_digits(date);
+        }
+        let error = check(&digits);
+        state.update(cx, |state, _| {
+            *state = InputState {
+                digits,
+                synced: selected,
+                error,
+            }
+        });
+    }
+    let (text, error) = {
+        let state = state.read(cx);
+        (state.digits.clone(), state.error.clone())
+    };
+
+    let field_focus = window
+        .use_keyed_state((id.clone(), "focus"), cx, |_, cx| cx.focus_handle())
+        .read(cx)
+        .clone();
+    if autofocus {
+        // 表示し始めたらフォーカスを移す。ほかの要素を描いた後で描かれる場合があるため、
+        // 同じフレームで複数の要素がフォーカスを持たないよう、描き終えてから移す。
+        // 同じフレームを描き終えてから最初のフォーカスを移す部品 (モーダルの部品など) の中でも欄に移るよう、2 段遅らせる
+        let entered = window.use_keyed_state((id.clone(), "entered"), cx, |_, _| false);
+        if !*entered.read(cx) {
+            entered.update(cx, |entered, _| *entered = true);
+            let field_focus = field_focus.clone();
+            window.defer(cx, move |window, cx| {
+                window.defer(cx, move |window, cx| window.focus(&field_focus, cx));
+            });
+        }
+    }
+
+    let field = TextField::new(id, input_text(&text))
+        .variant(TextFieldVariant::Outlined)
+        .label(label)
+        .placeholder("MM/DD/YYYY")
+        .track_focus(&field_focus)
+        .error(error.is_some())
+        .when_some(error.clone(), |this, error| this.supporting_text(error))
+        .on_change(move |value, window, cx| {
+            let mut new_digits = String::new();
+            for c in value.chars() {
+                match c {
+                    '0'..='9' => new_digits.push(c),
+                    '/' => {}
+                    _ => return,
+                }
+            }
+            if new_digits.len() > INPUT_DIGITS || new_digits == state.read(cx).digits {
+                return;
+            }
+            let result = validate(&new_digits);
+            state.update(cx, |state, cx| {
+                state.error = (new_digits.len() == INPUT_DIGITS)
+                    .then(|| result.clone().err())
+                    .flatten();
+                state.digits = new_digits.clone();
+                cx.notify();
+            });
+            if let Some(on_change) = &on_change {
+                on_change(&result.ok(), window, cx);
+            }
+        })
+        .theme(theme)
+        .w_full()
+        // Compose の欄の最小の幅は、幅を割り当てた欄 (範囲のピッカーで 2 つ並べた欄など) では効かないため、ここでも外す
+        .min_w_0();
+    div()
+        .pb(if error.is_some() {
+            dp(INPUT_BOTTOM_PADDING) - dp(supplement::text_field::SUPPORTING_TOP_PADDING)
+        } else {
+            dp(INPUT_BOTTOM_PADDING)
+        })
+        .child(field)
 }
 
 /// 曜日・月・日・年をそろえた長い表記。Tuesday, November 24, 2026 のように書く
@@ -870,85 +1011,30 @@ impl RenderOnce for DatePicker {
                 calendar.on_change(move |date, window, cx| on_change(&Some(*date), window, cx));
         }
 
-        // 日付を入れる欄。欄の数字は、この表示の間だけピッカーが持つ
+        // 日付を入れる欄
         let input = input_mode.then(|| {
             let years = first_year..=last_year;
-            let digits = window.use_keyed_state((self.id.clone(), "input-digits"), cx, |_, _| {
-                (selected.map(input_digits).unwrap_or_default(), selected)
-            });
-            let (mut text, synced) = digits.read(cx).clone();
-            if synced != selected {
-                if let Some(date) = selected
-                    && validate_input(&text, &years, None).ok() != Some(date)
-                {
-                    text = input_digits(date);
-                }
-                digits.update(cx, |digits, _| *digits = (text.clone(), selected));
-            }
-            let error = (text.len() == INPUT_DIGITS)
-                .then(|| validate_input(&text, &years, self.enabled.as_ref()).err())
-                .flatten();
-
-            let field_focus = window
-                .use_keyed_state((self.id.clone(), "input-focus"), cx, |_, cx| {
-                    cx.focus_handle()
-                })
-                .read(cx)
-                .clone();
-            // 表示し始めたらフォーカスを移す。ほかの要素を描いた後で描かれる場合があるため、
-            // 同じフレームで複数の要素がフォーカスを持たないよう、描き終えてから移す。
-            // 同じフレームを描き終えてから最初のフォーカスを移す部品 (モーダルの部品など) の中でも欄に移るよう、2 段遅らせる
-            let entered =
-                window.use_keyed_state((self.id.clone(), "input-entered"), cx, |_, _| false);
-            if !*entered.read(cx) {
-                entered.update(cx, |entered, _| *entered = true);
-                let field_focus = field_focus.clone();
-                window.defer(cx, move |window, cx| {
-                    window.defer(cx, move |window, cx| window.focus(&field_focus, cx));
-                });
-            }
-
-            let on_change = self.on_change.clone();
             let enabled = self.enabled.clone();
-            let field = TextField::new((self.id.clone(), "input"), input_text(&text))
-                .variant(TextFieldVariant::Outlined)
-                .label("Date")
-                .placeholder("MM/DD/YYYY")
-                .track_focus(&field_focus)
-                .error(error.is_some())
-                .when_some(error.clone(), |this, error| this.supporting_text(error))
-                .on_change(move |value, window, cx| {
-                    let mut new_digits = String::new();
-                    for c in value.chars() {
-                        match c {
-                            '0'..='9' => new_digits.push(c),
-                            '/' => {}
-                            _ => return,
-                        }
-                    }
-                    if new_digits.len() > INPUT_DIGITS || new_digits == digits.read(cx).0 {
-                        return;
-                    }
-                    digits.update(cx, |digits, cx| {
-                        digits.0 = new_digits.clone();
-                        cx.notify();
-                    });
-                    if let Some(on_change) = &on_change {
-                        let date = validate_input(&new_digits, &years, enabled.as_ref()).ok();
-                        on_change(&date, window, cx);
-                    }
-                })
-                .theme(theme.clone())
-                .w_full();
+            let on_change = self.on_change.clone();
             div()
                 .px(dp(INPUT_HORIZONTAL_PADDING))
                 .pt(dp(INPUT_TOP_PADDING))
-                .pb(if error.is_some() {
-                    dp(INPUT_BOTTOM_PADDING) - dp(supplement::text_field::SUPPORTING_TOP_PADDING)
-                } else {
-                    dp(INPUT_BOTTOM_PADDING)
-                })
-                .child(field)
+                .child(date_input_field(
+                    DateInputField {
+                        id: (self.id.clone(), "input").into(),
+                        label: "Date",
+                        selected,
+                        years: years.clone(),
+                        validate: Rc::new(move |digits| {
+                            validate_input(digits, &years, enabled.as_ref())
+                        }),
+                        on_change,
+                        autofocus: true,
+                        theme: theme.clone(),
+                    },
+                    window,
+                    cx,
+                ))
         });
 
         let mut root = div()

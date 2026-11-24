@@ -7,7 +7,10 @@
 //         `DateRangePickerHeadlinePadding`、`HeaderHeightOffset`)
 //         compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/DatePicker.kt
 //         (`WeekDays`、`Day`、`dayContentDescription`、`DatePickerColors`)
-//         compose/material3/material3/src/androidMain/res/values/strings.xml (`m3c_date_range_picker_*`)
+//         compose/material3/material3/src/commonMain/kotlin/androidx/compose/material3/DateRangeInput.kt
+//         (`DateRangeInputContent`、`TextFieldSpacing`)
+//         compose/material3/material3/src/androidMain/res/values/strings.xml
+//         (`m3c_date_range_picker_*`、`m3c_date_range_input_*`)
 //         @ 2a941dd11aabd9bb7d2016ed159764b220117c20
 // Copyright 2023 The Android Open Source Project. Licensed under the Apache License, Version 2.0.
 // トークンの値と版は md3-tokens の各ファイルにある
@@ -32,10 +35,12 @@ use md3_theme::md3_tokens::{Dp, focus_ring, state, supplement};
 use md3_theme::{SharedTheme, ThemeExt, dp};
 
 use crate::date_picker::{
-    CELL_SIZE, DEFAULT_YEAR_RANGE, HEADER_END_PADDING, HORIZONTAL_PADDING, MONTH_NAMES,
-    WEEKDAY_NAMES, long_date, short_date,
+    CELL_SIZE, DEFAULT_YEAR_RANGE, DateInputField, HEADER_END_PADDING, HORIZONTAL_PADDING,
+    INPUT_HORIZONTAL_PADDING, INPUT_TOP_PADDING, MODE_TOGGLE_PADDING, MONTH_NAMES,
+    ModeChangeHandler, WEEKDAY_NAMES, date_input_field, long_date, short_date, validate_input,
 };
 use crate::shape::Shaped;
+use crate::{DatePickerDisplayMode, IconButton, IconButtonVariant};
 
 /// タイトルと見出しの左の余白 (Compose の `DateRangePickerTitlePadding`、`DateRangePickerHeadlinePadding`)
 const HEADER_START_PADDING: Dp = Dp(64.0);
@@ -50,17 +55,28 @@ const HEADER_MIN_HEIGHT: Dp = Dp(tokens::RANGE_SELECTION_HEADER_CONTAINER_HEIGHT
 const MONTH_SUBHEAD_START_PADDING: Dp = Dp(24.0);
 const MONTH_SUBHEAD_TOP_PADDING: Dp = Dp(20.0);
 const MONTH_SUBHEAD_BOTTOM_PADDING: Dp = Dp(8.0);
+/// 始まりと終わりの日付を入れる欄の間隔 (Compose の `TextFieldSpacing`)
+const INPUT_FIELD_SPACING: Dp = Dp(8.0);
 
 type ChangeHandler = Rc<dyn Fn(&DateRange, &mut Window, &mut App)>;
 type EnabledFn = Rc<dyn Fn(&Date) -> bool>;
 
-/// MD3 の日付の範囲を選ぶデイトピッカー (Compose の `DateRangePicker` のカレンダーの表示)
+/// MD3 の日付の範囲を選ぶデイトピッカー (Compose の `DateRangePicker`)
 ///
-/// 上にタイトル Select dates と、選ばれている範囲の見出し (Start date - End date) を置き、区切り線の下に曜日の見出しと、
+/// 内容は [`DateRangePicker::display_mode`] で変わる。
+/// [`DatePickerDisplayMode::Picker`] では、上にタイトル Select dates と、選ばれている範囲の見出し (Start date - End date) を置き、区切り線の下に曜日の見出しと、
 /// [`DateRangePicker::year_range`] のすべての月を縦に並べてスクロールする一覧を置く。
 /// 月ごとに November 2026 のような見出しと、日曜日から始まる 6 週の日付を並べる。
 /// 範囲の始まりと終わりの日付を円で示し、始まりと終わりがそろうと、その間を帯で塗る。
 /// 一覧は残りの高さに広がるため、[`Styled`] で高さを指定すること。幅は 360dp
+///
+/// [`DatePickerDisplayMode::Input`] では、タイトルを Enter dates にし、区切り線の下に始まりと終わりの日付を
+/// MM/DD/YYYY の形で入れる 2 つの欄を並べる。8 桁そろった日付が選べない日付か年の範囲の外であるか、
+/// 始まりが終わりより後になると、欄の下に誤りを示し、[`DateRangePicker::on_change`] にはその側を `None` にした範囲を渡す。
+/// 誤りは欄の文字が変わったときだけ確かめ、もう一方の欄を直しても示し続ける。
+/// 終わりだけを入れた範囲も渡し、保つ (カレンダーの表示では、始まりの無い終わりは無いものとして扱う)。
+/// 表示し始めたとき、始まりの欄にフォーカスを移す。
+/// [`DateRangePicker::on_display_mode_change`] を設定すると、見出しの右に表示を切り替えるボタンを置く
 ///
 /// 選ばれている範囲は呼び出し側が持ち、[`DateRangePicker::new`] に毎回渡す。ピッカー自身は範囲を変えず、
 /// 選ぶ操作をされた後の範囲を [`DateRangePicker::on_change`] で求める。
@@ -75,7 +91,8 @@ type EnabledFn = Rc<dyn Fn(&Date) -> bool>;
 /// Start date, Today, Tuesday, November 24, 2026 のように、始まり・終わり・範囲の中 (In range) であることと、
 /// 今日であることと、曜日・月・日・年を書く。
 /// 見出しは Start date: に続けて日付 (無ければ None)、End date: に続けて日付を、変わったときに読み上げ中の内容を遮らずに知らせる。
-/// 一覧の名前は Select dates。文言は英語に固定している
+/// 一覧の名前は Select dates。日付を入れる欄の名前は Start date と End date で、プレースホルダー MM/DD/YYYY を持つ。
+/// 表示を切り替えるボタンの名前は Switch to text input mode と Switch to calendar input mode。文言は英語に固定している
 #[derive(IntoElement)]
 pub struct DateRangePicker {
     id: ElementId,
@@ -84,6 +101,8 @@ pub struct DateRangePicker {
     year_range: RangeInclusive<i32>,
     enabled: Option<EnabledFn>,
     on_change: Option<ChangeHandler>,
+    display_mode: DatePickerDisplayMode,
+    on_display_mode_change: Option<ModeChangeHandler>,
     style: StyleRefinement,
     theme: Option<SharedTheme>,
 }
@@ -101,6 +120,8 @@ impl DateRangePicker {
             year_range: DEFAULT_YEAR_RANGE,
             enabled: None,
             on_change: None,
+            display_mode: DatePickerDisplayMode::default(),
+            on_display_mode_change: None,
             style: StyleRefinement::default(),
             theme: None,
         }
@@ -139,6 +160,24 @@ impl DateRangePicker {
         self
     }
 
+    /// 内容を `mode` の表示にする。既定では [`DatePickerDisplayMode::Picker`]
+    pub fn display_mode(mut self, mode: DatePickerDisplayMode) -> Self {
+        self.display_mode = mode;
+        self
+    }
+
+    /// 表示を切り替えるボタンを置き、押されたときに `handler` に切り替え先の表示を渡す
+    ///
+    /// 表示を変えるには、`handler` で呼び出し側の状態を更新し、
+    /// 次の描画で [`DateRangePicker::display_mode`] に渡すこと。設定しない場合はボタンを置かない
+    pub fn on_display_mode_change(
+        mut self,
+        handler: impl Fn(&DatePickerDisplayMode, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_display_mode_change = Some(Rc::new(handler));
+        self
+    }
+
     /// アプリ全体のテーマ ([`ThemeExt::md3_theme`]) の代わりに `theme` で描く
     pub fn theme(mut self, theme: SharedTheme) -> Self {
         self.theme = Some(theme);
@@ -153,7 +192,7 @@ impl Styled for DateRangePicker {
 }
 
 impl RenderOnce for DateRangePicker {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = self.theme.unwrap_or_else(|| cx.md3_theme().clone());
         let first_year = (*self.year_range.start()).clamp(Date::MIN.year(), Date::MAX.year());
         let last_year = (*self.year_range.end()).clamp(first_year, Date::MAX.year());
@@ -162,7 +201,9 @@ impl RenderOnce for DateRangePicker {
             unreachable!("years are clamped to the range of Date");
         };
         let in_range = |date: &Date| (first..=last).contains(date);
-        // Compose と同じく、範囲の外の日付は選ばれていないものとして扱う
+        let input_mode = self.display_mode == DatePickerDisplayMode::Input;
+        // Compose と同じく、範囲の外の日付は選ばれていないものとして扱う。
+        // カレンダーでは始まりの無い終わりを示せないため、終わりも選ばれていないものとして扱う
         let start = self.selection.start.filter(in_range);
         let selection = DateRange {
             start,
@@ -170,7 +211,7 @@ impl RenderOnce for DateRangePicker {
                 .selection
                 .end
                 .filter(in_range)
-                .filter(|_| start.is_some()),
+                .filter(|_| start.is_some() || input_mode),
         };
         let today = self.today.filter(in_range);
 
@@ -180,7 +221,14 @@ impl RenderOnce for DateRangePicker {
         let mut title = div()
             .pl(dp(HEADER_START_PADDING))
             .pr(dp(HEADER_END_PADDING))
-            .child(gpui::text!(id = (self.id.clone(), "title"), "Select dates"));
+            .child(gpui::text!(
+                id = (self.id.clone(), "title"),
+                if input_mode {
+                    "Enter dates"
+                } else {
+                    "Select dates"
+                }
+            ));
         title.text_style().refine(&title_font);
         let mut headline_font = theme.text_style(tokens::RANGE_SELECTION_HEADER_HEADLINE_FONT);
         headline_font.color = Some(theme.color(tokens::HEADER_HEADLINE_COLOR));
@@ -195,6 +243,7 @@ impl RenderOnce for DateRangePicker {
         )
         .live(true)
         .flex()
+        .flex_1()
         .items_center()
         .min_w_0()
         .gap(dp(HEADLINE_SPACING))
@@ -214,7 +263,101 @@ impl RenderOnce for DateRangePicker {
             .justify_between()
             .min_h(dp(HEADER_MIN_HEIGHT))
             .child(title)
-            .child(headline);
+            .child(div().flex().items_center().child(headline).when_some(
+                self.on_display_mode_change,
+                |this, handler| {
+                    let (icon, label, target) = if input_mode {
+                        (
+                            md3_icons::DATE_RANGE,
+                            "Switch to calendar input mode",
+                            DatePickerDisplayMode::Picker,
+                        )
+                    } else {
+                        (
+                            md3_icons::EDIT,
+                            "Switch to text input mode",
+                            DatePickerDisplayMode::Input,
+                        )
+                    };
+                    this.child(
+                        div()
+                            .flex_none()
+                            .mr(dp(MODE_TOGGLE_PADDING))
+                            .mb(dp(MODE_TOGGLE_PADDING))
+                            .child(
+                                IconButton::new((self.id.clone(), "mode-toggle"), icon, label)
+                                    .variant(IconButtonVariant::Standard)
+                                    .on_click(move |_, window, cx| handler(&target, window, cx))
+                                    .theme(theme.clone()),
+                            ),
+                    )
+                },
+            ));
+
+        // 始まりと終わりの日付を入れる欄。どちらも、もう一方より前後が逆になる日付を誤りとする
+        let input =
+            input_mode.then(|| {
+                let years = first_year..=last_year;
+                let field =
+                    |end: bool, window: &mut Window, cx: &mut App| {
+                        let (label, selected, other) = if end {
+                            ("End date", selection.end, selection.start)
+                        } else {
+                            ("Start date", selection.start, selection.end)
+                        };
+                        let enabled = self.enabled.clone();
+                        let validate_years = years.clone();
+                        let on_change = self.on_change.clone();
+                        date_input_field(
+                    DateInputField {
+                        id: (self.id.clone(), if end { "end-input" } else { "start-input" })
+                            .into(),
+                        label,
+                        selected,
+                        years: years.clone(),
+                        validate: Rc::new(move |digits| {
+                            let date = validate_input(digits, &validate_years, enabled.as_ref())?;
+                            match other {
+                                Some(other) if (end && date < other) || (!end && date > other) => {
+                                    Err("Invalid date range input".to_owned())
+                                }
+                                _ => Ok(date),
+                            }
+                        }),
+                        on_change: on_change.map(|on_change| {
+                            Rc::new(move |date: &Option<Date>, window: &mut Window, cx: &mut App| {
+                                let range = if end {
+                                    DateRange {
+                                        start: selection.start,
+                                        end: *date,
+                                    }
+                                } else {
+                                    DateRange {
+                                        start: *date,
+                                        end: selection.end,
+                                    }
+                                };
+                                on_change(&range, window, cx)
+                            })
+                                as crate::date_picker::ChangeHandler
+                        }),
+                        autofocus: !end,
+                        theme: theme.clone(),
+                    },
+                    window,
+                    cx,
+                )
+                .flex_1()
+                .min_w_0()
+                    };
+                div()
+                    .flex()
+                    .gap(dp(INPUT_FIELD_SPACING))
+                    .px(dp(INPUT_HORIZONTAL_PADDING))
+                    .pt(dp(INPUT_TOP_PADDING))
+                    .child(field(false, window, cx))
+                    .child(field(true, window, cx))
+            });
 
         // 曜日の見出し
         let mut weekday_font = theme.text_style(tokens::WEEKDAYS_LABEL_TEXT_FONT);
@@ -452,8 +595,8 @@ impl RenderOnce for DateRangePicker {
                     .h(dp(divider::THICKNESS))
                     .bg(theme.color(divider::COLOR)),
             )
-            .child(weekdays)
-            .child(calendar);
+            .when(!input_mode, |this| this.child(weekdays).child(calendar))
+            .children(input);
         root.style().refine(&self.style);
         root
     }
@@ -475,6 +618,7 @@ mod tests {
     /// (0, 0) に高さ 520 のピッカーを置くビュー
     struct RangeView {
         selection: DateRange,
+        mode: DatePickerDisplayMode,
         changes: Rc<RefCell<Vec<DateRange>>>,
     }
 
@@ -489,6 +633,13 @@ mod tests {
                         this.selection = *range;
                         cx.notify();
                     }))
+                    .display_mode(self.mode)
+                    .on_display_mode_change(cx.listener(
+                        |this, mode: &DatePickerDisplayMode, _, cx| {
+                            this.mode = *mode;
+                            cx.notify();
+                        },
+                    ))
                     .h(px(520.)),
             )
         }
@@ -503,6 +654,7 @@ mod tests {
             cx.init_md3_theme(window);
             RangeView {
                 selection,
+                mode: DatePickerDisplayMode::Picker,
                 changes: Rc::default(),
             }
         });
@@ -582,6 +734,144 @@ mod tests {
                 start: Some(date(2026, 11, 10)),
                 end: Some(date(2026, 11, 20)),
             }]
+        );
+    }
+
+    fn field_text(cx: &mut VisualTestContext) -> String {
+        if cfg!(target_os = "macos") {
+            cx.simulate_keystrokes("cmd-a cmd-c");
+        } else {
+            cx.simulate_keystrokes("ctrl-a ctrl-c");
+        }
+        cx.read_from_clipboard()
+            .and_then(|item| item.text())
+            .unwrap_or_default()
+    }
+
+    fn type_text(cx: &mut VisualTestContext, text: &str) {
+        for c in text.chars() {
+            cx.simulate_input(&c.to_string());
+        }
+    }
+
+    fn last_change(
+        view: &gpui::Entity<RangeView>,
+        cx: &mut VisualTestContext,
+    ) -> Option<DateRange> {
+        view.read_with(cx, |view, _| view.changes.borrow().last().copied())
+    }
+
+    #[gpui::test]
+    fn 表示を切り替えると始まりの欄に選ばれている日付を入れてフォーカスを移す(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(
+            cx,
+            DateRange {
+                start: Some(date(2026, 11, 10)),
+                end: Some(date(2026, 11, 20)),
+            },
+        );
+        // 高さ 20 のタイトルの下の行の右端の、右と下に 12 の余白を空けた 48 のボタン
+        cx.simulate_click(point(px(324.), px(44.)), Modifiers::none());
+        assert_eq!(
+            view.read_with(cx, |view, _| view.mode),
+            DatePickerDisplayMode::Input
+        );
+        assert_eq!(field_text(cx), "11/10/2026");
+        cx.simulate_keystrokes("tab");
+        assert_eq!(field_text(cx), "11/20/2026");
+    }
+
+    #[gpui::test]
+    fn 欄に入れた日付で範囲を求め_前後が逆なら終わりを_none_にする(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, DateRange::default());
+        view.update(cx, |view, cx| {
+            view.mode = DatePickerDisplayMode::Input;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        type_text(cx, "11102026");
+        assert_eq!(
+            last_change(&view, cx),
+            Some(DateRange {
+                start: Some(date(2026, 11, 10)),
+                end: None,
+            })
+        );
+        cx.simulate_keystrokes("tab");
+        type_text(cx, "11052026");
+        assert_eq!(
+            last_change(&view, cx),
+            Some(DateRange {
+                start: Some(date(2026, 11, 10)),
+                end: None,
+            }),
+            "始まりより前の終わりは選ばないこと"
+        );
+        cx.simulate_keystrokes("backspace");
+        type_text(cx, "7");
+        assert_eq!(
+            last_change(&view, cx),
+            Some(DateRange {
+                start: Some(date(2026, 11, 10)),
+                end: Some(date(2027, 11, 5)),
+            })
+        );
+    }
+
+    #[gpui::test]
+    fn 始まりの無い終わりも文字の入力の表示では保つ(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, DateRange::default());
+        view.update(cx, |view, cx| {
+            view.mode = DatePickerDisplayMode::Input;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        cx.simulate_keystrokes("tab");
+        type_text(cx, "11052026");
+        assert_eq!(
+            last_change(&view, cx),
+            Some(DateRange {
+                start: None,
+                end: Some(date(2026, 11, 5)),
+            })
+        );
+        assert_eq!(field_text(cx), "11/05/2026");
+    }
+
+    #[gpui::test]
+    fn 前後が逆の誤りはもう一方の欄を直しても示し続ける(
+        cx: &mut TestAppContext,
+    ) {
+        let (view, cx) = setup(cx, DateRange::default());
+        view.update(cx, |view, cx| {
+            view.mode = DatePickerDisplayMode::Input;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        type_text(cx, "11102026");
+        cx.simulate_keystrokes("tab");
+        type_text(cx, "11052026");
+        // 始まりを終わりより前に直しても、終わりの欄は誤りのまま選ばない
+        cx.simulate_keystrokes(
+            "shift-tab backspace backspace backspace backspace backspace backspace",
+        );
+        type_text(cx, "012026");
+        assert_eq!(
+            last_change(&view, cx),
+            Some(DateRange {
+                start: Some(date(2026, 11, 1)),
+                end: None,
+            })
+        );
+        // 誤りの文は debug ビルドでだけ探せる
+        #[cfg(debug_assertions)]
+        assert!(
+            cx.debug_bounds("md3-field-supporting-text").is_some(),
+            "終わりの欄の誤りを示し続けること"
         );
     }
 }
