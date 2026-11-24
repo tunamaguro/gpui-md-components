@@ -264,7 +264,7 @@ impl RenderOnce for SearchView {
                     }
                 }
             })
-            .child(div().relative().child(bar).child(record));
+            .child(div().relative().w_full().child(bar).child(record));
         root.style().refine(&self.style);
 
         let dismiss = request.clone();
