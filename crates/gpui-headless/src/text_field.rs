@@ -188,7 +188,7 @@ pub struct TextField {
 impl TextField {
     /// `value` を表示するテキストフィールドを作る
     ///
-    /// `value` の改行は空白として描く。
+    /// `value` の改行は空白として描く。最初に描いたときは、カーソルを `value` の末尾に置く。
     /// `id` は同じ親の中で一意にし、描画のたびに同じ値を渡すこと。`id` が変わるか 1 フレームでも描画されないと、
     /// カーソルと選択が失われる。[`TextField::track_focus`] を指定しない場合はフォーカスも外れる
     pub fn new(id: impl Into<ElementId>, value: impl Into<SharedString>) -> Self {
@@ -354,8 +354,14 @@ impl RenderOnce for TextField {
         let on_change = self.on_change.filter(|_| !disabled && !self.read_only);
         let editable = on_change.is_some();
 
+        // 最初の描画では、カーソルを文字列の末尾に置く
+        let initial_end = self.value.len();
         let state = window.use_keyed_state(self.id.clone(), cx, |_, _| EditState {
-            model: EditModel::default(),
+            model: EditModel {
+                text: self.value.to_string(),
+                selection: initial_end..initial_end,
+                ..EditModel::default()
+            },
             focus_handle: focus_handle.clone(),
             on_change: None,
             before_edit: None,
@@ -1856,6 +1862,14 @@ mod tests {
             modifiers: Modifiers::none(),
             click_count: 1,
         });
+    }
+
+    #[gpui::test]
+    fn 最初に描いたときはカーソルを末尾に置く(cx: &mut TestAppContext) {
+        let (view, cx) = setup(cx, "ab");
+        focus(cx);
+        cx.simulate_input("c");
+        assert_eq!(value(&view, cx), "abc");
     }
 
     #[gpui::test]

@@ -48,6 +48,7 @@ default = [
   "progress-indicator",
   "radio-button",
   "search-bar",
+  "search-view",
   "segmented-button",
   "select",
   "slider",
@@ -96,6 +97,8 @@ navigation-rail = []
 progress-indicator = []
 radio-button = []
 search-bar = []
+# 戻るボタンにアイコンボタンを、閉じている間の表示に検索バーを使う
+search-view = ["search-bar", "icon-button"]
 segmented-button = []
 select = []
 slider = []
